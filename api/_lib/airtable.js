@@ -60,19 +60,21 @@ async function airtable(method, tableId, params = {}) {
   switch (method) {
     case 'list': {
       // Listing — alle params landen in der Query (filterByFormula, sort, fields, maxRecords, pageSize, offset, view ...)
-      const query = buildQuery(params);
+      // returnFieldsByFieldId=true: damit record.fields[FIELD_ID] funktioniert (statt Field-Namen).
+      const p = { returnFieldsByFieldId: true, ...params };
+      const query = buildQuery(p);
       url = baseUrl + query;
       options = { method: 'GET', headers };
       break;
     }
     case 'get': {
       if (!params.recordId) throw new Error('recordId fehlt');
-      url = `${baseUrl}/${params.recordId}`;
+      url = `${baseUrl}/${params.recordId}?returnFieldsByFieldId=true`;
       options = { method: 'GET', headers };
       break;
     }
     case 'create': {
-      url = baseUrl;
+      url = baseUrl + '?returnFieldsByFieldId=true';
       options = {
         method: 'POST',
         headers,
@@ -85,7 +87,7 @@ async function airtable(method, tableId, params = {}) {
     }
     case 'update': {
       if (!params.recordId) throw new Error('recordId fehlt');
-      url = `${baseUrl}/${params.recordId}`;
+      url = `${baseUrl}/${params.recordId}?returnFieldsByFieldId=true`;
       options = {
         method: 'PATCH',
         headers,
