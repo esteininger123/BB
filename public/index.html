@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B&B Kalkulator</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+
+<!-- Chart.js (wie V1) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+<!-- Header (wird beim Login ausgeblendet) -->
+<header id="app-header" class="header hidden">
+  <div class="logo">B&amp;B <span class="accent">Kalkulator</span></div>
+  <div id="user-menu" class="user-menu"></div>
+</header>
+
+<!-- Single-Page App-Root -->
+<main id="app"></main>
+
+<!-- Toast-Container -->
+<div id="toast-container"></div>
+
+<!-- Hidden PDF-Template (von pdf.js befüllt) -->
+<div id="pdf-template" class="pdf-template"></div>
+
+<!-- JS -->
+<script src="/api.js"></script>
+<script src="/kalkulator.js"></script>
+<script src="/pdf.js"></script>
+<script src="/app.js"></script>
+
+<!-- Google Sign-In Callback (global) -->
+<script>
+  function handleGoogleResponse(response) {
+    if (window.__onGoogleAuth) window.__onGoogleAuth(response);
+  }
+</script>
+</body>
+</html>

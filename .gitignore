@@ -1,0 +1,11 @@
+node_modules/
+.vercel/
+.env
+.env.local
+.env.*.local
+.env-secrets.txt
+.jwt-secret.txt
+.DS_Store
+*.log
+public/test.txt
+zzz_test_*.txt

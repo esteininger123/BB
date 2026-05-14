@@ -1,0 +1,515 @@
+/* styles.css — B&B Branding (Cream/Bronze, identisch zu V1) */
+
+:root {
+  --bg-primary:    #FBFAF7;
+  --bg-card:       #FFFFFF;
+  --bg-section:    #F4F3EE;
+  --bg-cream:      #E8E6DD;
+  --bg-input:      #EDE4D0;
+
+  --text-primary:  #1A1A17;
+  --text-secondary:#3A3A35;
+  --text-tertiary: #7A7A72;
+
+  --accent:        #B08A4D;
+  --accent-light:  #C9A572;
+  --accent-dark:   #8E6E3D;
+
+  --positive:      #2D6E47;
+  --positive-bg:   #DDE9E0;
+  --negative:      #9A3E33;
+  --negative-bg:   #ECD6D2;
+
+  --border:        #E8E6DD;
+  --border-strong: #B08A4D;
+
+  --radius: 8px;
+  --radius-sm: 4px;
+  --shadow-card: 0 1px 3px rgba(26,26,23,0.06), 0 1px 2px rgba(26,26,23,0.04);
+  --shadow-card-hover: 0 4px 12px rgba(26,26,23,0.08), 0 2px 4px rgba(26,26,23,0.04);
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent-dark); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.15s ease;
+}
+button:hover { background: var(--accent-dark); }
+button:disabled { background: var(--text-tertiary); cursor: not-allowed; }
+button.secondary {
+  background: var(--bg-cream); color: var(--text-primary);
+}
+button.secondary:hover { background: var(--bg-input); }
+button.danger { background: var(--negative); }
+button.danger:hover { background: #7d3025; }
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  width: 100%;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+textarea { min-height: 80px; resize: vertical; }
+
+label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ============================== HEADER ============================== */
+.header {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(251,250,247,0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.logo {
+  font-size: 18px; font-weight: 700;
+  letter-spacing: -0.3px;
+  display: flex; align-items: center; gap: 8px;
+}
+.logo .accent { color: var(--accent); }
+.user-menu {
+  display: flex; align-items: center; gap: 12px;
+}
+.user-menu .user-name {
+  font-size: 14px; font-weight: 500;
+  color: var(--text-secondary);
+}
+.user-menu .avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--bg-cream);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; color: var(--accent-dark);
+  font-size: 13px;
+}
+
+/* ============================== MAIN ============================== */
+.main {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+.page-title {
+  font-size: 28px; font-weight: 700;
+  margin: 0 0 8px;
+  letter-spacing: -0.5px;
+}
+.page-subtitle {
+  color: var(--text-tertiary);
+  margin: 0 0 24px;
+}
+.toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.breadcrumb {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+}
+.breadcrumb a { color: var(--text-tertiary); }
+.breadcrumb a:hover { color: var(--accent-dark); }
+
+/* ============================== CARDS / GRID ============================== */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow-card);
+}
+.card + .card { margin-top: 16px; }
+.card-title {
+  font-size: 15px; font-weight: 600;
+  margin: 0 0 16px;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+@media (max-width: 800px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+}
+
+/* ============================== KPI ============================== */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+@media (max-width: 1000px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 500px) { .kpi-grid { grid-template-columns: 1fr; } }
+.kpi {
+  background: var(--bg-cream);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  border-left: 4px solid var(--accent);
+}
+.kpi .label {
+  font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.6px; color: var(--text-secondary);
+  font-weight: 600; margin-bottom: 4px;
+}
+.kpi .value {
+  font-size: 22px; font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.kpi .sub {
+  font-size: 12px; color: var(--text-tertiary);
+  margin-top: 2px;
+}
+.kpi.positive { border-left-color: var(--positive); }
+.kpi.positive .value { color: var(--positive); }
+.kpi.negative { border-left-color: var(--negative); }
+.kpi.negative .value { color: var(--negative); }
+
+/* ============================== TABLES ============================== */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.table th, .table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.table th {
+  font-weight: 600;
+  font-size: 12px; text-transform: uppercase;
+  color: var(--text-secondary);
+  letter-spacing: 0.4px;
+}
+.table tbody tr {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.table tbody tr:hover { background: var(--bg-section); }
+.table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.table td.pos { color: var(--positive); font-weight: 600; }
+.table td.neg { color: var(--negative); font-weight: 600; }
+
+/* ============================== BADGES (Phase) ============================== */
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+  background: var(--bg-cream); color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.4px;
+}
+.badge.lead { background: #EDE4D0; color: #6B5B30; }
+.badge.kalkulation { background: #D8E1EC; color: #2E4A6E; }
+.badge.reservierung { background: #E8D8B5; color: #6F4E1E; }
+.badge.selbstauskunft { background: #E8D8B5; color: #6F4E1E; }
+.badge.bank { background: #E8D8B5; color: #6F4E1E; }
+.badge.notar { background: var(--positive-bg); color: var(--positive); }
+.badge.beurkundet { background: var(--positive-bg); color: var(--positive); }
+.badge.abgebrochen { background: var(--negative-bg); color: var(--negative); }
+
+/* ============================== TABS ============================== */
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+.tab {
+  padding: 10px 18px;
+  background: transparent;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.tab:hover { background: var(--bg-section); color: var(--text-primary); }
+.tab.active {
+  color: var(--accent-dark);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+  background: transparent;
+}
+
+/* ============================== LOGIN ============================== */
+.login-screen {
+  min-height: calc(100vh - 80px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.login-box {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 40px 32px;
+  text-align: center;
+  box-shadow: var(--shadow-card);
+}
+.login-box .brand {
+  font-size: 24px; font-weight: 700;
+  margin-bottom: 8px;
+}
+.login-box .brand .accent { color: var(--accent); }
+.login-box .tagline {
+  color: var(--text-tertiary);
+  font-size: 14px;
+  margin-bottom: 28px;
+}
+.login-box .gbtn-wrap {
+  display: flex; justify-content: center;
+  margin: 24px 0;
+}
+.login-box .footer-note {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+/* ============================== FORM SECTIONS ============================== */
+.section { margin-bottom: 24px; }
+.section-title {
+  font-size: 13px; font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-secondary);
+  margin: 0 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ============================== CHARTS ============================== */
+.chart-container {
+  position: relative;
+  height: 280px;
+  margin-top: 12px;
+}
+
+/* ============================== UTILS ============================== */
+.flex { display: flex; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.gap-8 { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+.mt-8 { margin-top: 8px; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-16 { margin-bottom: 16px; }
+.text-tertiary { color: var(--text-tertiary); }
+.text-small { font-size: 12px; }
+.hidden { display: none !important; }
+
+.empty-state {
+  text-align: center;
+  padding: 60px 24px;
+  color: var(--text-tertiary);
+}
+
+.error-banner {
+  background: var(--negative-bg);
+  color: var(--negative);
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.success-banner {
+  background: var(--positive-bg);
+  color: var(--positive);
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ============================== TOAST ============================== */
+.toast {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  z-index: 200;
+  background: var(--text-primary);
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  box-shadow: var(--shadow-card-hover);
+  animation: slidein 0.2s ease;
+}
+@keyframes slidein {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* ============================== MOBILE ============================== */
+@media (max-width: 600px) {
+  .main { padding: 20px 14px; }
+  .header { padding: 10px 14px; }
+  .card { padding: 14px; }
+  .page-title { font-size: 22px; }
+  .kpi .value { font-size: 18px; }
+  .user-menu .user-name { display: none; }
+}
+
+/* ============================== PDF PRINT ============================== */
+#pdf-template { display: none; }
+
+@media print {
+  /* Im PDF-Modus alles ausblenden außer #pdf-template */
+  body.pdf-mode .header,
+  body.pdf-mode .main,
+  body.pdf-mode .login-screen,
+  body.pdf-mode .toast,
+  body.pdf-mode #app { display: none !important; }
+  body.pdf-mode #pdf-template { display: block !important; }
+
+  @page { size: A4; margin: 14mm 12mm 18mm 12mm; }
+  body { background: #fff !important; }
+
+  .pdf-page {
+    page-break-after: always;
+    min-height: 245mm;
+    position: relative;
+  }
+  .pdf-page:last-child { page-break-after: auto; }
+
+  .pdf-footer {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    padding: 8px 14mm;
+    border-top: 1px solid var(--border);
+    font-size: 9px;
+    color: var(--text-tertiary);
+    display: flex; justify-content: space-between;
+    background: #fff;
+  }
+}
+
+/* PDF-Template Styling (auch ausserhalb print sichtbar wenn nötig) */
+.pdf-template {
+  font-family: 'Inter', sans-serif;
+  background: #fff;
+  color: var(--text-primary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.pdf-template h1 {
+  font-size: 26px; font-weight: 700;
+  margin: 0 0 8px;
+  letter-spacing: -0.5px;
+}
+.pdf-template h2 {
+  font-size: 16px; font-weight: 700;
+  margin: 16px 0 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+.pdf-template h3 {
+  font-size: 13px; font-weight: 600;
+  margin: 12px 0 6px;
+  color: var(--accent-dark);
+}
+.pdf-template .pdf-cover {
+  text-align: center;
+  padding: 30mm 0 0;
+}
+.pdf-template .pdf-cover .brand {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+  margin-bottom: 30mm;
+}
+.pdf-template .pdf-cover .brand .accent { color: var(--accent); }
+.pdf-template .kpi-grid-pdf {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 12px 0;
+}
+.pdf-template .kpi-pdf {
+  background: var(--bg-cream);
+  padding: 10px;
+  border-radius: 4px;
+  border-left: 3px solid var(--accent);
+}
+.pdf-template .kpi-pdf .label {
+  font-size: 9px; text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 3px;
+}
+.pdf-template .kpi-pdf .value {
+  font-size: 16px;
+  font-weight: 700;
+}
+.pdf-template table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+.pdf-template table th,
+.pdf-template table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.pdf-template table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.pdf-template .pdf-disclaimer {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  margin-top: 14px;
+  padding: 10px;
+  background: var(--bg-section);
+  border-radius: 4px;
+}
