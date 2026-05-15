@@ -258,7 +258,7 @@ function renderDashboard() {
       </div>
 
       <div class="kpi-grid">
-        ${['Lead','Kalkulation läuft','Reservierung','Notar-Termin','Beurkundet'].map(p => `
+        ${['Lead','Kalkulation läuft','Reservierung','Selbstauskunft','Bank-Einreichung','Notar-Termin','Beurkundet'].map(p => `
           <div class="kpi">
             <div class="label">${esc(p)}</div>
             <div class="value">${counts[p] || 0}</div>
@@ -552,7 +552,7 @@ function renderTabKalkulator() {
               <option value="${esc(p)}" ${aktivesProjekt === p ? 'selected' : ''}>${esc(p)} (${wesByProjekt[p].length} WE)</option>
             `).join('')}
           </select>
-          <div class="text-tertiary text-small mt-4">${projektNames.length} Objekt${projektNames.length === 1 ? '' : 'e'} in Vermarktung</div>
+          <div class="text-tertiary text-small mt-4">${projektNames.length} Projekt${projektNames.length === 1 ? '' : 'e'} in Vermarktung</div>
         </div>
         <div>
           ${isPaket ? `
@@ -571,7 +571,7 @@ function renderTabKalkulator() {
                 <option value="${esc(w.id)}" ${i._weId === w.id ? 'selected' : ''}>${esc(weLabel(w))}</option>
               `).join('')}
             </select>
-            ${i._weLage ? `<div class="text-tertiary text-small mt-4">Aktiv: ${esc(i._weLage)}</div>` : ''}
+            ${i._weId ? `<div class="text-tertiary text-small mt-4">Aktiv: ${esc(i._weNr ? 'WE ' + i._weNr + ' · ' : '')}${esc(i._weLage || '')}</div>` : ''}
           `}
         </div>
         <div>
@@ -587,45 +587,56 @@ function renderTabKalkulator() {
       </div>
     </div>
 
+    ${(!isPaket && !i._weId) ? `
     <div class="card mt-16">
-      <div class="card-title">${isPaket ? 'Persönliche Eingaben (für das Paket)' : 'Eingaben'}</div>
+      <div class="empty-state" style="padding: 24px; text-align: center;">
+        <p style="font-size:15px; margin: 0 0 6px 0; color: var(--text-secondary);"><strong>Erst Projekt &amp; Wohneinheit oben wählen</strong></p>
+        <p class="text-tertiary text-small" style="margin: 0;">Alle Eingabewerte (Kaufpreis, qm, Miete, Hausgeld, AfA, Subvention) laden sich dann automatisch aus den hinterlegten Vorlagen.</p>
+      </div>
+    </div>
+    ` : `
+    <div class="card mt-16">
+      <div class="card-title">${isPaket ? 'Persönliche Eingaben (für das Paket)' : 'Eingaben — ' + esc((i._weNr ? 'WE ' + i._weNr + ' · ' : '') + (i._weLage || ''))}</div>
       <div class="kalk-section-grid">
         ${isPaket ? kalkInputsPaketHtml(i) : kalkInputsThemenHtml(i)}
       </div>
     </div>
+    `}
 
-    <div class="kpi-grid mt-16" id="kpi-grid"></div>
+    ${(!isPaket && !i._weId) ? '' : `
+      <div class="kpi-grid mt-16" id="kpi-grid"></div>
 
-    <div class="card mt-16" id="bon-card">
-      <!-- Bonitäts-Anzeige (wird in recalcAndRender gefüllt) -->
-    </div>
-
-    <div class="grid-2 mt-16">
-      <div class="card">
-        <div class="card-title">Vermögensaufbau netto (10 J)</div>
-        <div class="text-tertiary text-small">Wert minus Restschuld minus eingesetztes EK plus kumulierter Cashflow.</div>
-        <div class="chart-container"><canvas id="chart-vermoegen"></canvas></div>
+      <div class="card mt-16" id="bon-card">
+        <!-- Bonitäts-Anzeige (wird in recalcAndRender gefüllt) -->
       </div>
-      <div class="card">
-        <div class="card-title">Cashflow (30 J)</div>
-        <div class="text-tertiary text-small">Jahres-Cashflow nach Steuern. Negative Jahre = Eigenleistung.</div>
-        <div class="chart-container"><canvas id="chart-cashflow"></canvas></div>
+
+      <div class="grid-2 mt-16">
+        <div class="card">
+          <div class="card-title">Vermögensaufbau netto (10 J)</div>
+          <div class="text-tertiary text-small">Wert minus Restschuld minus eingesetztes EK plus kumulierter Cashflow.</div>
+          <div class="chart-container"><canvas id="chart-vermoegen"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Cashflow (30 J)</div>
+          <div class="text-tertiary text-small">Jahres-Cashflow nach Steuern. Negative Jahre = Eigenleistung.</div>
+          <div class="chart-container"><canvas id="chart-cashflow"></canvas></div>
+        </div>
       </div>
-    </div>
-    <div class="card mt-16">
-      <div class="card-title">Sparen vs. Investieren (10 J)</div>
-      <div class="text-tertiary text-small">Nur sparen mit Tagesgeldzins vs. Immobilien-Investment inkl. CF.</div>
-      <div class="chart-container"><canvas id="chart-sparen"></canvas></div>
-    </div>
+      <div class="card mt-16">
+        <div class="card-title">Sparen vs. Investieren (10 J)</div>
+        <div class="text-tertiary text-small">Nur sparen mit Tagesgeldzins vs. Immobilien-Investment inkl. CF.</div>
+        <div class="chart-container"><canvas id="chart-sparen"></canvas></div>
+      </div>
 
-    <!-- Story-Sektionen (Vertriebs-Erzählung) -->
-    <div class="stories mt-16" id="story-container"></div>
+      <!-- Story-Sektionen (Vertriebs-Erzählung) -->
+      <div class="stories mt-16" id="story-container"></div>
 
-    <div class="toolbar mt-16">
-      <button onclick="saveSnapshot()">Snapshot speichern</button>
-      <button class="secondary" onclick="exportInvestPdf()">PDF Investitionsrechnung</button>
-      <button class="secondary" onclick="exportReservPdf()">PDF Reservierung</button>
-    </div>
+      <div class="toolbar mt-16">
+        <button onclick="saveSnapshot()">Snapshot speichern</button>
+        <button class="secondary" onclick="exportInvestPdf()">PDF Investitionsrechnung</button>
+        <button class="secondary" onclick="exportReservPdf()">PDF Reservierung</button>
+      </div>
+    `}
   `;
 
   // Listeners
@@ -711,7 +722,7 @@ function kalkInputsPaketHtml(i) {
   const isQuick = !i.bonModus || i.bonModus === 'quick';
   return `
     <details class="kalk-section" open>
-      <summary>Marktpreis &amp; Wertentwicklung</summary>
+      <summary>1 · Marktpreis &amp; Wertentwicklung</summary>
       <div class="grid-1">
         ${sliderEur('Marktpreis €/qm (0 = aus)', 'marktwertProQm', 0, 8000, 50, '€/qm')}
         ${slider('Wertsteigerung p.a.', 'wertsteigerung', 0, 6, 0.25)}
@@ -721,7 +732,7 @@ function kalkInputsPaketHtml(i) {
       </div>
     </details>
     <details class="kalk-section" open>
-      <summary>Finanzierung</summary>
+      <summary>2 · Finanzierung</summary>
       <div class="grid-1">
         ${slider('Zinssatz', 'zins', 2, 8, 0.05)}
         ${slider('Anfängliche Tilgung', 'tilgung', 0.5, 5, 0.25)}
@@ -731,14 +742,14 @@ function kalkInputsPaketHtml(i) {
       </div>
     </details>
     <details class="kalk-section" open>
-      <summary>Steuer</summary>
+      <summary>3 · Steuer</summary>
       <div class="grid-1">
         ${slider('Persönlicher Steuersatz', 'steuersatz', 25, 50, 1)}
       </div>
     </details>
     ${isQuick ? `
     <details class="kalk-section" open>
-      <summary>Bonität (Quick)</summary>
+      <summary>4 · Bonität (Quick)</summary>
       <div class="grid-1">
         ${sliderEur('Monatliche Einnahmen', 'bonEinnahmen', 1500, 30000, 100, '€/Mo')}
         ${sliderEur('Monatliche Ausgaben', 'bonAusgaben', 800, 15000, 50, '€/Mo')}
@@ -847,7 +858,7 @@ function kalkInputsThemenHtml(i) {
     </div>
 
     <details class="kalk-section" open>
-      <summary>6 · Finanzierung</summary>
+      <summary>5 · Finanzierung</summary>
       <div class="grid-1">
         ${slider('Zinssatz', 'zins', 2, 8, 0.05)}
         ${slider('Anfängliche Tilgung', 'tilgung', 0.5, 5, 0.25)}
@@ -859,7 +870,7 @@ function kalkInputsThemenHtml(i) {
 
     ${isQuick ? `
     <details class="kalk-section" open>
-      <summary>7 · Persönliche Bonität (Quick)</summary>
+      <summary>6 · Persönliche Bonität (Quick)</summary>
       <div class="text-tertiary text-small mb-12">Direkt eingeben. Für Banken: Selbstauskunft-Tab + Bonität auf "Detail".</div>
       <div class="grid-1">
         ${sliderEur('Monatliche Einnahmen', 'bonEinnahmen', 1500, 20000, 100, '€/Mo')}
@@ -1159,6 +1170,15 @@ function renderStories(r) {
       ${body}
     </div>`;
 
+  // Hint-Story falls Marktwert nicht gesetzt — animiert User dazu, ihn auszufüllen.
+  const markteinkaufHint = (marktQm <= 0) ? `
+    <div class="story-card" style="border:1px dashed var(--border); background: var(--bg-cream-subtle, #fafaf6);">
+      <div class="story-tag">01 — Markteinkauf</div>
+      <h3 class="story-h">Verkaufsargument fehlt — Marktpreis setzen</h3>
+      <p class="story-explain">Sobald du in den Stammdaten (bzw. im Paket-Modus oben) einen <strong>Marktpreis €/qm</strong> &gt; 0 einträgst, erscheint hier die „Eingekauft unter Marktpreis"-Story mit Markteinkauf-Vorteil ab Tag 1.</p>
+    </div>
+  ` : '';
+
   const markteinkauf = (marktQm > 0) ? story('01 — Markteinkauf', 'Eingekauft unter Marktpreis', `
     <div class="story-grid">
       <table class="story-table">
@@ -1274,11 +1294,13 @@ function renderStories(r) {
     </div>
   `);
 
-  el.innerHTML = markteinkauf + cashflowHeute + steuervorteil + dreiHebel + exit10 + bonStory + sparenStory;
+  el.innerHTML = (markteinkauf || markteinkaufHint) + cashflowHeute + steuervorteil + dreiHebel + exit10 + bonStory + sparenStory;
 }
 
 function drawCharts(r) {
   if (!window.Chart) return;
+  // Defensiv: wenn Charts-Container noch nicht im DOM (z.B. vor WE-Auswahl), nicht zeichnen.
+  if (!document.getElementById('chart-vermoegen')) return;
   const years = r.vermoegen.map(v => 'J' + v.y);
   const verm = r.vermoegen.map(v => Math.round(v.vermoegenNetto));
   const cfYears = r.cf.map(c => 'J' + c.y);

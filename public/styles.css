@@ -517,9 +517,11 @@ label {
 /* ============================== KPI-Info-Buttons + Story-Sektionen ============================== */
 .kpi .label {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 6px;
+  min-height: 28px;     /* Konstante Höhe — 2-zeilige Labels überschreiben das natürlich */
+  line-height: 1.2;
 }
 .kpi-info {
   display: inline-flex;

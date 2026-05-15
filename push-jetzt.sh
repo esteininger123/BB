@@ -22,7 +22,7 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 37 — Marktpreis €/qm im Paket-Modus (überschreibt Per-WE-Werte), KPI Markteinkauf-Vorteil aggregiert
+git commit -m "Iter 38 — Feinschliff Runde 1: Projekte-Label, Empty-State vor WE-Wahl, Sektion-Nummerierung konsistent, Dashboard-Phasen, KPI-Label-Höhe, Story-01-Hint
 
 - Iter 15 (Stabilisierung):
   * airtable.js: normalizeAirtableResponse — Single-Select-Objekte zu name-Strings reduziert.
