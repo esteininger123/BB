@@ -121,7 +121,57 @@ async function airtable(method, tableId, params = {}) {
   }
 
   if (res.status === 204) return { ok: true };
-  return res.json();
+  const data = await res.json();
+  return normalizeAirtableResponse(data);
+}
+
+// Single-Select-Felder kommen aus Airtable als {id, name, color}-Objekt
+// und Multi-Select als Array davon zurück. Wir reduzieren das auf den
+// .name-String, damit Vergleiche im Backend (z.B. session.rolle === 'Admin')
+// und die JSON-API stabil bleiben. Linked-Records (Arrays von rec-IDs) bleiben
+// unverändert, weil ihre String-IDs nicht mit 'sel' beginnen.
+function unwrapSelectValue(v) {
+  if (v === null || v === undefined) return v;
+  if (Array.isArray(v)) {
+    return v.map(item => {
+      if (
+        item && typeof item === 'object' &&
+        typeof item.name === 'string' &&
+        typeof item.id === 'string' && item.id.startsWith('sel')
+      ) {
+        return item.name;
+      }
+      return item;
+    });
+  }
+  if (
+    typeof v === 'object' && v !== null &&
+    typeof v.name === 'string' &&
+    typeof v.id === 'string' && v.id.startsWith('sel')
+  ) {
+    return v.name;
+  }
+  return v;
+}
+
+function normalizeRecord(rec) {
+  if (!rec || !rec.fields) return rec;
+  const fields = {};
+  for (const [k, val] of Object.entries(rec.fields)) {
+    fields[k] = unwrapSelectValue(val);
+  }
+  return { ...rec, fields };
+}
+
+function normalizeAirtableResponse(data) {
+  if (!data) return data;
+  if (data.records && Array.isArray(data.records)) {
+    return { ...data, records: data.records.map(normalizeRecord) };
+  }
+  if (data.id && data.fields) {
+    return normalizeRecord(data);
+  }
+  return data;
 }
 
 // Listet alle Records (paginated) bis maxTotal oder Ende.

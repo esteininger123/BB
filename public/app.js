@@ -482,54 +482,120 @@ function renderTabKalkulator() {
   const wes = state.wohneinheiten;
   const i = state.kalk || makeDefaultKalkInput();
   state.kalk = i;
+  if (!Array.isArray(state.kalk._paketWeIds)) state.kalk._paketWeIds = [];
+  const isPaket = state.kalk._isPaket === true;
+
+  const currentProfil = detectProfil(i);
+  const weLabel = (w) => {
+    const parts = [];
+    if (w.projektName) parts.push(w.projektName);
+    if (w.weNr) parts.push('WE ' + w.weNr);
+    if (w.lage && !parts.length) parts.push(w.lage);
+    const left = parts.join(' · ') || w.id;
+    const kp = (w.kp || 0) > 0 ? ' — ' + (Math.round(w.kp/1000) + 'k') : '';
+    return left + kp;
+  };
+  // WEs nach Projekt gruppieren, wenn möglich
+  const wesByProjekt = {};
+  wes.forEach(w => {
+    const key = w.projektName || 'Sonstige';
+    if (!wesByProjekt[key]) wesByProjekt[key] = [];
+    wesByProjekt[key].push(w);
+  });
 
   el.innerHTML = `
     <div class="card">
-      <div class="card-title">Wohneinheit auswählen</div>
+      <div class="card-title">Wohneinheit &amp; Käufer-Profil</div>
+      <div class="flex gap-12 mb-12" style="align-items:center;">
+        <label style="text-transform:none;letter-spacing:0;display:flex;align-items:center;gap:6px;">
+          <input type="radio" name="we-mode" value="single" ${!isPaket ? 'checked' : ''} onclick="setWeMode('single')"> Einzel-WE
+        </label>
+        <label style="text-transform:none;letter-spacing:0;display:flex;align-items:center;gap:6px;">
+          <input type="radio" name="we-mode" value="paket" ${isPaket ? 'checked' : ''} onclick="setWeMode('paket')"> Paket (mehrere)
+        </label>
+      </div>
       <div class="grid-3">
         <div>
-          <label>WE aus Airtable</label>
-          <select id="we-select">
-            <option value="">— Eigene Eingabe / Default —</option>
-            ${wes.map(w => `<option value="${esc(w.id)}">${esc(w.lage || w.weNr || w.id)}</option>`).join('')}
-          </select>
+          ${isPaket ? `
+            <label>Wohneinheiten im Paket</label>
+            <select id="we-paket-select" multiple size="8" style="height:auto;">
+              ${Object.keys(wesByProjekt).sort().map(proj => `
+                <optgroup label="${esc(proj)}">
+                  ${wesByProjekt[proj].map(w => `
+                    <option value="${esc(w.id)}" ${state.kalk._paketWeIds.includes(w.id) ? 'selected' : ''}>${esc(weLabel(w))}</option>
+                  `).join('')}
+                </optgroup>
+              `).join('')}
+            </select>
+            <div class="text-tertiary text-small mt-4">Ctrl/Cmd + Klick für mehrere. Aktuell: ${state.kalk._paketWeIds.length} WE${state.kalk._paketWeIds.length === 1 ? '' : 's'}.</div>
+          ` : `
+            <label>Wohneinheit aus Airtable</label>
+            <select id="we-select">
+              <option value="">— Eigene Eingabe / Default —</option>
+              ${Object.keys(wesByProjekt).sort().map(proj => `
+                <optgroup label="${esc(proj)}">
+                  ${wesByProjekt[proj].map(w => `
+                    <option value="${esc(w.id)}" ${i._weId === w.id ? 'selected' : ''}>${esc(weLabel(w))}</option>
+                  `).join('')}
+                </optgroup>
+              `).join('')}
+            </select>
+            ${i._weLage ? `<div class="text-tertiary text-small mt-4">Aktiv: ${esc(i._weLage)}</div>` : ''}
+          `}
         </div>
         <div>
-          <label>Profil</label>
+          <label>Käufer-Profil</label>
           <select id="profil-select">
-            <option value="standard">Standard (30 %)</option>
-            <option value="premium">Premium (35 %)</option>
-            <option value="spitze">Spitze (42 %)</option>
+            <option value="standard" ${currentProfil === 'standard' ? 'selected' : ''}>Standard-Anleger (30 % Steuer · 4.000 € netto)</option>
+            <option value="premium" ${currentProfil === 'premium' ? 'selected' : ''}>Premium-Anleger (35 % Steuer · 5.500 € netto)</option>
+            <option value="spitze" ${currentProfil === 'spitze' ? 'selected' : ''}>Spitzen-Anleger (42 % Steuer · 8.000 € netto)</option>
           </select>
+          <div class="text-tertiary text-small mt-4">Steuersatz, Zins, Tilgung &amp; Bonität werden gesetzt.</div>
         </div>
         <div>
-          <label>&nbsp;</label>
-          <button class="secondary" onclick="resetKalk()">Auf Stammdaten zurücksetzen</button>
+          <label>Bonitäts-Quelle</label>
+          <select id="bon-modus-select">
+            <option value="quick" ${(!i.bonModus || i.bonModus === 'quick') ? 'selected' : ''}>Aus Profil (Quick)</option>
+            <option value="detail" ${i.bonModus === 'detail' ? 'selected' : ''}>Aus Selbstauskunft (Detail)</option>
+          </select>
+          <div class="text-tertiary text-small mt-4">Detail = Einkommen + Verbindlichkeiten + Vermögen aus SA.</div>
         </div>
+      </div>
+      <div class="mt-12">
+        <button class="secondary" onclick="resetKalk()">Auf Default zurücksetzen</button>
       </div>
     </div>
 
+    ${isPaket ? '' : `
     <div class="card mt-16">
-      <div class="card-title">Eingaben</div>
+      <div class="card-title">Eingaben (einzelne WE)</div>
       <div class="grid-3" id="kalk-inputs">
         ${kalkInputsHtml(i)}
       </div>
     </div>
+    `}
 
     <div class="kpi-grid mt-16" id="kpi-grid"></div>
 
+    <div class="card mt-16" id="bon-card">
+      <!-- Bonitäts-Anzeige (wird in recalcAndRender gefüllt) -->
+    </div>
+
     <div class="grid-2 mt-16">
       <div class="card">
-        <div class="card-title">Vermögensentwicklung (10 J)</div>
+        <div class="card-title">Vermögensaufbau netto (10 J)</div>
+        <div class="text-tertiary text-small">Wert minus Restschuld minus eingesetztes EK plus kumulierter Cashflow.</div>
         <div class="chart-container"><canvas id="chart-vermoegen"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Cashflow (30 J)</div>
+        <div class="text-tertiary text-small">Jahres-Cashflow nach Steuern. Negative Jahre = Eigenleistung.</div>
         <div class="chart-container"><canvas id="chart-cashflow"></canvas></div>
       </div>
     </div>
     <div class="card mt-16">
       <div class="card-title">Sparen vs. Investieren (10 J)</div>
+      <div class="text-tertiary text-small">Nur sparen mit Tagesgeldzins vs. Immobilien-Investment inkl. CF.</div>
       <div class="chart-container"><canvas id="chart-sparen"></canvas></div>
     </div>
 
@@ -541,11 +607,28 @@ function renderTabKalkulator() {
   `;
 
   // Listeners
-  document.getElementById('we-select').onchange = (e) => loadWeIntoKalk(e.target.value);
+  const weSel = document.getElementById('we-select');
+  if (weSel) weSel.onchange = (e) => loadWeIntoKalk(e.target.value);
+  const wePaketSel = document.getElementById('we-paket-select');
+  if (wePaketSel) wePaketSel.onchange = (e) => {
+    state.kalk._paketWeIds = Array.from(e.target.selectedOptions).map(o => o.value);
+    recalcAndRender();
+  };
   document.getElementById('profil-select').onchange = (e) => applyProfil(e.target.value);
+  const bonSel = document.getElementById('bon-modus-select');
+  if (bonSel) bonSel.onchange = (e) => {
+    state.kalk.bonModus = e.target.value;
+    recalcAndRender();
+  };
   bindKalkInputs();
   recalcAndRender();
 }
+
+function setWeMode(mode) {
+  state.kalk._isPaket = (mode === 'paket');
+  renderTabKalkulator();
+}
+window.setWeMode = setWeMode;
 
 function kalkInputsHtml(i) {
   const f = (label, key, suffix, step) => `
@@ -614,19 +697,46 @@ function applyProfil(name) {
   const P = window.Kalk.PROFILES[name];
   if (!P) return;
   Object.assign(state.kalk, JSON.parse(JSON.stringify(P)));
+  // Profil-Tag merken (für Snapshot-Bezeichnung + UI-Anzeige nach Reload)
+  state.kalk._profil = name;
   renderTabKalkulator();
 }
 window.applyProfil = applyProfil;
 
+// Erkennt das aktuelle Profil basierend auf den Steuersatz/Bonität-Werten.
+// Wenn _profil bereits gesetzt ist, wird das verwendet.
+function detectProfil(k) {
+  if (k && k._profil && window.Kalk.PROFILES[k._profil]) return k._profil;
+  if (!k || !window.Kalk || !window.Kalk.PROFILES) return 'standard';
+  const profiles = window.Kalk.PROFILES;
+  for (const name of Object.keys(profiles)) {
+    const p = profiles[name];
+    if (Math.abs((k.steuersatz || 0) - p.steuersatz) < 0.001 &&
+        (k.bonEinnahmen || 0) === p.bonEinnahmen) return name;
+  }
+  return 'standard';
+}
+
 function loadWeIntoKalk(weId) {
-  if (!weId) return;
+  if (!weId) {
+    delete state.kalk._weId;
+    delete state.kalk._weLage;
+    delete state.kalk._weNr;
+    delete state.kalk._projektName;
+    renderTabKalkulator();
+    return;
+  }
   const w = state.wohneinheiten.find(x => x.id === weId);
   if (!w) return;
-  state.kalk.kaufpreis = w.kaufpreis || state.kalk.kaufpreis;
+  // Backend-API-Feld heißt 'kp' (nicht 'kaufpreis'). Kompatibilität.
+  state.kalk.kaufpreis = w.kp || w.kaufpreis || state.kalk.kaufpreis;
   state.kalk.qm = w.qm || state.kalk.qm;
   state.kalk.kaltmiete = w.kaltmiete || state.kalk.kaltmiete;
   state.kalk._weId = weId;
-  state.kalk._weLage = w.lage || w.weNr;
+  // Lage-Text bevorzugen (vollständige Adresse), Fallback auf lage-Bezeichnung
+  state.kalk._weLage = w.lageText || w.lage || w.weNr || '';
+  state.kalk._weNr = w.weNr || '';
+  state.kalk._projektName = w.projektName || '';
   renderTabKalkulator();
 }
 window.loadWeIntoKalk = loadWeIntoKalk;
@@ -640,8 +750,56 @@ window.resetKalk = resetKalk;
 let chartV = null, chartC = null, chartS = null;
 
 function recalcAndRender() {
+  // Wenn Bonitäts-Modus = 'detail' → Selbstauskunft aus dem Kunden ziehen.
+  if (state.kalk && state.kalk.bonModus === 'detail' && state.kunde) {
+    let sa = state.kunde.saJson;
+    if (typeof sa === 'string') { try { sa = JSON.parse(sa); } catch(e) { sa = null; } }
+    if (sa && typeof sa === 'object') {
+      state.kalk.selbstauskunft = sa;
+      state.kalk.saAntragGemeinsam = sa.gemeinsam !== false;
+    }
+  }
   let r;
-  try { r = window.Kalk.recalc(state.kalk); }
+  try {
+    if (state.kalk._isPaket && Array.isArray(state.kalk._paketWeIds) && state.kalk._paketWeIds.length > 0) {
+      // Paket-Modus: jede WE aus Airtable ziehen, recalcPaket aufrufen
+      const weInputs = state.kalk._paketWeIds.map(wid => {
+        const w = state.wohneinheiten.find(x => x.id === wid);
+        if (!w) return null;
+        // Default-Preset-ähnliches Input, mit den WE-Daten gefüllt
+        return {
+          kaufpreis: w.kp || 0,
+          stellplatzKp: 0,
+          qm: w.qm || 0,
+          marktwertProQm: 0,
+          kaltmiete: w.kaltmiete || 0,
+          stellplatzMiete: 0,
+          subventionMo: 0, subventionMonate: 0,
+          mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
+          hausgeld: Math.round((w.qm || 0)),
+          hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+          afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+          wertsteigerung: 0.03,
+          _weId: w.id, _weLage: w.lageText || w.lage, _weNr: w.weNr, _projektName: w.projektName,
+        };
+      }).filter(Boolean);
+      if (weInputs.length === 0) {
+        document.getElementById('kpi-grid').innerHTML = '<div class="empty-state">Wähle mindestens eine WE.</div>';
+        return;
+      }
+      const personSettings = {
+        zins: state.kalk.zins, tilgung: state.kalk.tilgung, knkMitfinanziert: state.kalk.knkMitfinanziert,
+        steuersatz: state.kalk.steuersatz,
+        bonEinnahmen: state.kalk.bonEinnahmen, bonAusgaben: state.kalk.bonAusgaben, bonVermoegen: state.kalk.bonVermoegen,
+        bonModus: state.kalk.bonModus,
+        selbstauskunft: state.kalk.selbstauskunft, saAntragGemeinsam: state.kalk.saAntragGemeinsam,
+        sparZins: state.kalk.sparZins,
+      };
+      r = window.Kalk.recalcPaket(weInputs, personSettings);
+    } else {
+      r = window.Kalk.recalc(state.kalk);
+    }
+  }
   catch (e) { console.error('recalc', e); return; }
   state.kalkResult = r;
 
@@ -654,11 +812,38 @@ function recalcAndRender() {
   const cls = (v) => v > 0 ? 'positive' : (v < 0 ? 'negative' : '');
   grid.innerHTML = `
     <div class="kpi"><div class="label">Eigenkapital-Bedarf</div><div class="value">${fmt(r.ekBedarf)}</div></div>
-    <div class="kpi ${cls(r.belastungMo)}"><div class="label">Belastung Jahr 1</div><div class="value">${fmtEurMo(r.belastungMo)}</div></div>
-    <div class="kpi positive"><div class="label">Vermögen brutto Jahr 10</div><div class="value">${fmt(r.vermoegenBrutto10)}</div></div>
+    <div class="kpi ${cls(r.belastungMo)}"><div class="label">Belastung Jahr 1 mtl.</div><div class="value">${fmtEurMo(r.belastungMo)}</div></div>
+    <div class="kpi positive"><div class="label">Vermögensaufbau netto J10</div><div class="value">${fmt(r.vermoegenNetto10)}</div></div>
     <div class="kpi"><div class="label">IRR (10 J)</div><div class="value">${fmtPct(r.irr)}</div></div>
     <div class="kpi"><div class="label">Darlehen</div><div class="value">${fmt(r.darlehen)}</div></div>
   `;
+
+  // Bonität-Card
+  const bonEl = document.getElementById('bon-card');
+  if (bonEl) {
+    const detail = r.bonModus === 'detail';
+    const ein = r.bonEinnahmen || 0;
+    const aus = r.bonAusgaben || 0;
+    const vor = ein - aus;
+    const delta = r.bonDelta || 0; // Miete80% − Annuität (− HG − HV im Detail)
+    const nach = vor + delta;
+    const verm = r.bonVermoegen || 0;
+    const vermDelta = verm - r.ekBedarf;
+    const okFarbe = (v) => v >= 0 ? 'positive' : 'negative';
+
+    bonEl.innerHTML = `
+      <div class="card-title">Bonität ${detail ? '(aus Selbstauskunft)' : '(aus Profil)'}</div>
+      ${detail ? '' : '<div class="text-tertiary text-small mb-12">Quick-Modus: Einnahmen/Ausgaben/Vermögen sind Profil-Defaults. Für Bank-Einreichung: Selbstauskunft ausfüllen und auf "Detail" umschalten.</div>'}
+      <div class="kpi-grid">
+        <div class="kpi"><div class="label">Einkommen anrechenbar</div><div class="value">${fmtEurMo(ein)}</div></div>
+        <div class="kpi"><div class="label">Ausgaben gesamt</div><div class="value">${fmtEurMo(aus)}</div></div>
+        <div class="kpi ${okFarbe(vor)}"><div class="label">Frei vor Investment</div><div class="value">${fmtEurMo(vor)}</div></div>
+        <div class="kpi ${okFarbe(nach)}"><div class="label">Frei nach Investment</div><div class="value">${fmtEurMo(nach)}</div></div>
+        <div class="kpi"><div class="label">Freies Vermögen</div><div class="value">${fmt(verm)}</div></div>
+        <div class="kpi ${okFarbe(vermDelta)}"><div class="label">Vermögen − EK-Bedarf</div><div class="value">${fmt(vermDelta)}</div></div>
+      </div>
+    `;
+  }
 
   // Charts
   drawCharts(r);
@@ -667,7 +852,7 @@ function recalcAndRender() {
 function drawCharts(r) {
   if (!window.Chart) return;
   const years = r.vermoegen.map(v => 'J' + v.y);
-  const verm = r.vermoegen.map(v => Math.round(v.vermoegenBrutto));
+  const verm = r.vermoegen.map(v => Math.round(v.vermoegenNetto));
   const cfYears = r.cf.map(c => 'J' + c.y);
   const cfVals = r.cf.map(c => Math.round(c.cfJahr));
   const sparenLbls = r.sparen.map(s => 'J' + s.y);
@@ -678,7 +863,7 @@ function drawCharts(r) {
   chartV = new Chart(document.getElementById('chart-vermoegen'), {
     type: 'line',
     data: { labels: years, datasets: [{
-      label: 'Vermögen brutto', data: verm,
+      label: 'Vermögensaufbau netto', data: verm,
       borderColor: '#B08A4D', backgroundColor: 'rgba(176,138,77,0.15)',
       tension: 0.3, fill: true,
     }] },
@@ -707,19 +892,38 @@ function drawCharts(r) {
 }
 
 async function saveSnapshot() {
-  const bez = prompt('Bezeichnung für Snapshot?', 'Kalk ' + new Date().toLocaleDateString('de-DE'));
+  // Bezeichnung & WE-Label kontextbezogen erzeugen (Einzel vs. Paket)
+  let weBez, defaultBez;
+  if (state.kalk._isPaket && Array.isArray(state.kalk._paketWeIds) && state.kalk._paketWeIds.length > 0) {
+    const labels = state.kalk._paketWeIds.map(wid => {
+      const w = (state.wohneinheiten || []).find(x => x.id === wid);
+      return w ? (w.weNr ? 'WE ' + w.weNr : w.lage || w.id) : wid;
+    });
+    weBez = 'Paket: ' + labels.join(' + ');
+    defaultBez = 'Paket (' + state.kalk._paketWeIds.length + ' WE) — ' +
+                 (state.kalk._profil || 'Kalkulation') + ' (' +
+                 new Date().toLocaleDateString('de-DE') + ')';
+  } else {
+    weBez = state.kalk._weLage || '';
+    defaultBez = (state.kalk._weLage ? state.kalk._weLage + ' — ' : '') +
+                 (state.kalk._profil || 'Kalkulation') + ' (' +
+                 new Date().toLocaleDateString('de-DE') + ')';
+  }
+  const bez = prompt('Bezeichnung für Snapshot?', defaultBez);
   if (!bez) return;
   try {
     const snap = await api.post('/api/snapshots', {
       kundeId: state.kundeId,
       weId: state.kalk._weId || null,
-      weBezeichnung: state.kalk._weLage || '',
+      weBezeichnung: weBez,
       pdfTyp: 'Investitionsrechnung',
-      kalkJson: JSON.stringify(state.kalk),
+      // Backend stringifyJson() lässt strings durch, hier direkt Object übergeben,
+      // damit es sauber und einmal serialisiert wird.
+      kalkJson: state.kalk,
       bezeichnung: bez,
     });
     state.snapshots.unshift(snap);
-    toast('Snapshot gespeichert', 'success');
+    toast('Snapshot "' + bez + '" gespeichert', 'success');
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
 window.saveSnapshot = saveSnapshot;
@@ -748,10 +952,13 @@ window.exportSaPdf = exportSaPdf;
 function renderTabSelbstauskunft() {
   const el = document.getElementById('tab-content');
   const k = state.kunde;
-  let sa = {};
-  try { sa = k.selbstauskunftJson ? JSON.parse(k.selbstauskunftJson) : {}; } catch(e) {}
+  // Backend liefert saJson über Mapper bereits als Object (oder null).
+  let sa = k.saJson;
+  if (typeof sa === 'string') { try { sa = JSON.parse(sa); } catch(e) { sa = null; } }
+  if (!sa || typeof sa !== 'object') sa = {};
   if (!sa.antragsteller) sa.antragsteller = {};
   if (!sa.mitantragsteller) sa.mitantragsteller = {};
+  if (sa.gemeinsam === undefined) sa.gemeinsam = false;
   state._sa = sa;
 
   el.innerHTML = `
@@ -787,29 +994,192 @@ function renderTabSelbstauskunft() {
 
 function saPersonHtml(prefix, p) {
   p = p || {};
-  const f = (label, key, suffix) => `
+  // Text-Feld
+  const t = (label, key) => `
     <div>
-      <label>${label}${suffix ? ' (' + suffix + ')' : ''}</label>
-      <input data-sa="${prefix}.${key}" type="number" step="any" value="${p[key] || ''}">
+      <label>${esc(label)}</label>
+      <input data-sa="${prefix}.${key}" type="text" value="${esc(p[key] || '')}">
     </div>`;
+  // Zahl-Feld
+  const n = (label, key, suffix, step) => `
+    <div>
+      <label>${esc(label)}${suffix ? ' (' + suffix + ')' : ''}</label>
+      <input data-sa="${prefix}.${key}" type="number" step="${step || 'any'}" value="${p[key] !== undefined && p[key] !== null ? p[key] : ''}">
+    </div>`;
+  // Datum-Feld
+  const d = (label, key) => `
+    <div>
+      <label>${esc(label)}</label>
+      <input data-sa="${prefix}.${key}" type="date" value="${esc(p[key] || '')}">
+    </div>`;
+  // Select-Feld
+  const s = (label, key, options) => `
+    <div>
+      <label>${esc(label)}</label>
+      <select data-sa="${prefix}.${key}">
+        ${options.map(o => `<option value="${esc(o.v)}" ${p[key] === o.v ? 'selected' : ''}>${esc(o.l)}</option>`).join('')}
+      </select>
+    </div>`;
+
+  // Verschachtelte Felder (z.B. immo1.verkehrswert)
+  const sub = (parentKey, subKey, type, label, suffix, step) => {
+    const sub_p = p[parentKey] || {};
+    const fullKey = `${prefix}.${parentKey}.${subKey}`;
+    const val = sub_p[subKey];
+    if (type === 'date') {
+      return `<div><label>${esc(label)}</label><input data-sa="${fullKey}" type="date" value="${esc(val || '')}"></div>`;
+    }
+    if (type === 'text') {
+      return `<div><label>${esc(label)}</label><input data-sa="${fullKey}" type="text" value="${esc(val || '')}"></div>`;
+    }
+    return `<div><label>${esc(label)}${suffix ? ' (' + suffix + ')' : ''}</label><input data-sa="${fullKey}" type="number" step="${step || 'any'}" value="${val !== undefined && val !== null ? val : ''}"></div>`;
+  };
+
   return `
-    <div class="grid-2">
-      ${f('Netto / Monat', 'nettoMo', '€')}
-      ${f('Anzahl Gehälter', 'anzahlGehaelter')}
-      ${f('Vermietung', 'vermietungMo', '€/Mo')}
-      ${f('Sonstige Einkommen', 'sonstigeMo', '€/Mo')}
-      ${f('Unterhalt erhalten', 'unterhaltMo', '€/Mo')}
-      ${f('Kindergeld', 'kindergeldMo', '€/Mo')}
-      ${f('Kinder Anzahl', 'kinderAnzahl')}
-      ${f('Eigene Miete', 'mieteMo', '€/Mo')}
-      ${f('Unterhalt gezahlt', 'unterhaltZahlungMo', '€/Mo')}
-      ${f('PKV', 'pkvMo', '€/Mo')}
-      ${f('Bankguthaben', 'bankguthaben', '€')}
-      ${f('Wertpapiere', 'wertpapiere', '€')}
-      ${f('Sparbücher', 'sparbuecher', '€')}
-      ${f('Bausparen', 'bausparen', '€')}
-      ${f('Sonst. Vermögen', 'sonstigeVermoegen', '€')}
-    </div>
+    <details class="sa-section" open>
+      <summary>Persönliche Verhältnisse</summary>
+      <div class="grid-2">
+        ${t('Name', 'name')}
+        ${t('Geburtsname', 'geburtsname')}
+        ${t('Vorname', 'vorname')}
+        ${d('Geburtsdatum', 'geburtsdatum')}
+        ${t('Straße', 'strasse')}
+        ${t('PLZ', 'plz')}
+        ${t('Ort', 'ort')}
+        ${t('Staatsangehörigkeit', 'staatsangehoerigkeit')}
+        ${t('Telefon privat', 'telefonPrivat')}
+        ${t('Telefon geschäftlich', 'telefonGeschaeftlich')}
+        ${t('E-Mail', 'email')}
+        ${t('Steuer-ID', 'steuerId')}
+        ${t('Ausgeübter Beruf', 'beruf')}
+        ${t('Beschäftigt bei Firma', 'firma')}
+        ${d('Beschäftigt seit', 'beschaeftigtSeit')}
+        ${s('Befristung', 'befristung', [{v:'unbefristet',l:'unbefristet'},{v:'befristet',l:'befristet'}])}
+        ${s('Familienstand', 'familienstand', [
+          {v:'ledig',l:'ledig'},{v:'verheiratet',l:'verheiratet'},
+          {v:'geschieden',l:'geschieden'},{v:'verwitwet',l:'verwitwet'}
+        ])}
+        ${n('Kinder im Haushalt', 'kinderAnzahl')}
+        ${t('Kinder Alter (Kommasep.)', 'kinderAlter')}
+        ${s('Kinder in Planung', 'kinderPlanung', [{v:'',l:'—'},{v:'nein',l:'nein'},{v:'ja',l:'ja, in den nächsten 2 Jahren'}])}
+        ${s('Kirchensteuerpflicht', 'kirchensteuer', [{v:'',l:'—'},{v:'nein',l:'nein'},{v:'ja',l:'ja'}])}
+        ${n('KFZ Anzahl', 'kfzAnzahl')}
+        ${t('Hausbank', 'bank')}
+        ${t('IBAN', 'iban')}
+        ${t('BIC', 'bic')}
+      </div>
+    </details>
+
+    <details class="sa-section" open>
+      <summary>Einkommen (monatlich)</summary>
+      <div class="grid-2">
+        ${n('Netto-Gehalt', 'nettoMo', '€/Mo')}
+        ${n('Anzahl der Gehälter', 'anzahlGehaelter', '×', '0.5')}
+        ${n('Vermietung & Verpachtung', 'vermietungMo', '€/Mo')}
+        ${n('Sonstige Einkommen', 'sonstigeMo', '€/Mo')}
+        ${n('Unterhalt erhalten', 'unterhaltMo', '€/Mo')}
+        ${n('Kindergeld', 'kindergeldMo', '€/Mo')}
+        ${n('Zu versteuerndes Einkommen', 'zveJahr', '€/Jahr')}
+      </div>
+    </details>
+
+    <details class="sa-section" open>
+      <summary>Monatliche Fixkosten</summary>
+      <div class="grid-2">
+        ${n('Miete inkl. NK (eigene Whg)', 'mieteMo', '€/Mo')}
+        ${n('Unterhaltszahlungen', 'unterhaltZahlungMo', '€/Mo')}
+        ${n('Beitrag private Krankenversicherung', 'pkvMo', '€/Mo')}
+      </div>
+    </details>
+
+    <details class="sa-section" open>
+      <summary>Vermögen</summary>
+      <div class="grid-2">
+        ${n('Bankguthaben', 'bankguthaben', '€')}
+        ${n('Wertpapiere (Kurswert)', 'wertpapiere', '€')}
+        ${n('Sparbücher', 'sparbuecher', '€')}
+        ${n('Bausparguthaben / VWL', 'bausparen', '€')}
+        ${n('Sonstige Vermögen', 'sonstigeVermoegen', '€')}
+      </div>
+    </details>
+
+    <details class="sa-section">
+      <summary>Versicherungs-Guthaben (optional)</summary>
+      <div class="grid-2">
+        ${sub('vers', 'art', 'text', 'Art (z.B. LV/RV)')}
+        ${sub('vers', 'beginn', 'date', 'Beginn')}
+        ${sub('vers', 'ende', 'date', 'Ende')}
+        ${sub('vers', 'summe', 'number', 'Versicherungssumme', '€')}
+        ${sub('vers', 'belastungMo', 'number', 'mtl. Belastung', '€/Mo')}
+        ${sub('vers', 'rueckkauf', 'number', 'Rückkaufwert', '€')}
+      </div>
+    </details>
+
+    <details class="sa-section">
+      <summary>Immobilienvermögen — Immobilie 1 (optional)</summary>
+      <div class="grid-2">
+        ${sub('immo1', 'art', 'text', 'Art des Objekts')}
+        ${sub('immo1', 'anschrift', 'text', 'Anschrift')}
+        ${sub('immo1', 'baujahr', 'number', 'Baujahr/Erwerbsjahr', 'Jahr')}
+        ${sub('immo1', 'wohnflaeche', 'number', 'Wohnfläche', 'm²')}
+        ${sub('immo1', 'verkehrswert', 'number', 'Verkehrswert', '€')}
+        ${sub('immo1', 'hypotheken', 'number', 'Hypotheken & Grundschulden', '€')}
+        ${sub('immo1', 'mietenMo', 'number', 'Mieteinnahmen', '€/Mo')}
+      </div>
+    </details>
+
+    <details class="sa-section">
+      <summary>Immobilienvermögen — Immobilie 2 (optional)</summary>
+      <div class="grid-2">
+        ${sub('immo2', 'art', 'text', 'Art des Objekts')}
+        ${sub('immo2', 'anschrift', 'text', 'Anschrift')}
+        ${sub('immo2', 'baujahr', 'number', 'Baujahr/Erwerbsjahr', 'Jahr')}
+        ${sub('immo2', 'wohnflaeche', 'number', 'Wohnfläche', 'm²')}
+        ${sub('immo2', 'verkehrswert', 'number', 'Verkehrswert', '€')}
+        ${sub('immo2', 'hypotheken', 'number', 'Hypotheken & Grundschulden', '€')}
+        ${sub('immo2', 'mietenMo', 'number', 'Mieteinnahmen', '€/Mo')}
+      </div>
+    </details>
+
+    <details class="sa-section">
+      <summary>Verbindlichkeiten — Baufinanzierung 1 (optional)</summary>
+      <div class="grid-2">
+        ${sub('bf1', 'urspruenglich', 'number', 'urspr. Darlehenshöhe', '€')}
+        ${sub('bf1', 'laufzeitBis', 'date', 'Laufzeit bis')}
+        ${sub('bf1', 'belastungMo', 'number', 'mtl. Belastung', '€/Mo')}
+        ${sub('bf1', 'restsaldo', 'number', 'Restsaldo', '€')}
+      </div>
+    </details>
+
+    <details class="sa-section">
+      <summary>Verbindlichkeiten — Baufinanzierung 2 (optional)</summary>
+      <div class="grid-2">
+        ${sub('bf2', 'urspruenglich', 'number', 'urspr. Darlehenshöhe', '€')}
+        ${sub('bf2', 'laufzeitBis', 'date', 'Laufzeit bis')}
+        ${sub('bf2', 'belastungMo', 'number', 'mtl. Belastung', '€/Mo')}
+        ${sub('bf2', 'restsaldo', 'number', 'Restsaldo', '€')}
+      </div>
+    </details>
+
+    <details class="sa-section">
+      <summary>Verbindlichkeiten — Konsumentendarlehen 1 (optional)</summary>
+      <div class="grid-2">
+        ${sub('kd1', 'urspruenglich', 'number', 'urspr. Darlehenshöhe', '€')}
+        ${sub('kd1', 'laufzeitBis', 'date', 'Laufzeit bis')}
+        ${sub('kd1', 'belastungMo', 'number', 'mtl. Belastung', '€/Mo')}
+        ${sub('kd1', 'restsaldo', 'number', 'Restsaldo', '€')}
+      </div>
+    </details>
+
+    <details class="sa-section">
+      <summary>Verbindlichkeiten — Konsumentendarlehen 2 (optional)</summary>
+      <div class="grid-2">
+        ${sub('kd2', 'urspruenglich', 'number', 'urspr. Darlehenshöhe', '€')}
+        ${sub('kd2', 'laufzeitBis', 'date', 'Laufzeit bis')}
+        ${sub('kd2', 'belastungMo', 'number', 'mtl. Belastung', '€/Mo')}
+        ${sub('kd2', 'restsaldo', 'number', 'Restsaldo', '€')}
+      </div>
+    </details>
   `;
 }
 
@@ -817,16 +1187,36 @@ async function saveSelbstauskunft() {
   const sa = state._sa || { antragsteller: {}, mitantragsteller: {} };
   sa.gemeinsam = document.getElementById('sa-gemeinsam').checked;
   document.querySelectorAll('[data-sa]').forEach(inp => {
-    const [prefix, key] = inp.dataset.sa.split('.');
+    const parts = inp.dataset.sa.split('.');
+    const prefix = parts[0]; // 'a' oder 'm'
     const target = prefix === 'a' ? 'antragsteller' : 'mitantragsteller';
     if (!sa[target]) sa[target] = {};
-    sa[target][key] = inp.value === '' ? null : parseFloat(inp.value);
+
+    // Wert typisieren: bei type=number → Float (außer leer)
+    let v;
+    if (inp.value === '' || inp.value === null) {
+      v = null;
+    } else if (inp.type === 'number') {
+      v = parseFloat(inp.value);
+      if (!isFinite(v)) v = null;
+    } else {
+      v = inp.value;
+    }
+
+    if (parts.length === 2) {
+      // "a.nettoMo" → sa.antragsteller.nettoMo
+      sa[target][parts[1]] = v;
+    } else if (parts.length === 3) {
+      // "a.immo1.verkehrswert" → sa.antragsteller.immo1.verkehrswert
+      const sub = parts[1];
+      const key = parts[2];
+      if (!sa[target][sub] || typeof sa[target][sub] !== 'object') sa[target][sub] = {};
+      sa[target][sub][key] = v;
+    }
   });
   try {
-    await api.put('/api/kunden/' + state.kundeId, {
-      saJson: JSON.stringify(sa),
-    });
-    state.kunde.selbstauskunftJson = JSON.stringify(sa);
+    await api.put('/api/kunden/' + state.kundeId, { saJson: sa });
+    state.kunde.saJson = sa;
     toast('Selbstauskunft gespeichert', 'success');
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
@@ -868,10 +1258,21 @@ function loadSnapshot(id) {
   const s = state.snapshots.find(x => x.id === id);
   if (!s) return;
   try {
-    state.kalk = JSON.parse(s.kalkulationsJson || s.kalkJson || '{}');
+    // Backend hat den Feld-Inhalt bereits via parseJsonField() geparst.
+    // Frontend muss also nicht nochmal JSON.parse() machen — wäre Doppel-Parse.
+    let kalk = s.kalkJson;
+    if (typeof kalk === 'string') {
+      // Defensiv: falls Backend mal als String zurückgibt.
+      kalk = JSON.parse(kalk);
+    }
+    if (!kalk || typeof kalk !== 'object') kalk = {};
+    state.kalk = kalk;
     setTab('kalkulator');
-    toast('Snapshot geladen', 'success');
-  } catch (e) { toast('Snapshot konnte nicht geladen werden.', 'error'); }
+    toast('Snapshot "' + (s.bezeichnung || '—') + '" geladen', 'success');
+  } catch (e) {
+    console.error('loadSnapshot', e);
+    toast('Snapshot konnte nicht geladen werden: ' + e.message, 'error');
+  }
 }
 window.loadSnapshot = loadSnapshot;
 

@@ -780,14 +780,147 @@ function recalc(i) {
 
 /**
  * Paket-Recalc: aggregiert mehrere WEs (Preset-Keys) mit gemeinsamen Person-Settings.
- * personSettings: { zins, tilgung, knkMitfinanziert, steuersatz, bonEinnahmen, bonAusgaben, bonVermoegen }
- * Liefert ein Result-Objekt mit aggregierten KPIs + cf-Array (Summen) + vermoegen-Array (Summen) + sparen (gegen Summe-EK).
+ *
+ * weInputsArr: Array von WE-Inputs (objekt-spezifische Felder pro WE — Kaufpreis,
+ *              qm, Miete, Hausgeld, Subvention etc.)
+ * personSettings: { zins, tilgung, knkMitfinanziert, steuersatz,
+ *                   bonEinnahmen, bonAusgaben, bonVermoegen,
+ *                   bonModus, selbstauskunft, saAntragGemeinsam, sparZins }
+ *
+ * Liefert ein Result-Objekt mit aggregierten KPIs + cf-Array (Summen) +
+ * vermoegen-Array (Summen) + sparen (gegen Summe-EK).
+ */
+function recalcPaket(weInputsArr, personSettings) {
+  if (!Array.isArray(weInputsArr) || weInputsArr.length === 0) return null;
+  const ps = personSettings || {};
+  const personFields = [
+    'zins', 'tilgung', 'knkMitfinanziert', 'steuersatz',
+    'bonEinnahmen', 'bonAusgaben', 'bonVermoegen', 'bonModus',
+    'selbstauskunft', 'saAntragGemeinsam', 'sparZins'
+  ];
+
+  // 1. Jede WE einzeln berechnen — Person-Settings überlagern.
+  const results = weInputsArr.map(weInput => {
+    const merged = { ...weInput };
+    personFields.forEach(f => {
+      if (ps[f] !== undefined) merged[f] = ps[f];
+    });
+    // Damit Sparen-vs-Inv. nicht in jedem Einzel-Recalc gegen volles Vermögen rechnet:
+    // wir aggregieren das auf Paket-Ebene neu.
+    return recalc(merged);
+  });
+
+  const sum = (key, fn) => results.reduce((s, r) => s + (fn ? fn(r) : (r[key] || 0)), 0);
+
+  // 2. Aggregations-KPIs
+  const ekBedarf = sum('ekBedarf');
+  const darlehen = sum('darlehen');
+  const annuityMo = sum('annuityMo');
+  const belastungMo = sum('belastungMo');
+  const kpGesamt = sum('kpGesamt');
+  const investitionGesamt = sum('investitionGesamt');
+  const vermoegenBrutto10 = sum('vermoegenBrutto10');
+  const vermoegenNetto10 = sum('vermoegenNetto10');
+  const mietsubventionGesamt = sum('mietsubventionGesamt');
+  const markteinkaufVorteil = sum('markteinkaufVorteil');
+
+  // 3. CF-Array (30 Jahre): element-weise summieren
+  const cfYears = results[0].cf.length;
+  const cf = [];
+  for (let y = 0; y < cfYears; y++) {
+    cf.push({
+      y: y + 1,
+      cfJahr: sum(null, r => r.cf[y].cfJahr),
+      mieteJahr: sum(null, r => r.cf[y].mieteJahr || 0),
+      hgJahr: sum(null, r => r.cf[y].hgJahr || 0),
+      annuJahr: sum(null, r => r.cf[y].annuJahr || 0),
+      stVorteilJahr: sum(null, r => r.cf[y].stVorteilJahr || 0),
+      afaJahr: sum(null, r => r.cf[y].afaJahr || 0),
+      tilgungJahr: sum(null, r => r.cf[y].tilgungJahr || 0),
+      zinsenJahr: sum(null, r => r.cf[y].zinsenJahr || 0),
+      restschuld: sum(null, r => r.cf[y].restschuld || 0),
+    });
+  }
+
+  // 4. Vermögens-Array (0..10): summieren
+  const vermoegen = [];
+  for (let y = 0; y <= 10; y++) {
+    vermoegen.push({
+      y,
+      wert: sum(null, r => r.vermoegen[y].wert),
+      restschuld: sum(null, r => r.vermoegen[y].restschuld),
+      vermoegenBrutto: sum(null, r => r.vermoegen[y].vermoegenBrutto),
+      kumCf: sum(null, r => r.vermoegen[y].kumCf || 0),
+      vermoegenNetto: sum(null, r => r.vermoegen[y].vermoegenNetto),
+    });
+  }
+
+  // 5. IRR auf der aggregierten CF-Reihe (J0 = -ekBedarf, J1..J9 = cfJahr, J10 = cfJahr + vermBrutto)
+  const irrSeries = [-ekBedarf];
+  for (let y = 0; y < 9; y++) irrSeries.push(cf[y].cfJahr);
+  irrSeries.push(cf[9].cfJahr + vermoegen[10].vermoegenBrutto);
+  const irrValue = irr(irrSeries, 0.10);
+
+  // 6. Sparen-vs-Investieren auf Paket-Ebene
+  const bonVermoegen = ps.bonVermoegen || 0;
+  const sparZins = (ps.sparZins !== undefined && ps.sparZins !== null) ? ps.sparZins : SPAR_ZINS_DEFAULT;
+  const sparen = [];
+  let nurSparenLauf = bonVermoegen;
+  let tagesgeldRest = Math.max(0, bonVermoegen - ekBedarf);
+  sparen.push({ y: 0, nurSparen: nurSparenLauf, mitImmo: tagesgeldRest, delta: tagesgeldRest - nurSparenLauf });
+  for (let y = 1; y <= 10; y++) {
+    nurSparenLauf = nurSparenLauf * (1 + sparZins);
+    const cfJ = cf[y - 1].cfJahr;
+    tagesgeldRest = tagesgeldRest * (1 + sparZins) + cfJ;
+    const vermBrutto = vermoegen[y].vermoegenBrutto;
+    const mitImmoEhrlich = tagesgeldRest + vermBrutto;
+    sparen.push({ y, nurSparen: nurSparenLauf, mitImmo: mitImmoEhrlich, delta: mitImmoEhrlich - nurSparenLauf });
+  }
+  const sparenVsKaufenDelta = sparen[10].mitImmo - sparen[10].nurSparen;
+
+  // 7. Bonität (Paket-Summe) — einmal für gesamtes Paket
+  let bonEinnahmen, bonAusgaben, bonDetail = null;
+  if (ps.bonModus === 'detail' && ps.selbstauskunft) {
+    bonDetail = computeBonitaetDetailed(ps.selbstauskunft, ps.saAntragGemeinsam !== false);
+    bonEinnahmen = bonDetail.einkommenAnrechenbarMo;
+    bonAusgaben = bonDetail.ausgabenGesamtMo;
+  } else {
+    bonEinnahmen = ps.bonEinnahmen || 0;
+    bonAusgaben = ps.bonAusgaben || 0;
+  }
+  const bonVor = bonEinnahmen - bonAusgaben;
+  const bonMieteAnr = sum('bonMieteAnr');
+  const bonAnnuMo = sum('bonAnnuMo');
+  const bonHgMo = sum('hausgeldNurMo');
+  const bonHvMo = sum('hausverwaltungMo');
+  const bonDelta = (ps.bonModus === 'detail')
+    ? (bonMieteAnr - bonAnnuMo - bonHgMo - bonHvMo)
+    : (bonMieteAnr - bonAnnuMo);
+  const bonNach = bonVor + bonDelta;
+  const bonVermoegenVsEk = bonVermoegen - ekBedarf;
+  const bonVermoegenAusreichend = bonVermoegen >= ekBedarf;
+
+  return {
+    inputs: { ...ps, _isPaket: true, _weList: weInputsArr },
+    perWe: results,
+    kpGesamt, knk: 0, investitionGesamt, ekBedarf, darlehen,
+    annuityMo,
+    cf, vermoegen, irr: irrValue,
+    vermoegenBrutto10, vermoegenNetto10, belastungMo,
+    mietsubventionGesamt, markteinkaufVorteil,
+    bonEinnahmen, bonAusgaben, bonVermoegen,
+    bonVor, bonNach, bonDelta, bonMieteAnr, bonAnnuMo,
+    bonVermoegenVsEk, bonVermoegenAusreichend,
+    bonDetail, bonModus: ps.bonModus || 'quick',
+    sparen, sparenVsKaufenDelta,
+  };
+}
 
 /* ====================================================================
    EXPORTS — als window.* nutzbar in app.js / pdf.js
    ==================================================================== */
 window.Kalk = {
-  recalc, irr, computeBonitaetDetailed,
+  recalc, recalcPaket, irr, computeBonitaetDetailed,
   fmtEur, fmtEurMo, fmtEurMoDec, fmtPct, fmtEurQm,
   PROFILES, PRESETS, SPAR_ZINS_DEFAULT,
   getDefaults, applyProfile,

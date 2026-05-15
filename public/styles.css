@@ -513,3 +513,160 @@ label {
   background: var(--bg-section);
   border-radius: 4px;
 }
+
+/* ============================== Selbstauskunft-Sektionen ============================== */
+.sa-section {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 12px;
+  background: var(--bg-cream-subtle, #fafaf6);
+}
+.sa-section > summary {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  list-style: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sa-section > summary::-webkit-details-marker { display: none; }
+.sa-section > summary::after {
+  content: '▾';
+  font-size: 11px;
+  color: var(--text-tertiary);
+  transition: transform 0.15s;
+}
+.sa-section[open] > summary::after { transform: rotate(180deg); }
+.sa-section > summary:hover { background: rgba(176,138,77,0.08); }
+.sa-section > .grid-2,
+.sa-section > div {
+  padding: 4px 14px 14px;
+}
+.sa-section input,
+.sa-section select {
+  font-size: 12px;
+}
+
+/* ============================== Reservierungs-PDF (B&B-Template) ============================== */
+.pdf-template .reservierung-page {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #000;
+  padding: 0 6mm;
+}
+.pdf-template .reserv-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 14mm;
+}
+.pdf-template .reserv-title {
+  font-size: 15px;
+  max-width: 70%;
+}
+.pdf-template .reserv-logo .bub-logo {
+  display: flex; align-items: center; gap: 8px;
+}
+.pdf-template .reserv-logo .bub-mark {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  color: var(--accent);
+  font-family: Georgia, 'Times New Roman', serif;
+}
+.pdf-template .reserv-logo .bub-text {
+  font-size: 11px;
+  line-height: 1.1;
+  color: #333;
+}
+.pdf-template .reserv-logo .bub-text span {
+  font-weight: 600;
+  font-size: 13px;
+}
+.pdf-template .reserv-parties {
+  margin-bottom: 12mm;
+}
+.pdf-template .reserv-parties p {
+  margin: 0 0 6mm 0;
+}
+.pdf-template .reserv-parties .party-block {
+  margin-bottom: 10mm;
+  line-height: 1.6;
+}
+.pdf-template .reserv-body p {
+  margin: 0 0 8mm 0;
+}
+.pdf-template .reserv-signatures {
+  margin-top: 22mm;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22mm;
+}
+.pdf-template .reserv-signatures .sig-col {
+  font-size: 11px;
+}
+.pdf-template .reserv-signatures .sig-line {
+  height: 20mm;
+  border-bottom: 1px solid #000;
+  margin-bottom: 4mm;
+}
+.pdf-template .reserv-signatures .sig-meta {
+  margin: 1mm 0;
+}
+
+/* ============================== Selbstauskunft-PDF (Hypovision-Form) ============================== */
+.pdf-template .sa-page {
+  font-family: 'Inter', sans-serif;
+  font-size: 9.5px;
+  line-height: 1.35;
+  color: #000;
+}
+.pdf-template .sa-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4mm;
+  border-bottom: 2px solid #000;
+  padding-bottom: 2mm;
+}
+.pdf-template .sa-title {
+  font-size: 18px;
+}
+.pdf-template .sa-page-num {
+  font-size: 11px;
+  font-weight: 700;
+}
+.pdf-template .sa-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+}
+.pdf-template .sa-table thead th {
+  background: #000;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: left;
+  padding: 4px 6px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.pdf-template .sa-table thead th.sa-section-h {
+  width: 38%;
+}
+.pdf-template .sa-table tbody td {
+  border: 1px solid #999;
+  padding: 4px 6px;
+  vertical-align: top;
+  width: 31%;
+}
+.pdf-template .sa-table tbody td.sa-label {
+  width: 38%;
+  background: #f5f5f5;
+  font-weight: 500;
+}

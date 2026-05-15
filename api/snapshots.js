@@ -39,7 +39,8 @@ module.exports = async (req, res) => {
         'sort[0][direction]': 'desc'
       };
       const records = await listAll(TABLES.SNAPSHOTS, params, 500);
-      return res.status(200).json({ snapshots: records.map(snapshotRecordToApi) });
+      // Frontend erwartet direktes Array.
+      return res.status(200).json(records.map(snapshotRecordToApi));
     }
 
     if (req.method === 'POST') {

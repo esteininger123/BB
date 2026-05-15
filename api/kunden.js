@@ -43,7 +43,8 @@ module.exports = async (req, res) => {
       const records = await listAll(TABLES.KUNDEN, listParams, 1000);
       const ownerMap = await getOwnerNameMap();
       const out = records.map(r => kundeRecordToBasic(r, ownerMap));
-      return res.status(200).json({ kunden: out });
+      // Frontend erwartet direktes Array.
+      return res.status(200).json(out);
     }
 
     if (req.method === 'POST') {

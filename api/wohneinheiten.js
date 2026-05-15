@@ -13,7 +13,7 @@ const { weRecordToApi } = require('./_lib/mappers');
 async function loadProjektNames(projektIds) {
   const ids = [...new Set(projektIds.filter(Boolean))];
   if (ids.length === 0) return {};
-  const projektTable = process.env.PROJEKT_TABLE_ID;
+  const projektTable = process.env.PROJEKT_TABLE_ID || TABLES.PROJEKT;
   if (!projektTable) return {};
   try {
     const formula = 'OR(' + ids.map(id => `RECORD_ID()='${id}'`).join(',') + ')';
@@ -41,7 +41,11 @@ module.exports = async (req, res) => {
   if (!session) return res.status(401).json({ error: 'Nicht eingeloggt' });
 
   try {
-    const formula = `AND({Status}='${WE_STATUS_VERMARKTUNG}', {Maklerfirma}='${MAKLER_BUB}')`;
+    // Status ist Single-Select → exakter Vergleich.
+    // Maklerfirma ist ein Lookup-Feld vom verlinkten Projekt → kann mehrere Werte enthalten
+    // und in Airtable mit Trailing-Spaces gespeichert sein ("B&B Immo GmbH  ").
+    // Daher FIND() statt = und TRIM() schonen.
+    const formula = `AND({Status}='${WE_STATUS_VERMARKTUNG}', FIND('${MAKLER_BUB}', ARRAYJOIN({Maklerfirma}))>0)`;
 
     const fields = [
       WE_FIELDS.LAGE_BEZ,
@@ -67,7 +71,8 @@ module.exports = async (req, res) => {
     const projektMap = await loadProjektNames(projektIds);
 
     const out = records.map(r => weRecordToApi(r, projektMap));
-    return res.status(200).json({ wohneinheiten: out });
+    // Frontend erwartet direktes Array.
+    return res.status(200).json(out);
   } catch (e) {
     return sendError(res, e);
   }

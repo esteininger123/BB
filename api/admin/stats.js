@@ -4,6 +4,7 @@ const { requireAdmin } = require('../_lib/auth');
 const { listAll } = require('../_lib/airtable');
 const { methodNotAllowed, sendError } = require('../_lib/http');
 const { TABLES, KUNDEN_FIELDS, VERTRIEBLER_FIELDS } = require('../_lib/tables');
+const { kundeRecordToBasic } = require('../_lib/mappers');
 
 const PHASEN = [
   'Lead',
@@ -63,11 +64,36 @@ module.exports = async (req, res) => {
       perVertriebler[ownerId].phasen[phase] = (perVertriebler[ownerId].phasen[phase] || 0) + 1;
     });
 
+    // Frontend-kompatible Felder bereitstellen
+    const vertrieblerList = Object.values(perVertriebler).map(v => ({
+      ...v,
+      kundenGesamt: v.total,
+      beurkundet: (v.phasen && v.phasen['Beurkundet']) || 0,
+    }));
+
+    // Owner-Name-Map für die Kundenliste
+    const ownerNameMap = {};
+    vertriebler.forEach(v => {
+      ownerNameMap[v.id] = (v.fields && v.fields[VERTRIEBLER_FIELDS.NAME]) || '';
+    });
+    const alleKunden = kunden.map(r => kundeRecordToBasic(r, ownerNameMap));
+
+    const inBearbeitung =
+      (total.phasen['Kalkulation läuft'] || 0) +
+      (total.phasen['Reservierung'] || 0) +
+      (total.phasen['Selbstauskunft'] || 0) +
+      (total.phasen['Bank-Einreichung'] || 0) +
+      (total.phasen['Notar-Termin'] || 0);
+
     return res.status(200).json({
-      vertriebler: Object.values(perVertriebler),
+      vertriebler: vertrieblerList,
       total,
+      totalKunden: total.total,
+      byPhase: total.phasen,
+      inBearbeitung,
+      alleKunden,
       orphans,
-      phasen: PHASEN
+      phasen: PHASEN,
     });
   } catch (e) {
     return sendError(res, e);
