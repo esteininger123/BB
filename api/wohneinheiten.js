@@ -5,50 +5,84 @@
 const { verifySession } = require('./_lib/auth');
 const { airtable, listAll } = require('./_lib/airtable');
 const { methodNotAllowed, sendError } = require('./_lib/http');
-const { TABLES, WE_FIELDS, PROJEKT_FIELDS, WE_STATUS_VERMARKTUNG, MAKLER_BUB } = require('./_lib/tables');
+const { TABLES, WE_FIELDS, PROJEKT_FIELDS, PROJEKT_HEAD_FIELDS, WE_STATUS_VERMARKTUNG, MAKLER_BUB } = require('./_lib/tables');
 const { weRecordToApi } = require('./_lib/mappers');
 
 // Versucht Projekt-Namen aus den verlinkten Records zu laden.
 // Toleriert Fehler (z.B. wenn Projekt-Tabelle anders heißt) und liefert leeres Mapping.
-// Mapping: Code aus Airtable → kundenfreundlicher Projekt-Name.
-// Erweiterbar wenn neue Projekte dazukommen.
+// Mapping: Projekt-Code aus Airtable → kundenfreundlicher Projekt-Name.
 const PROJEKT_PRETTY = {
   'BRUCH_HEID_21':     'Heidelberger Str. 21, Bruchsal',
   'WES_RHEIN 290/292': 'Wesseling, Rheinstr. 290+292',
 };
 
-function beautifyProjektName(raw) {
-  if (!raw) return '';
-  // "PR: 17, WES_RHEIN 290/292" → "WES_RHEIN 290/292"
-  const stripped = String(raw).replace(/^PR:\s*\d+,\s*/, '').trim();
+function beautifyProjektName(rawNameOrCode) {
+  if (!rawNameOrCode) return '';
+  // Akzeptiert "PR: 17, WES_RHEIN 290/292" oder direkt "WES_RHEIN 290/292"
+  const stripped = String(rawNameOrCode).replace(/^PR:\s*\d+,\s*/, '').trim();
   return PROJEKT_PRETTY[stripped] || stripped;
 }
 
-// Mapping Objekt-ID → Projekt-Name (übergeordnete Projekt-Ebene).
-// 1 Projekt kann mehrere Objekte enthalten (z.B. Wesseling = 290 + 292).
+// Mapping Objekt-ID → Projekt-Name.
+// Schritt 1: Objekte laden → für jedes Objekt die Projekt-IDs sammeln (Linked-Records sind
+//            in der Airtable-REST-API reine String-IDs).
+// Schritt 2: Projekte aus PROJEKT_HEAD-Tabelle laden → Code-Field zu lesbarem Namen mappen.
+// Schritt 3: Objekt-ID → Projekt-Name verbinden.
 async function loadProjektNames(objektIds) {
   const ids = [...new Set(objektIds.filter(Boolean))];
   if (ids.length === 0) return {};
   const objektTable = process.env.PROJEKT_TABLE_ID || TABLES.PROJEKT;
   if (!objektTable) return {};
   try {
-    const formula = 'OR(' + ids.map(id => `RECORD_ID()='${id}'`).join(',') + ')';
-    // Aus jedem Objekt-Record holen wir den Projekt-Link (mit embedded {id, name}).
-    const records = await listAll(objektTable, {
-      filterByFormula: formula,
+    // --- Schritt 1: Objekt-Records → Projekt-Link-ID ---
+    const objektFormula = 'OR(' + ids.map(id => `RECORD_ID()='${id}'`).join(',') + ')';
+    const objektRecords = await listAll(objektTable, {
+      filterByFormula: objektFormula,
       fields: [PROJEKT_FIELDS.PROJEKT_LINK],
       maxRecords: ids.length
     }, ids.length);
-    const map = {};
-    records.forEach(r => {
+
+    const objektToProjektId = {};
+    const projektIds = new Set();
+    objektRecords.forEach(r => {
       const f = r.fields || {};
       const projektLink = f[PROJEKT_FIELDS.PROJEKT_LINK];
-      let rawName = '';
+      let pid = null;
       if (Array.isArray(projektLink) && projektLink.length > 0) {
         const first = projektLink[0];
-        rawName = (first && first.name) || (typeof first === 'string' ? first : '');
+        // REST-API: String-ID. MCP-Variante: {id, name}-Object → defensiv beides.
+        pid = (first && typeof first === 'object' && first.id) ? first.id
+            : (typeof first === 'string' ? first : null);
       }
-      map[r.id] = beautifyProjektName(rawName);
+      if (pid) {
+        objektToProjektId[r.id] = pid;
+        projektIds.add(pid);
+      }
+    });
+
+    if (projektIds.size === 0) return {};
+
+    // --- Schritt 2: Projekte aus PROJEKT_HEAD laden ---
+    const pidArr = Array.from(projektIds);
+    const projektFormula = 'OR(' + pidArr.map(id => `RECORD_ID()='${id}'`).join(',') + ')';
+    const projektRecords = await listAll(TABLES.PROJEKT_HEAD, {
+      filterByFormula: projektFormula,
+      fields: [PROJEKT_HEAD_FIELDS.CODE, PROJEKT_HEAD_FIELDS.PRIMARY],
+      maxRecords: pidArr.length
+    }, pidArr.length);
+
+    const projektIdToName = {};
+    projektRecords.forEach(r => {
+      const f = r.fields || {};
+      const raw = f[PROJEKT_HEAD_FIELDS.CODE] || f[PROJEKT_HEAD_FIELDS.PRIMARY] || '';
+      projektIdToName[r.id] = beautifyProjektName(raw);
+    });
+
+    // --- Schritt 3: Objekt-ID → Projekt-Name ---
+    const map = {};
+    Object.keys(objektToProjektId).forEach(objektId => {
+      const pid = objektToProjektId[objektId];
+      map[objektId] = projektIdToName[pid] || '';
     });
     return map;
   } catch (e) {

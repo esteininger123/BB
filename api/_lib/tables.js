@@ -5,12 +5,14 @@ const TABLES = {
   VERTRIEBLER: 'tblXG135L28XocpeY',
   KUNDEN:      'tbld0j0Mo7rre1Vh3',
   SNAPSHOTS:   'tbliqxbITCdSjK0ua',
-  // Wohneinheit + Objekt: aus Base "Objektmanagement" (appikHUetNyeonXBX).
-  // Env-Override optional (WOHNEINHEIT_TABLE_ID / PROJEKT_TABLE_ID).
+  // Wohneinheit-/Objekt-/Projekt-Hierarchie aus Base "Objektmanagement" (appikHUetNyeonXBX):
+  //   Projekt → enthält Objekte → enthält Wohneinheiten.
   WOHNEINHEIT: process.env.WOHNEINHEIT_TABLE_ID || 'tblAV81mX1MaxqVQi',
-  // Objekt-Tabelle (in Airtable "Objekt" benannt). Das ist die Tabelle, auf die
-  // das WE-Feld "Objekt" zeigt — enthält Heidelberger Str. 21 / WES_RHEIN 290 etc.
-  PROJEKT:     process.env.PROJEKT_TABLE_ID     || 'tblbBSh0fyPelFLvz'
+  // Objekt-Tabelle (z.B. WES_RHEIN 290, WES_RHEIN 292, Heidelberger Str. 21).
+  // PROJEKT bleibt der Schlüssel-Name für historische Kompatibilität — zeigt aber auf Objekt.
+  PROJEKT:     process.env.PROJEKT_TABLE_ID     || 'tblbBSh0fyPelFLvz',
+  // Echte Projekt-Tabelle (z.B. "WES_RHEIN 290/292" = 1 Projekt mit 2 Objekten).
+  PROJEKT_HEAD: process.env.PROJEKT_HEAD_TABLE_ID || 'tblisPG7YixRpd9cD',
 };
 
 // Felder der Objekt-Tabelle, die wir lesen
@@ -21,6 +23,12 @@ const PROJEKT_FIELDS = {
   // Projekt-Link auf der Objekt-Tabelle → übergeordnetes Projekt (z.B. Wesseling = 1 Projekt,
   // umfasst die zwei Objekte WES_RHEIN 290 und 292).
   PROJEKT_LINK: 'fldHYvgI49VDw3xKg',
+};
+
+// Felder der Projekt-Head-Tabelle (tblisPG7YixRpd9cD)
+const PROJEKT_HEAD_FIELDS = {
+  PRIMARY:    'fld3x0H7y736xKzvj', // "PR: 37, BRUCH_HEID_21" / "PR: 17, WES_RHEIN 290/292"
+  CODE:       'fldtpwL6D7E3F746S', // "BRUCH_HEID_21" / "WES_RHEIN 290/292"
 };
 
 const VERTRIEBLER_FIELDS = {
@@ -83,6 +91,7 @@ module.exports = {
   SNAPSHOT_FIELDS,
   WE_FIELDS,
   PROJEKT_FIELDS,
+  PROJEKT_HEAD_FIELDS,
   WE_STATUS_VERMARKTUNG,
   MAKLER_BUB
 };

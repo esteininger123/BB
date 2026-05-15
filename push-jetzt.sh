@@ -22,7 +22,7 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 35 — KPI-Info-Box klickbar (toggle), Wesseling-Mieten an Airtable-Mietspiegel (518/500/593€)
+git commit -m "Iter 36 — Projekt-Namen via Two-Hop-Lookup (Objekt → Projekt-Head-Tabelle); Linked-Records sind nur String-IDs
 
 - Iter 15 (Stabilisierung):
   * airtable.js: normalizeAirtableResponse — Single-Select-Objekte zu name-Strings reduziert.
