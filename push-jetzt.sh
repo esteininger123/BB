@@ -84,13 +84,13 @@ git commit -m "Iter 40 — Bonität-Detail komplett überarbeitet + SA-Auswertun
     nachfragen.
   * Diff-Report: _Cockpit/status/2026-05-15_excel-vs-airtable-diff.md.
 
-- Iter 40.3 — Individueller Tagesgeldzins:
-  * Neuer Slider 'Tagesgeldzins p.a. (Sparen-Vergleich)' in Sektion 5 (Einzel)
-    und Sektion 2 (Paket), Range 0-6 %, Step 0,05 %, Default 2,5 %.
-  * Schreibt in state.kalk.sparZins → fließt in computeBonitaetDetailed
-    und Sparen-vs-Investieren-Hochrechnung ein.
-  * Story-Sektion 07 + PDF-Sparen-vs-Investieren-Block zeigen jetzt den
+- Iter 40.3 — Individueller Tagesgeldzins direkt am Sparen-Chart:
+  * Inline-Slider (Range 0–6 %, Step 0,05 %) + Zahlen-Input direkt unter dem
+    Sparen-vs-Investieren-Chart, nicht mehr in Sektion Finanzierung.
+  * Schreibt in state.kalk.sparZins → fließt in recalc/recalcPaket ein.
+  * Story-Sektion 07 + PDF-Sparen-vs-Investieren-Block zeigen den
     aktiv gewählten Zins transparent (z.B. '2,50 % p.a.', '3,50 % p.a.').
+  * Default 2,5 % p.a., wird bei WE-Wechsel nicht überschrieben.
   * Cache-Bust auf v=38."
 
 # 3. Push

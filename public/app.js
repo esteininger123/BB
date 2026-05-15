@@ -665,6 +665,19 @@ function renderTabKalkulator() {
         <div class="card-title">Sparen vs. Investieren (10 J)</div>
         <div class="text-tertiary text-small">Nur sparen mit Tagesgeldzins vs. Immobilien-Investment inkl. CF.</div>
         <div class="chart-container"><canvas id="chart-sparen"></canvas></div>
+        <div class="spar-zins-row" style="display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;">
+          <label for="spar-zins-slider" style="font-weight:600;color:#2c5282;white-space:nowrap;text-transform:none;letter-spacing:0;">Tagesgeldzins p.a.:</label>
+          <input type="range" id="spar-zins-slider" min="0" max="6" step="0.05"
+                 value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
+                 style="flex:1;cursor:pointer;">
+          <span id="spar-zins-val" style="font-weight:700;color:#2c5282;min-width:60px;text-align:right;">
+            ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} %
+          </span>
+          <input type="number" id="spar-zins-num" min="0" max="6" step="0.05"
+                 value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
+                 style="width:80px;padding:4px 6px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;">
+        </div>
+        <p class="text-tertiary text-small" style="margin:6px 14px 0;">Anpassbar je nach Marktlage des Kunden (Default 2,5 %, Festgeld z.B. 3,5 %).</p>
       </div>
 
       <!-- Story-Sektionen (Vertriebs-Erzählung) -->
@@ -707,7 +720,31 @@ function renderTabKalkulator() {
     renderTabKalkulator();
   };
   bindKalkInputs();
+  bindSparZinsSlider();
   recalcAndRender();
+}
+
+// Inline-Slider am Sparen-vs-Investieren-Chart. Eigener Binder, weil das Layout
+// vom generischen Slider-System (data-slider/data-kalk) abweicht.
+function bindSparZinsSlider() {
+  const range = document.getElementById('spar-zins-slider');
+  const num   = document.getElementById('spar-zins-num');
+  const lbl   = document.getElementById('spar-zins-val');
+  if (!range || !num || !lbl) return;
+  const applyValue = (rawPct, source) => {
+    let v = parseFloat(rawPct);
+    if (!isFinite(v)) v = 2.5;
+    v = Math.max(0, Math.min(6, v));
+    state.kalk.sparZins = v / 100;
+    // Beide UI-Elemente synchronisieren
+    if (source !== 'range') range.value = v.toFixed(2);
+    if (source !== 'num')   num.value   = v.toFixed(2);
+    lbl.textContent = v.toFixed(2).replace('.', ',') + ' %';
+    recalcAndRender();
+  };
+  range.addEventListener('input', () => applyValue(range.value, 'range'));
+  num.addEventListener('input',   () => applyValue(num.value,   'num'));
+  num.addEventListener('blur',    () => applyValue(num.value,   'num')); // bei manueller Eingabe absichern
 }
 
 function setWeMode(mode) {
@@ -788,10 +825,6 @@ function kalkInputsPaketHtml(i) {
         ${select('Kaufnebenkosten mitfinanziert?', 'knkMitfinanziert', [
           {v:'false', l:'Nein'}, {v:'true', l:'Ja'}
         ])}
-        ${slider('Tagesgeldzins p.a. (Sparen-Vergleich)', 'sparZins', 0, 6, 0.05)}
-      </div>
-      <div style="padding: 0 14px 14px;">
-        <p class="text-tertiary text-small">Tagesgeldzins für den Vergleich „Sparen vs. Investieren". Default 2,5 % — anpassen je nach aktueller Marktlage des Kunden.</p>
       </div>
     </details>
     <details class="kalk-section" ${sec('pst')} data-sec="pst" ontoggle="toggleKalkSection('pst', this)">
@@ -921,10 +954,6 @@ function kalkInputsThemenHtml(i) {
         ${select('Kaufnebenkosten mitfinanziert?', 'knkMitfinanziert', [
           {v:'false', l:'Nein'}, {v:'true', l:'Ja'}
         ])}
-        ${slider('Tagesgeldzins p.a. (Sparen-Vergleich)', 'sparZins', 0, 6, 0.05)}
-      </div>
-      <div style="padding: 0 14px 14px;">
-        <p class="text-tertiary text-small">Tagesgeldzins für den Vergleich „Sparen vs. Investieren". Default 2,5 % — anpassen je nach aktueller Marktlage des Kunden (z.B. 3,5 % bei Festgeld-Angebot).</p>
       </div>
     </details>
 
