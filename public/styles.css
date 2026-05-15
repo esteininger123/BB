@@ -1072,28 +1072,31 @@ label {
   margin: 0;
 }
 .pdf-template .sa-table thead th {
-  background: #000;
+  background: var(--accent-dark, #8E6E3D);
   color: #fff;
   font-size: 10px;
   font-weight: 700;
   text-align: left;
-  padding: 4px 6px;
+  padding: 5px 7px;
   letter-spacing: 0.3px;
   text-transform: uppercase;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 .pdf-template .sa-table thead th.sa-section-h {
   width: 38%;
 }
 .pdf-template .sa-table tbody td {
-  border: 1px solid #999;
+  border: 1px solid #cdb792;
   padding: 4px 6px;
   vertical-align: top;
   width: 31%;
 }
 .pdf-template .sa-table tbody td.sa-label {
   width: 38%;
-  background: #f5f5f5;
+  background: #faf7f0;
   font-weight: 500;
+  color: #3A3A35;
 }
 
 /* --- Form-fillable Felder (Hypovision-Look, B&B-Branding) --- */
@@ -1123,11 +1126,11 @@ label {
 }
 .pdf-template .sa-chk {
   font-size: 11px;
-  color: #444;
+  color: #555;
   margin-right: 2px;
 }
 .pdf-template .sa-chk.on {
-  color: #2c5282;
+  color: var(--accent-dark, #8E6E3D);
   font-weight: 700;
 }
 
@@ -1141,9 +1144,9 @@ label {
 .pdf-template .sa-legal .legal-h {
   font-size: 12px;
   font-weight: 700;
-  color: #2c5282;
+  color: var(--accent-dark, #8E6E3D);
   margin: 6mm 0 2mm 0;
-  border-bottom: 1px solid #2c5282;
+  border-bottom: 1px solid var(--accent-dark, #8E6E3D);
   padding-bottom: 1mm;
   background: none;
   text-transform: none;
@@ -1152,6 +1155,69 @@ label {
 .pdf-template .sa-legal .legal-p {
   margin: 0 0 3mm 0;
   text-align: justify;
+}
+
+/* --- PandaDoc-Signatur-Anker (sichtbar als unauffälliger Marker, im PDF erkennt PandaDoc den Tag) --- */
+.pdf-template .sa-sigblock {
+  margin-top: 14mm;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18mm;
+}
+.pdf-template .sa-sigblock .sig-col {
+  position: relative;
+}
+.pdf-template .sa-sigblock .sig-tag {
+  display: inline-block;
+  font-family: 'Courier New', monospace;
+  font-size: 8px;
+  color: #b8a070;
+  letter-spacing: 0.2px;
+  line-height: 1;
+}
+.pdf-template .sa-sigblock .sig-line {
+  height: 18mm;
+  border-bottom: 1px solid #000;
+  margin-bottom: 2mm;
+  position: relative;
+}
+.pdf-template .sa-sigblock .sig-meta {
+  font-size: 9.5px;
+  color: #3A3A35;
+}
+
+/* --- Compliance-Block (GwG-Identifikation / PEP / Herkunft EK) --- */
+.pdf-template .sa-compliance-note {
+  font-size: 8.5px;
+  font-style: italic;
+  color: #555;
+  margin-top: 1mm;
+  margin-bottom: 2mm;
+  padding: 2mm 3mm;
+  background: #faf7f0;
+  border-left: 2px solid var(--accent, #B08A4D);
+}
+.pdf-template .sa-pep-block,
+.pdf-template .sa-herkunft-block {
+  margin-top: 3mm;
+  padding: 3mm;
+  border: 1px solid #cdb792;
+  background: #fdfbf6;
+}
+.pdf-template .sa-pep-block .pep-title,
+.pdf-template .sa-herkunft-block .h-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-dark, #8E6E3D);
+  margin-bottom: 1.5mm;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.pdf-template .sa-herkunft-block .h-checks {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1mm 4mm;
+  margin: 1.5mm 0;
 }
 
 /* --- Auswertung-Block in der SA-Form (live, nicht-PDF) --- */

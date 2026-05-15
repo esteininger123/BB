@@ -257,7 +257,7 @@ Gesamt ca. 30-40 Minuten Setup.
 - Lokale Offline-Datei weiterhin verfügbar
 
 **Phase 2 (später) — Komfort + Skalierung:**
-- E-Signatur statt PandaDoc (z.B. Yousign-Integration)
+- **PandaDoc-Integration für E-Signatur** (siehe Abschnitt 9 unten — Endpoint-Stub schon vorhanden)
 - Wiedervorlage-Erinnerungen per Email
 - Erweiterte Statistik (Funnel-Analyse, Vertriebler-Performance)
 - Multi-Vertriebler-Zuweisung (Co-Beratung)
@@ -273,6 +273,71 @@ Gesamt ca. 30-40 Minuten Setup.
 - Edgar als Admin sieht alle Test-Kunden
 - Offline-Datei läuft weiterhin per Doppelklick
 
+## 9. PandaDoc-Integration für die Selbstauskunft (Phase 2, vorbereitet)
+
+Ziel: Wenn der Kunde im Kalkulator-Tab "Selbstauskunft als PDF" klickt, wird das Dokument
+nicht (nur) lokal gespeichert, sondern automatisch an PandaDoc übergeben — von dort
+gehen die Empfänger-Mails raus, der Kunde unterzeichnet digital, signierte PDFs werden
+automatisch zurück in Airtable abgelegt.
+
+### Architektur
+
+```
+Webapp-Frontend                Vercel-Backend                  PandaDoc
+─────────────────              ──────────────                  ─────────
+Klick "An Kunde senden"  ─▶   POST /api/sa/send-for-signature ─▶  Document erstellen
+                                  (Stub: api/sa/send-for-signature.js) (aus Template)
+                                                                       │
+                                                                       ▼
+                                                                  Document senden
+                                                                       │
+                                                                       ▼
+Kunde bekommt Mail        ◀──────────────────────────────────  Mail-Versand
+Kunde unterzeichnet        ─▶   POST /api/sa/signature-webhook ◀── Webhook
+                                  (noch zu bauen)
+                                  ↓
+                              signiertes PDF in Airtable speichern
+                              Kundenphase auf "SA unterschrieben" setzen
+```
+
+### Was bereits umgesetzt ist
+
+- **PDF-Layout** in `public/pdf.js` enthält bereits PandaDoc-Token-Tags:
+  `{{Signature1}}`, `{{Date1}}` für Antragsteller, plus `{{Signature2}}`, `{{Date2}}` für
+  Mitantragsteller. Tags sind im PDF sichtbar (Courier 8px, dezent), werden von PandaDoc
+  beim Template-Upload automatisch als Signaturfelder erkannt.
+- **API-Endpoint-Stub** `api/sa/send-for-signature.js` ist funktionsfähig vorbereitet,
+  inkl. Auth-Check, Body-Validierung, PandaDoc-API-Calls (Template-basiert), Empfänger-
+  und Token-Mapping aus saJson, Polling auf draft-Status, automatischer Versand.
+- **Env-Vars-Slot:** `PANDADOC_API_KEY`, `PANDADOC_TEMPLATE_ID_SA`, `PANDADOC_WEBHOOK_SECRET`
+  werden ausgewertet, mit klarer 503-Fehlermeldung wenn nicht gesetzt.
+
+### Was noch zu tun ist (Phase-2-Setup, ca. 60 Min Edgar-Aufwand + 90 Min Code)
+
+1. **PandaDoc-Account anlegen** (ggf. 14 Tage Free-Trial, danach Business-Plan ab €49/Monat
+   für 500 Documents/Monat). Workspace einrichten, "Text Tags" in Settings aktivieren.
+2. **Template hochladen:** Aktuelles SA-PDF einmal per Drucken→PDF-Datei exportieren, in
+   PandaDoc als Template hochladen. Die `{{Signature1}}`/`{{Date1}}`-Markierungen werden
+   automatisch zu Feldern. Roles "Antragsteller" und "Mitantragsteller" definieren.
+   Variable-Tokens für die Daten-Felder hinzufügen (`{{Antragsteller.Name}}`, `{{Antragsteller.Adresse}}` etc.).
+3. **Env-Vars in Vercel setzen:** API-Key + Template-UUID + Webhook-Secret.
+4. **Frontend-Button:** In `app.js` → `renderTabSelbstauskunft()` zweiten Button neben "PDF
+   Selbstauskunft": "An Kunde zur Unterschrift senden". Bestätigungs-Dialog ("an
+   {email} versenden?"), dann `await api.post('/api/sa/send-for-signature', { kundeId })`.
+5. **Webhook-Endpoint** `api/sa/signature-webhook.js` bauen (PandaDoc → Backend). Empfängt
+   Status-Updates (`document.completed`, `document.viewed` etc.), prüft Webhook-Secret,
+   lädt signiertes PDF aus PandaDoc (`GET /documents/{id}/download`), speichert in
+   Airtable-Attachment-Feld, setzt Kundenphase auf "Selbstauskunft unterschrieben".
+6. **Airtable-Schema-Erweiterung:** Neues Feld `SA_SIGNED_PDF` (Attachment) und
+   `PANDADOC_DOC_ID` (Text) in Kunden-Tabelle. tables.js + mappers.js anpassen.
+
+### Alternative: PDF direkt hochladen (statt Template)
+
+Wenn das PDF-Layout häufig geändert wird, kann man PandaDoc-Templates umgehen und das
+PDF aus dem Browser direkt an die API streamen. Trade-offs siehe Kommentar-Block am Ende
+von `api/sa/send-for-signature.js` (Variante B). Empfehlung: erstmal Template-Weg,
+weil rechtsicherer und stabiler.
+
 ---
 
-Stand: 14.05.2026, Konzept v1
+Stand: 15.05.2026, Konzept v1.1 (+ PandaDoc-Vorbereitung)

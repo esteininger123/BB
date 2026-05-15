@@ -1565,6 +1565,7 @@ function renderTabSelbstauskunft() {
           ${saPersonHtml('m', sa.mitantragsteller)}
         </div>
       </div>
+      <div class="mt-16">${saHerkunftEkHtml(sa.herkunftEk || {})}</div>
       <div id="sa-auswertung-wrap" class="mt-16">${saAuswertungHtml()}</div>
       <div class="toolbar mt-16">
         <button onclick="saveSelbstauskunft()">Speichern</button>
@@ -1689,17 +1690,37 @@ function recalcSaAuswertung() {
 }
 
 // Liest alle SA-Felder aus dem DOM und schreibt sie in state._sa.
+// Prefix-Konvention:
+//   'a.xxx[.yyy]'  → antragsteller.xxx[.yyy]
+//   'm.xxx[.yyy]'  → mitantragsteller.xxx[.yyy]
+//   'sa.xxx[.yyy]' → sa.xxx[.yyy]  (sa-weite Felder, z.B. herkunftEk)
 function collectSaFromDOM() {
   const sa = state._sa || { antragsteller: {}, mitantragsteller: {} };
   document.querySelectorAll('[data-sa]').forEach(inp => {
     const parts = inp.dataset.sa.split('.');
     const prefix = parts[0];
+    let v;
+    if (inp.type === 'checkbox') {
+      v = inp.checked;
+    } else if (inp.value === '' || inp.value === null) {
+      v = null;
+    } else if (inp.type === 'number') {
+      v = parseFloat(inp.value); if (!isFinite(v)) v = null;
+    } else {
+      v = inp.value;
+    }
+    if (prefix === 'sa') {
+      // sa-weite Felder: sa.<key>[.<sub>]
+      if (parts.length === 2) {
+        sa[parts[1]] = v;
+      } else if (parts.length === 3) {
+        if (!sa[parts[1]] || typeof sa[parts[1]] !== 'object') sa[parts[1]] = {};
+        sa[parts[1]][parts[2]] = v;
+      }
+      return;
+    }
     const target = prefix === 'a' ? 'antragsteller' : 'mitantragsteller';
     if (!sa[target]) sa[target] = {};
-    let v;
-    if (inp.value === '' || inp.value === null) v = null;
-    else if (inp.type === 'number') { v = parseFloat(inp.value); if (!isFinite(v)) v = null; }
-    else v = inp.value;
     if (parts.length === 2) {
       sa[target][parts[1]] = v;
     } else if (parts.length === 3) {
@@ -1726,6 +1747,38 @@ async function autoSaveSa() {
       console.error('autoSaveSa', e);
     }
   }, 600);
+}
+
+// Sa-weite Sektion: Herkunft des Eigenkapitals. Banken-Pflichtfrage bei
+// jeder Immobilienfinanzierung. Multi-Select + freie Erläuterung.
+function saHerkunftEkHtml(h) {
+  h = h || {};
+  const chk = (key, label) => `
+    <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;cursor:pointer;user-select:none;font-weight:400;">
+      <input type="checkbox" data-sa="sa.herkunftEk.${key}" ${h[key] ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;">
+      <span>${esc(label)}</span>
+    </label>`;
+  return `
+    <details class="sa-section" open>
+      <summary>Herkunft Eigenkapital (Bank-Pflichtfrage)</summary>
+      <div class="text-tertiary text-small mb-12">
+        Die finanzierende Bank fragt bei jeder Immobilienfinanzierung nach der Herkunft des eingesetzten Eigenkapitals.
+        Mehrfachauswahl möglich. Bei "Schenkung" oder "Erbe" verlangt die Bank in der Regel eine zusätzliche Schenkungs- bzw. Erbschaftsbescheinigung.
+      </div>
+      <div class="grid-3" style="gap:8px 24px;">
+        ${chk('ersparnisse', 'Eigene Ersparnisse')}
+        ${chk('wertpapier', 'Wertpapier-/Depot-Verkauf')}
+        ${chk('erbe', 'Erbschaft')}
+        ${chk('schenkung', 'Schenkung')}
+        ${chk('immobilien', 'Immobilienverkauf')}
+        ${chk('sonstiges', 'Sonstiges')}
+      </div>
+      <div class="mt-12">
+        <label>Erläuterung (z.B. Schenker, Verkaufsobjekt, Verkaufsjahr)</label>
+        <input type="text" data-sa="sa.herkunftEk.erlaeuterung" value="${esc(h.erlaeuterung || '')}">
+      </div>
+    </details>
+  `;
 }
 
 function saPersonHtml(prefix, p) {
@@ -1803,6 +1856,44 @@ function saPersonHtml(prefix, p) {
         ${t('Hausbank', 'bank')}
         ${t('IBAN', 'iban')}
         ${t('BIC', 'bic')}
+      </div>
+    </details>
+
+    <details class="sa-section" open>
+      <summary>Identifikation & Compliance</summary>
+      <div class="text-tertiary text-small mb-12">
+        Pflicht nach §10 GwG (Geldwäschegesetz) bei jeder Immobilienfinanzierung. Die Bank überprüft die Identität
+        zusätzlich per PostIdent/VideoIdent — die Angaben hier dienen der Vorprüfung.
+      </div>
+      <div class="grid-2">
+        <div>
+          <label>Ausweisart</label>
+          <select data-sa="${prefix}.gwg.ausweisArt">
+            ${[
+              {v:'',l:'—'},
+              {v:'Personalausweis',l:'Personalausweis'},
+              {v:'Reisepass',l:'Reisepass'},
+              {v:'Sonstiges',l:'Sonstiges'}
+            ].map(o => `<option value="${esc(o.v)}" ${((p.gwg||{}).ausweisArt || '') === o.v ? 'selected' : ''}>${esc(o.l)}</option>`).join('')}
+          </select>
+        </div>
+        ${sub('gwg', 'ausweisNr', 'text', 'Ausweis-Nummer')}
+        ${sub('gwg', 'ausweisBehoerde', 'text', 'Ausstellende Behörde')}
+        ${sub('gwg', 'ausweisAusgestellt', 'date', 'Ausgestellt am')}
+        ${sub('gwg', 'ausweisGueltig', 'date', 'Gültig bis')}
+      </div>
+      <div class="mt-16" style="padding:12px;border:1px solid var(--border);border-radius:6px;background:#fdfbf6;">
+        <div style="font-weight:600;margin-bottom:8px;">PEP-Erklärung (politisch exponierte Person)</div>
+        <div class="text-tertiary text-small mb-8">
+          PEP = Person mit hochrangigem öffentlichem Amt oder Familienangehörige/nahestehende Personen einer solchen
+          (§1 Abs. 12&ndash;14 GwG). Pflichtangabe.
+        </div>
+        ${s('Status', 'pep', [
+          {v:'',l:'—'},
+          {v:'nein',l:'Nein — ich bin keine PEP'},
+          {v:'ja',l:'Ja — ich bin PEP (bitte erläutern)'}
+        ])}
+        ${t('Erläuterung (nur falls PEP)', 'pepDetails')}
       </div>
     </details>
 
@@ -1922,36 +2013,11 @@ function saPersonHtml(prefix, p) {
 }
 
 async function saveSelbstauskunft() {
-  const sa = state._sa || { antragsteller: {}, mitantragsteller: {} };
+  // collectSaFromDOM() liest a.*, m.* UND sa.* Felder (inkl. Checkboxes für Herkunft EK)
+  // und schreibt nach state._sa. Wir verwenden bewusst die gleiche Funktion wie der
+  // Auto-Save, damit es nur eine Quelle der Wahrheit gibt.
+  const sa = collectSaFromDOM();
   sa.gemeinsam = document.getElementById('sa-gemeinsam').checked;
-  document.querySelectorAll('[data-sa]').forEach(inp => {
-    const parts = inp.dataset.sa.split('.');
-    const prefix = parts[0]; // 'a' oder 'm'
-    const target = prefix === 'a' ? 'antragsteller' : 'mitantragsteller';
-    if (!sa[target]) sa[target] = {};
-
-    // Wert typisieren: bei type=number → Float (außer leer)
-    let v;
-    if (inp.value === '' || inp.value === null) {
-      v = null;
-    } else if (inp.type === 'number') {
-      v = parseFloat(inp.value);
-      if (!isFinite(v)) v = null;
-    } else {
-      v = inp.value;
-    }
-
-    if (parts.length === 2) {
-      // "a.nettoMo" → sa.antragsteller.nettoMo
-      sa[target][parts[1]] = v;
-    } else if (parts.length === 3) {
-      // "a.immo1.verkehrswert" → sa.antragsteller.immo1.verkehrswert
-      const sub = parts[1];
-      const key = parts[2];
-      if (!sa[target][sub] || typeof sa[target][sub] !== 'object') sa[target][sub] = {};
-      sa[target][sub][key] = v;
-    }
-  });
   try {
     await api.put('/api/kunden/' + state.kundeId, { saJson: sa });
     state.kunde.saJson = sa;

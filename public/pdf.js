@@ -5,23 +5,23 @@
    Einheitliches Layout: jede Seite hat den gleichen Header (Brot & Butter Logo +
    Untertitel + ggf. Seitennummer) und Footer (B&B Immo + Vertriebler-Daten). */
 
-// Brot & Butter Immobilien Logo als SVG — repliziert das Original-Logo (zwei B mit
-// Schatten-Effekt + Schriftzug). Wiederverwendbar in allen PDFs.
+// Brot & Butter Immobilien Logo.
+// Lädt primär die offizielle Logo-Datei aus /assets/bb-logo.jpg (von bub-immo.de).
+// Wenn die Datei fehlt (onerror), springt der SVG-Replikat-Fallback ein.
+// So funktioniert das PDF ohne Logo-File und sieht mit File 1:1 wie das Web-Logo aus.
 function _bubLogo() {
-  return `
-    <svg class="bub-logo-svg" viewBox="0 0 300 80" xmlns="http://www.w3.org/2000/svg">
-      <!-- Schatten-Buchstaben in Grau, leicht versetzt -->
-      <text x="5" y="62" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="400" fill="#B8B8B8" letter-spacing="-6">B</text>
-      <text x="38" y="62" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="400" fill="#B8B8B8" letter-spacing="-6">B</text>
-      <!-- Vordergrund-Buchstaben in Schwarz, links versetzt -->
-      <text x="0" y="58" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="600" fill="#000" letter-spacing="-6">B</text>
-      <text x="33" y="58" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="600" fill="#000" letter-spacing="-6">B</text>
-      <!-- "Brot & Butter" — leichte Schrift -->
+  // Inline-SVG-Fallback (base64-encoded), wird nur sichtbar wenn das JPG nicht lädt.
+  const fallbackSvg = `<svg class="bub-logo-svg" viewBox="0 0 300 80" xmlns="http://www.w3.org/2000/svg">
+      <text x="5" y="62" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="400" fill="#cdb792" letter-spacing="-6">B</text>
+      <text x="38" y="62" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="400" fill="#cdb792" letter-spacing="-6">B</text>
+      <text x="0" y="58" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="600" fill="#8E6E3D" letter-spacing="-6">B</text>
+      <text x="33" y="58" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="600" fill="#8E6E3D" letter-spacing="-6">B</text>
       <text x="92" y="40" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="300" fill="#1a1a1a" letter-spacing="0.5">Brot &amp; Butter</text>
-      <!-- "Immobilien" — fett -->
       <text x="92" y="65" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#1a1a1a" letter-spacing="0.5">Immobilien</text>
-    </svg>
-  `;
+    </svg>`;
+  const fallbackB64 = btoa(unescape(encodeURIComponent(fallbackSvg)));
+  // <img> versucht zuerst /assets/bb-logo.jpg; onerror → Data-URL mit SVG-Replikat.
+  return `<img class="bub-logo-svg" src="/assets/bb-logo.jpg" alt="Brot & Butter Immobilien" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,${fallbackB64}';">`;
 }
 
 // Einheitlicher Header pro Seite: Logo + Titel + Untertitel (rechts).
@@ -405,8 +405,52 @@ function selbstauskunft(kunde, user) {
   }
 
   const versA = a.vers || {};
+  const gwgA = a.gwg || {};
+  const gwgM = m.gwg || {};
+  const herk = sa.herkunftEk || {};
 
-  // === SEITE 1: PERSÖNLICHE VERHÄLTNISSE + EINKOMMEN + FIXKOSTEN ===
+  // Helper: PEP-Block (Person-spezifisch). Pflicht nach §1 Abs.12 GwG.
+  function pepBlock(p, label) {
+    const status = p.pep === 'ja' ? 'ja' : (p.pep === 'nein' ? 'nein' : '');
+    return `
+      <div class="sa-pep-block">
+        <div class="pep-title">PEP-Erklärung &middot; ${esc(label)}</div>
+        <div style="font-size:8.5px; color:#555; margin-bottom:1.5mm;">
+          Politisch exponierte Person (PEP) = Person, die ein hochrangiges öffentliches Amt ausübt oder ausgeübt hat,
+          oder Familienangehörige/nahestehende Person einer solchen (§1 Abs. 12&ndash;14 GwG).
+        </div>
+        <div>
+          <span class="sa-chk ${status === 'nein' ? 'on' : ''}">${status === 'nein' ? '☑' : '☐'}</span> Ich bin <strong>keine</strong> politisch exponierte Person.
+          &nbsp;&nbsp;
+          <span class="sa-chk ${status === 'ja' ? 'on' : ''}">${status === 'ja' ? '☑' : '☐'}</span> Ich bin politisch exponierte Person — Details:
+          ${fld(p.pepDetails || '')}
+        </div>
+      </div>
+    `;
+  }
+
+  // Helper: Herkunft EK (sa-weit, nicht person-spezifisch).
+  function herkunftBlock() {
+    const chk = (k, label) => `<span><span class="sa-chk ${herk[k] ? 'on' : ''}">${herk[k] ? '☑' : '☐'}</span> ${esc(label)}</span>`;
+    return `
+      <div class="sa-herkunft-block">
+        <div class="h-title">Herkunft des eingesetzten Eigenkapitals</div>
+        <div class="h-checks">
+          ${chk('ersparnisse', 'Eigene Ersparnisse')}
+          ${chk('wertpapier', 'Wertpapier-/Depot-Verkauf')}
+          ${chk('erbe', 'Erbschaft')}
+          ${chk('schenkung', 'Schenkung')}
+          ${chk('immobilien', 'Immobilienverkauf')}
+          ${chk('sonstiges', 'Sonstiges')}
+        </div>
+        <div style="margin-top:1.5mm;">
+          <span style="font-size:9px; color:#555;">Erläuterung:</span> ${fld(herk.erlaeuterung || '')}
+        </div>
+      </div>
+    `;
+  }
+
+  // === SEITE 1: PERSÖNLICHE VERHÄLTNISSE + IDENTIFIKATION (GwG) + EINKOMMEN + FIXKOSTEN ===
   const seite1 = `
     <div class="pdf-page sa-page">
       ${_header('Selbstauskunft – Vertraulich', 'Seite 1 · Persönliche Verhältnisse & Einkommen')}
@@ -436,6 +480,23 @@ function selbstauskunft(kunde, user) {
           ${row('IBAN', a.iban, m.iban)}
           ${row('BIC', a.bic, m.bic)}
         </tbody>
+        <thead><tr><th class="sa-section-h">IDENTIFIKATION (§10 GwG)</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
+        <tbody>
+          ${rowChk('Ausweisart', ['Personalausweis','Reisepass','Sonstiges'], gwgA.ausweisArt, gwgM.ausweisArt)}
+          ${row('Ausweis-Nr.', gwgA.ausweisNr, gwgM.ausweisNr)}
+          ${row('ausstellende Behörde', gwgA.ausweisBehoerde, gwgM.ausweisBehoerde)}
+          ${row('ausgestellt am', dt(gwgA.ausweisAusgestellt), dt(gwgM.ausweisAusgestellt))}
+          ${row('gültig bis', dt(gwgA.ausweisGueltig), dt(gwgM.ausweisGueltig))}
+        </tbody>
+      </table>
+      <div class="sa-compliance-note">
+        Hinweis: Die finanzierende Bank ist nach §10 Geldwäschegesetz (GwG) verpflichtet, die Identität jedes
+        Vertragspartners festzustellen und zu überprüfen. Die obigen Angaben dienen der Vorprüfung; die
+        endgültige Identifikation erfolgt durch die Bank (PostIdent / VideoIdent / Identifizierung beim Notar).
+      </div>
+      ${pepBlock(a, 'Antragsteller')}
+      ${gemeinsam ? pepBlock(m, 'Mitantragsteller') : ''}
+      <table class="sa-table" style="margin-top:3mm;">
         <thead><tr><th class="sa-section-h">EINKOMMEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
         <tbody>
           ${row('Netto-Gehalt', fmtNum(a.nettoMo), fmtNum(m.nettoMo))}
@@ -475,6 +536,9 @@ function selbstauskunft(kunde, user) {
           <tr><td class="sa-label">Versicherungssumme</td><td>${fld(fmtNum(versA.summe))}</td><td></td></tr>
           <tr><td class="sa-label">mtl. Beitrag / Rückkaufwert</td><td>${fld(fmtNum(versA.belastungMo))} &nbsp;/&nbsp; ${fld(fmtNum(versA.rueckkauf))}</td><td></td></tr>
         </tbody>
+      </table>
+      ${herkunftBlock()}
+      <table class="sa-table" style="margin-top:3mm;">
         <thead><tr><th class="sa-section-h">IMMOBILIENVERMÖGEN</th><th>Immobilie 1</th><th>Immobilie 2</th></tr></thead>
         <tbody>
           <tr><td class="sa-label">Art des Objekts</td><td>${fld((a.immo1 && a.immo1.art) || '')}</td><td>${fld((a.immo2 && a.immo2.art) || '')}</td></tr>
@@ -538,15 +602,17 @@ function selbstauskunft(kunde, user) {
         Hiermit stimme/n ich/wir der Übermittlung der Daten an die kreditgebende Bank sowie an SCHUFA und Creditreform
         gemäß DS-GVO zu.
       </div>
-      <div style="margin-top:20mm; display:grid; grid-template-columns:1fr 1fr; gap:22mm;">
-        <div>
-          <div style="height:20mm; border-bottom:1px solid #000;"></div>
-          <div style="font-size:10px; margin-top:2mm;">Ort, Datum &middot; Antragsteller</div>
+      <div class="sa-sigblock">
+        <div class="sig-col">
+          <div class="sig-line"><span class="sig-tag">{{Signature1}}</span></div>
+          <div class="sig-meta">Ort, Datum &middot; Unterschrift Antragsteller</div>
+          <div class="sig-meta sig-tag" style="margin-top:1mm;">{{Date1}}</div>
         </div>
         ${gemeinsam ? `
-        <div>
-          <div style="height:20mm; border-bottom:1px solid #000;"></div>
-          <div style="font-size:10px; margin-top:2mm;">Ort, Datum &middot; Mitantragsteller</div>
+        <div class="sig-col">
+          <div class="sig-line"><span class="sig-tag">{{Signature2}}</span></div>
+          <div class="sig-meta">Ort, Datum &middot; Unterschrift Mitantragsteller</div>
+          <div class="sig-meta sig-tag" style="margin-top:1mm;">{{Date2}}</div>
         </div>` : '<div></div>'}
       </div>
       ${_footer(user)}
@@ -614,15 +680,17 @@ function selbstauskunft(kunde, user) {
         strafrechtlichen Verfolgung wegen Kreditbetrugs (§ 265b StGB) führen können. Wesentliche Änderungen der wirtschaftlichen
         Verhältnisse zwischen Abgabe der Selbstauskunft und Auszahlung des Darlehens werde/n ich/wir unverzüglich mitteilen.
       </p>
-      <div style="margin-top:18mm; display:grid; grid-template-columns:1fr 1fr; gap:22mm;">
-        <div>
-          <div style="height:18mm; border-bottom:1px solid #000;"></div>
-          <div style="font-size:10px; margin-top:2mm;">Ort, Datum &middot; Unterschrift Antragsteller</div>
+      <div class="sa-sigblock">
+        <div class="sig-col">
+          <div class="sig-line"><span class="sig-tag">{{Signature1}}</span></div>
+          <div class="sig-meta">Ort, Datum &middot; Unterschrift Antragsteller</div>
+          <div class="sig-meta sig-tag" style="margin-top:1mm;">{{Date1}}</div>
         </div>
         ${gemeinsam ? `
-        <div>
-          <div style="height:18mm; border-bottom:1px solid #000;"></div>
-          <div style="font-size:10px; margin-top:2mm;">Ort, Datum &middot; Unterschrift Mit-Antragsteller</div>
+        <div class="sig-col">
+          <div class="sig-line"><span class="sig-tag">{{Signature2}}</span></div>
+          <div class="sig-meta">Ort, Datum &middot; Unterschrift Mit-Antragsteller</div>
+          <div class="sig-meta sig-tag" style="margin-top:1mm;">{{Date2}}</div>
         </div>` : '<div></div>'}
       </div>
       ${_footer(user)}
