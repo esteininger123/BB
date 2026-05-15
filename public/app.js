@@ -530,7 +530,7 @@ function renderTabKalkulator() {
   const i = state.kalk || makeDefaultKalkInput();
   state.kalk = i;
   if (!Array.isArray(state.kalk._paketWeIds)) state.kalk._paketWeIds = [];
-  // Defensive Default für Tagesgeldzins (Sparen-vs-Investieren-Vergleich).
+  // Defensive Default für die EK-Verzinsung (Sparen-vs-Investieren-Vergleich).
   // Wird bei WE-Wechsel nicht aus den Stammdaten überschrieben — bleibt persistent.
   if (state.kalk.sparZins === undefined || state.kalk.sparZins === null) {
     state.kalk.sparZins = 0.025; // 2,5 % p.a. Default
@@ -663,21 +663,21 @@ function renderTabKalkulator() {
       </div>
       <div class="card mt-16">
         <div class="card-title">Sparen vs. Investieren (10 J)</div>
-        <div class="text-tertiary text-small">Nur sparen mit Tagesgeldzins vs. Immobilien-Investment inkl. CF.</div>
+        <div class="text-tertiary text-small">Vergleich: EK verzinst sich auf einem Anlage-Konto vs. EK fließt als Immobilien-Investment inkl. CF.</div>
         <div class="chart-container"><canvas id="chart-sparen"></canvas></div>
         <div class="spar-zins-row" style="display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;">
-          <label for="spar-zins-slider" style="font-weight:600;color:#2c5282;white-space:nowrap;text-transform:none;letter-spacing:0;">Tagesgeldzins p.a.:</label>
-          <input type="range" id="spar-zins-slider" min="0" max="6" step="0.05"
+          <label for="spar-zins-slider" style="font-weight:600;color:#2c5282;white-space:nowrap;text-transform:none;letter-spacing:0;">Verzinsung des Eigenkapitals p.a.:</label>
+          <input type="range" id="spar-zins-slider" min="0" max="12" step="0.05"
                  value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
                  style="flex:1;cursor:pointer;">
           <span id="spar-zins-val" style="font-weight:700;color:#2c5282;min-width:60px;text-align:right;">
             ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} %
           </span>
-          <input type="number" id="spar-zins-num" min="0" max="6" step="0.05"
+          <input type="number" id="spar-zins-num" min="0" max="12" step="0.05"
                  value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
                  style="width:80px;padding:4px 6px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;">
         </div>
-        <p class="text-tertiary text-small" style="margin:6px 14px 0;">Anpassbar je nach Marktlage des Kunden (Default 2,5 %, Festgeld z.B. 3,5 %).</p>
+        <p class="text-tertiary text-small" style="margin:6px 14px 0;">Annahme für die EK-Verzinsung im Vergleichs-Szenario (Default 2,5 %, Festgeld z.B. 3,5 %, Wertpapier-Mix z.B. 6–8 %).</p>
       </div>
 
       <!-- Story-Sektionen (Vertriebs-Erzählung) -->
@@ -734,7 +734,7 @@ function bindSparZinsSlider() {
   const applyValue = (rawPct, source) => {
     let v = parseFloat(rawPct);
     if (!isFinite(v)) v = 2.5;
-    v = Math.max(0, Math.min(6, v));
+    v = Math.max(0, Math.min(12, v));
     state.kalk.sparZins = v / 100;
     // Beide UI-Elemente synchronisieren
     if (source !== 'range') range.value = v.toFixed(2);
@@ -1372,12 +1372,12 @@ function renderStories(r) {
       <table class="story-table">
         <tr><td>Startvermögen (verfügbar)</td><td class="num">${fmt(r.bonVermoegen || 0)}</td></tr>
         <tr><td>− KNK „verbrannt"</td><td class="num">− ${fmt(r.ekBedarf)}</td></tr>
-        <tr><td>Nur sparen (Tagesgeld @ ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a., 10 J.)</td><td class="num">${fmt(sparen10.nurSparen || 0)}</td></tr>
+        <tr><td>Nur EK anlegen (Verzinsung ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a., 10 J.)</td><td class="num">${fmt(sparen10.nurSparen || 0)}</td></tr>
         <tr><td>Mit Immobilie (Spar-Rest + Vermögen + kum. CF)</td><td class="num pos">${fmt(sparen10.mitImmo || 0)}</td></tr>
         <tr class="totalrow"><td><strong>Vorteil durch Immobilie</strong></td><td class="num pos"><strong>${fmt(r.sparenVsKaufenDelta)}</strong></td></tr>
       </table>
       <div class="story-explain">
-        Wer sein EK <strong>nur auf dem Tagesgeld spart</strong>, kommt nach 10 J. auf <strong>${fmt(sparen10.nurSparen || 0)}</strong>. Wer denselben Betrag <strong>als EK in diese Immobilie investiert</strong>, hat nach 10 J. <strong>${fmt(sparen10.mitImmo || 0)}</strong> — Vorteil: <strong>${fmt(r.sparenVsKaufenDelta)}</strong>.<br><br>
+        Wer sein EK <strong>nur anlegt (${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a.)</strong>, kommt nach 10 J. auf <strong>${fmt(sparen10.nurSparen || 0)}</strong>. Wer denselben Betrag <strong>als EK in diese Immobilie investiert</strong>, hat nach 10 J. <strong>${fmt(sparen10.mitImmo || 0)}</strong> — Vorteil: <strong>${fmt(r.sparenVsKaufenDelta)}</strong>.<br><br>
         <strong>Wichtig:</strong> Die KNK sind <em>verbranntes Geld</em> (Grunderwerbsteuer, Notar, Grundbuch). Bei KNK mitfinanziert = 0 €, dafür höhere Restschuld.
       </div>
     </div>
