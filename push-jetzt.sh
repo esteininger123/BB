@@ -22,7 +22,7 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 36 — Projekt-Namen via Two-Hop-Lookup (Objekt → Projekt-Head-Tabelle); Linked-Records sind nur String-IDs
+git commit -m "Iter 37 — Marktpreis €/qm im Paket-Modus (überschreibt Per-WE-Werte), KPI Markteinkauf-Vorteil aggregiert
 
 - Iter 15 (Stabilisierung):
   * airtable.js: normalizeAirtableResponse — Single-Select-Objekte zu name-Strings reduziert.

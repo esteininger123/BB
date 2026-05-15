@@ -711,6 +711,16 @@ function kalkInputsPaketHtml(i) {
   const isQuick = !i.bonModus || i.bonModus === 'quick';
   return `
     <details class="kalk-section" open>
+      <summary>Marktpreis &amp; Wertentwicklung</summary>
+      <div class="grid-1">
+        ${sliderEur('Marktpreis €/qm (0 = aus)', 'marktwertProQm', 0, 8000, 50, '€/qm')}
+        ${slider('Wertsteigerung p.a.', 'wertsteigerung', 0, 6, 0.25)}
+      </div>
+      <div style="padding: 4px 14px 14px;">
+        <p class="text-tertiary text-small">Marktpreis gilt für <strong>alle WEs im Paket</strong> — der Markteinkauf-Vorteil wird aggregiert berechnet (Σ Marktpreis × qm − Σ Kaufpreise).</p>
+      </div>
+    </details>
+    <details class="kalk-section" open>
       <summary>Finanzierung</summary>
       <div class="grid-1">
         ${slider('Zinssatz', 'zins', 2, 8, 0.05)}
@@ -739,7 +749,7 @@ function kalkInputsPaketHtml(i) {
     <details class="kalk-section">
       <summary>Hinweis</summary>
       <div style="padding: 4px 14px 14px;">
-        <p class="text-tertiary text-small">Im Paket-Modus werden die Objekt-Werte (Kaufpreis, qm, Miete, Hausgeld, AfA, Subvention etc.) automatisch pro WE aus den gepflegten Vorlagen gezogen. Hier oben nur die <strong>persönlichen Settings</strong> einstellen.</p>
+        <p class="text-tertiary text-small">Im Paket-Modus werden die Objekt-Werte (Kaufpreis, qm, Miete, Hausgeld, AfA, Subvention) pro WE aus den gepflegten Vorlagen gezogen. Hier oben werden die <strong>gemeinsamen Settings</strong> (Marktpreis, Finanzierung, Steuer, Bonität) für das Paket eingestellt.</p>
       </div>
     </details>
   `;
@@ -1001,27 +1011,32 @@ function recalcAndRender() {
       // Paket-Modus: jede WE aus Airtable ziehen, recalcPaket aufrufen.
       // Falls für die WE ein gepflegtes Preset in we-presets.js existiert → das nutzen.
       // Sonst Default-Preset aus Airtable-Werten + Faustregeln.
+      // Gemeinsamer Marktpreis aus dem Paket-UI: überschreibt Per-WE-Werte wenn gesetzt.
+      const paketMarktwert = parseFloat(state.kalk.marktwertProQm) || 0;
+      const paketWertsteigerung = (typeof state.kalk.wertsteigerung === 'number')
+        ? state.kalk.wertsteigerung : null;
       const weInputs = state.kalk._paketWeIds.map(wid => {
         const w = state.wohneinheiten.find(x => x.id === wid);
         if (!w) return null;
         const preset = (window.WE_PRESETS_BY_RECID || {})[wid];
-        if (preset) {
-          return Object.assign({}, JSON.parse(JSON.stringify(preset)), {
-            _weId: w.id, _weLage: w.lageText || w.lage, _weNr: w.weNr, _projektName: w.projektName,
-          });
-        }
-        // Fallback ohne Preset (sollte nicht passieren bei Heidelberger/Wesseling)
-        return {
-          kaufpreis: w.kp || 0, stellplatzKp: 0, qm: w.qm || 0, marktwertProQm: 0,
-          kaltmiete: w.kaltmiete || 0, stellplatzMiete: 0,
-          subventionMo: 0, subventionMonate: 0,
-          mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
-          hausgeld: Math.round((w.qm || 0)),
-          hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
-          afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
-          wertsteigerung: 0.03,
+        const base = preset
+          ? JSON.parse(JSON.stringify(preset))
+          : {
+              kaufpreis: w.kp || 0, stellplatzKp: 0, qm: w.qm || 0, marktwertProQm: 0,
+              kaltmiete: w.kaltmiete || 0, stellplatzMiete: 0,
+              subventionMo: 0, subventionMonate: 0,
+              mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
+              hausgeld: Math.round((w.qm || 0)),
+              hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+              afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+              wertsteigerung: 0.03,
+            };
+        // Paket-weite Overrides: Marktpreis + Wertsteigerung
+        if (paketMarktwert > 0) base.marktwertProQm = paketMarktwert;
+        if (paketWertsteigerung !== null) base.wertsteigerung = paketWertsteigerung;
+        return Object.assign(base, {
           _weId: w.id, _weLage: w.lageText || w.lage, _weNr: w.weNr, _projektName: w.projektName,
-        };
+        });
       }).filter(Boolean);
       if (weInputs.length === 0) {
         document.getElementById('kpi-grid').innerHTML = '<div class="empty-state">Wähle mindestens eine WE.</div>';
