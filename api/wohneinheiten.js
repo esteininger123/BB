@@ -42,10 +42,23 @@ module.exports = async (req, res) => {
 
   try {
     // Status ist Single-Select → exakter Vergleich.
-    // Das Firma-Feld auf der Wohneinheit ist ein Lookup vom Projekt → "Firma (from Projekt) (from Objekt)".
-    // Lookups geben Arrays zurück, daher FIND() + ARRAYJOIN(). Auch Trailing-Spaces wie
+    // Firma-Feld auf der Wohneinheit ist ein Lookup vom Projekt → "Firma (from Projekt) (from Objekt)".
+    // Lookups geben Arrays zurück → FIND() + ARRAYJOIN(). Auch Trailing-Spaces wie
     // "B&B Immo GmbH  " sind dank FIND() unproblematisch.
-    const formula = `AND({Status}='${WE_STATUS_VERMARKTUNG}', FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0)`;
+    //
+    // Zusätzlich beschränken auf das aktive Verkaufs-Projekt (Heidelberger Str. 21).
+    // Wir filtern via Substring auf den Objekt-Link-Text — robust gegen Umbenennungen.
+    // Wenn weitere Projekte zugelassen werden sollen: WOHNEINHEIT_OBJEKT_FILTER setzen
+    // (kommagetrennte Substring-Liste).
+    const objektFilterRaw = process.env.WOHNEINHEIT_OBJEKT_FILTER || 'Heidelberger';
+    const objektTokens = objektFilterRaw.split(',').map(s => s.trim()).filter(Boolean);
+    const objektFormula = objektTokens.length === 1
+      ? `FIND('${objektTokens[0]}', ARRAYJOIN({Objekt}))>0`
+      : objektTokens.length > 1
+        ? 'OR(' + objektTokens.map(t => `FIND('${t}', ARRAYJOIN({Objekt}))>0`).join(', ') + ')'
+        : 'TRUE()';
+
+    const formula = `AND({Status}='${WE_STATUS_VERMARKTUNG}', FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0, ${objektFormula})`;
 
     const fields = [
       WE_FIELDS.LAGE_BEZ,

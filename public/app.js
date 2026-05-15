@@ -896,36 +896,36 @@ function recalcAndRender() {
   const grid = document.getElementById('kpi-grid');
   if (!grid) return;
   const cls = (v) => v > 0 ? 'positive' : (v < 0 ? 'negative' : '');
+  const kpQm = r.kaufpreisProQm || 0;
   grid.innerHTML = `
+    <div class="kpi"><div class="label">Kaufpreis gesamt</div><div class="value">${fmt(r.kpGesamt)}</div></div>
+    <div class="kpi"><div class="label">KP / m²</div><div class="value">${kpQm ? Math.round(kpQm).toLocaleString('de-DE') + ' €' : '—'}</div></div>
     <div class="kpi"><div class="label">Eigenkapital-Bedarf</div><div class="value">${fmt(r.ekBedarf)}</div></div>
+    <div class="kpi"><div class="label">Darlehen</div><div class="value">${fmt(r.darlehen)}</div></div>
     <div class="kpi ${cls(r.belastungMo)}"><div class="label">Belastung Jahr 1 mtl.</div><div class="value">${fmtEurMo(r.belastungMo)}</div></div>
     <div class="kpi positive"><div class="label">Vermögensaufbau netto J10</div><div class="value">${fmt(r.vermoegenNetto10)}</div></div>
     <div class="kpi"><div class="label">IRR (10 J)</div><div class="value">${fmtPct(r.irr)}</div></div>
-    <div class="kpi"><div class="label">Darlehen</div><div class="value">${fmt(r.darlehen)}</div></div>
+    <div class="kpi positive"><div class="label">Sparen vs. Investieren Δ J10</div><div class="value">${fmt(r.sparenVsKaufenDelta)}</div></div>
+    <div class="kpi"><div class="label">Mietsubvention gesamt</div><div class="value">${fmt(r.mietsubventionGesamt)}</div></div>
+    <div class="kpi ${cls(r.markteinkaufVorteil || 0)}"><div class="label">Markteinkauf-Vorteil</div><div class="value">${fmt(r.markteinkaufVorteil || 0)}</div></div>
   `;
 
-  // Bonität-Card
+  // Bonität-Card — auf das Wesentliche reduziert (3 KPIs)
   const bonEl = document.getElementById('bon-card');
   if (bonEl) {
     const detail = r.bonModus === 'detail';
     const ein = r.bonEinnahmen || 0;
     const aus = r.bonAusgaben || 0;
     const vor = ein - aus;
-    const delta = r.bonDelta || 0; // Miete80% − Annuität (− HG − HV im Detail)
-    const nach = vor + delta;
-    const verm = r.bonVermoegen || 0;
-    const vermDelta = verm - r.ekBedarf;
+    const nach = vor + (r.bonDelta || 0);
+    const vermDelta = (r.bonVermoegen || 0) - r.ekBedarf;
     const okFarbe = (v) => v >= 0 ? 'positive' : 'negative';
 
     bonEl.innerHTML = `
-      <div class="card-title">Bonität ${detail ? '(aus Selbstauskunft)' : '(aus Profil)'}</div>
-      ${detail ? '' : '<div class="text-tertiary text-small mb-12">Quick-Modus: Einnahmen/Ausgaben/Vermögen sind Profil-Defaults. Für Bank-Einreichung: Selbstauskunft ausfüllen und auf "Detail" umschalten.</div>'}
+      <div class="card-title">Bonität ${detail ? '(Selbstauskunft)' : '(Quick)'}</div>
       <div class="kpi-grid">
-        <div class="kpi"><div class="label">Einkommen anrechenbar</div><div class="value">${fmtEurMo(ein)}</div></div>
-        <div class="kpi"><div class="label">Ausgaben gesamt</div><div class="value">${fmtEurMo(aus)}</div></div>
         <div class="kpi ${okFarbe(vor)}"><div class="label">Frei vor Investment</div><div class="value">${fmtEurMo(vor)}</div></div>
         <div class="kpi ${okFarbe(nach)}"><div class="label">Frei nach Investment</div><div class="value">${fmtEurMo(nach)}</div></div>
-        <div class="kpi"><div class="label">Freies Vermögen</div><div class="value">${fmt(verm)}</div></div>
         <div class="kpi ${okFarbe(vermDelta)}"><div class="label">Vermögen − EK-Bedarf</div><div class="value">${fmt(vermDelta)}</div></div>
       </div>
     `;
@@ -945,15 +945,43 @@ function drawCharts(r) {
   const sparenNur = r.sparen.map(s => Math.round(s.nurSparen));
   const sparenMit = r.sparen.map(s => Math.round(s.mitImmo));
 
+  // Gemeinsame Chart-Optionen: Index-Mode für tolerantes Hovern,
+  // intersect=false damit Tooltip auch ohne Punkt-Treffer kommt,
+  // Euro-Formatierung auf Tooltip + Y-Achse.
+  const eurTooltip = {
+    callbacks: {
+      label: (ctx) => {
+        const v = ctx.parsed.y;
+        const lbl = ctx.dataset.label || '';
+        return lbl + ': ' + (typeof v === 'number' ? v.toLocaleString('de-DE') + ' €' : v);
+      }
+    }
+  };
+  const baseOpts = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { tooltip: eurTooltip },
+    scales: {
+      y: {
+        ticks: {
+          callback: (v) => (typeof v === 'number' && Math.abs(v) >= 1000)
+            ? Math.round(v / 1000) + 'k €'
+            : v + ' €'
+        }
+      }
+    }
+  };
+
   if (chartV) chartV.destroy();
   chartV = new Chart(document.getElementById('chart-vermoegen'), {
     type: 'line',
     data: { labels: years, datasets: [{
       label: 'Vermögensaufbau netto', data: verm,
       borderColor: '#B08A4D', backgroundColor: 'rgba(176,138,77,0.15)',
-      tension: 0.3, fill: true,
+      tension: 0.3, fill: true, pointRadius: 3, pointHoverRadius: 6,
     }] },
-    options: { responsive: true, maintainAspectRatio: false }
+    options: baseOpts
   });
 
   if (chartC) chartC.destroy();
@@ -963,17 +991,17 @@ function drawCharts(r) {
       label: 'Cashflow', data: cfVals,
       backgroundColor: cfVals.map(v => v >= 0 ? 'rgba(45,110,71,0.7)' : 'rgba(154,62,51,0.7)'),
     }] },
-    options: { responsive: true, maintainAspectRatio: false }
+    options: baseOpts
   });
 
   if (chartS) chartS.destroy();
   chartS = new Chart(document.getElementById('chart-sparen'), {
     type: 'line',
     data: { labels: sparenLbls, datasets: [
-      { label: 'Nur Sparen', data: sparenNur, borderColor: '#7A7A72', tension: 0.3 },
-      { label: 'Mit Immobilie', data: sparenMit, borderColor: '#B08A4D', tension: 0.3 },
+      { label: 'Nur Sparen', data: sparenNur, borderColor: '#7A7A72', tension: 0.3, pointRadius: 2, pointHoverRadius: 5 },
+      { label: 'Mit Immobilie', data: sparenMit, borderColor: '#B08A4D', tension: 0.3, pointRadius: 2, pointHoverRadius: 5 },
     ] },
-    options: { responsive: true, maintainAspectRatio: false }
+    options: baseOpts
   });
 }
 
