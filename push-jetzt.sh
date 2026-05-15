@@ -70,7 +70,19 @@ git commit -m "Iter 40 — Bonität-Detail komplett überarbeitet + SA-Auswertun
     Notar-Termin, Beurkundet (pro Vertriebler + Summen-Zeile).
   * Neuer WE-Stammdaten-Block in der Admin-Ansicht: read-only Liste aller
     WEs aus Airtable (gruppiert nach Projekt), inkl. Refresh-Button zum
-    Neuladen direkt aus Airtable."
+    Neuladen direkt aus Airtable.
+
+- Iter 40.2 — WE-Stammdaten aus 12 Excel-Kalkulationen:
+  * Neue Datei public/we-stammdaten.js — Single Source of Truth pro WE
+    (Heidelberger 1, 2, 4, 6, 7, 8, 12, 15 + Wesseling 3, 4, 5, 8).
+  * Pro WE: Kaufpreis, qm, Stellplatz-KP, Kaltmiete Jahr 1, Hausgeld+Rücklage,
+    Hausverwaltung, AfA-Gutachten %, Wertsteigerung % p.a., Mietzuschuss €/Mo
+    + Laufzeit, 30-Jahres-Mietstaffel, Marktmiete-Referenz.
+  * Mapper am Ende: überträgt Stammdaten in window.WE_PRESETS_BY_RECID, das
+    die App in app.js loadWeIntoKalk() schon liest → zero-touch-Integration.
+  * Heidelberger WE 14 hat noch keine Excel — auf der Diff-Liste, bei Domi
+    nachfragen.
+  * Diff-Report: _Cockpit/status/2026-05-15_excel-vs-airtable-diff.md."
 
 # 3. Push
 echo ""
