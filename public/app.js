@@ -659,7 +659,8 @@ function renderTabKalkulator() {
   const wePaketSel = document.getElementById('we-paket-select');
   if (wePaketSel) wePaketSel.onchange = (e) => {
     state.kalk._paketWeIds = Array.from(e.target.selectedOptions).map(o => o.value);
-    recalcAndRender();
+    // Vollrender, damit Counter "Aktuell: N WE" + abhängige Bereiche aktuell bleiben.
+    renderTabKalkulator();
   };
   const bonSel = document.getElementById('bon-modus-select');
   if (bonSel) bonSel.onchange = (e) => {

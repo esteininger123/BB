@@ -22,7 +22,7 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 38 — Feinschliff Runde 1: Projekte-Label, Empty-State vor WE-Wahl, Sektion-Nummerierung konsistent, Dashboard-Phasen, KPI-Label-Höhe, Story-01-Hint
+git commit -m "Iter 38c — Live-Test-Findings: Paket-Counter aktualisiert sich, Paket-Aggregation für AfA/Miete/Steuervorteil/Hausgeld (Story-Werte waren 0)
 
 - Iter 15 (Stabilisierung):
   * airtable.js: normalizeAirtableResponse — Single-Select-Objekte zu name-Strings reduziert.

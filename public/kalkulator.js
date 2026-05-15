@@ -913,6 +913,20 @@ function recalcPaket(weInputsArr, personSettings) {
     bonVermoegenVsEk, bonVermoegenAusreichend,
     bonDetail, bonModus: ps.bonModus || 'quick',
     sparen, sparenVsKaufenDelta,
+    // Zusatz-Felder für Story-Sections (sonst 0 weil pro-WE nicht aggregiert)
+    afaJahr: sum('afaJahr'),
+    afaBemessungBetrag: sum('afaBemessungBetrag'),
+    mieteJ1Mo: sum('mieteJ1Mo'),
+    stVorteilJ1Mo: sum('stVorteilJ1Mo'),
+    stVorteilJ5Mo: sum('stVorteilJ5Mo'),
+    stVorteilJ10Mo: sum('stVorteilJ10Mo'),
+    hausgeldNurMo: sum('hausgeldNurMo'),
+    hausgeldEffMo: sum('hausgeldEffMo'),
+    mietverwaltungMo: sum('mietverwaltungMo'),
+    hausverwaltungMo: sum('hausverwaltungMo'),
+    kaufpreisProQm: kpGesamt && results.reduce((s,r)=>s+(r.inputs.qm||0),0) > 0
+      ? kpGesamt / results.reduce((s,r)=>s+(r.inputs.qm||0),0)
+      : 0,
   };
 }
 
