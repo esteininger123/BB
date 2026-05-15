@@ -505,7 +505,7 @@ function renderTabKalkulator() {
 
   el.innerHTML = `
     <div class="card">
-      <div class="card-title">Wohneinheit &amp; Käufer-Profil</div>
+      <div class="card-title">Wohneinheit</div>
       <div class="flex gap-12 mb-12" style="align-items:center;">
         <label style="text-transform:none;letter-spacing:0;display:flex;align-items:center;gap:6px;">
           <input type="radio" name="we-mode" value="single" ${!isPaket ? 'checked' : ''} onclick="setWeMode('single')"> Einzel-WE
@@ -514,7 +514,7 @@ function renderTabKalkulator() {
           <input type="radio" name="we-mode" value="paket" ${isPaket ? 'checked' : ''} onclick="setWeMode('paket')"> Paket (mehrere)
         </label>
       </div>
-      <div class="grid-3">
+      <div class="grid-2">
         <div>
           ${isPaket ? `
             <label>Wohneinheiten im Paket</label>
@@ -529,7 +529,7 @@ function renderTabKalkulator() {
             </select>
             <div class="text-tertiary text-small mt-4">Ctrl/Cmd + Klick für mehrere. Aktuell: ${state.kalk._paketWeIds.length} WE${state.kalk._paketWeIds.length === 1 ? '' : 's'}.</div>
           ` : `
-            <label>Wohneinheit aus Airtable</label>
+            <label>Wohneinheit aus Airtable (${wes.length} verfügbar)</label>
             <select id="we-select">
               <option value="">— Eigene Eingabe / Default —</option>
               ${Object.keys(wesByProjekt).sort().map(proj => `
@@ -544,34 +544,23 @@ function renderTabKalkulator() {
           `}
         </div>
         <div>
-          <label>Käufer-Profil</label>
-          <select id="profil-select">
-            <option value="standard" ${currentProfil === 'standard' ? 'selected' : ''}>Standard-Anleger (30 % Steuer · 4.000 € netto)</option>
-            <option value="premium" ${currentProfil === 'premium' ? 'selected' : ''}>Premium-Anleger (35 % Steuer · 5.500 € netto)</option>
-            <option value="spitze" ${currentProfil === 'spitze' ? 'selected' : ''}>Spitzen-Anleger (42 % Steuer · 8.000 € netto)</option>
-          </select>
-          <div class="text-tertiary text-small mt-4">Steuersatz, Zins, Tilgung &amp; Bonität werden gesetzt.</div>
-        </div>
-        <div>
           <label>Bonitäts-Quelle</label>
           <select id="bon-modus-select">
-            <option value="quick" ${(!i.bonModus || i.bonModus === 'quick') ? 'selected' : ''}>Aus Profil (Quick)</option>
-            <option value="detail" ${i.bonModus === 'detail' ? 'selected' : ''}>Aus Selbstauskunft (Detail)</option>
+            <option value="quick" ${(!i.bonModus || i.bonModus === 'quick') ? 'selected' : ''}>Quick (manuelle Eingabe)</option>
+            <option value="detail" ${i.bonModus === 'detail' ? 'selected' : ''}>Detail (aus Selbstauskunft)</option>
           </select>
-          <div class="text-tertiary text-small mt-4">Detail = Einkommen + Verbindlichkeiten + Vermögen aus SA.</div>
+          <div class="text-tertiary text-small mt-4">Quick = du gibst Einkommen/Ausgaben/Vermögen direkt ein. Detail = aus dem Selbstauskunft-Tab.</div>
+          <div class="mt-12">
+            <button class="secondary" onclick="resetKalk()">Auf Default zurücksetzen</button>
+          </div>
         </div>
-      </div>
-      <div class="mt-12">
-        <button class="secondary" onclick="resetKalk()">Auf Default zurücksetzen</button>
       </div>
     </div>
 
     ${isPaket ? '' : `
     <div class="card mt-16">
-      <div class="card-title">Eingaben (einzelne WE)</div>
-      <div class="grid-3" id="kalk-inputs">
-        ${kalkInputsHtml(i)}
-      </div>
+      <div class="card-title">Eingaben</div>
+      ${kalkInputsThemenHtml(i)}
     </div>
     `}
 
@@ -614,11 +603,10 @@ function renderTabKalkulator() {
     state.kalk._paketWeIds = Array.from(e.target.selectedOptions).map(o => o.value);
     recalcAndRender();
   };
-  document.getElementById('profil-select').onchange = (e) => applyProfil(e.target.value);
   const bonSel = document.getElementById('bon-modus-select');
   if (bonSel) bonSel.onchange = (e) => {
     state.kalk.bonModus = e.target.value;
-    recalcAndRender();
+    renderTabKalkulator();
   };
   bindKalkInputs();
   recalcAndRender();
@@ -630,66 +618,164 @@ function setWeMode(mode) {
 }
 window.setWeMode = setWeMode;
 
-function kalkInputsHtml(i) {
-  const f = (label, key, suffix, step) => `
+// Themen-Gruppierung mit <details>-Sektionen und Slider für Prozent-Werte.
+function kalkInputsThemenHtml(i) {
+  // Plain Number-Input
+  const num = (label, key, suffix, step) => `
     <div>
-      <label>${label}${suffix ? ' (' + suffix + ')' : ''}</label>
+      <label>${esc(label)}${suffix ? ' (' + suffix + ')' : ''}</label>
       <input data-kalk="${key}" type="number" step="${step || 'any'}" value="${i[key] === undefined || i[key] === null ? '' : i[key]}">
     </div>`;
-  return [
-    f('Kaufpreis', 'kaufpreis', '€'),
-    f('Stellplatz-KP', 'stellplatzKp', '€'),
-    f('Quadratmeter', 'qm', 'm²'),
-    f('Kaltmiete', 'kaltmiete', '€/Mo'),
-    f('Stellplatz-Miete', 'stellplatzMiete', '€/Mo'),
-    f('Hausgeld', 'hausgeld', '€/Mo'),
-    f('Mietverwaltung', 'mietverwaltung', '€/Mo'),
-    f('Hausverwaltung', 'hausverwaltung', '€/Mo'),
-    f('Subvention', 'subventionMo', '€/Mo'),
-    f('Subv-Monate', 'subventionMonate', 'Mo'),
-    f('Zins', 'zins', 'Dezimal', '0.001'),
-    f('Tilgung', 'tilgung', 'Dezimal', '0.001'),
-    f('AfA-Satz', 'afaSatz', 'Dezimal', '0.001'),
-    f('Gebäude-Anteil', 'gebaeudeAnteil', 'Dezimal', '0.01'),
-    f('Wertsteigerung', 'wertsteigerung', 'Dezimal', '0.001'),
-    f('Steuersatz', 'steuersatz', 'Dezimal', '0.01'),
-    f('Mietsteigerung %', 'steigerungProz', 'Dezimal', '0.001'),
-    `<div><label>Mietsteig.-Modus</label>
-       <select data-kalk="mietsteigerungsModus">
-         <option value="sprung" ${i.mietsteigerungsModus==='sprung'?'selected':''}>Sprung (alle 3 J)</option>
-         <option value="index" ${i.mietsteigerungsModus==='index'?'selected':''}>Index (jährlich)</option>
-         <option value="keine" ${i.mietsteigerungsModus==='keine'?'selected':''}>Keine</option>
-       </select>
-     </div>`,
-    `<div><label>KNK mitfinanziert</label>
-       <select data-kalk="knkMitfinanziert">
-         <option value="false" ${!i.knkMitfinanziert?'selected':''}>Nein</option>
-         <option value="true" ${i.knkMitfinanziert?'selected':''}>Ja</option>
-       </select>
-     </div>`,
-  ].join('');
+  // Slider + Number-Input gekoppelt (Prozent-Wert wird in Dezimal gespeichert)
+  const slider = (label, key, minPct, maxPct, stepPct) => {
+    const valPct = (i[key] || 0) * 100;
+    return `
+      <div class="slider-row">
+        <label>${esc(label)} <span class="slider-val" data-slider-val="${key}">${valPct.toFixed(2)} %</span></label>
+        <input type="range" data-slider="${key}" min="${minPct}" max="${maxPct}" step="${stepPct}" value="${valPct.toFixed(4)}">
+        <input data-kalk="${key}" type="number" step="${stepPct / 100}" min="${minPct / 100}" max="${maxPct / 100}" value="${i[key] === undefined || i[key] === null ? '' : i[key]}" class="slider-num">
+      </div>`;
+  };
+  // Slider für Euro-Werte (z.B. Bonität)
+  const sliderEur = (label, key, min, max, step) => {
+    const val = i[key] || 0;
+    return `
+      <div class="slider-row">
+        <label>${esc(label)} <span class="slider-val" data-slider-val="${key}">${val.toLocaleString('de-DE')} €</span></label>
+        <input type="range" data-slider="${key}" data-slider-fmt="eur" min="${min}" max="${max}" step="${step}" value="${val}">
+        <input data-kalk="${key}" type="number" step="${step}" min="${min}" value="${i[key] === undefined || i[key] === null ? '' : i[key]}" class="slider-num">
+      </div>`;
+  };
+  const select = (label, key, opts) => `
+    <div>
+      <label>${esc(label)}</label>
+      <select data-kalk="${key}">
+        ${opts.map(o => `<option value="${esc(o.v)}" ${String(i[key]) === String(o.v) ? 'selected' : ''}>${esc(o.l)}</option>`).join('')}
+      </select>
+    </div>`;
+
+  const isQuick = !i.bonModus || i.bonModus === 'quick';
+
+  return `
+    <details class="kalk-section" open>
+      <summary>Objekt &amp; Miete</summary>
+      <div class="grid-3">
+        ${num('Kaufpreis Wohnung', 'kaufpreis', '€')}
+        ${num('Stellplatz / Garage KP', 'stellplatzKp', '€')}
+        ${num('Quadratmeter', 'qm', 'm²')}
+        ${num('Kaltmiete', 'kaltmiete', '€/Mo')}
+        ${num('Stellplatz-Miete', 'stellplatzMiete', '€/Mo')}
+        ${num('Subvention', 'subventionMo', '€/Mo')}
+        ${num('Subv-Dauer', 'subventionMonate', 'Mo')}
+      </div>
+    </details>
+
+    <details class="kalk-section" open>
+      <summary>Laufende Kosten</summary>
+      <div class="grid-3">
+        ${num('Hausgeld', 'hausgeld', '€/Mo')}
+        ${num('Mietverwaltung', 'mietverwaltung', '€/Mo')}
+        ${num('Hausverwaltung', 'hausverwaltung', '€/Mo')}
+        ${slider('Hausgeld-Inflation p.a.', 'hgInflation', 0, 6, 0.1)}
+      </div>
+    </details>
+
+    <details class="kalk-section" open>
+      <summary>Finanzierung</summary>
+      <div class="grid-3">
+        ${slider('Zins p.a.', 'zins', 2, 8, 0.05)}
+        ${slider('Tilgung p.a.', 'tilgung', 0.5, 5, 0.05)}
+        ${select('Kaufnebenkosten mitfinanzieren', 'knkMitfinanziert', [
+          {v:'false', l:'Nein'}, {v:'true', l:'Ja'}
+        ])}
+      </div>
+    </details>
+
+    <details class="kalk-section" open>
+      <summary>Steuer &amp; AfA</summary>
+      <div class="grid-3">
+        ${slider('Persönlicher Steuersatz', 'steuersatz', 0, 50, 0.5)}
+        ${slider('AfA-Satz p.a.', 'afaSatz', 1, 5, 0.05)}
+        ${slider('Gebäude-Anteil', 'gebaeudeAnteil', 50, 100, 1)}
+        ${select('AfA-Bemessungsgrundlage', 'afaBemessung', [
+          {v:'kaufpreis', l:'Kaufpreis'}, {v:'kaufpreis_knk', l:'Kaufpreis + KNK'}
+        ])}
+      </div>
+    </details>
+
+    <details class="kalk-section" open>
+      <summary>Marktannahmen</summary>
+      <div class="grid-3">
+        ${slider('Wertsteigerung p.a.', 'wertsteigerung', 0, 8, 0.1)}
+        ${slider('Mietsteigerung %', 'steigerungProz', 0, 30, 0.5)}
+        ${select('Mietsteigerungs-Modus', 'mietsteigerungsModus', [
+          {v:'sprung', l:'Sprung (alle 3 J)'},
+          {v:'index', l:'Index (jährlich)'},
+          {v:'keine', l:'Keine'}
+        ])}
+        ${num('Marktwert pro qm (optional)', 'marktwertProQm', '€/m²')}
+      </div>
+    </details>
+
+    ${isQuick ? `
+    <details class="kalk-section" open>
+      <summary>Bonität (Quick)</summary>
+      <div class="text-tertiary text-small mb-12">Direkt eingeben. Für Banken: in den Selbstauskunft-Tab wechseln und Modus auf "Detail" stellen.</div>
+      <div class="grid-1">
+        ${sliderEur('Einkommen anrechenbar', 'bonEinnahmen', 0, 20000, 100)}
+        ${sliderEur('Ausgaben gesamt (Haushalt + Verbindlichkeiten)', 'bonAusgaben', 0, 10000, 50)}
+        ${sliderEur('Freies Vermögen', 'bonVermoegen', 0, 500000, 1000)}
+      </div>
+    </details>
+    ` : ''}
+  `;
 }
 
 function bindKalkInputs() {
+  // Slider <input type="range"> — schreiben in Dezimal (Prozent/100), oder bei Euro-Slidern als Roh-Wert.
+  document.querySelectorAll('[data-slider]').forEach(slider => {
+    slider.addEventListener('input', () => {
+      const k = slider.dataset.slider;
+      const isEur = slider.dataset.sliderFmt === 'eur';
+      const raw = parseFloat(slider.value);
+      const v = isEur ? raw : (raw / 100); // Prozent → Dezimal
+      state.kalk[k] = v;
+      // Begleitendes Number-Input + Label synchronisieren
+      const num = document.querySelector(`input[data-kalk="${k}"]`);
+      if (num) num.value = isEur ? v : v.toFixed(4);
+      const lbl = document.querySelector(`[data-slider-val="${k}"]`);
+      if (lbl) lbl.textContent = isEur
+        ? Math.round(v).toLocaleString('de-DE') + ' €'
+        : (raw.toFixed(2) + ' %');
+      recalcAndRender();
+    });
+  });
+
+  // Number-Inputs (alle anderen Eingaben)
   document.querySelectorAll('[data-kalk]').forEach(inp => {
-    inp.addEventListener('input', () => {
+    const apply = () => {
       const k = inp.dataset.kalk;
       let v = inp.value;
       if (inp.type === 'number') v = parseFloat(v);
       if (v === 'true') v = true;
       if (v === 'false') v = false;
+      // NaN → null (für leere Number-Felder)
+      if (typeof v === 'number' && !isFinite(v)) v = null;
       state.kalk[k] = v;
+      // Begleitenden Slider mitziehen, falls vorhanden
+      const slider = document.querySelector(`input[type="range"][data-slider="${k}"]`);
+      if (slider && typeof v === 'number') {
+        const isEur = slider.dataset.sliderFmt === 'eur';
+        slider.value = isEur ? v : (v * 100);
+        const lbl = document.querySelector(`[data-slider-val="${k}"]`);
+        if (lbl) lbl.textContent = isEur
+          ? Math.round(v).toLocaleString('de-DE') + ' €'
+          : ((v * 100).toFixed(2) + ' %');
+      }
       recalcAndRender();
-    });
-    inp.addEventListener('change', () => {
-      const k = inp.dataset.kalk;
-      let v = inp.value;
-      if (inp.type === 'number') v = parseFloat(v);
-      if (v === 'true') v = true;
-      if (v === 'false') v = false;
-      state.kalk[k] = v;
-      recalcAndRender();
-    });
+    };
+    inp.addEventListener('input', apply);
+    inp.addEventListener('change', apply);
   });
 }
 
@@ -1256,21 +1342,30 @@ function renderTabSnapshots() {
 
 function loadSnapshot(id) {
   const s = state.snapshots.find(x => x.id === id);
-  if (!s) return;
+  if (!s) {
+    toast('Snapshot nicht in Liste gefunden — bitte Seite aktualisieren', 'error');
+    return;
+  }
   try {
-    // Backend hat den Feld-Inhalt bereits via parseJsonField() geparst.
-    // Frontend muss also nicht nochmal JSON.parse() machen — wäre Doppel-Parse.
+    // Backend hat das Feld bereits via parseJsonField() geparst.
+    // Defensiv: doppel-parse falls noch String (alte Snapshots aus Bug-Zeit).
     let kalk = s.kalkJson;
-    if (typeof kalk === 'string') {
-      // Defensiv: falls Backend mal als String zurückgibt.
-      kalk = JSON.parse(kalk);
+    let attempts = 0;
+    while (typeof kalk === 'string' && attempts < 3) {
+      try { kalk = JSON.parse(kalk); } catch(e) { break; }
+      attempts++;
     }
-    if (!kalk || typeof kalk !== 'object') kalk = {};
+    console.log('[loadSnapshot]', s.bezeichnung, 'kalk:', kalk);
+    if (!kalk || typeof kalk !== 'object' || Object.keys(kalk).length === 0) {
+      toast('Snapshot "' + (s.bezeichnung || '—') + '" enthält keine Kalkulations-Daten. Bitte neuen Snapshot speichern.', 'error');
+      return;
+    }
+    // Wichtig: state.kalk komplett ersetzen (kein Object.assign, sonst bleiben alte Felder)
     state.kalk = kalk;
     setTab('kalkulator');
     toast('Snapshot "' + (s.bezeichnung || '—') + '" geladen', 'success');
   } catch (e) {
-    console.error('loadSnapshot', e);
+    console.error('loadSnapshot error:', e, 'snapshot:', s);
     toast('Snapshot konnte nicht geladen werden: ' + e.message, 'error');
   }
 }

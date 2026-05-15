@@ -514,6 +514,78 @@ label {
   border-radius: 4px;
 }
 
+/* ============================== Kalkulator-Themenbereiche + Slider ============================== */
+.kalk-section {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 10px;
+  background: var(--bg-cream-subtle, #fafaf6);
+}
+.kalk-section > summary {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  list-style: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.kalk-section > summary::-webkit-details-marker { display: none; }
+.kalk-section > summary::after {
+  content: '▾';
+  font-size: 11px;
+  color: var(--text-tertiary);
+  transition: transform 0.15s;
+}
+.kalk-section[open] > summary::after { transform: rotate(180deg); }
+.kalk-section > summary:hover { background: rgba(176,138,77,0.08); }
+.kalk-section > .grid-1,
+.kalk-section > .grid-2,
+.kalk-section > .grid-3,
+.kalk-section > .text-tertiary {
+  padding: 4px 14px 14px;
+}
+
+.slider-row {
+  display: grid;
+  grid-template-columns: 1fr 100px;
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 4px;
+}
+.slider-row label {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+.slider-row label .slider-val {
+  font-weight: 600;
+  color: var(--accent-dark, #805820);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+.slider-row input[type="range"] {
+  grid-column: 1;
+  width: 100%;
+  accent-color: var(--accent, #B08A4D);
+}
+.slider-row .slider-num {
+  grid-column: 2;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+.grid-1 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
 /* ============================== Selbstauskunft-Sektionen ============================== */
 .sa-section {
   border: 1px solid var(--border);

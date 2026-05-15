@@ -22,7 +22,7 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 15-20 — Stabilisierung, Hypovision-SA, B&B-Reservierung, Multi-WE, Bank-PDFs
+git commit -m "Iter 21 — WE-Filter-Fix, Themen+Slider-Kalkulator, Quick-Bonität-Inputs, Profil raus, Snapshot-Load defensiver
 
 - Iter 15 (Stabilisierung):
   * airtable.js: normalizeAirtableResponse — Single-Select-Objekte zu name-Strings reduziert.

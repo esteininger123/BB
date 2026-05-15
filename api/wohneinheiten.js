@@ -42,10 +42,10 @@ module.exports = async (req, res) => {
 
   try {
     // Status ist Single-Select → exakter Vergleich.
-    // Maklerfirma ist ein Lookup-Feld vom verlinkten Projekt → kann mehrere Werte enthalten
-    // und in Airtable mit Trailing-Spaces gespeichert sein ("B&B Immo GmbH  ").
-    // Daher FIND() statt = und TRIM() schonen.
-    const formula = `AND({Status}='${WE_STATUS_VERMARKTUNG}', FIND('${MAKLER_BUB}', ARRAYJOIN({Maklerfirma}))>0)`;
+    // Das Firma-Feld auf der Wohneinheit ist ein Lookup vom Projekt → "Firma (from Projekt) (from Objekt)".
+    // Lookups geben Arrays zurück, daher FIND() + ARRAYJOIN(). Auch Trailing-Spaces wie
+    // "B&B Immo GmbH  " sind dank FIND() unproblematisch.
+    const formula = `AND({Status}='${WE_STATUS_VERMARKTUNG}', FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0)`;
 
     const fields = [
       WE_FIELDS.LAGE_BEZ,
