@@ -22,7 +22,7 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 25 — Eingabe-Sektionen 2-spaltig, KPI-Row 1-reihig, WE-Labels aus Airtable-Titel + Sortierung WE-Nr
+git commit -m "Iter 26 — Snapshot-Sort im Code (kein 422 mehr), Tab zeigt ID-Fallback, Laden-Button disabled bei leerem kalkJson, Console-Logs
 
 - Iter 15 (Stabilisierung):
   * airtable.js: normalizeAirtableResponse — Single-Select-Objekte zu name-Strings reduziert.

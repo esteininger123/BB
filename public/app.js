@@ -1537,26 +1537,35 @@ window.saveSelbstauskunft = saveSelbstauskunft;
 function renderTabSnapshots() {
   const el = document.getElementById('tab-content');
   const ss = state.snapshots || [];
+  console.log('[snapshots] state.snapshots:', ss);
   el.innerHTML = `
     <div class="card">
-      <div class="card-title">Gespeicherte Snapshots</div>
+      <div class="card-title">Gespeicherte Snapshots <span class="text-tertiary text-small">(${ss.length})</span></div>
       ${ss.length === 0 ? `
         <div class="empty-state">Noch keine Snapshots gespeichert.</div>
       ` : `
         <table class="table">
           <thead>
-            <tr><th>Bezeichnung</th><th>WE</th><th>Typ</th><th>Erstellt</th><th></th></tr>
+            <tr><th>Bezeichnung / ID</th><th>WE</th><th>Typ</th><th>Erstellt</th><th></th></tr>
           </thead>
           <tbody>
-            ${ss.map(s => `
-              <tr>
-                <td><strong>${esc(s.bezeichnung || '—')}</strong></td>
-                <td class="text-tertiary">${esc(s.weBezeichnung || '—')}</td>
-                <td>${esc(s.pdfTyp || '—')}</td>
-                <td class="text-tertiary">${esc(fmtDate(s.created))}</td>
-                <td><button class="secondary" onclick="loadSnapshot('${esc(s.id)}')">Laden</button></td>
-              </tr>
-            `).join('')}
+            ${ss.map(s => {
+              const labelHtml = s.bezeichnung
+                ? '<strong>' + esc(s.bezeichnung) + '</strong>'
+                : '<span class="text-tertiary text-small">ohne Bezeichnung — ' + esc(s.id) + '</span>';
+              const hasKalk = s.kalkJson && typeof s.kalkJson === 'object' && Object.keys(s.kalkJson).length > 0;
+              return `
+                <tr>
+                  <td>${labelHtml}</td>
+                  <td class="text-tertiary">${esc(s.weBezeichnung || '—')}</td>
+                  <td>${esc(s.pdfTyp || '—')}</td>
+                  <td class="text-tertiary">${esc(fmtDate(s.created))}</td>
+                  <td>
+                    <button class="secondary" onclick="loadSnapshot('${esc(s.id)}')" ${hasKalk ? '' : 'disabled title="Keine Kalkulations-Daten in diesem Snapshot"'}>Laden</button>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
           </tbody>
         </table>
       `}

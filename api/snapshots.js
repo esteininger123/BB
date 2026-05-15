@@ -33,21 +33,18 @@ module.exports = async (req, res) => {
       if (!allowed) return res.status(403).json({ error: 'Kein Zugriff auf diesen Kunden' });
 
       const formula = `FIND('${kundeId}', ARRAYJOIN({Kunde}))>0`;
-      // Hinweis: Airtable's sort-Parameter braucht den Field-NAMEN, keine Field-ID.
-      // Wenn der falsch ist, gibt Airtable 422 zurück — bei "Created" ist Field-Name korrekt.
-      const params = {
-        filterByFormula: formula,
-        'sort[0][field]': 'Created',
-        'sort[0][direction]': 'desc'
-      };
+      // Sort NICHT im Airtable-Request — das `Created`-Feld ist im Datensatz oft leer.
+      // Stattdessen nach dem Laden im Code via r.createdTime sortieren (Airtable Auto-Property).
+      const params = { filterByFormula: formula };
       const records = await listAll(TABLES.SNAPSHOTS, params, 500);
-      // Frontend erwartet direktes Array.
-      // Auto-Created-Time aus Record-Level mitgeben (fallback)
-      return res.status(200).json(records.map(r => {
+      // Auto-Created-Time aus Record-Level mitgeben (Fallback). Sortierung: neueste zuerst.
+      const mapped = records.map(r => {
         const out = snapshotRecordToApi(r);
-        if (!out.created && r.createdTime) out.created = r.createdTime;
+        if (!out.created) out.created = r.createdTime || null;
         return out;
-      }));
+      });
+      mapped.sort((a, b) => (b.created || '').localeCompare(a.created || ''));
+      return res.status(200).json(mapped);
     }
 
     if (req.method === 'POST') {
