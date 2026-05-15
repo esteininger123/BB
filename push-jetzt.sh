@@ -82,7 +82,16 @@ git commit -m "Iter 40 — Bonität-Detail komplett überarbeitet + SA-Auswertun
     die App in app.js loadWeIntoKalk() schon liest → zero-touch-Integration.
   * Heidelberger WE 14 hat noch keine Excel — auf der Diff-Liste, bei Domi
     nachfragen.
-  * Diff-Report: _Cockpit/status/2026-05-15_excel-vs-airtable-diff.md."
+  * Diff-Report: _Cockpit/status/2026-05-15_excel-vs-airtable-diff.md.
+
+- Iter 40.3 — Individueller Tagesgeldzins:
+  * Neuer Slider 'Tagesgeldzins p.a. (Sparen-Vergleich)' in Sektion 5 (Einzel)
+    und Sektion 2 (Paket), Range 0-6 %, Step 0,05 %, Default 2,5 %.
+  * Schreibt in state.kalk.sparZins → fließt in computeBonitaetDetailed
+    und Sparen-vs-Investieren-Hochrechnung ein.
+  * Story-Sektion 07 + PDF-Sparen-vs-Investieren-Block zeigen jetzt den
+    aktiv gewählten Zins transparent (z.B. '2,50 % p.a.', '3,50 % p.a.').
+  * Cache-Bust auf v=38."
 
 # 3. Push
 echo ""

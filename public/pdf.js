@@ -173,7 +173,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       </table>
 
       <h2 class="pdf-section-h">Sparen vs. Investieren (10 Jahre)</h2>
-      <p style="font-size:10.5px;color:#777;margin:0 0 6px 0;">Vergleich: alles Geld auf Tagesgeld lassen vs. Immobilien-Investment inkl. Cashflow.</p>
+      <p style="font-size:10.5px;color:#777;margin:0 0 6px 0;">Vergleich: alles Geld auf Tagesgeld lassen (Annahme ${((kalkInputs.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a.) vs. Immobilien-Investment inkl. Cashflow.</p>
       <table>
         <thead>
           <tr><th>Jahr</th><th class="num">Nur Sparen</th><th class="num">Mit Immobilie</th><th class="num">Delta</th></tr>

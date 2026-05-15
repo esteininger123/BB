@@ -530,6 +530,11 @@ function renderTabKalkulator() {
   const i = state.kalk || makeDefaultKalkInput();
   state.kalk = i;
   if (!Array.isArray(state.kalk._paketWeIds)) state.kalk._paketWeIds = [];
+  // Defensive Default für Tagesgeldzins (Sparen-vs-Investieren-Vergleich).
+  // Wird bei WE-Wechsel nicht aus den Stammdaten überschrieben — bleibt persistent.
+  if (state.kalk.sparZins === undefined || state.kalk.sparZins === null) {
+    state.kalk.sparZins = 0.025; // 2,5 % p.a. Default
+  }
   const isPaket = state.kalk._isPaket === true;
 
   const currentProfil = detectProfil(i);
@@ -783,6 +788,10 @@ function kalkInputsPaketHtml(i) {
         ${select('Kaufnebenkosten mitfinanziert?', 'knkMitfinanziert', [
           {v:'false', l:'Nein'}, {v:'true', l:'Ja'}
         ])}
+        ${slider('Tagesgeldzins p.a. (Sparen-Vergleich)', 'sparZins', 0, 6, 0.05)}
+      </div>
+      <div style="padding: 0 14px 14px;">
+        <p class="text-tertiary text-small">Tagesgeldzins für den Vergleich „Sparen vs. Investieren". Default 2,5 % — anpassen je nach aktueller Marktlage des Kunden.</p>
       </div>
     </details>
     <details class="kalk-section" ${sec('pst')} data-sec="pst" ontoggle="toggleKalkSection('pst', this)">
@@ -912,6 +921,10 @@ function kalkInputsThemenHtml(i) {
         ${select('Kaufnebenkosten mitfinanziert?', 'knkMitfinanziert', [
           {v:'false', l:'Nein'}, {v:'true', l:'Ja'}
         ])}
+        ${slider('Tagesgeldzins p.a. (Sparen-Vergleich)', 'sparZins', 0, 6, 0.05)}
+      </div>
+      <div style="padding: 0 14px 14px;">
+        <p class="text-tertiary text-small">Tagesgeldzins für den Vergleich „Sparen vs. Investieren". Default 2,5 % — anpassen je nach aktueller Marktlage des Kunden (z.B. 3,5 % bei Festgeld-Angebot).</p>
       </div>
     </details>
 
@@ -1330,7 +1343,7 @@ function renderStories(r) {
       <table class="story-table">
         <tr><td>Startvermögen (verfügbar)</td><td class="num">${fmt(r.bonVermoegen || 0)}</td></tr>
         <tr><td>− KNK „verbrannt"</td><td class="num">− ${fmt(r.ekBedarf)}</td></tr>
-        <tr><td>Nur sparen (Tagesgeld, 10 J.)</td><td class="num">${fmt(sparen10.nurSparen || 0)}</td></tr>
+        <tr><td>Nur sparen (Tagesgeld @ ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a., 10 J.)</td><td class="num">${fmt(sparen10.nurSparen || 0)}</td></tr>
         <tr><td>Mit Immobilie (Spar-Rest + Vermögen + kum. CF)</td><td class="num pos">${fmt(sparen10.mitImmo || 0)}</td></tr>
         <tr class="totalrow"><td><strong>Vorteil durch Immobilie</strong></td><td class="num pos"><strong>${fmt(r.sparenVsKaufenDelta)}</strong></td></tr>
       </table>
