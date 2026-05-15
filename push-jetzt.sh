@@ -22,7 +22,7 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 27 — Snapshot-Filter im Code (ARRAYJOIN-Bug umgangen: liefert Namen statt IDs)
+git commit -m "Iter 28 — Snapshot-Auto-Refresh bei Tab-Wechsel + Save, weBezeichnung mit Projekt-Name, SA Mit-Antragsteller initial versteckt
 
 - Iter 15 (Stabilisierung):
   * airtable.js: normalizeAirtableResponse — Single-Select-Objekte zu name-Strings reduziert.

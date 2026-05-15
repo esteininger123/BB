@@ -404,7 +404,20 @@ function renderTab() {
   if (state.tab === 'uebersicht') renderTabUebersicht();
   else if (state.tab === 'kalkulator') renderTabKalkulator();
   else if (state.tab === 'selbstauskunft') renderTabSelbstauskunft();
-  else if (state.tab === 'snapshots') renderTabSnapshots();
+  else if (state.tab === 'snapshots') {
+    // Immer frisch vom Backend laden — sonst sieht Edgar nach Save manchmal alte Daten.
+    renderTabSnapshots();
+    if (state.kundeId) {
+      api.get('/api/snapshots?kundeId=' + state.kundeId)
+        .then(list => {
+          if (Array.isArray(list)) {
+            state.snapshots = list;
+            if (state.tab === 'snapshots') renderTabSnapshots();
+          }
+        })
+        .catch(() => { /* leise — alter state bleibt */ });
+    }
+  }
 }
 
 function renderTabUebersicht() {
@@ -1202,22 +1215,27 @@ function drawCharts(r) {
 }
 
 async function saveSnapshot() {
+  // WE-Bezeichnung mit Projekt-Kontext zusammenbauen (Edgar's Wunsch: Projekt im WE-Feld).
+  const fmtWeBez = (w) => {
+    if (!w) return '';
+    const projekt = w.projektName || '';
+    const lage = w.lageText || w.lage || (w.weNr ? 'WE ' + w.weNr : '');
+    return [projekt, lage].filter(Boolean).join(' — ') || w.id;
+  };
   // Bezeichnung & WE-Label kontextbezogen erzeugen (Einzel vs. Paket)
   let weBez, defaultBez;
   if (state.kalk._isPaket && Array.isArray(state.kalk._paketWeIds) && state.kalk._paketWeIds.length > 0) {
     const labels = state.kalk._paketWeIds.map(wid => {
       const w = (state.wohneinheiten || []).find(x => x.id === wid);
-      return w ? (w.weNr ? 'WE ' + w.weNr : w.lage || w.id) : wid;
+      return fmtWeBez(w) || wid;
     });
     weBez = 'Paket: ' + labels.join(' + ');
     defaultBez = 'Paket (' + state.kalk._paketWeIds.length + ' WE) — ' +
-                 (state.kalk._profil || 'Kalkulation') + ' (' +
-                 new Date().toLocaleDateString('de-DE') + ')';
+                 new Date().toLocaleDateString('de-DE');
   } else {
-    weBez = state.kalk._weLage || '';
-    defaultBez = (state.kalk._weLage ? state.kalk._weLage + ' — ' : '') +
-                 (state.kalk._profil || 'Kalkulation') + ' (' +
-                 new Date().toLocaleDateString('de-DE') + ')';
+    const w = (state.wohneinheiten || []).find(x => x.id === state.kalk._weId);
+    weBez = fmtWeBez(w) || state.kalk._weLage || '';
+    defaultBez = (weBez ? weBez + ' — ' : '') + new Date().toLocaleDateString('de-DE');
   }
   const bez = prompt('Bezeichnung für Snapshot?', defaultBez);
   if (!bez) return;
@@ -1227,13 +1245,21 @@ async function saveSnapshot() {
       weId: state.kalk._weId || null,
       weBezeichnung: weBez,
       pdfTyp: 'Investitionsrechnung',
-      // Backend stringifyJson() lässt strings durch, hier direkt Object übergeben,
-      // damit es sauber und einmal serialisiert wird.
       kalkJson: state.kalk,
       bezeichnung: bez,
     });
-    state.snapshots.unshift(snap);
+    // POST-Response ist schon der gemappte Snapshot, aber Sicherheit halber gleich
+    // vom Backend neu laden, damit die Liste immer aktuell ist (auch nach Reload).
+    try {
+      const reloaded = await api.get('/api/snapshots?kundeId=' + state.kundeId);
+      state.snapshots = Array.isArray(reloaded) ? reloaded : [snap];
+    } catch (_) {
+      // Fallback: nur den neuen lokal vorn anhängen
+      state.snapshots.unshift(snap);
+    }
     toast('Snapshot "' + bez + '" gespeichert', 'success');
+    // Wenn wir gerade im Snapshots-Tab sind, sofort neu rendern.
+    if (state.tab === 'snapshots') renderTabSnapshots();
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
 window.saveSnapshot = saveSnapshot;
@@ -1271,22 +1297,23 @@ function renderTabSelbstauskunft() {
   if (sa.gemeinsam === undefined) sa.gemeinsam = false;
   state._sa = sa;
 
+  const istGemeinsam = sa.gemeinsam === true;
   el.innerHTML = `
     <div class="card">
       <div class="card-title">Selbstauskunft</div>
       <div class="flex gap-12 mb-16">
         <label class="flex gap-8" style="display:flex;align-items:center;text-transform:none;letter-spacing:0;">
-          <input type="checkbox" id="sa-gemeinsam" ${sa.gemeinsam !== false ? 'checked':''} style="width:auto;">
+          <input type="checkbox" id="sa-gemeinsam" ${istGemeinsam ? 'checked' : ''} style="width:auto;">
           Gemeinsamer Antrag mit Mit-Antragsteller
         </label>
       </div>
-      <div class="grid-2">
+      <div class="${istGemeinsam ? 'grid-2' : 'grid-1'}">
         <div>
-          <h3 class="section-title">Antragsteller 1</h3>
+          ${istGemeinsam ? '<h3 class="section-title">Antragsteller 1</h3>' : ''}
           ${saPersonHtml('a', sa.antragsteller)}
         </div>
-        <div id="sa-mit-wrap">
-          <h3 class="section-title">Antragsteller 2</h3>
+        <div id="sa-mit-wrap" style="${istGemeinsam ? '' : 'display:none;'}">
+          <h3 class="section-title">Antragsteller 2 (Mit-Antragsteller)</h3>
           ${saPersonHtml('m', sa.mitantragsteller)}
         </div>
       </div>
@@ -1296,9 +1323,10 @@ function renderTabSelbstauskunft() {
       </div>
     </div>
   `;
+  // Häkchen-Wechsel: neu rendern, damit Layout (1 vs. 2 Spalten) + Header sich anpassen
   document.getElementById('sa-gemeinsam').onchange = (e) => {
     sa.gemeinsam = e.target.checked;
-    document.getElementById('sa-mit-wrap').style.display = e.target.checked ? '' : 'none';
+    renderTabSelbstauskunft();
   };
 }
 
