@@ -15,9 +15,12 @@ const TABLES = {
 
 // Felder der Objekt-Tabelle, die wir lesen
 const PROJEKT_FIELDS = {
-  KURZNAME:    'fldTf1OEHLteVRa7c', // "Heidelberger Str. 21, 76646 Bruchsal" / "WES_RHEIN 290"
-  ADRESSE:     'fldE2LFvX5iPBUqTh', // "Heidelberger Straße 21, 76646 Bruchsal"
-  OBJEKT_CODE: 'fldgYBkL3Hajuy8uJ', // "Obj: Heidelberger Str. 21, 76646 Bruchsal, 92"
+  KURZNAME:     'fldTf1OEHLteVRa7c', // "Heidelberger Str. 21, 76646 Bruchsal" / "WES_RHEIN 290"
+  ADRESSE:      'fldE2LFvX5iPBUqTh', // "Heidelberger Straße 21, 76646 Bruchsal"
+  OBJEKT_CODE:  'fldgYBkL3Hajuy8uJ', // "Obj: Heidelberger Str. 21, 76646 Bruchsal, 92"
+  // Projekt-Link auf der Objekt-Tabelle → übergeordnetes Projekt (z.B. Wesseling = 1 Projekt,
+  // umfasst die zwei Objekte WES_RHEIN 290 und 292).
+  PROJEKT_LINK: 'fldHYvgI49VDw3xKg',
 };
 
 const VERTRIEBLER_FIELDS = {

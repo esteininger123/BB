@@ -22,7 +22,7 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 33 — Korrekte Objekt-Tabelle + Projekt-Namen aus Kurzname-Feld, WE 15 Heidelberger in Presets
+git commit -m "Iter 35 — KPI-Info-Box klickbar (toggle), Wesseling-Mieten an Airtable-Mietspiegel (518/500/593€)
 
 - Iter 15 (Stabilisierung):
   * airtable.js: normalizeAirtableResponse — Single-Select-Objekte zu name-Strings reduziert.

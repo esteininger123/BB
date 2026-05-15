@@ -10,25 +10,45 @@ const { weRecordToApi } = require('./_lib/mappers');
 
 // Versucht Projekt-Namen aus den verlinkten Records zu laden.
 // Toleriert Fehler (z.B. wenn Projekt-Tabelle anders heißt) und liefert leeres Mapping.
-async function loadProjektNames(projektIds) {
-  const ids = [...new Set(projektIds.filter(Boolean))];
+// Mapping: Code aus Airtable → kundenfreundlicher Projekt-Name.
+// Erweiterbar wenn neue Projekte dazukommen.
+const PROJEKT_PRETTY = {
+  'BRUCH_HEID_21':     'Heidelberger Str. 21, Bruchsal',
+  'WES_RHEIN 290/292': 'Wesseling, Rheinstr. 290+292',
+};
+
+function beautifyProjektName(raw) {
+  if (!raw) return '';
+  // "PR: 17, WES_RHEIN 290/292" → "WES_RHEIN 290/292"
+  const stripped = String(raw).replace(/^PR:\s*\d+,\s*/, '').trim();
+  return PROJEKT_PRETTY[stripped] || stripped;
+}
+
+// Mapping Objekt-ID → Projekt-Name (übergeordnete Projekt-Ebene).
+// 1 Projekt kann mehrere Objekte enthalten (z.B. Wesseling = 290 + 292).
+async function loadProjektNames(objektIds) {
+  const ids = [...new Set(objektIds.filter(Boolean))];
   if (ids.length === 0) return {};
-  const projektTable = process.env.PROJEKT_TABLE_ID || TABLES.PROJEKT;
-  if (!projektTable) return {};
+  const objektTable = process.env.PROJEKT_TABLE_ID || TABLES.PROJEKT;
+  if (!objektTable) return {};
   try {
     const formula = 'OR(' + ids.map(id => `RECORD_ID()='${id}'`).join(',') + ')';
-    const records = await listAll(projektTable, {
+    // Aus jedem Objekt-Record holen wir den Projekt-Link (mit embedded {id, name}).
+    const records = await listAll(objektTable, {
       filterByFormula: formula,
-      // Wir holen nur die Felder, die wir brauchen (Kurzname + Adresse als Fallback).
-      fields: [PROJEKT_FIELDS.KURZNAME, PROJEKT_FIELDS.ADRESSE],
+      fields: [PROJEKT_FIELDS.PROJEKT_LINK],
       maxRecords: ids.length
     }, ids.length);
     const map = {};
     records.forEach(r => {
       const f = r.fields || {};
-      // Mit returnFieldsByFieldId=true: Keys sind Field-IDs.
-      const name = f[PROJEKT_FIELDS.KURZNAME] || f[PROJEKT_FIELDS.ADRESSE] || '';
-      map[r.id] = name;
+      const projektLink = f[PROJEKT_FIELDS.PROJEKT_LINK];
+      let rawName = '';
+      if (Array.isArray(projektLink) && projektLink.length > 0) {
+        const first = projektLink[0];
+        rawName = (first && first.name) || (typeof first === 'string' ? first : '');
+      }
+      map[r.id] = beautifyProjektName(rawName);
     });
     return map;
   } catch (e) {
@@ -85,9 +105,11 @@ module.exports = async (req, res) => {
       pageSize: 100
     }, 2000);
 
+    // Linked-Records kommen als String-IDs ODER als [{id, name}]-Objects — beides flatten.
     const projektIds = records.flatMap(r => {
       const links = (r.fields && r.fields[WE_FIELDS.PROJEKT]) || [];
-      return Array.isArray(links) ? links : [];
+      if (!Array.isArray(links)) return [];
+      return links.map(x => (x && typeof x === 'object' && x.id) ? x.id : x).filter(Boolean);
     });
     const projektMap = await loadProjektNames(projektIds);
 

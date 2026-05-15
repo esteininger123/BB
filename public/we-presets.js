@@ -11,10 +11,10 @@
  */
 window.WE_PRESETS_BY_RECID = {
   // --- Wesseling, Rheinstraße 290 ---
-  // WE 3, 1.OG Links
+  // WE 3, 1.OG Links — leerstehend, Marktmiete-Schätzung analog WE 1 (518€ neuvereinbart 1.5.26).
   'rec7svTIribfeHOvg': {
     kaufpreis: 195000, stellplatzKp: 0, qm: 61.11,
-    kaltmiete: 580, stellplatzMiete: 0,
+    kaltmiete: 518, stellplatzMiete: 0,
     subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 61, hgInflation: 0.02, mietverwaltung: 30, hausverwaltung: 30,
@@ -22,10 +22,10 @@ window.WE_PRESETS_BY_RECID = {
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
-  // WE 4, 1.OG Rechts
+  // WE 4, 1.OG Rechts — leerstehend, renoviert. Marktanker WE 6 290 (500€ ab 1.3.26).
   'reczUcVloFNu1YCUu': {
     kaufpreis: 185000, stellplatzKp: 0, qm: 60.72,
-    kaltmiete: 550, stellplatzMiete: 0,
+    kaltmiete: 500, stellplatzMiete: 0,
     subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 61, hgInflation: 0.02, mietverwaltung: 30, hausverwaltung: 30,
@@ -57,10 +57,10 @@ window.WE_PRESETS_BY_RECID = {
     afaSatz: 0.045, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.02, marktwertProQm: 0,
   },
-  // WE 10, 1.OG Rechts
+  // WE 10, 1.OG Rechts — laut Airtable einvernehmliche Erhöhung 593€ ab 1.4.26
   'recpWd0fVaCofq87a': {
     kaufpreis: 195000, stellplatzKp: 0, qm: 60.56,
-    kaltmiete: 560, stellplatzMiete: 0,
+    kaltmiete: 593, stellplatzMiete: 0,
     subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 60.56, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,

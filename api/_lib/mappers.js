@@ -110,7 +110,14 @@ function snapshotBodyToFields(body, opts = {}) {
 function weRecordToApi(rec, projektNameById = {}) {
   const f = rec.fields || {};
   const projektLinks = f[WE_FIELDS.PROJEKT] || [];
-  const projektId = Array.isArray(projektLinks) ? projektLinks[0] : null;
+  // Linked-Records kommen als String-Array ODER als [{id, name}]-Array zurück.
+  // Auf reine Record-ID reduzieren.
+  const flattenLinks = (v) => {
+    if (!Array.isArray(v)) return [];
+    return v.map(x => (x && typeof x === 'object' && x.id) ? x.id : x).filter(Boolean);
+  };
+  const projektIdsArr = flattenLinks(projektLinks);
+  const projektId = projektIdsArr[0] || null;
   return {
     id: rec.id,
     lage:       firstOrValue(f[WE_FIELDS.LAGE_BEZ])  || '',

@@ -665,6 +665,17 @@ function setWeMode(mode) {
 }
 window.setWeMode = setWeMode;
 
+// KPI-Info-Box auf-/zuklappen (klick auf das "i"-Icon)
+function toggleKpiInfo(btn) {
+  const kpi = btn.closest('.kpi');
+  if (!kpi) return;
+  const box = kpi.querySelector('.kpi-info-box');
+  if (!box) return;
+  box.hidden = !box.hidden;
+  btn.classList.toggle('open', !box.hidden);
+}
+window.toggleKpiInfo = toggleKpiInfo;
+
 // Themen-Gruppierung mit <details>-Sektionen und Slider für Prozent-Werte.
 // Paket-Modus: nur Person-Settings (Finanzierung, Steuer, Bonität) — die Objekt-Werte
 // kommen aus den ausgewählten WEs (jeweils mit Preset aus we-presets.js).
@@ -1039,11 +1050,12 @@ function recalcAndRender() {
   const grid = document.getElementById('kpi-grid');
   if (!grid) return;
   const cls = (v) => v > 0 ? 'positive' : (v < 0 ? 'negative' : '');
-  // Kern-KPIs wie V1 — 5 Standard + optional Markteinkauf-Vorteil. Mit Info-Tooltips.
+  // Kern-KPIs wie V1 — 5 Standard + optional Markteinkauf-Vorteil. Mit klickbaren Info-Boxen.
   const kpiCard = (label, value, info, extraClass) => `
     <div class="kpi ${extraClass || ''}">
-      <div class="label">${esc(label)}<button class="kpi-info" title="${esc(info)}">i</button></div>
+      <div class="label">${esc(label)}<button class="kpi-info" onclick="toggleKpiInfo(this)" title="Erklärung anzeigen">i</button></div>
       <div class="value">${value}</div>
+      <div class="kpi-info-box" hidden>${esc(info)}</div>
     </div>`;
   const kpis = [
     kpiCard('EK-Bedarf', fmt(r.ekBedarf),
