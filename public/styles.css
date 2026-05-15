@@ -452,30 +452,10 @@ label {
   padding-bottom: 8mm;
   margin-bottom: 8mm;
 }
-.pdf-template .bub-logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.pdf-template .bub-logo .bub-mark {
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: -1.5px;
-  color: var(--accent, #B08A4D);
-  line-height: 1;
-}
-.pdf-template .bub-logo .bub-text { line-height: 1.05; }
-.pdf-template .bub-logo .bub-name {
-  font-weight: 700;
-  font-size: 13px;
-  color: #333;
-  letter-spacing: -0.2px;
-}
-.pdf-template .bub-logo .bub-sub {
-  font-size: 11px;
-  color: #777;
-  font-weight: 500;
+.pdf-template .bub-logo-svg {
+  width: 180px;
+  height: 48px;
+  display: block;
 }
 .pdf-template .pdf-head-title {
   text-align: right;
@@ -1114,4 +1094,82 @@ label {
   width: 38%;
   background: #f5f5f5;
   font-weight: 500;
+}
+
+/* --- Form-fillable Felder (Hypovision-Look, B&B-Branding) --- */
+.pdf-template .sa-fld {
+  display: inline-block;
+  min-width: 60%;
+  min-height: 14px;
+  padding: 2px 4px;
+  border: none;
+  border-bottom: 1px dotted #888;
+  background: transparent;
+  font-family: 'Inter', sans-serif;
+  font-size: 9.5px;
+  color: #000;
+  vertical-align: baseline;
+}
+.pdf-template input.sa-fld {
+  width: 95%;
+  outline: none;
+}
+.pdf-template input.sa-fld:focus {
+  background: #fffde8;
+}
+.pdf-template .sa-fld-filled {
+  font-weight: 600;
+  border-bottom: 1px dotted #ccc;
+}
+.pdf-template .sa-chk {
+  font-size: 11px;
+  color: #444;
+  margin-right: 2px;
+}
+.pdf-template .sa-chk.on {
+  color: #2c5282;
+  font-weight: 700;
+}
+
+/* --- Datenschutz-/Legal-Seiten --- */
+.pdf-template .sa-legal {
+  font-family: 'Inter', sans-serif;
+  font-size: 9.5px;
+  line-height: 1.5;
+  color: #1a1a1a;
+}
+.pdf-template .sa-legal .legal-h {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2c5282;
+  margin: 6mm 0 2mm 0;
+  border-bottom: 1px solid #2c5282;
+  padding-bottom: 1mm;
+  background: none;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.pdf-template .sa-legal .legal-p {
+  margin: 0 0 3mm 0;
+  text-align: justify;
+}
+
+/* --- Auswertung-Block in der SA-Form (live, nicht-PDF) --- */
+.sa-auswertung-card .kpi-box {
+  transition: background 0.15s;
+}
+.sa-aufschluss-table td {
+  padding: 4px 0;
+  border-bottom: 1px dotted #e2e8f0;
+}
+.sa-aufschluss-table tr:last-child td {
+  border-bottom: none;
+}
+
+@media print {
+  .pdf-template input.sa-fld {
+    background: transparent;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }

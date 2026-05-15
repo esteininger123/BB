@@ -5,16 +5,22 @@
    Einheitliches Layout: jede Seite hat den gleichen Header (Brot & Butter Logo +
    Untertitel + ggf. Seitennummer) und Footer (B&B Immo + Vertriebler-Daten). */
 
-// Brot & Butter Immo Logo (Mini-SVG) — wiederverwendbar in allen PDFs.
+// Brot & Butter Immobilien Logo als SVG — repliziert das Original-Logo (zwei B mit
+// Schatten-Effekt + Schriftzug). Wiederverwendbar in allen PDFs.
 function _bubLogo() {
   return `
-    <div class="bub-logo">
-      <div class="bub-mark">B&amp;B</div>
-      <div class="bub-text">
-        <div class="bub-name">Brot &amp; Butter</div>
-        <div class="bub-sub">Immobilien</div>
-      </div>
-    </div>
+    <svg class="bub-logo-svg" viewBox="0 0 300 80" xmlns="http://www.w3.org/2000/svg">
+      <!-- Schatten-Buchstaben in Grau, leicht versetzt -->
+      <text x="5" y="62" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="400" fill="#B8B8B8" letter-spacing="-6">B</text>
+      <text x="38" y="62" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="400" fill="#B8B8B8" letter-spacing="-6">B</text>
+      <!-- Vordergrund-Buchstaben in Schwarz, links versetzt -->
+      <text x="0" y="58" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="600" fill="#000" letter-spacing="-6">B</text>
+      <text x="33" y="58" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="600" fill="#000" letter-spacing="-6">B</text>
+      <!-- "Brot & Butter" — leichte Schrift -->
+      <text x="92" y="40" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="300" fill="#1a1a1a" letter-spacing="0.5">Brot &amp; Butter</text>
+      <!-- "Immobilien" — fett -->
+      <text x="92" y="65" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#1a1a1a" letter-spacing="0.5">Immobilien</text>
+    </svg>
   `;
 }
 
@@ -352,7 +358,7 @@ function reservierung(kunde, kalkInputs, user) {
 }
 
 /* ====================================================================
-   SELBSTAUSKUNFT (Hypovision-Form, 3 Seiten)
+   SELBSTAUSKUNFT (Hypovision-Layout mit B&B-Branding, form-fillable)
    ==================================================================== */
 function selbstauskunft(kunde, user) {
   const k = kunde || {};
@@ -368,23 +374,31 @@ function selbstauskunft(kunde, user) {
   const fmtNum = (v) => (v === null || v === undefined || v === '') ? '' : (typeof v === 'number' ? Math.round(v).toLocaleString('de-DE') + ' €' : v);
   const dt = (v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? new Date(v).toLocaleDateString('de-DE') : (v || '');
 
+  // ----- Form-Field-Helper: rendert <input>-Elemente (form-fillable) oder
+  //       wenn Wert vorhanden, den Wert als Text in einem bordered Field-Look. -----
+  function fld(value) {
+    // Leerer Wert → leeres Input-Feld (im Browser-Print zur PDF-Form). Wert → Text.
+    const v = (value === null || value === undefined || value === '') ? '' : String(value);
+    if (v === '') {
+      return `<input type="text" class="sa-fld" value="">`;
+    }
+    return `<span class="sa-fld sa-fld-filled">${esc(v)}</span>`;
+  }
   function row(label, valA, valM) {
-    return `<tr><td class="sa-label">${esc(label)}</td><td>${esc(valA || '')}</td><td>${esc(gemeinsam ? (valM || '') : '')}</td></tr>`;
+    return `<tr><td class="sa-label">${esc(label)}</td><td>${fld(valA)}</td><td>${gemeinsam ? fld(valM) : ''}</td></tr>`;
   }
   function rowChk(label, opts, valA, valM) {
     const fmtOpt = (v) => {
-      if (!v) return '';
-      return opts.map(o => (o === v ? `☑ ${o}` : `☐ ${o}`)).join('  ');
+      return opts.map(o => (o === v ? `<span class="sa-chk on">☑</span> ${esc(o)}` : `<span class="sa-chk">☐</span> ${esc(o)}`)).join('&nbsp;&nbsp;');
     };
-    return `<tr><td class="sa-label">${esc(label)}</td><td>${esc(fmtOpt(valA))}</td><td>${gemeinsam ? esc(fmtOpt(valM)) : ''}</td></tr>`;
+    return `<tr><td class="sa-label">${esc(label)}</td><td>${fmtOpt(valA)}</td><td>${gemeinsam ? fmtOpt(valM) : ''}</td></tr>`;
   }
   function darlBlock(p, key, label) {
     const d = p[key] || {};
-    if (!d.urspruenglich && !d.belastungMo && !d.restsaldo) return '';
     return `
       <tr>
         <td class="sa-label">${esc(label)}</td>
-        <td>urspr.: ${esc(fmtNum(d.urspruenglich))}<br>bis: ${esc(dt(d.laufzeitBis))}<br>mtl.: ${esc(fmtNum(d.belastungMo))}<br>Rest: ${esc(fmtNum(d.restsaldo))}</td>
+        <td>urspr.: ${fld(fmtNum(d.urspruenglich))} &middot; bis: ${fld(dt(d.laufzeitBis))}<br>mtl.: ${fld(fmtNum(d.belastungMo))} &middot; Rest: ${fld(fmtNum(d.restsaldo))}</td>
         <td></td>
       </tr>
     `;
@@ -456,27 +470,22 @@ function selbstauskunft(kunde, user) {
           ${row('Sparbücher', fmtNum(a.sparbuecher), fmtNum(m.sparbuecher))}
           ${row('Bauspar / VWL', fmtNum(a.bausparen), fmtNum(m.bausparen))}
           ${row('Sonstige Vermögen', fmtNum(a.sonstigeVermoegen), fmtNum(m.sonstigeVermoegen))}
-          ${versA.art || versA.summe ? `
-            <tr><td class="sa-label">Guthaben in Versicherungen<br>Art / Beginn / Ende</td>
-                <td>${esc(versA.art || '')} / ${esc(dt(versA.beginn))} / ${esc(dt(versA.ende))}</td>
-                <td></td></tr>
-            <tr><td class="sa-label">Versicherungssumme / Beitrag / Rückkaufwert</td>
-                <td>${esc(fmtNum(versA.summe))} / ${esc(fmtNum(versA.belastungMo))} / ${esc(fmtNum(versA.rueckkauf))}</td>
-                <td></td></tr>
-          ` : ''}
+          <tr><td class="sa-label">Versicherung — Art</td><td>${fld(versA.art || '')}</td><td></td></tr>
+          <tr><td class="sa-label">Beginn / Ende</td><td>${fld(dt(versA.beginn))} &nbsp;/&nbsp; ${fld(dt(versA.ende))}</td><td></td></tr>
+          <tr><td class="sa-label">Versicherungssumme</td><td>${fld(fmtNum(versA.summe))}</td><td></td></tr>
+          <tr><td class="sa-label">mtl. Beitrag / Rückkaufwert</td><td>${fld(fmtNum(versA.belastungMo))} &nbsp;/&nbsp; ${fld(fmtNum(versA.rueckkauf))}</td><td></td></tr>
         </tbody>
-        ${(a.immo1 && (a.immo1.art || a.immo1.anschrift)) || (a.immo2 && (a.immo2.art || a.immo2.anschrift)) ? `
-          <thead><tr><th class="sa-section-h">IMMOBILIENVERMÖGEN</th><th>Immobilie 1</th><th>Immobilie 2</th></tr></thead>
-          <tbody>
-            <tr><td class="sa-label">Art des Objekts</td><td>${esc((a.immo1 && a.immo1.art) || '')}</td><td>${esc((a.immo2 && a.immo2.art) || '')}</td></tr>
-            <tr><td class="sa-label">Anschrift</td><td>${esc((a.immo1 && a.immo1.anschrift) || '')}</td><td>${esc((a.immo2 && a.immo2.anschrift) || '')}</td></tr>
-            <tr><td class="sa-label">Baujahr / Erwerbsjahr</td><td>${esc((a.immo1 && a.immo1.baujahr) || '')}</td><td>${esc((a.immo2 && a.immo2.baujahr) || '')}</td></tr>
-            <tr><td class="sa-label">Wohnfläche</td><td>${esc((a.immo1 && a.immo1.wohnflaeche) ? a.immo1.wohnflaeche + ' m²' : '')}</td><td>${esc((a.immo2 && a.immo2.wohnflaeche) ? a.immo2.wohnflaeche + ' m²' : '')}</td></tr>
-            <tr><td class="sa-label">Verkehrswert</td><td>${esc(fmtNum(a.immo1 && a.immo1.verkehrswert))}</td><td>${esc(fmtNum(a.immo2 && a.immo2.verkehrswert))}</td></tr>
-            <tr><td class="sa-label">Hypotheken & Grundschulden</td><td>${esc(fmtNum(a.immo1 && a.immo1.hypotheken))}</td><td>${esc(fmtNum(a.immo2 && a.immo2.hypotheken))}</td></tr>
-            <tr><td class="sa-label">Mieteinnahmen / Monat</td><td>${esc(fmtNum(a.immo1 && a.immo1.mietenMo))}</td><td>${esc(fmtNum(a.immo2 && a.immo2.mietenMo))}</td></tr>
-          </tbody>
-        ` : ''}
+        <thead><tr><th class="sa-section-h">IMMOBILIENVERMÖGEN</th><th>Immobilie 1</th><th>Immobilie 2</th></tr></thead>
+        <tbody>
+          <tr><td class="sa-label">Art des Objekts</td><td>${fld((a.immo1 && a.immo1.art) || '')}</td><td>${fld((a.immo2 && a.immo2.art) || '')}</td></tr>
+          <tr><td class="sa-label">Anschrift</td><td>${fld((a.immo1 && a.immo1.anschrift) || '')}</td><td>${fld((a.immo2 && a.immo2.anschrift) || '')}</td></tr>
+          <tr><td class="sa-label">Baujahr</td><td>${fld((a.immo1 && a.immo1.baujahr) || '')}</td><td>${fld((a.immo2 && a.immo2.baujahr) || '')}</td></tr>
+          <tr><td class="sa-label">Erwerbsjahr</td><td>${fld((a.immo1 && a.immo1.erwerbsjahr) || '')}</td><td>${fld((a.immo2 && a.immo2.erwerbsjahr) || '')}</td></tr>
+          <tr><td class="sa-label">Wohnfläche (m²)</td><td>${fld((a.immo1 && a.immo1.wohnflaeche) || '')}</td><td>${fld((a.immo2 && a.immo2.wohnflaeche) || '')}</td></tr>
+          <tr><td class="sa-label">Verkehrswert</td><td>${fld(fmtNum(a.immo1 && a.immo1.verkehrswert))}</td><td>${fld(fmtNum(a.immo2 && a.immo2.verkehrswert))}</td></tr>
+          <tr><td class="sa-label">Hypotheken & Grundschulden</td><td>${fld(fmtNum(a.immo1 && a.immo1.hypotheken))}</td><td>${fld(fmtNum(a.immo2 && a.immo2.hypotheken))}</td></tr>
+          <tr><td class="sa-label">Mieteinnahmen / Monat</td><td>${fld(fmtNum(a.immo1 && a.immo1.mietenMo))}</td><td>${fld(fmtNum(a.immo2 && a.immo2.mietenMo))}</td></tr>
+        </tbody>
         <thead><tr><th class="sa-section-h">VERBINDLICHKEITEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
         <tbody>
           ${darlBlock(a, 'bf1', 'Baufinanzierung 1')}
@@ -544,7 +553,83 @@ function selbstauskunft(kunde, user) {
     </div>
   `;
 
-  _doPrint(seite1 + seite2 + seite3, 'sa');
+  // === SEITE 4 + 5: DATENSCHUTZ & EINWILLIGUNGEN (1:1-Wortlaut aus Hypovision) ===
+  const seite4 = `
+    <div class="pdf-page sa-page sa-legal">
+      ${_header('Selbstauskunft – Datenschutz & Einwilligungen', 'Seite 4 · Erklärungen des Antragstellers')}
+      <h2 class="legal-h">I. Hinweis zur Darlehensvermittlung</h2>
+      <p class="legal-p">
+        Die B&amp;B Immo GmbH tritt im Rahmen der Finanzierungsvermittlung ausschließlich als unabhängiger Darlehensvermittler
+        gemäß § 34c GewO auf. Sie ist berechtigt, Selbstauskünfte, Bonitätsunterlagen sowie die zur Bearbeitung einer
+        Finanzierungsanfrage notwendigen Daten an potenzielle Darlehensgeber (Banken, Bausparkassen, Versicherungen) zu
+        übermitteln. Die Auswahl der Darlehensgeber erfolgt im Interesse des Antragstellers und ohne dauerhafte Bindung
+        an ein bestimmtes Institut.
+      </p>
+      <h2 class="legal-h">II. Einwilligung SCHUFA &amp; Creditreform</h2>
+      <p class="legal-p">
+        Ich willige/Wir willigen ein, dass die B&amp;B Immo GmbH sowie die mit ihr zusammenarbeitenden kreditgebenden
+        Institute Daten über die Aufnahme, die Durchführung und Beendigung dieser Geschäftsverbindung sowie Daten über
+        nicht vertragsgemäßes Verhalten oder betrügerisches Verhalten an die SCHUFA Holding AG (Kormoranweg 5, 65201
+        Wiesbaden) und die Creditreform Boniversum GmbH (Hellersbergstraße 11, 41460 Neuss) übermitteln. Die SCHUFA bzw.
+        Creditreform speichert und übermittelt diese Daten an ihre Vertragspartner im EWR-Raum sowie in der Schweiz, um
+        diesen Informationen zur Beurteilung der Kreditwürdigkeit von natürlichen Personen zu geben. Weitere Informationen
+        zur SCHUFA-Tätigkeit sind unter <em>www.schufa.de</em> bzw. <em>www.boniversum.de</em> abrufbar.
+      </p>
+      <h2 class="legal-h">III. Datenschutz im Rahmen der Finanzierungsanfrage</h2>
+      <p class="legal-p">
+        Die personenbezogenen Daten aus dieser Selbstauskunft werden gemäß Art. 6 Abs. 1 lit. b DS-GVO zur Anbahnung und
+        Durchführung des Vermittlungsverhältnisses verarbeitet. Eine Weitergabe an Dritte erfolgt nur, soweit dies zur
+        Erfüllung der Vermittlungsleistung erforderlich ist (insb. an die zur Auswahl stehenden Darlehensgeber und
+        an Notare im Rahmen einer ggf. nachfolgenden Beurkundung). Die Daten werden so lange gespeichert, wie dies für
+        die Geschäftsbeziehung erforderlich ist, mindestens jedoch entsprechend der gesetzlichen Aufbewahrungsfristen
+        (§ 257 HGB, § 147 AO). Die Rechte auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung,
+        Datenübertragbarkeit und Widerspruch nach Art. 15 ff. DS-GVO bleiben unberührt. Beschwerden können an die
+        zuständige Aufsichtsbehörde (LfDI Baden-Württemberg, Königstraße 10a, 70173 Stuttgart) gerichtet werden.
+      </p>
+      ${_footer(user)}
+    </div>
+  `;
+
+  const seite5 = `
+    <div class="pdf-page sa-page sa-legal">
+      ${_header('Selbstauskunft – Datenschutz & Einwilligungen', 'Seite 5 · Mitwirkungspflichten')}
+      <h2 class="legal-h">IV. Mitwirkungspflicht Steuer-Identifikationsnummer</h2>
+      <p class="legal-p">
+        Nach § 154 Abgabenordnung (AO) i.V.m. § 24c Kreditwesengesetz (KWG) sind kreditgebende Institute verpflichtet,
+        bei der Aufnahme einer Geschäftsverbindung die Steueridentifikationsnummer des Vertragspartners zu erheben und
+        zu speichern. Mit Abgabe dieser Selbstauskunft erkläre/n ich/wir mich/uns bereit, der finanzierenden Bank meine/unsere
+        Steueridentifikationsnummer mitzuteilen, sofern diese im Rahmen der Antragstellung nicht bereits hier vermerkt ist.
+      </p>
+      <h2 class="legal-h">V. Einwilligung in das automatisierte Grundbuch-Abrufverfahren</h2>
+      <p class="legal-p">
+        Ich willige/Wir willigen ein, dass die finanzierende Bank zum Zweck der Bonitäts- und Sicherheitenprüfung
+        Auskünfte aus dem Grundbuch im automatisierten Abrufverfahren nach § 133 Grundbuchordnung (GBO) einholt, soweit
+        ein berechtigtes Interesse vorliegt. Dies betrifft sowohl die zu finanzierende Immobilie als auch von mir/uns
+        in dieser Selbstauskunft angegebene Bestandsimmobilien.
+      </p>
+      <h2 class="legal-h">VI. Vollständigkeits- und Wahrheitserklärung</h2>
+      <p class="legal-p">
+        Ich versichere/Wir versichern, dass die obigen Angaben nach bestem Wissen vollständig und wahrheitsgemäß gemacht
+        wurden. Mir/Uns ist bekannt, dass falsche oder unvollständige Angaben zur Vertragsaufhebung sowie zur
+        strafrechtlichen Verfolgung wegen Kreditbetrugs (§ 265b StGB) führen können. Wesentliche Änderungen der wirtschaftlichen
+        Verhältnisse zwischen Abgabe der Selbstauskunft und Auszahlung des Darlehens werde/n ich/wir unverzüglich mitteilen.
+      </p>
+      <div style="margin-top:18mm; display:grid; grid-template-columns:1fr 1fr; gap:22mm;">
+        <div>
+          <div style="height:18mm; border-bottom:1px solid #000;"></div>
+          <div style="font-size:10px; margin-top:2mm;">Ort, Datum &middot; Unterschrift Antragsteller</div>
+        </div>
+        ${gemeinsam ? `
+        <div>
+          <div style="height:18mm; border-bottom:1px solid #000;"></div>
+          <div style="font-size:10px; margin-top:2mm;">Ort, Datum &middot; Unterschrift Mit-Antragsteller</div>
+        </div>` : '<div></div>'}
+      </div>
+      ${_footer(user)}
+    </div>
+  `;
+
+  _doPrint(seite1 + seite2 + seite3 + seite4 + seite5, 'sa');
 }
 
 window.PDF = { investitionsrechnung, reservierung, selbstauskunft };

@@ -1523,6 +1523,7 @@ function renderTabSelbstauskunft() {
           ${saPersonHtml('m', sa.mitantragsteller)}
         </div>
       </div>
+      <div id="sa-auswertung-wrap" class="mt-16">${saAuswertungHtml()}</div>
       <div class="toolbar mt-16">
         <button onclick="saveSelbstauskunft()">Speichern</button>
         <button class="secondary" onclick="exportSaPdf()">PDF Selbstauskunft</button>
@@ -1539,10 +1540,110 @@ function renderTabSelbstauskunft() {
     autoSaveSa();
   };
   // Auto-Save: bei jedem Verlassen eines SA-Felds wird gespeichert.
+  // Zusätzlich: Live-Recalc der Auswertung am Ende der Form (sofort, ohne Debounce).
   document.querySelectorAll('[data-sa]').forEach(inp => {
     inp.addEventListener('blur', () => autoSaveSa());
     inp.addEventListener('change', () => autoSaveSa());
+    inp.addEventListener('input', () => recalcSaAuswertung());
   });
+  // Initial Auswertung rendern (Werte aus state._sa)
+  recalcSaAuswertung();
+}
+
+/* ============================== SA-AUSWERTUNG ============================== */
+// Live-Block am Ende der Selbstauskunft: zeigt Überschuss, Gesamtvermögen,
+// und "Einsetzbar für neue Immobilie" (nur liquides Vermögen — Bank-Sicht).
+
+function saAuswertungHtml() {
+  const sa = state._sa || {};
+  const gem = sa.gemeinsam === true;
+  let bon = null;
+  if (window.Kalk && typeof window.Kalk.computeBonitaetDetailed === 'function') {
+    try { bon = window.Kalk.computeBonitaetDetailed(sa, gem); } catch(e) { bon = null; }
+  }
+  const eur = (v) => {
+    if (v === null || v === undefined || !isFinite(v)) return '–';
+    return Math.round(v).toLocaleString('de-DE') + ' €';
+  };
+  const ueberschuss   = bon ? bon.ueberschussMo : null;
+  const gesamtVerm    = bon ? bon.gesamtVermoegen : null;
+  const liquide       = bon ? bon.liquidesVermoegen : null;
+  const immo          = bon ? bon.immobilienVermoegen : null;
+  const einkAnr       = bon ? bon.einkommenAnrechenbarMo : null;
+  const ausg          = bon ? bon.ausgabenGesamtMo : null;
+  const haushalt      = bon ? bon.haushaltPauschale : null;
+  const fix           = bon ? bon.fixkostenMo : null;
+  const verbMo        = bon ? bon.verbindlichkeitenMo : null;
+  const verbGes       = bon ? bon.verbindlichkeitenGesamt : null;
+
+  const ueberschussCls = (ueberschuss !== null && ueberschuss < 0) ? 'kpi-negative' : 'kpi-positive';
+
+  return `
+    <div class="card sa-auswertung-card" style="background:linear-gradient(135deg,#f8f9fb 0%,#eef2f7 100%);border:2px solid #2c5282;">
+      <div class="card-title" style="color:#2c5282;">Auswertung Selbstauskunft <span class="text-tertiary text-small" style="font-weight:normal;">(Bank-Sicht, live)</span></div>
+
+      <div class="grid-3 mt-16">
+        <div class="kpi-box ${ueberschussCls}" style="background:#fff;padding:16px;border-radius:6px;border-left:4px solid ${ueberschuss !== null && ueberschuss < 0 ? '#c53030' : '#38a169'};">
+          <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;">Anrechenbarer Überschuss</div>
+          <div style="font-size:22px;font-weight:700;color:${ueberschuss !== null && ueberschuss < 0 ? '#c53030' : '#1a202c'};">${eur(ueberschuss)} <span style="font-size:13px;font-weight:400;color:#718096;">/ Monat</span></div>
+          <div class="text-tertiary text-small mt-4">Einkommen anrechenbar (80% Miete) minus Haushaltspauschale, Fixkosten und Verbindlichkeiten</div>
+        </div>
+        <div class="kpi-box" style="background:#fff;padding:16px;border-radius:6px;border-left:4px solid #4a5568;">
+          <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;">Gesamtvermögen</div>
+          <div style="font-size:22px;font-weight:700;color:#1a202c;">${eur(gesamtVerm)}</div>
+          <div class="text-tertiary text-small mt-4">Liquide + Immobilien-Netto (Verkehrswert minus Hypotheken)</div>
+        </div>
+        <div class="kpi-box" style="background:#fff;padding:16px;border-radius:6px;border-left:4px solid #2c5282;box-shadow:0 2px 8px rgba(44,82,130,0.15);">
+          <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;color:#2c5282;font-weight:600;">Einsetzbar für Immobilie</div>
+          <div style="font-size:22px;font-weight:700;color:#2c5282;">${eur(liquide)}</div>
+          <div class="text-tertiary text-small mt-4"><strong>Nur liquide Assets</strong> — Bestandsimmobilien zählen nicht (Beleihungsauslauf gebunden)</div>
+        </div>
+      </div>
+
+      <details class="mt-16" style="background:#fff;padding:12px 16px;border-radius:6px;">
+        <summary style="cursor:pointer;font-weight:600;color:#2c5282;">Aufschlüsselung anzeigen</summary>
+        <div class="grid-2 mt-12" style="gap:24px;">
+          <div>
+            <div style="font-weight:600;margin-bottom:8px;color:#1a202c;">Einnahmen-Seite</div>
+            <table class="sa-aufschluss-table" style="width:100%;font-size:13px;">
+              <tr><td>Einkommen anrechenbar (Mo)</td><td style="text-align:right;font-weight:600;">${eur(einkAnr)}</td></tr>
+            </table>
+            <div style="font-weight:600;margin:16px 0 8px;color:#1a202c;">Ausgaben-Seite (Bank-Sicht)</div>
+            <table class="sa-aufschluss-table" style="width:100%;font-size:13px;">
+              <tr><td>Haushaltspauschale</td><td style="text-align:right;">${eur(haushalt)}</td></tr>
+              <tr><td>Fixkosten (Miete/Unterhalt/PKV)</td><td style="text-align:right;">${eur(fix)}</td></tr>
+              <tr><td>Verbindlichkeiten (mtl.)</td><td style="text-align:right;">${eur(verbMo)}</td></tr>
+              <tr style="border-top:1px solid #e2e8f0;"><td style="font-weight:600;padding-top:6px;">Summe Ausgaben</td><td style="text-align:right;font-weight:600;padding-top:6px;">${eur(ausg)}</td></tr>
+            </table>
+          </div>
+          <div>
+            <div style="font-weight:600;margin-bottom:8px;color:#1a202c;">Vermögens-Seite</div>
+            <table class="sa-aufschluss-table" style="width:100%;font-size:13px;">
+              <tr><td>Liquides Vermögen (Bank/WP/Sparen/RKW)</td><td style="text-align:right;font-weight:600;color:#2c5282;">${eur(liquide)}</td></tr>
+              <tr><td>Immobilien netto (VK − Hypotheken)</td><td style="text-align:right;">${eur(immo)}</td></tr>
+              <tr style="border-top:1px solid #e2e8f0;"><td style="font-weight:600;padding-top:6px;">Gesamtvermögen</td><td style="text-align:right;font-weight:600;padding-top:6px;">${eur(gesamtVerm)}</td></tr>
+            </table>
+            <div style="font-weight:600;margin:16px 0 8px;color:#1a202c;">Verbindlichkeiten</div>
+            <table class="sa-aufschluss-table" style="width:100%;font-size:13px;">
+              <tr><td>Restsaldo gesamt</td><td style="text-align:right;">${eur(verbGes)}</td></tr>
+              <tr><td>Mtl. Belastung</td><td style="text-align:right;">${eur(verbMo)}</td></tr>
+            </table>
+          </div>
+        </div>
+        <div class="text-tertiary text-small mt-12" style="font-style:italic;">
+          Hinweis: "Einsetzbar für neue Immobilie" rechnet bewusst nur mit liquidem Vermögen.
+          Eigenkapital aus Bestandsimmobilien gilt in der Bankenbewertung als gebunden und
+          fließt nicht in den EK-Einsatz für eine neue Finanzierung ein.
+        </div>
+      </details>
+    </div>
+  `;
+}
+
+function recalcSaAuswertung() {
+  collectSaFromDOM();
+  const wrap = document.getElementById('sa-auswertung-wrap');
+  if (wrap) wrap.innerHTML = saAuswertungHtml();
 }
 
 // Liest alle SA-Felder aus dem DOM und schreibt sie in state._sa.
@@ -1713,7 +1814,8 @@ function saPersonHtml(prefix, p) {
       <div class="grid-2">
         ${sub('immo1', 'art', 'text', 'Art des Objekts')}
         ${sub('immo1', 'anschrift', 'text', 'Anschrift')}
-        ${sub('immo1', 'baujahr', 'number', 'Baujahr/Erwerbsjahr', 'Jahr')}
+        ${sub('immo1', 'baujahr', 'number', 'Baujahr', 'Jahr')}
+        ${sub('immo1', 'erwerbsjahr', 'number', 'Erwerbsjahr', 'Jahr')}
         ${sub('immo1', 'wohnflaeche', 'number', 'Wohnfläche', 'm²')}
         ${sub('immo1', 'verkehrswert', 'number', 'Verkehrswert', '€')}
         ${sub('immo1', 'hypotheken', 'number', 'Hypotheken & Grundschulden', '€')}
@@ -1726,7 +1828,8 @@ function saPersonHtml(prefix, p) {
       <div class="grid-2">
         ${sub('immo2', 'art', 'text', 'Art des Objekts')}
         ${sub('immo2', 'anschrift', 'text', 'Anschrift')}
-        ${sub('immo2', 'baujahr', 'number', 'Baujahr/Erwerbsjahr', 'Jahr')}
+        ${sub('immo2', 'baujahr', 'number', 'Baujahr', 'Jahr')}
+        ${sub('immo2', 'erwerbsjahr', 'number', 'Erwerbsjahr', 'Jahr')}
         ${sub('immo2', 'wohnflaeche', 'number', 'Wohnfläche', 'm²')}
         ${sub('immo2', 'verkehrswert', 'number', 'Verkehrswert', '€')}
         ${sub('immo2', 'hypotheken', 'number', 'Hypotheken & Grundschulden', '€')}

@@ -439,8 +439,9 @@ function computeBonitaetDetailed(sa, gemeinsam) {
   const verbindlichkeitenMo = verbindMo(a) + verbindMo(m);
   const verbindlichkeitenGesamt = verbindRest(a) + verbindRest(m);
 
-  // ----- Freies Vermögen (Bank-Sicht) -----
-  function freiVerm(p) {
+  // ----- Liquides Vermögen (Bank-Sicht: "einsetzbar für neue Immobilie") -----
+  // Bestandsimmobilien zählen NICHT — sind im Beleihungsauslauf gebunden.
+  function liquideVerm(p) {
     if (!p) return 0;
     let s = (parseFloat(p.bankguthaben) || 0)
       + (parseFloat(p.wertpapiere) || 0)
@@ -450,10 +451,31 @@ function computeBonitaetDetailed(sa, gemeinsam) {
     if (p.vers) s += parseFloat(p.vers.rueckkauf) || 0;
     return s;
   }
-  const freiesVermoegen = freiVerm(a) + freiVerm(m);
+  const liquidesVermoegen = liquideVerm(a) + liquideVerm(m);
+
+  // ----- Immobilien-Vermögen (Verkehrswert minus Hypotheken) -----
+  function immoVerm(p) {
+    if (!p) return 0;
+    let s = 0;
+    ['immo1','immo2'].forEach(k => {
+      if (p[k]) {
+        const vk = parseFloat(p[k].verkehrswert) || 0;
+        const hy = parseFloat(p[k].hypotheken) || 0;
+        s += Math.max(0, vk - hy); // Netto-Immobilienvermögen (Wert minus Schulden)
+      }
+    });
+    return s;
+  }
+  const immobilienVermoegen = immoVerm(a) + immoVerm(m);
+
+  // Gesamt-Vermögen = Liquide + Immobilien. Aber: für die Bank zählt nur "freiesVermoegen" (liquide).
+  const gesamtVermoegen = liquidesVermoegen + immobilienVermoegen;
 
   // ----- Aggregierte Ausgaben (für bon-Vor-Berechnung) -----
   const ausgabenGesamtMo = haushaltPauschale + fixkostenMo + verbindlichkeitenMo;
+
+  // ----- Frei verfügbar (Saldo / Überschuss vor Investment) -----
+  const ueberschussMo = einkommenAnrechenbarMo - ausgabenGesamtMo;
 
   return {
     einkommenAnrechenbarMo,
@@ -461,8 +483,11 @@ function computeBonitaetDetailed(sa, gemeinsam) {
     haushaltPauschale, erwachsene, kinder,
     fixkostenMo, fixkostenA: fixA, fixkostenM: fixM,
     verbindlichkeitenMo, verbindlichkeitenGesamt,
-    freiesVermoegen,
+    // Backward-Compatibility: freiesVermoegen = liquidesVermoegen (Bank-Sicht).
+    freiesVermoegen: liquidesVermoegen,
+    liquidesVermoegen, immobilienVermoegen, gesamtVermoegen,
     ausgabenGesamtMo,
+    ueberschussMo,
   };
 }
 
