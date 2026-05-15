@@ -59,7 +59,18 @@ git commit -m "Iter 40 — Bonität-Detail komplett überarbeitet + SA-Auswertun
   * .sa-legal + .legal-h/.legal-p für die Datenschutz-Seiten.
   * .sa-auswertung-card + Aufschluss-Tabellen.
 
-- Cache-Bust auf v=37."
+- Cache-Bust auf v=37.
+
+- Iter 40.1 — Admin-Erweiterung:
+  * Bugfix: Kunden-Name in 'Alle Kunden'-Tabelle war leer, weil /api/admin/stats
+    das NAME-Feld nicht aus Airtable abgefragt hat. Jetzt: name + vorname +
+    nachname + email werden geholt, Frontend nutzt name → 'Vorname Nachname'
+    → email → 'Kunde {id}' als Fallback-Kaskade.
+  * Vertriebler-Tabelle zeigt jetzt: Kunden gesamt, In Bearbeitung, Reserviert,
+    Notar-Termin, Beurkundet (pro Vertriebler + Summen-Zeile).
+  * Neuer WE-Stammdaten-Block in der Admin-Ansicht: read-only Liste aller
+    WEs aus Airtable (gruppiert nach Projekt), inkl. Refresh-Button zum
+    Neuladen direkt aus Airtable."
 
 # 3. Push
 echo ""

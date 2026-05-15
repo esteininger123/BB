@@ -2042,18 +2042,41 @@ async function renderAdmin() {
       </div>
 
       <div class="card">
-        <div class="card-title">Vertriebler</div>
+        <div class="card-title">Vertriebler <span class="text-tertiary text-small" style="font-weight:normal;">(Pipeline pro Person)</span></div>
         <table class="table">
-          <thead><tr><th>Name</th><th>Rolle</th><th>Kunden gesamt</th><th>Beurkundet</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Rolle</th>
+              <th class="num">Kunden gesamt</th>
+              <th class="num">In Bearbeitung</th>
+              <th class="num">Reserviert</th>
+              <th class="num">Notar-Termin</th>
+              <th class="num">Beurkundet</th>
+            </tr>
+          </thead>
           <tbody>
             ${(s.vertriebler || []).map(v => `
               <tr>
                 <td><strong>${esc(v.name)}</strong></td>
                 <td>${esc(v.rolle)}</td>
                 <td class="num">${v.kundenGesamt || 0}</td>
+                <td class="num">${v.inBearbeitung || 0}</td>
+                <td class="num" style="${(v.reserviert||0)>0?'color:#b7791f;font-weight:700;':''}">${v.reserviert || 0}</td>
+                <td class="num" style="${(v.notarTermin||0)>0?'color:#2c5282;font-weight:700;':''}">${v.notarTermin || 0}</td>
                 <td class="num pos">${v.beurkundet || 0}</td>
               </tr>
             `).join('')}
+            ${(s.vertriebler || []).length > 1 ? `
+              <tr style="background:#f7fafc;font-weight:700;border-top:2px solid #e2e8f0;">
+                <td>Summe</td><td></td>
+                <td class="num">${(s.vertriebler || []).reduce((a,v) => a + (v.kundenGesamt||0), 0)}</td>
+                <td class="num">${(s.vertriebler || []).reduce((a,v) => a + (v.inBearbeitung||0), 0)}</td>
+                <td class="num">${(s.vertriebler || []).reduce((a,v) => a + (v.reserviert||0), 0)}</td>
+                <td class="num">${(s.vertriebler || []).reduce((a,v) => a + (v.notarTermin||0), 0)}</td>
+                <td class="num pos">${(s.vertriebler || []).reduce((a,v) => a + (v.beurkundet||0), 0)}</td>
+              </tr>
+            ` : ''}
           </tbody>
         </table>
       </div>
@@ -2064,16 +2087,24 @@ async function renderAdmin() {
           <div class="empty-state">Keine Kunden im System.</div>
         ` : `
           <table class="table">
-            <thead><tr><th>Name</th><th>Owner</th><th>Phase</th><th>Letzte Aktivität</th></tr></thead>
+            <thead><tr><th>Name</th><th>E-Mail</th><th>Owner</th><th>Phase</th><th>Letzte Aktivität</th></tr></thead>
             <tbody>
-              ${s.alleKunden.map(k => `
-                <tr onclick="go('/kunde/${esc(k.id)}')">
-                  <td><strong>${esc(k.name)}</strong></td>
-                  <td class="text-tertiary">${esc(k.ownerName || '—')}</td>
-                  <td><span class="badge ${phaseBadgeClass(k.phase)}">${esc(k.phase)}</span></td>
-                  <td class="text-tertiary">${esc(fmtDate(k.lastActivity))}</td>
-                </tr>
-              `).join('')}
+              ${s.alleKunden.map(k => {
+                // Fallback: name (Primary aus Airtable) ODER Vorname+Nachname ODER E-Mail ODER ID.
+                const displayName = k.name
+                  || ((k.vorname || '') + ' ' + (k.nachname || '')).trim()
+                  || k.email
+                  || ('Kunde ' + (k.id || '').slice(-6));
+                return `
+                  <tr onclick="go('/kunde/${esc(k.id)}')" style="cursor:pointer;">
+                    <td><strong>${esc(displayName)}</strong></td>
+                    <td class="text-tertiary">${esc(k.email || '—')}</td>
+                    <td class="text-tertiary">${esc(k.ownerName || '—')}</td>
+                    <td><span class="badge ${phaseBadgeClass(k.phase)}">${esc(k.phase || '—')}</span></td>
+                    <td class="text-tertiary">${esc(fmtDate(k.lastActivity))}</td>
+                  </tr>
+                `;
+              }).join('')}
             </tbody>
           </table>
         `}

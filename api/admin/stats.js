@@ -29,7 +29,16 @@ module.exports = async (req, res) => {
         fields: [VERTRIEBLER_FIELDS.NAME, VERTRIEBLER_FIELDS.EMAIL, VERTRIEBLER_FIELDS.ROLLE, VERTRIEBLER_FIELDS.STATUS]
       }, 500),
       listAll(TABLES.KUNDEN, {
-        fields: [KUNDEN_FIELDS.OWNER, KUNDEN_FIELDS.PHASE, KUNDEN_FIELDS.LAST_ACTIVITY]
+        fields: [
+          KUNDEN_FIELDS.NAME,
+          KUNDEN_FIELDS.VORNAME,
+          KUNDEN_FIELDS.NACHNAME,
+          KUNDEN_FIELDS.EMAIL,
+          KUNDEN_FIELDS.TELEFON,
+          KUNDEN_FIELDS.OWNER,
+          KUNDEN_FIELDS.PHASE,
+          KUNDEN_FIELDS.LAST_ACTIVITY
+        ]
       }, 5000)
     ]);
 
@@ -68,7 +77,17 @@ module.exports = async (req, res) => {
     const vertrieblerList = Object.values(perVertriebler).map(v => ({
       ...v,
       kundenGesamt: v.total,
-      beurkundet: (v.phasen && v.phasen['Beurkundet']) || 0,
+      beurkundet:   (v.phasen && v.phasen['Beurkundet']) || 0,
+      reserviert:   (v.phasen && v.phasen['Reservierung']) || 0,
+      notarTermin:  (v.phasen && v.phasen['Notar-Termin']) || 0,
+      kaufKomplett: ((v.phasen && v.phasen['Beurkundet']) || 0) + ((v.phasen && v.phasen['Notar-Termin']) || 0),
+      // Pipeline-Counter (offen / in Bearbeitung — alles vor Beurkundet, nach Lead)
+      inBearbeitung:
+        ((v.phasen && v.phasen['Kalkulation läuft']) || 0) +
+        ((v.phasen && v.phasen['Reservierung']) || 0) +
+        ((v.phasen && v.phasen['Selbstauskunft']) || 0) +
+        ((v.phasen && v.phasen['Bank-Einreichung']) || 0) +
+        ((v.phasen && v.phasen['Notar-Termin']) || 0),
     }));
 
     // Owner-Name-Map für die Kundenliste
