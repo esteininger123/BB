@@ -896,37 +896,40 @@ function recalcAndRender() {
   const grid = document.getElementById('kpi-grid');
   if (!grid) return;
   const cls = (v) => v > 0 ? 'positive' : (v < 0 ? 'negative' : '');
-  const kpQm = r.kaufpreisProQm || 0;
-  grid.innerHTML = `
-    <div class="kpi"><div class="label">Kaufpreis gesamt</div><div class="value">${fmt(r.kpGesamt)}</div></div>
-    <div class="kpi"><div class="label">KP / m²</div><div class="value">${kpQm ? Math.round(kpQm).toLocaleString('de-DE') + ' €' : '—'}</div></div>
-    <div class="kpi"><div class="label">Eigenkapital-Bedarf</div><div class="value">${fmt(r.ekBedarf)}</div></div>
-    <div class="kpi"><div class="label">Darlehen</div><div class="value">${fmt(r.darlehen)}</div></div>
-    <div class="kpi ${cls(r.belastungMo)}"><div class="label">Belastung Jahr 1 mtl.</div><div class="value">${fmtEurMo(r.belastungMo)}</div></div>
-    <div class="kpi positive"><div class="label">Vermögensaufbau netto J10</div><div class="value">${fmt(r.vermoegenNetto10)}</div></div>
-    <div class="kpi"><div class="label">IRR (10 J)</div><div class="value">${fmtPct(r.irr)}</div></div>
-    <div class="kpi positive"><div class="label">Sparen vs. Investieren Δ J10</div><div class="value">${fmt(r.sparenVsKaufenDelta)}</div></div>
-    <div class="kpi"><div class="label">Mietsubvention gesamt</div><div class="value">${fmt(r.mietsubventionGesamt)}</div></div>
-    <div class="kpi ${cls(r.markteinkaufVorteil || 0)}"><div class="label">Markteinkauf-Vorteil</div><div class="value">${fmt(r.markteinkaufVorteil || 0)}</div></div>
-  `;
+  // Kern-KPIs (5 Stück) — wie früher, plus Markteinkauf-Vorteil NUR wenn QM-Preis eingegeben.
+  const kpis = [
+    `<div class="kpi"><div class="label">Eigenkapital-Bedarf</div><div class="value">${fmt(r.ekBedarf)}</div></div>`,
+    `<div class="kpi ${cls(r.belastungMo)}"><div class="label">Belastung Jahr 1 mtl.</div><div class="value">${fmtEurMo(r.belastungMo)}</div></div>`,
+    `<div class="kpi positive"><div class="label">Vermögensaufbau netto J10</div><div class="value">${fmt(r.vermoegenNetto10)}</div></div>`,
+    `<div class="kpi"><div class="label">IRR (10 J)</div><div class="value">${fmtPct(r.irr)}</div></div>`,
+    `<div class="kpi"><div class="label">Darlehen</div><div class="value">${fmt(r.darlehen)}</div></div>`,
+  ];
+  // Markteinkauf-Vorteil nur wenn marktwertProQm > 0 in den Inputs gesetzt wurde.
+  const mwQm = (state.kalk && parseFloat(state.kalk.marktwertProQm)) || 0;
+  if (mwQm > 0 && r.markteinkaufVorteil) {
+    kpis.push(`<div class="kpi ${cls(r.markteinkaufVorteil)}"><div class="label">Markteinkauf-Vorteil</div><div class="value">${fmt(r.markteinkaufVorteil)}</div></div>`);
+  }
+  grid.innerHTML = kpis.join('');
 
-  // Bonität-Card — auf das Wesentliche reduziert (3 KPIs)
+  // Bonität-Card — 4 KPIs: Einkommen vor/nach + EK vor/nach
   const bonEl = document.getElementById('bon-card');
   if (bonEl) {
     const detail = r.bonModus === 'detail';
     const ein = r.bonEinnahmen || 0;
     const aus = r.bonAusgaben || 0;
-    const vor = ein - aus;
-    const nach = vor + (r.bonDelta || 0);
-    const vermDelta = (r.bonVermoegen || 0) - r.ekBedarf;
+    const einkommenVor = ein - aus;
+    const einkommenNach = einkommenVor + (r.bonDelta || 0);
+    const ekVor = r.bonVermoegen || 0;
+    const ekNach = ekVor - r.ekBedarf;
     const okFarbe = (v) => v >= 0 ? 'positive' : 'negative';
 
     bonEl.innerHTML = `
-      <div class="card-title">Bonität ${detail ? '(Selbstauskunft)' : '(Quick)'}</div>
+      <div class="card-title">Bonität ${detail ? '(aus Selbstauskunft)' : '(Quick)'}</div>
       <div class="kpi-grid">
-        <div class="kpi ${okFarbe(vor)}"><div class="label">Frei vor Investment</div><div class="value">${fmtEurMo(vor)}</div></div>
-        <div class="kpi ${okFarbe(nach)}"><div class="label">Frei nach Investment</div><div class="value">${fmtEurMo(nach)}</div></div>
-        <div class="kpi ${okFarbe(vermDelta)}"><div class="label">Vermögen − EK-Bedarf</div><div class="value">${fmt(vermDelta)}</div></div>
+        <div class="kpi ${okFarbe(einkommenVor)}"><div class="label">Einkommen frei vor Invest.</div><div class="value">${fmtEurMo(einkommenVor)}</div></div>
+        <div class="kpi ${okFarbe(einkommenNach)}"><div class="label">Einkommen frei nach Invest.</div><div class="value">${fmtEurMo(einkommenNach)}</div></div>
+        <div class="kpi ${okFarbe(ekVor)}"><div class="label">Eigenkapital vor Invest.</div><div class="value">${fmt(ekVor)}</div></div>
+        <div class="kpi ${okFarbe(ekNach)}"><div class="label">Eigenkapital nach Invest.</div><div class="value">${fmt(ekNach)}</div></div>
       </div>
     `;
   }

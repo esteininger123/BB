@@ -33,14 +33,21 @@ module.exports = async (req, res) => {
       if (!allowed) return res.status(403).json({ error: 'Kein Zugriff auf diesen Kunden' });
 
       const formula = `FIND('${kundeId}', ARRAYJOIN({Kunde}))>0`;
+      // Hinweis: Airtable's sort-Parameter braucht den Field-NAMEN, keine Field-ID.
+      // Wenn der falsch ist, gibt Airtable 422 zurück — bei "Created" ist Field-Name korrekt.
       const params = {
         filterByFormula: formula,
-        'sort[0][field]': SNAPSHOT_FIELDS.CREATED,
+        'sort[0][field]': 'Created',
         'sort[0][direction]': 'desc'
       };
       const records = await listAll(TABLES.SNAPSHOTS, params, 500);
       // Frontend erwartet direktes Array.
-      return res.status(200).json(records.map(snapshotRecordToApi));
+      // Auto-Created-Time aus Record-Level mitgeben (fallback)
+      return res.status(200).json(records.map(r => {
+        const out = snapshotRecordToApi(r);
+        if (!out.created && r.createdTime) out.created = r.createdTime;
+        return out;
+      }));
     }
 
     if (req.method === 'POST') {

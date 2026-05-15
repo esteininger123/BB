@@ -72,16 +72,24 @@ function snapshotRecordToApi(rec) {
   const f = rec.fields || {};
   const kundeIds = f[SNAPSHOT_FIELDS.KUNDE] || [];
   const ersteltVonIds = f[SNAPSHOT_FIELDS.ERSTELLT_VON] || [];
+  // Linked-Records kommen je nach Airtable-Variante als String-Array ['rec...'] oder
+  // als Object-Array [{id, name}]. Hier auf reine IDs reduzieren.
+  const flattenLinks = (v) => {
+    if (!Array.isArray(v)) return [];
+    return v.map(x => (x && typeof x === 'object' && x.id) ? x.id : x).filter(Boolean);
+  };
+  const kundeArr = flattenLinks(kundeIds);
+  const erstellerArr = flattenLinks(ersteltVonIds);
   return {
     id: rec.id,
     bezeichnung:   f[SNAPSHOT_FIELDS.BEZEICHNUNG] || '',
-    kundeId:       Array.isArray(kundeIds) ? kundeIds[0] : null,
+    kundeId:       kundeArr[0] || null,
     weBezeichnung: f[SNAPSHOT_FIELDS.WE_BEZ]      || '',
     weRecordId:    f[SNAPSHOT_FIELDS.WE_RECID]    || '',
-    erstelltVon:   Array.isArray(ersteltVonIds) ? ersteltVonIds[0] : null,
+    erstelltVon:   erstellerArr[0] || null,
     pdfTyp:        f[SNAPSHOT_FIELDS.PDF_TYP]     || '',
     kalkJson:      parseJsonField(f[SNAPSHOT_FIELDS.KALK_JSON]),
-    created:       f[SNAPSHOT_FIELDS.CREATED]     || null
+    created:       f[SNAPSHOT_FIELDS.CREATED] || rec.createdTime || null
   };
 }
 

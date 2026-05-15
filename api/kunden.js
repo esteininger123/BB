@@ -32,8 +32,9 @@ module.exports = async (req, res) => {
 
       // Vertriebler sieht nur eigene (Owner-Link enthält seine Record-ID).
       // Airtable: FIND('rec...', ARRAYJOIN({Owner})) > 0
+      // Sort braucht Field-NAMEN, nicht ID — Field heißt 'Letzte-Aktivität' (mit Bindestrich).
       const listParams = {
-        'sort[0][field]': KUNDEN_FIELDS.LAST_ACTIVITY,
+        'sort[0][field]': 'Letzte-Aktivität',
         'sort[0][direction]': 'desc'
       };
       if (!isAdmin) {
