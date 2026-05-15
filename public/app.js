@@ -588,6 +588,9 @@ function renderTabKalkulator() {
       <div class="chart-container"><canvas id="chart-sparen"></canvas></div>
     </div>
 
+    <!-- Story-Sektionen (Vertriebs-Erzählung) -->
+    <div class="stories mt-16" id="story-container"></div>
+
     <div class="toolbar mt-16">
       <button onclick="saveSnapshot()">Snapshot speichern</button>
       <button class="secondary" onclick="exportInvestPdf()">PDF Investitionsrechnung</button>
@@ -636,13 +639,16 @@ function kalkInputsThemenHtml(i) {
         <input data-kalk="${key}" type="number" step="${stepPct / 100}" min="${minPct / 100}" max="${maxPct / 100}" value="${i[key] === undefined || i[key] === null ? '' : i[key]}" class="slider-num">
       </div>`;
   };
-  // Slider für Euro-Werte (z.B. Bonität)
-  const sliderEur = (label, key, min, max, step) => {
+  // Slider für absolute Werte (Euro, qm, Monate). unit-Suffix konfigurierbar.
+  const sliderEur = (label, key, min, max, step, unit) => {
+    const u = unit === undefined ? '€' : unit;
     const val = i[key] || 0;
+    const isInt = step >= 1;
+    const valStr = isInt ? Math.round(val).toLocaleString('de-DE') : val.toLocaleString('de-DE');
     return `
       <div class="slider-row">
-        <label>${esc(label)} <span class="slider-val" data-slider-val="${key}">${val.toLocaleString('de-DE')} €</span></label>
-        <input type="range" data-slider="${key}" data-slider-fmt="eur" min="${min}" max="${max}" step="${step}" value="${val}">
+        <label>${esc(label)} <span class="slider-val" data-slider-val="${key}">${valStr}${u ? ' ' + u : ''}</span></label>
+        <input type="range" data-slider="${key}" data-slider-fmt="eur" data-slider-unit="${esc(u)}" min="${min}" max="${max}" step="${step}" value="${val}">
         <input data-kalk="${key}" type="number" step="${step}" min="${min}" value="${i[key] === undefined || i[key] === null ? '' : i[key]}" class="slider-num">
       </div>`;
   };
@@ -658,73 +664,75 @@ function kalkInputsThemenHtml(i) {
 
   return `
     <details class="kalk-section" open>
-      <summary>Objekt &amp; Miete</summary>
-      <div class="grid-3">
-        ${num('Kaufpreis Wohnung', 'kaufpreis', '€')}
-        ${num('Stellplatz / Garage KP', 'stellplatzKp', '€')}
-        ${num('Quadratmeter', 'qm', 'm²')}
-        ${num('Kaltmiete', 'kaltmiete', '€/Mo')}
-        ${num('Stellplatz-Miete', 'stellplatzMiete', '€/Mo')}
-        ${num('Subvention', 'subventionMo', '€/Mo')}
-        ${num('Subv-Dauer', 'subventionMonate', 'Mo')}
+      <summary>1 · Stammdaten</summary>
+      <div class="grid-1">
+        ${sliderEur('Kaufpreis Wohnung', 'kaufpreis', 30000, 500000, 500)}
+        ${sliderEur('Stellplatz / Garage KP', 'stellplatzKp', 0, 30000, 500)}
+        ${sliderEur('Quadratmeter', 'qm', 20, 200, 0.5, 'm²')}
+        ${sliderEur('Marktwert €/qm (optional, 0 = aus)', 'marktwertProQm', 0, 8000, 50, '€/qm')}
+        ${slider('Inflation / Wertsteigerung p.a.', 'wertsteigerung', 0, 6, 0.25)}
       </div>
     </details>
 
     <details class="kalk-section" open>
-      <summary>Laufende Kosten</summary>
-      <div class="grid-3">
-        ${num('Hausgeld', 'hausgeld', '€/Mo')}
-        ${num('Mietverwaltung', 'mietverwaltung', '€/Mo')}
-        ${num('Hausverwaltung', 'hausverwaltung', '€/Mo')}
-        ${slider('Hausgeld-Inflation p.a.', 'hgInflation', 0, 6, 0.1)}
+      <summary>2 · Miete</summary>
+      <div class="grid-1">
+        ${sliderEur('Aktuelle Kaltmiete', 'kaltmiete', 200, 2000, 10, '€/Mo')}
+        ${sliderEur('Stellplatz-Miete', 'stellplatzMiete', 0, 200, 5, '€/Mo')}
+        ${sliderEur('Mietsubvention', 'subventionMo', 0, 300, 10, '€/Mo')}
+        ${sliderEur('Subventions-Laufzeit', 'subventionMonate', 0, 60, 1, 'Monate')}
+        ${select('Mietsteigerungs-Modus', 'mietsteigerungsModus', [
+          {v:'sprung', l:'Vergleichsmiete-Sprünge 3J'},
+          {v:'index', l:'Indexmiete jährlich'},
+          {v:'keine', l:'Keine'}
+        ])}
+        ${slider('Steigerung pro Sprung / Jahr', 'steigerungProz', 0, 25, 0.5)}
+        ${sliderEur('Monate seit letzter Mieterhöhung', 'monateSeitMieterhoehung', 0, 36, 1, 'Monate')}
       </div>
     </details>
 
     <details class="kalk-section" open>
-      <summary>Finanzierung</summary>
-      <div class="grid-3">
-        ${slider('Zins p.a.', 'zins', 2, 8, 0.05)}
-        ${slider('Tilgung p.a.', 'tilgung', 0.5, 5, 0.05)}
-        ${select('Kaufnebenkosten mitfinanzieren', 'knkMitfinanziert', [
+      <summary>3 · Hausgeld &amp; Verwaltung</summary>
+      <div class="grid-1">
+        ${sliderEur('Hausgeld inkl. Rücklage', 'hausgeld', 0, 500, 5, '€/Mo')}
+        ${slider('Hausgeld-Inflation p.a.', 'hgInflation', 0, 5, 0.25)}
+        ${sliderEur('Mietverwaltung (SEV)', 'mietverwaltung', 0, 100, 5, '€/Mo')}
+        ${sliderEur('Hausverwaltung (WEG)', 'hausverwaltung', 0, 100, 1, '€/Mo')}
+      </div>
+    </details>
+
+    <details class="kalk-section" open>
+      <summary>4 · Steuern &amp; AfA</summary>
+      <div class="grid-1">
+        ${slider('Gebäude-Anteil', 'gebaeudeAnteil', 60, 95, 1)}
+        ${slider('AfA-Satz (frei wählbar)', 'afaSatz', 1, 6, 0.05)}
+      </div>
+    </details>
+
+    <div class="input-group-divider">
+      <div class="input-group-label">Personenbezogene Eingaben</div>
+    </div>
+
+    <details class="kalk-section" open>
+      <summary>6 · Finanzierung</summary>
+      <div class="grid-1">
+        ${slider('Zinssatz', 'zins', 2, 8, 0.05)}
+        ${slider('Anfängliche Tilgung', 'tilgung', 0.5, 5, 0.25)}
+        ${select('Kaufnebenkosten mitfinanziert?', 'knkMitfinanziert', [
           {v:'false', l:'Nein'}, {v:'true', l:'Ja'}
         ])}
       </div>
     </details>
 
-    <details class="kalk-section" open>
-      <summary>Steuer &amp; AfA</summary>
-      <div class="grid-3">
-        ${slider('Persönlicher Steuersatz', 'steuersatz', 0, 50, 0.5)}
-        ${slider('AfA-Satz p.a.', 'afaSatz', 1, 5, 0.05)}
-        ${slider('Gebäude-Anteil', 'gebaeudeAnteil', 50, 100, 1)}
-        ${select('AfA-Bemessungsgrundlage', 'afaBemessung', [
-          {v:'kaufpreis', l:'Kaufpreis'}, {v:'kaufpreis_knk', l:'Kaufpreis + KNK'}
-        ])}
-      </div>
-    </details>
-
-    <details class="kalk-section" open>
-      <summary>Marktannahmen</summary>
-      <div class="grid-3">
-        ${slider('Wertsteigerung p.a.', 'wertsteigerung', 0, 8, 0.1)}
-        ${slider('Mietsteigerung %', 'steigerungProz', 0, 30, 0.5)}
-        ${select('Mietsteigerungs-Modus', 'mietsteigerungsModus', [
-          {v:'sprung', l:'Sprung (alle 3 J)'},
-          {v:'index', l:'Index (jährlich)'},
-          {v:'keine', l:'Keine'}
-        ])}
-        ${num('Marktwert pro qm (optional)', 'marktwertProQm', '€/m²')}
-      </div>
-    </details>
-
     ${isQuick ? `
     <details class="kalk-section" open>
-      <summary>Bonität (Quick)</summary>
-      <div class="text-tertiary text-small mb-12">Direkt eingeben. Für Banken: in den Selbstauskunft-Tab wechseln und Modus auf "Detail" stellen.</div>
+      <summary>7 · Persönliche Bonität (Quick)</summary>
+      <div class="text-tertiary text-small mb-12">Direkt eingeben. Für Banken: Selbstauskunft-Tab + Bonität auf "Detail".</div>
       <div class="grid-1">
-        ${sliderEur('Einkommen anrechenbar', 'bonEinnahmen', 0, 20000, 100)}
-        ${sliderEur('Ausgaben gesamt (Haushalt + Verbindlichkeiten)', 'bonAusgaben', 0, 10000, 50)}
-        ${sliderEur('Freies Vermögen', 'bonVermoegen', 0, 500000, 1000)}
+        ${sliderEur('Monatliche Einnahmen', 'bonEinnahmen', 1500, 20000, 100, '€/Mo')}
+        ${sliderEur('Monatliche Ausgaben', 'bonAusgaben', 800, 10000, 50, '€/Mo')}
+        ${sliderEur('Verfügbares Eigenkapital (ohne Immobilien)', 'bonVermoegen', 0, 500000, 1000)}
+        ${slider('Persönlicher Steuersatz', 'steuersatz', 25, 50, 1)}
       </div>
     </details>
     ` : ''}
@@ -737,6 +745,9 @@ function bindKalkInputs() {
     slider.addEventListener('input', () => {
       const k = slider.dataset.slider;
       const isEur = slider.dataset.sliderFmt === 'eur';
+      const unit = slider.dataset.sliderUnit || (isEur ? '€' : '');
+      const step = parseFloat(slider.step) || 1;
+      const isInt = step >= 1;
       const raw = parseFloat(slider.value);
       const v = isEur ? raw : (raw / 100); // Prozent → Dezimal
       state.kalk[k] = v;
@@ -744,9 +755,14 @@ function bindKalkInputs() {
       const num = document.querySelector(`input[data-kalk="${k}"]`);
       if (num) num.value = isEur ? v : v.toFixed(4);
       const lbl = document.querySelector(`[data-slider-val="${k}"]`);
-      if (lbl) lbl.textContent = isEur
-        ? Math.round(v).toLocaleString('de-DE') + ' €'
-        : (raw.toFixed(2) + ' %');
+      if (lbl) {
+        if (isEur) {
+          const valStr = isInt ? Math.round(v).toLocaleString('de-DE') : v.toLocaleString('de-DE');
+          lbl.textContent = valStr + (unit ? ' ' + unit : '');
+        } else {
+          lbl.textContent = raw.toFixed(2) + ' %';
+        }
+      }
       recalcAndRender();
     });
   });
@@ -896,18 +912,30 @@ function recalcAndRender() {
   const grid = document.getElementById('kpi-grid');
   if (!grid) return;
   const cls = (v) => v > 0 ? 'positive' : (v < 0 ? 'negative' : '');
-  // Kern-KPIs (5 Stück) — wie früher, plus Markteinkauf-Vorteil NUR wenn QM-Preis eingegeben.
+  // Kern-KPIs wie V1 — 5 Standard + optional Markteinkauf-Vorteil. Mit Info-Tooltips.
+  const kpiCard = (label, value, info, extraClass) => `
+    <div class="kpi ${extraClass || ''}">
+      <div class="label">${esc(label)}<button class="kpi-info" title="${esc(info)}">i</button></div>
+      <div class="value">${value}</div>
+    </div>`;
   const kpis = [
-    `<div class="kpi"><div class="label">Eigenkapital-Bedarf</div><div class="value">${fmt(r.ekBedarf)}</div></div>`,
-    `<div class="kpi ${cls(r.belastungMo)}"><div class="label">Belastung Jahr 1 mtl.</div><div class="value">${fmtEurMo(r.belastungMo)}</div></div>`,
-    `<div class="kpi positive"><div class="label">Vermögensaufbau netto J10</div><div class="value">${fmt(r.vermoegenNetto10)}</div></div>`,
-    `<div class="kpi"><div class="label">IRR (10 J)</div><div class="value">${fmtPct(r.irr)}</div></div>`,
-    `<div class="kpi"><div class="label">Darlehen</div><div class="value">${fmt(r.darlehen)}</div></div>`,
+    kpiCard('EK-Bedarf', fmt(r.ekBedarf),
+      'Eigenkapital beim Kauf: Kaufnebenkosten (Grunderwerbsteuer + Notar + Grundbuch ≈ 8,5 % vom Kaufpreis). Bei „KNK mitfinanziert: Ja" = 0 €.'),
+    kpiCard('Belastung / Monat', fmtEurMo(r.belastungMo),
+      'Was monatlich aus deiner Tasche geht in Jahr 1. Mieten + Subvention − Annuität − Hausgeld − Hausverwaltung − Mietverwaltung + Steuervorteil. Positiv = Cashflow positiv.', cls(r.belastungMo)),
+    kpiCard('EK-Rendite (IRR) 10 J.', fmtPct(r.irr),
+      'Interner Zinsfuß über tatsächliche Cashflow-Reihe inkl. Exit-Erlös. Berücksichtigt: eingesetztes EK, jährliche Cashflows, Verkaufserlös nach §23-EStG-Frist.'),
+    kpiCard('Vermögen brutto 10 J.', fmt(r.vermoegenBrutto10),
+      'Immobilienwert nach 10 J. minus Restschuld. Wertentwicklung mit Inflation (Default 3 % p.a.). NICHT enthalten: eingesetztes EK + Cashflows.'),
+    kpiCard('Vermögen netto 10 J.', fmt(r.vermoegenNetto10),
+      'Ehrliche Vermögensbilanz: Vermögen brutto − eingesetztes EK + kumulierte Cashflows.', 'positive'),
   ];
-  // Markteinkauf-Vorteil nur wenn marktwertProQm > 0 in den Inputs gesetzt wurde.
+  // Markteinkauf-Vorteil nur wenn marktwertProQm > 0 gesetzt
   const mwQm = (state.kalk && parseFloat(state.kalk.marktwertProQm)) || 0;
   if (mwQm > 0 && r.markteinkaufVorteil) {
-    kpis.push(`<div class="kpi ${cls(r.markteinkaufVorteil)}"><div class="label">Markteinkauf-Vorteil</div><div class="value">${fmt(r.markteinkaufVorteil)}</div></div>`);
+    kpis.push(kpiCard('Markteinkauf-Vorteil', fmt(r.markteinkaufVorteil),
+      'Differenz zwischen Marktpreis pro qm und Kaufpreis pro qm × Wohnfläche. „Geld, das schon im Kaufpreis steckt."',
+      cls(r.markteinkaufVorteil)));
   }
   grid.innerHTML = kpis.join('');
 
@@ -936,6 +964,163 @@ function recalcAndRender() {
 
   // Charts
   drawCharts(r);
+
+  // Story-Sektionen
+  renderStories(r);
+}
+
+// Rendert 7 Story-Sektionen mit ausführlichen Erklärungen — Vertriebs-Story der Kalkulation.
+function renderStories(r) {
+  const el = document.getElementById('story-container');
+  if (!el) return;
+  const fmt = window.Kalk.fmtEur;
+  const fmtPct = window.Kalk.fmtPct;
+  const fmtEurMo = window.Kalk.fmtEurMo;
+  const i = state.kalk || {};
+
+  // Daten aus dem Result + Inputs ableiten
+  const cf1 = r.cf[0] || {};
+  const cf5 = r.cf[4] || {};
+  const cf10 = r.cf[9] || {};
+  const v10 = r.vermoegen[10] || {};
+  const wert10 = v10.wert || 0;
+  const restschuld10 = v10.restschuld || 0;
+  const kumCf10 = v10.kumCf || 0;
+  const kpQm = r.kaufpreisProQm || 0;
+  const marktQm = parseFloat(i.marktwertProQm) || 0;
+  const afaJahr = r.afaJahr || 0;
+  const afaBemessung = r.afaBemessungBetrag || 0;
+  const zinsenJ1 = cf1.zinsenJahr || 0;
+  const tilgungJ1 = cf1.tilgungJahr || 0;
+  const mvJ1 = (i.mietverwaltung || 0) * 12;
+  const hvJ1 = (i.hausverwaltung || 0) * 12;
+  const stVorteilJ1 = cf1.stVorteilJahr || 0;
+  const stVorteilJ10 = cf10.stVorteilJahr || 0;
+  const sparen10 = r.sparen[10] || {};
+
+  const story = (tag, title, body) => `
+    <div class="story-card">
+      <div class="story-tag">${esc(tag)}</div>
+      <h3 class="story-h">${esc(title)}</h3>
+      ${body}
+    </div>`;
+
+  const markteinkauf = (marktQm > 0) ? story('01 — Markteinkauf', 'Eingekauft unter Marktpreis', `
+    <div class="story-grid">
+      <table class="story-table">
+        <tr><td>Kaufpreis / qm</td><td class="num">${Math.round(kpQm).toLocaleString('de-DE')} €/qm</td></tr>
+        <tr><td>Marktpreis / qm</td><td class="num">${Math.round(marktQm).toLocaleString('de-DE')} €/qm</td></tr>
+        <tr><td>Wohnfläche</td><td class="num">${(i.qm || 0).toLocaleString('de-DE')} qm</td></tr>
+        <tr><td><strong>Vorteil Tag 1</strong></td><td class="num pos"><strong>${fmt(r.markteinkaufVorteil)}</strong></td></tr>
+      </table>
+      <div class="story-explain">
+        Diese Wohnung wird mit <strong>${Math.round(kpQm).toLocaleString('de-DE')} €/qm</strong> gekauft, der Marktpreis liegt bei <strong>${Math.round(marktQm).toLocaleString('de-DE')} €/qm</strong>. Der Vorteil <strong>steckt im Kaufpreis</strong> und macht den Vermögensaufbau ab Tag 1 belastbar — unabhängig von Wertsteigerung und Mietentwicklung.
+      </div>
+    </div>
+  `) : '';
+
+  const cashflowHeute = story('02 — Cashflow heute', 'Was der Kunde Monat für Monat mitbringt', `
+    <div class="story-grid">
+      <table class="story-table">
+        <thead><tr><th>Position</th><th class="num">€/Monat</th></tr></thead>
+        <tr><td>Mieteinnahmen (Kalt + Stellplatz + Subv.)</td><td class="num pos">+ ${fmtEurMo(r.mieteJ1Mo || 0)}</td></tr>
+        <tr><td>Annuität Bank</td><td class="num neg">− ${fmtEurMo(r.annuityMo || 0)}</td></tr>
+        <tr><td>Hausgeld inkl. Rücklage</td><td class="num neg">− ${fmtEurMo(r.hausgeldNurMo || 0)}</td></tr>
+        <tr><td>Mietverwaltung (SEV)</td><td class="num neg">− ${fmtEurMo(r.mietverwaltungMo || 0)}</td></tr>
+        <tr><td>Hausverwaltung (WEG)</td><td class="num neg">− ${fmtEurMo(r.hausverwaltungMo || 0)}</td></tr>
+        <tr><td>Steuervorteil (AfA + Zinsen + MV + HV)</td><td class="num pos">+ ${fmtEurMo(r.stVorteilJ1Mo || 0)}</td></tr>
+        <tr class="totalrow"><td><strong>Effektive Belastung Jahr 1</strong></td><td class="num"><strong>${fmtEurMo(r.belastungMo)}</strong></td></tr>
+      </table>
+      <div class="story-explain">
+        Die <strong>ehrliche monatliche Zahl</strong>, die der Käufer mitbringt (oder die ihm bleibt, wenn positiv).
+        ${i.subventionMonate ? `<p>Mietsubvention <strong>${fmtEurMo(i.subventionMo)}</strong> über <strong>${i.subventionMonate} Monate</strong> — Summe <strong>${fmt(r.mietsubventionGesamt)}</strong>. Fängt die Anlaufphase ab.</p>` : ''}
+        ${r.ersteErhoehungMonat ? `<p>Erste Mieterhöhung in <strong>Monat ${r.ersteErhoehungMonat}</strong> (${esc(r.ersteErhoehungJahrLabel)}). Mietsteigerung danach: ${fmtPct(i.steigerungProz)}.</p>` : ''}
+      </div>
+    </div>
+  `);
+
+  const steuervorteil = story('03 — Steuervorteil', 'AfA + Werbungskosten = Cashflow-Hebel', `
+    <div class="story-grid">
+      <table class="story-table">
+        <tr><td>AfA-Basis (Kaufpreis × Gebäude-Anteil)</td><td class="num">${fmt(afaBemessung)}</td></tr>
+        <tr><td>AfA-Satz</td><td class="num">${fmtPct(i.afaSatz)}</td></tr>
+        <tr><td><strong>AfA pro Jahr (konstant)</strong></td><td class="num"><strong>${fmt(afaJahr)}</strong></td></tr>
+        <tr><td>+ Zinsen Jahr 1</td><td class="num">${fmt(zinsenJ1)}</td></tr>
+        <tr><td>+ Mietverwaltung (SEV) Jahr 1</td><td class="num">${fmt(mvJ1)}</td></tr>
+        <tr><td>+ Hausverwaltung (WEG) Jahr 1</td><td class="num">${fmt(hvJ1)}</td></tr>
+        <tr><td>Steuersatz</td><td class="num">${fmtPct(i.steuersatz)}</td></tr>
+        <tr class="totalrow"><td><strong>Steuervorteil Jahr 1</strong></td><td class="num pos"><strong>${fmt(stVorteilJ1)}</strong></td></tr>
+      </table>
+      <div class="story-explain">
+        <strong>AfA-Satz frei wählbar</strong> — Standard 2,0 % (lineare AfA §7 Abs. 4 EStG), mit qualifiziertem Gutachten typisch 3,0–4,5 % möglich. <strong>Bemessungsgrundlage: Kaufpreis × Gebäude-Anteil</strong>.<br><br>
+        <strong>Steuervorteil sinkt über die Jahre</strong>: Zinsen sinken (Annuitäten-Mathematik), Mieten steigen, AfA bleibt konstant. Im Jahr 10: <strong>${fmt(stVorteilJ10)}</strong> (Jahr 1: ${fmt(stVorteilJ1)}).
+      </div>
+    </div>
+  `);
+
+  const dreiHebel = story('04 — Vermögensaufbau', 'Drei Hebel arbeiten parallel', `
+    <div class="stat-trio">
+      <div class="stat-item"><div class="stat-lbl">Hebel 1 · Inflation</div><div class="stat-val">${fmtPct(i.wertsteigerung)} p.a.</div></div>
+      <div class="stat-item"><div class="stat-lbl">Hebel 2 · Tilgung Jahr 1</div><div class="stat-val">${fmt(tilgungJ1)}</div></div>
+      <div class="stat-item"><div class="stat-lbl">Hebel 3 · Markteinkauf</div><div class="stat-val">${fmt(r.markteinkaufVorteil || 0)}</div></div>
+    </div>
+    <p class="story-explain">Nach 10 Jahren: Vermögen <strong>brutto</strong> ${fmt(r.vermoegenBrutto10)} (= Wert ${fmt(wert10)} − Restschuld ${fmt(restschuld10)}). <strong>Netto</strong> — nach Abzug eingesetztes EK + kumulierter Cashflow — bleibt <strong>${fmt(r.vermoegenNetto10)}</strong>.</p>
+  `);
+
+  const exit10 = story('05 — Exit nach 10 Jahren', 'Steuerfrei verkaufen (§23 EStG)', `
+    <div class="story-grid">
+      <table class="story-table">
+        <tr><td>Geschätzter Wert Jahr 10</td><td class="num">${fmt(wert10)}</td></tr>
+        <tr><td>Restschuld Jahr 10</td><td class="num">− ${fmt(restschuld10)}</td></tr>
+        <tr><td><strong>Vermögen brutto (Verkaufserlös vor Steuer)</strong></td><td class="num pos"><strong>${fmt(r.vermoegenBrutto10)}</strong></td></tr>
+        <tr><td>Eingesetztes EK</td><td class="num">− ${fmt(r.ekBedarf)}</td></tr>
+        <tr><td>Kumulierter Cashflow Jahr 1-10</td><td class="num">${fmt(kumCf10)}</td></tr>
+        <tr><td><strong>Vermögen netto (ehrliche Bilanz)</strong></td><td class="num"><strong>${fmt(r.vermoegenNetto10)}</strong></td></tr>
+        <tr><td>IRR über 10 Jahre</td><td class="num"><strong>${fmtPct(r.irr)}</strong></td></tr>
+      </table>
+      <div class="story-explain">
+        Nach Ablauf der <strong>Spekulationsfrist (10 Jahre)</strong> ist der Veräußerungsgewinn steuerfrei — vorausgesetzt, die Drei-Objekt-Grenze wird nicht überschritten. Die <strong>IRR (Eigenkapitalrendite)</strong> zeigt, was das EK über 10 Jahre wirklich gebracht hat.
+      </div>
+    </div>
+  `);
+
+  const bonStory = story('06 — Bonitätseffekt', 'Was die Bank davon hält', `
+    <div class="story-grid">
+      <table class="story-table">
+        <tr><td>Einnahmen / Mo</td><td class="num">+ ${fmtEurMo(r.bonEinnahmen || 0)}</td></tr>
+        <tr><td>Ausgaben / Mo</td><td class="num">− ${fmtEurMo(r.bonAusgaben || 0)}</td></tr>
+        <tr><td><strong>Saldo vor Kauf</strong></td><td class="num"><strong>${fmtEurMo(r.bonVor || 0)}</strong></td></tr>
+        <tr><td>+ Anrechenbare Miete (80 %)</td><td class="num pos">+ ${fmtEurMo(r.bonMieteAnr || 0)}</td></tr>
+        <tr><td>− Annuität Bank</td><td class="num neg">− ${fmtEurMo(r.bonAnnuMo || 0)}</td></tr>
+        <tr><td><strong>Saldo nach Kauf</strong></td><td class="num"><strong>${fmtEurMo(r.bonNach || 0)}</strong></td></tr>
+        <tr><td>Saldo-Delta aus dieser WE</td><td class="num"><strong>${fmtEurMo(r.bonDelta || 0)}</strong></td></tr>
+        <tr><td>Verfügbares Vermögen</td><td class="num">${fmt(r.bonVermoegen || 0)}</td></tr>
+        <tr><td>EK-Bedarf</td><td class="num">${fmt(r.ekBedarf)}</td></tr>
+      </table>
+      <div class="story-explain">
+        Banken rechnen Miete pauschal mit <strong>80 %</strong> an (Leerstands-/Mietausfallreserve). Positiver <strong>Saldo nach Kauf</strong> = Wohnung erhöht die Kreditfähigkeit für die nächste WE. Negativ = Wohnung frisst Bonität.<br><br>
+        <strong>Vermögen aus Bank-Sicht:</strong> Nur <em>liquide oder leicht beleihbare Werte</em> (Sparbuch, Tagesgeld, Aktien, ETFs, Rückkaufwert LV). Nicht: Eigenheim oder Bestandsimmobilien.
+      </div>
+    </div>
+  `);
+
+  const sparenStory = story('07 — Sparen vs. Investieren', 'Das Vermögen läuft beim Investieren stärker', `
+    <div class="story-grid">
+      <table class="story-table">
+        <tr><td>Startvermögen (verfügbar)</td><td class="num">${fmt(r.bonVermoegen || 0)}</td></tr>
+        <tr><td>− KNK „verbrannt"</td><td class="num">− ${fmt(r.ekBedarf)}</td></tr>
+        <tr><td>Nur sparen (Tagesgeld, 10 J.)</td><td class="num">${fmt(sparen10.nurSparen || 0)}</td></tr>
+        <tr><td>Mit Immobilie (Spar-Rest + Vermögen + kum. CF)</td><td class="num pos">${fmt(sparen10.mitImmo || 0)}</td></tr>
+        <tr class="totalrow"><td><strong>Vorteil durch Immobilie</strong></td><td class="num pos"><strong>${fmt(r.sparenVsKaufenDelta)}</strong></td></tr>
+      </table>
+      <div class="story-explain">
+        Wer sein EK <strong>nur auf dem Tagesgeld spart</strong>, kommt nach 10 J. auf <strong>${fmt(sparen10.nurSparen || 0)}</strong>. Wer denselben Betrag <strong>als EK in diese Immobilie investiert</strong>, hat nach 10 J. <strong>${fmt(sparen10.mitImmo || 0)}</strong> — Vorteil: <strong>${fmt(r.sparenVsKaufenDelta)}</strong>.<br><br>
+        <strong>Wichtig:</strong> Die KNK sind <em>verbranntes Geld</em> (Grunderwerbsteuer, Notar, Grundbuch). Bei KNK mitfinanziert = 0 €, dafür höhere Restschuld.
+      </div>
+    </div>
+  `);
+
+  el.innerHTML = markteinkauf + cashflowHeute + steuervorteil + dreiHebel + exit10 + bonStory + sparenStory;
 }
 
 function drawCharts(r) {

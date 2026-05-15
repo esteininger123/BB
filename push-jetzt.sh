@@ -22,7 +22,7 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 22+23 — Heidelberger-Filter, 5-KPI-Layout, Markteinkauf nur bei QM-Preis, Bonität EK vor/nach, Snapshot-Sort-Fix
+git commit -m "Iter 24 — V1-Layout: KPI-Row mit Info-Tooltips, 7 Story-Sections, Slider mit V1-Bereichen, Themenbereich-Nummerierung
 
 - Iter 15 (Stabilisierung):
   * airtable.js: normalizeAirtableResponse — Single-Select-Objekte zu name-Strings reduziert.
