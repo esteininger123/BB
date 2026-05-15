@@ -1996,22 +1996,49 @@ async function renderAdmin() {
   const app = document.getElementById('app');
   app.innerHTML = `<div class="main"><h1 class="page-title">Admin</h1><div class="empty-state">Lade…</div></div>`;
   try {
-    state.adminStats = await api.get('/api/admin/stats');
+    // Stats + Wohneinheiten parallel laden
+    const [stats, wohneinheiten] = await Promise.all([
+      api.get('/api/admin/stats'),
+      api.get('/api/wohneinheiten')
+    ]);
+    state.adminStats = stats;
+    state.adminWohneinheiten = wohneinheiten || [];
   } catch (e) {
     app.innerHTML = `<div class="main"><div class="error-banner">${esc(e.message)}</div></div>`;
     return;
   }
   const s = state.adminStats || {};
+  const wes = state.adminWohneinheiten || [];
+
+  // Wohneinheiten nach Projekt gruppieren (für übersichtliche Darstellung).
+  const wesByProjekt = {};
+  wes.forEach(we => {
+    const pn = we.projektName || '— ohne Projekt —';
+    if (!wesByProjekt[pn]) wesByProjekt[pn] = [];
+    wesByProjekt[pn].push(we);
+  });
+  const projektKeys = Object.keys(wesByProjekt).sort();
+
+  // Summen pro Projekt (für Header-Info)
+  function projektSumme(arr) {
+    let kp = 0, qm = 0, miete = 0;
+    arr.forEach(w => { kp += w.kp || 0; qm += w.qm || 0; miete += w.kaltmiete || 0; });
+    return { kp, qm, miete, count: arr.length };
+  }
+  // Helfer für €/Zahl-Anzeige
+  const eur = (v) => (v === null || v === undefined || !isFinite(v)) ? '–' : Math.round(v).toLocaleString('de-DE') + ' €';
+  const num = (v, d) => (v === null || v === undefined || !isFinite(v)) ? '–' : v.toLocaleString('de-DE', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+
   app.innerHTML = `
     <div class="main">
       <h1 class="page-title">Admin</h1>
-      <p class="page-subtitle">Statistik &amp; alle Kunden im Workspace</p>
+      <p class="page-subtitle">Statistik, Kunden &amp; WE-Stammdaten</p>
 
       <div class="kpi-grid">
         <div class="kpi"><div class="label">Gesamt Kunden</div><div class="value">${s.totalKunden || 0}</div></div>
         <div class="kpi"><div class="label">Vertriebler</div><div class="value">${(s.vertriebler || []).length}</div></div>
         <div class="kpi positive"><div class="label">Beurkundet</div><div class="value">${(s.byPhase && s.byPhase['Beurkundet']) || 0}</div></div>
-        <div class="kpi"><div class="label">In Bearbeitung</div><div class="value">${s.inBearbeitung || 0}</div></div>
+        <div class="kpi"><div class="label">Aktive WEs im Pool</div><div class="value">${wes.length}</div></div>
       </div>
 
       <div class="card">
@@ -2051,9 +2078,75 @@ async function renderAdmin() {
           </table>
         `}
       </div>
+
+      <div class="card mt-16">
+        <div class="card-title">
+          Wohneinheiten-Stammdaten <span class="text-tertiary text-small" style="font-weight:normal;">(read-only, Live aus Airtable · Filter: Status = "Vermarktung / Im Verkauf", Maklerfirma = B&amp;B Immo GmbH, Projekte Heidelberger Str. + Wesseling)</span>
+          <button class="secondary" style="float:right;font-size:13px;" onclick="reloadAdminWohneinheiten()">⟳ Aus Airtable neu laden</button>
+        </div>
+        ${wes.length === 0 ? `
+          <div class="empty-state">Keine Wohneinheiten gefunden — Filter prüfen oder Status in Airtable kontrollieren.</div>
+        ` : projektKeys.map(pn => {
+          const arr = wesByProjekt[pn];
+          const sum = projektSumme(arr);
+          return `
+            <details open style="margin-top:12px;">
+              <summary style="cursor:pointer;font-weight:600;padding:8px 0;border-bottom:1px solid #e2e8f0;">
+                ${esc(pn)} <span class="text-tertiary text-small" style="font-weight:normal;margin-left:8px;">${sum.count} WEs · ${eur(sum.kp)} gesamt · ${num(sum.qm, 1)} m² · ${eur(sum.miete)}/Mo Miete</span>
+              </summary>
+              <table class="table mt-8" style="font-size:13px;">
+                <thead>
+                  <tr>
+                    <th>WE-Nr</th>
+                    <th>Lage</th>
+                    <th class="num">Kaufpreis</th>
+                    <th class="num">m²</th>
+                    <th class="num">€/m²</th>
+                    <th class="num">Kaltmiete/Mo</th>
+                    <th class="num">Mietspiegel €/m²</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${arr.sort((a,b) => (a.weNr || '').localeCompare(b.weNr || '', 'de', {numeric:true})).map(w => {
+                    const mietspiegel = (w.qm && w.kaltmiete) ? (w.kaltmiete / w.qm) : null;
+                    return `
+                      <tr>
+                        <td><strong>${esc(w.weNr || '—')}</strong></td>
+                        <td class="text-tertiary">${esc(w.lageText || w.lage || '—')}</td>
+                        <td class="num">${eur(w.kp)}</td>
+                        <td class="num">${num(w.qm, 1)}</td>
+                        <td class="num">${eur(w.qmPreis)}</td>
+                        <td class="num">${eur(w.kaltmiete)}</td>
+                        <td class="num">${mietspiegel !== null ? num(mietspiegel, 2) + ' €' : '–'}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </details>
+          `;
+        }).join('')}
+        <div class="text-tertiary text-small mt-12" style="font-style:italic;">
+          Bearbeitung läuft über Airtable. Wenn du Kalkulationen anpassen willst, gib mir die Werte oder die Excel/PDF — ich pflege Airtable und du lädst hier neu.
+        </div>
+      </div>
     </div>
   `;
 }
+
+async function reloadAdminWohneinheiten() {
+  try {
+    toast('Lade Wohneinheiten neu aus Airtable…', 'info');
+    state.adminWohneinheiten = await api.get('/api/wohneinheiten');
+    // Auch den Kalkulator-Cache leeren, damit dort beim nächsten Öffnen frisch geladen wird.
+    state.wohneinheiten = null;
+    renderAdmin();
+    toast('Wohneinheiten neu geladen', 'success');
+  } catch (e) {
+    toast('Fehler beim Neuladen: ' + e.message, 'error');
+  }
+}
+window.reloadAdminWohneinheiten = reloadAdminWohneinheiten;
 
 /* ============================== RENDER DISPATCH ============================== */
 
