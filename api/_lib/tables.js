@@ -5,10 +5,19 @@ const TABLES = {
   VERTRIEBLER: 'tblXG135L28XocpeY',
   KUNDEN:      'tbld0j0Mo7rre1Vh3',
   SNAPSHOTS:   'tbliqxbITCdSjK0ua',
-  // Wohneinheit + Projekt: aus Base "Objektmanagement" (appikHUetNyeonXBX).
+  // Wohneinheit + Objekt: aus Base "Objektmanagement" (appikHUetNyeonXBX).
   // Env-Override optional (WOHNEINHEIT_TABLE_ID / PROJEKT_TABLE_ID).
   WOHNEINHEIT: process.env.WOHNEINHEIT_TABLE_ID || 'tblAV81mX1MaxqVQi',
-  PROJEKT:     process.env.PROJEKT_TABLE_ID     || 'tblisPG7YixRpd9cD'
+  // Objekt-Tabelle (in Airtable "Objekt" benannt). Das ist die Tabelle, auf die
+  // das WE-Feld "Objekt" zeigt — enthält Heidelberger Str. 21 / WES_RHEIN 290 etc.
+  PROJEKT:     process.env.PROJEKT_TABLE_ID     || 'tblbBSh0fyPelFLvz'
+};
+
+// Felder der Objekt-Tabelle, die wir lesen
+const PROJEKT_FIELDS = {
+  KURZNAME:    'fldTf1OEHLteVRa7c', // "Heidelberger Str. 21, 76646 Bruchsal" / "WES_RHEIN 290"
+  ADRESSE:     'fldE2LFvX5iPBUqTh', // "Heidelberger Straße 21, 76646 Bruchsal"
+  OBJEKT_CODE: 'fldgYBkL3Hajuy8uJ', // "Obj: Heidelberger Str. 21, 76646 Bruchsal, 92"
 };
 
 const VERTRIEBLER_FIELDS = {
@@ -70,6 +79,7 @@ module.exports = {
   KUNDEN_FIELDS,
   SNAPSHOT_FIELDS,
   WE_FIELDS,
+  PROJEKT_FIELDS,
   WE_STATUS_VERMARKTUNG,
   MAKLER_BUB
 };

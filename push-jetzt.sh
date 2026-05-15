@@ -22,7 +22,7 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 32 — Zweistufige WE-Auswahl: erst Projekt, dann Wohneinheit (Single + Paket)
+git commit -m "Iter 33 — Korrekte Objekt-Tabelle + Projekt-Namen aus Kurzname-Feld, WE 15 Heidelberger in Presets
 
 - Iter 15 (Stabilisierung):
   * airtable.js: normalizeAirtableResponse — Single-Select-Objekte zu name-Strings reduziert.

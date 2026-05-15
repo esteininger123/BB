@@ -5,7 +5,7 @@
 const { verifySession } = require('./_lib/auth');
 const { airtable, listAll } = require('./_lib/airtable');
 const { methodNotAllowed, sendError } = require('./_lib/http');
-const { TABLES, WE_FIELDS, WE_STATUS_VERMARKTUNG, MAKLER_BUB } = require('./_lib/tables');
+const { TABLES, WE_FIELDS, PROJEKT_FIELDS, WE_STATUS_VERMARKTUNG, MAKLER_BUB } = require('./_lib/tables');
 const { weRecordToApi } = require('./_lib/mappers');
 
 // Versucht Projekt-Namen aus den verlinkten Records zu laden.
@@ -19,17 +19,20 @@ async function loadProjektNames(projektIds) {
     const formula = 'OR(' + ids.map(id => `RECORD_ID()='${id}'`).join(',') + ')';
     const records = await listAll(projektTable, {
       filterByFormula: formula,
+      // Wir holen nur die Felder, die wir brauchen (Kurzname + Adresse als Fallback).
+      fields: [PROJEKT_FIELDS.KURZNAME, PROJEKT_FIELDS.ADRESSE],
       maxRecords: ids.length
     }, ids.length);
     const map = {};
     records.forEach(r => {
       const f = r.fields || {};
-      // Wir kennen das Primary-Field nicht — nehmen Name|Projekt|erstes String-Field als Heuristik
-      const firstStringVal = f.Name || f.Projekt || Object.values(f).find(v => typeof v === 'string');
-      map[r.id] = firstStringVal || '';
+      // Mit returnFieldsByFieldId=true: Keys sind Field-IDs.
+      const name = f[PROJEKT_FIELDS.KURZNAME] || f[PROJEKT_FIELDS.ADRESSE] || '';
+      map[r.id] = name;
     });
     return map;
-  } catch {
+  } catch (e) {
+    console.error('loadProjektNames failed:', e.message);
     return {};
   }
 }

@@ -191,6 +191,17 @@ window.WE_PRESETS_BY_RECID = {
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
+  // WE 15, 4.OG Rechts — mit Stellplatz (Fläche)
+  'recEdNr0D8cOnWHOi': {
+    kaufpreis: 150000, stellplatzKp: 3000, qm: 41.12,
+    kaltmiete: 340, stellplatzMiete: 20,
+    subventionMo: 0, subventionMonate: 0,
+    mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
+    hausgeld: 35, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
+    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    wertsteigerung: 0.03, marktwertProQm: 0,
+  },
   // WE 16, DG Links — mit Garage. Miete in Airtable leer → realistisch geschätzt anhand qm
   'recrClPmoAEdLCfhu': {
     kaufpreis: 200000, stellplatzKp: 5000, qm: 54.69,
