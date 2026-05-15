@@ -441,6 +441,156 @@ label {
   font-size: 11px;
   line-height: 1.4;
 }
+
+/* ============================== Einheitliches PDF-Layout (Header / Logo / Footer) ============================== */
+/* Header: Logo links + Titel rechts. Auf jeder Seite identisch. */
+.pdf-template .pdf-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid var(--accent, #B08A4D);
+  padding-bottom: 8mm;
+  margin-bottom: 8mm;
+}
+.pdf-template .bub-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pdf-template .bub-logo .bub-mark {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -1.5px;
+  color: var(--accent, #B08A4D);
+  line-height: 1;
+}
+.pdf-template .bub-logo .bub-text { line-height: 1.05; }
+.pdf-template .bub-logo .bub-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: #333;
+  letter-spacing: -0.2px;
+}
+.pdf-template .bub-logo .bub-sub {
+  font-size: 11px;
+  color: #777;
+  font-weight: 500;
+}
+.pdf-template .pdf-head-title {
+  text-align: right;
+}
+.pdf-template .pdf-head-title .pdf-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #000;
+  letter-spacing: -0.3px;
+}
+.pdf-template .pdf-head-title .pdf-subtitle {
+  font-size: 10px;
+  color: #777;
+  margin-top: 2px;
+}
+
+/* Objekt-Info-Banner unter Header */
+.pdf-template .pdf-objekt-info {
+  background: var(--bg-cream-subtle, #fafaf6);
+  border-left: 3px solid var(--accent, #B08A4D);
+  padding: 6px 10px;
+  font-size: 11px;
+  margin-bottom: 6mm;
+  color: #333;
+}
+
+/* Section-Überschrift */
+.pdf-template .pdf-section-h {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-dark, #805820);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 6mm 0 3mm 0;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 2mm;
+}
+
+/* 4-Spalten-KPI-Grid (für Bonität) */
+.pdf-template .kpi-grid-4 {
+  grid-template-columns: repeat(4, 1fr) !important;
+}
+
+/* KPI-Karten Pos/Neg-Färbung */
+.pdf-template .kpi-pdf.pos {
+  border-left-color: #2D6E47;
+  background: #f0f7f3;
+}
+.pdf-template .kpi-pdf.neg {
+  border-left-color: #9A3E33;
+  background: #f9eeed;
+}
+.pdf-template .kpi-pdf.pos .value { color: #2D6E47; }
+.pdf-template .kpi-pdf.neg .value { color: #9A3E33; }
+
+/* Argument-Boxen auf Seite 1 — Verkaufs-Story */
+.pdf-template .argument-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 4mm 0;
+}
+.pdf-template .arg-box {
+  background: var(--bg-cream-subtle, #fafaf6);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent, #B08A4D);
+  border-radius: 4px;
+  padding: 10px;
+}
+.pdf-template .arg-box .arg-h {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #777;
+  margin-bottom: 3px;
+}
+.pdf-template .arg-box .arg-v {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent-dark, #805820);
+  margin-bottom: 2px;
+}
+.pdf-template .arg-box .arg-d {
+  font-size: 9.5px;
+  color: #777;
+}
+
+/* Investment-Tabelle (Bonitäts-Rechnung etc.) */
+.pdf-template .invest-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.pdf-template .invest-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid #eee;
+}
+.pdf-template .invest-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.pdf-template .invest-table td.pos { color: #2D6E47; }
+.pdf-template .invest-table td.neg { color: #9A3E33; }
+.pdf-template .invest-table .totalrow td {
+  border-top: 2px solid #000;
+  padding-top: 6px;
+}
+.pdf-template .pdf-hint {
+  background: var(--bg-cream-subtle, #fafaf6);
+  border-left: 3px solid var(--accent, #B08A4D);
+  padding: 8px 10px;
+  font-size: 10px;
+  color: #555;
+  margin-top: 6mm;
+}
 .pdf-template h1 {
   font-size: 26px; font-weight: 700;
   margin: 0 0 8px;
@@ -651,6 +801,43 @@ label {
   font-size: 18px;
   font-weight: 700;
   color: var(--accent-dark, #805820);
+}
+
+/* ============================== Phasen-Reihe Dashboard (immer 7 Karten in 1 Reihe) ============================== */
+.phasen-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin: 16px 0;
+}
+.phase-kpi {
+  background: var(--bg-cream-subtle, #fafaf6);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent, #B08A4D);
+  border-radius: 6px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+.phase-kpi .label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-tertiary);
+  line-height: 1.2;
+  min-height: 24px;
+  margin-bottom: 4px;
+}
+.phase-kpi .value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 1100px) {
+  .phasen-row { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 700px) {
+  .phasen-row { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ============================== KPI-Row immer in 1 Reihe ============================== */

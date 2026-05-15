@@ -22,7 +22,7 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 38c — Live-Test-Findings: Paket-Counter aktualisiert sich, Paket-Aggregation für AfA/Miete/Steuervorteil/Hausgeld (Story-Werte waren 0)
+git commit -m "Iter 39 — Feinschliff: 7 Phasen-Karten in 1 Reihe, Mit-Antragsteller klickbar, Stammdaten→SA-Sync, SA Auto-Save, Akkordeons default zu + State-Erhalt, einheitliches PDF-Layout mit B&B-Header/Footer, Investrechnung anschaulich umstrukturiert
 
 - Iter 15 (Stabilisierung):
   * airtable.js: normalizeAirtableResponse — Single-Select-Objekte zu name-Strings reduziert.

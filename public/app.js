@@ -257,9 +257,9 @@ function renderDashboard() {
         <button onclick="createNewKunde()">+ Neuer Kunde</button>
       </div>
 
-      <div class="kpi-grid">
+      <div class="phasen-row">
         ${['Lead','Kalkulation läuft','Reservierung','Selbstauskunft','Bank-Einreichung','Notar-Termin','Beurkundet'].map(p => `
-          <div class="kpi">
+          <div class="phase-kpi">
             <div class="label">${esc(p)}</div>
             <div class="value">${counts[p] || 0}</div>
           </div>
@@ -306,8 +306,19 @@ async function createNewKunde() {
   if (!nachname) return;
   const email = prompt('E-Mail (optional)?') || '';
   try {
+    // Stammdaten direkt auch in die Selbstauskunft übertragen → der Vertriebler tippt
+    // den Kunden 1× ein, alles ist überall da.
+    const saJson = {
+      gemeinsam: false,
+      antragsteller: {
+        vorname: vorname,
+        name: nachname,
+        email: email,
+      },
+      mitantragsteller: {},
+    };
     const k = await api.post('/api/kunden', {
-      vorname, nachname, email, phase: 'Lead'
+      vorname, nachname, email, phase: 'Lead', saJson,
     });
     state.kunden.push(k);
     toast('Kunde angelegt', 'success');
@@ -317,6 +328,26 @@ async function createNewKunde() {
   }
 }
 window.createNewKunde = createNewKunde;
+
+// Synchronisiert die Stammdaten in die saJson.antragsteller-Sektion (Name, Vorname,
+// Email, Telefon, Geburtsdatum). Nicht-überschreibend wenn der User die SA-Felder
+// bereits gefüllt hat.
+function syncStammdatenInSa() {
+  const k = state.kunde;
+  if (!k) return;
+  let sa = k.saJson;
+  if (typeof sa === 'string') { try { sa = JSON.parse(sa); } catch(e) { sa = null; } }
+  if (!sa || typeof sa !== 'object') sa = { gemeinsam: false, antragsteller: {}, mitantragsteller: {} };
+  if (!sa.antragsteller) sa.antragsteller = {};
+  const a = sa.antragsteller;
+  // Nur überschreiben wenn das SA-Feld leer ist (User-Edits respektieren).
+  if (!a.vorname && k.vorname) a.vorname = k.vorname;
+  if (!a.name && k.nachname) a.name = k.nachname;
+  if (!a.email && k.email) a.email = k.email;
+  if (!a.telefonPrivat && k.telefon) a.telefonPrivat = k.telefon;
+  if (!a.geburtsdatum && k.geburtsdatum) a.geburtsdatum = k.geburtsdatum;
+  return sa;
+}
 window.go = go;
 
 /* ============================== KUNDE-DETAIL ============================== */
@@ -470,9 +501,12 @@ async function saveStammdaten() {
     geburtsdatum: document.getElementById('f-geburtsdatum').value,
   };
   try {
-    await api.put('/api/kunden/' + state.kundeId, body);
+    // Erst die Stammdaten lokal mergen, dann SA-Sync aufrufen → ein PUT mit beidem.
     Object.assign(state.kunde, body);
-    toast('Stammdaten gespeichert', 'success');
+    const sa = syncStammdatenInSa();
+    await api.put('/api/kunden/' + state.kundeId, { ...body, saJson: sa });
+    state.kunde.saJson = sa;
+    toast('Stammdaten gespeichert (auch in Selbstauskunft übernommen)', 'success');
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
 window.saveStammdaten = saveStammdaten;
@@ -677,6 +711,13 @@ function setWeMode(mode) {
 }
 window.setWeMode = setWeMode;
 
+// Merkt sich, welche Eingabe-Sektionen offen sind — überlebt WE-Wechsel + Bon-Wechsel.
+function toggleKalkSection(id, detailsEl) {
+  if (!state.kalk._openSec) state.kalk._openSec = {};
+  state.kalk._openSec[id] = detailsEl.open;
+}
+window.toggleKalkSection = toggleKalkSection;
+
 // KPI-Info-Box auf-/zuklappen (klick auf das "i"-Icon)
 function toggleKpiInfo(btn) {
   const kpi = btn.closest('.kpi');
@@ -721,8 +762,10 @@ function kalkInputsPaketHtml(i) {
       </select>
     </div>`;
   const isQuick = !i.bonModus || i.bonModus === 'quick';
+  if (!state.kalk._openSec) state.kalk._openSec = {};
+  const sec = (id) => state.kalk._openSec[id] ? 'open' : '';
   return `
-    <details class="kalk-section" open>
+    <details class="kalk-section" ${sec('pmarkt')} data-sec="pmarkt" ontoggle="toggleKalkSection('pmarkt', this)">
       <summary>1 · Marktpreis &amp; Wertentwicklung</summary>
       <div class="grid-1">
         ${sliderEur('Marktpreis €/qm (0 = aus)', 'marktwertProQm', 0, 8000, 50, '€/qm')}
@@ -732,7 +775,7 @@ function kalkInputsPaketHtml(i) {
         <p class="text-tertiary text-small">Marktpreis gilt für <strong>alle WEs im Paket</strong> — der Markteinkauf-Vorteil wird aggregiert berechnet (Σ Marktpreis × qm − Σ Kaufpreise).</p>
       </div>
     </details>
-    <details class="kalk-section" open>
+    <details class="kalk-section" ${sec('pfin')} data-sec="pfin" ontoggle="toggleKalkSection('pfin', this)">
       <summary>2 · Finanzierung</summary>
       <div class="grid-1">
         ${slider('Zinssatz', 'zins', 2, 8, 0.05)}
@@ -742,14 +785,14 @@ function kalkInputsPaketHtml(i) {
         ])}
       </div>
     </details>
-    <details class="kalk-section" open>
+    <details class="kalk-section" ${sec('pst')} data-sec="pst" ontoggle="toggleKalkSection('pst', this)">
       <summary>3 · Steuer</summary>
       <div class="grid-1">
         ${slider('Persönlicher Steuersatz', 'steuersatz', 25, 50, 1)}
       </div>
     </details>
     ${isQuick ? `
-    <details class="kalk-section" open>
+    <details class="kalk-section" ${sec('pbon')} data-sec="pbon" ontoggle="toggleKalkSection('pbon', this)">
       <summary>4 · Bonität (Quick)</summary>
       <div class="grid-1">
         ${sliderEur('Monatliche Einnahmen', 'bonEinnahmen', 1500, 30000, 100, '€/Mo')}
@@ -807,8 +850,11 @@ function kalkInputsThemenHtml(i) {
 
   const isQuick = !i.bonModus || i.bonModus === 'quick';
 
+  // Akkordeon-State pro Sektion in state.kalk._openSec speichern. Default: alle zu.
+  if (!state.kalk._openSec) state.kalk._openSec = {};
+  const sec = (id) => state.kalk._openSec[id] ? 'open' : '';
   return `
-    <details class="kalk-section" open>
+    <details class="kalk-section" ${sec('stamm')} data-sec="stamm" ontoggle="toggleKalkSection('stamm', this)">
       <summary>1 · Stammdaten</summary>
       <div class="grid-1">
         ${sliderEur('Kaufpreis Wohnung', 'kaufpreis', 30000, 500000, 500)}
@@ -819,7 +865,7 @@ function kalkInputsThemenHtml(i) {
       </div>
     </details>
 
-    <details class="kalk-section" open>
+    <details class="kalk-section" ${sec('miete')} data-sec="miete" ontoggle="toggleKalkSection('miete', this)">
       <summary>2 · Miete</summary>
       <div class="grid-1">
         ${sliderEur('Aktuelle Kaltmiete', 'kaltmiete', 200, 2000, 10, '€/Mo')}
@@ -836,7 +882,7 @@ function kalkInputsThemenHtml(i) {
       </div>
     </details>
 
-    <details class="kalk-section" open>
+    <details class="kalk-section" ${sec('hg')} data-sec="hg" ontoggle="toggleKalkSection('hg', this)">
       <summary>3 · Hausgeld &amp; Verwaltung</summary>
       <div class="grid-1">
         ${sliderEur('Hausgeld inkl. Rücklage', 'hausgeld', 0, 500, 5, '€/Mo')}
@@ -846,7 +892,7 @@ function kalkInputsThemenHtml(i) {
       </div>
     </details>
 
-    <details class="kalk-section" open>
+    <details class="kalk-section" ${sec('afa')} data-sec="afa" ontoggle="toggleKalkSection('afa', this)">
       <summary>4 · Steuern &amp; AfA</summary>
       <div class="grid-1">
         ${slider('Gebäude-Anteil', 'gebaeudeAnteil', 60, 95, 1)}
@@ -858,7 +904,7 @@ function kalkInputsThemenHtml(i) {
       <div class="input-group-label">Personenbezogene Eingaben</div>
     </div>
 
-    <details class="kalk-section" open>
+    <details class="kalk-section" ${sec('fin')} data-sec="fin" ontoggle="toggleKalkSection('fin', this)">
       <summary>5 · Finanzierung</summary>
       <div class="grid-1">
         ${slider('Zinssatz', 'zins', 2, 8, 0.05)}
@@ -870,7 +916,7 @@ function kalkInputsThemenHtml(i) {
     </details>
 
     ${isQuick ? `
-    <details class="kalk-section" open>
+    <details class="kalk-section" ${sec('bon')} data-sec="bon" ontoggle="toggleKalkSection('bon', this)">
       <summary>6 · Persönliche Bonität (Quick)</summary>
       <div class="text-tertiary text-small mb-12">Direkt eingeben. Für Banken: Selbstauskunft-Tab + Bonität auf "Detail".</div>
       <div class="grid-1">
@@ -1453,14 +1499,18 @@ function renderTabSelbstauskunft() {
   if (sa.gemeinsam === undefined) sa.gemeinsam = false;
   state._sa = sa;
 
+  // Stammdaten initial in SA mergen (nicht-überschreibend) — falls Kunde älter ist
+  // und die Stammdaten noch nicht in der SA stehen.
+  const synced = syncStammdatenInSa();
+  if (synced) { sa = synced; state._sa = sa; }
   const istGemeinsam = sa.gemeinsam === true;
   el.innerHTML = `
     <div class="card">
-      <div class="card-title">Selbstauskunft</div>
+      <div class="card-title">Selbstauskunft <span class="text-tertiary text-small" style="font-weight:normal;">(Auto-Save aktiv)</span></div>
       <div class="flex gap-12 mb-16">
-        <label class="flex gap-8" style="display:flex;align-items:center;text-transform:none;letter-spacing:0;">
-          <input type="checkbox" id="sa-gemeinsam" ${istGemeinsam ? 'checked' : ''} style="width:auto;">
-          Gemeinsamer Antrag mit Mit-Antragsteller
+        <label for="sa-gemeinsam" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;cursor:pointer;user-select:none;">
+          <input type="checkbox" id="sa-gemeinsam" ${istGemeinsam ? 'checked' : ''} style="width:auto;height:18px;width:18px;cursor:pointer;">
+          <span>Gemeinsamer Antrag mit Mit-Antragsteller</span>
         </label>
       </div>
       <div class="${istGemeinsam ? 'grid-2' : 'grid-1'}">
@@ -1482,8 +1532,57 @@ function renderTabSelbstauskunft() {
   // Häkchen-Wechsel: neu rendern, damit Layout (1 vs. 2 Spalten) + Header sich anpassen
   document.getElementById('sa-gemeinsam').onchange = (e) => {
     sa.gemeinsam = e.target.checked;
+    // Vor Re-Render aktuelle Werte aus DOM in state._sa zurückschreiben.
+    collectSaFromDOM();
+    state._sa.gemeinsam = e.target.checked;
     renderTabSelbstauskunft();
+    autoSaveSa();
   };
+  // Auto-Save: bei jedem Verlassen eines SA-Felds wird gespeichert.
+  document.querySelectorAll('[data-sa]').forEach(inp => {
+    inp.addEventListener('blur', () => autoSaveSa());
+    inp.addEventListener('change', () => autoSaveSa());
+  });
+}
+
+// Liest alle SA-Felder aus dem DOM und schreibt sie in state._sa.
+function collectSaFromDOM() {
+  const sa = state._sa || { antragsteller: {}, mitantragsteller: {} };
+  document.querySelectorAll('[data-sa]').forEach(inp => {
+    const parts = inp.dataset.sa.split('.');
+    const prefix = parts[0];
+    const target = prefix === 'a' ? 'antragsteller' : 'mitantragsteller';
+    if (!sa[target]) sa[target] = {};
+    let v;
+    if (inp.value === '' || inp.value === null) v = null;
+    else if (inp.type === 'number') { v = parseFloat(inp.value); if (!isFinite(v)) v = null; }
+    else v = inp.value;
+    if (parts.length === 2) {
+      sa[target][parts[1]] = v;
+    } else if (parts.length === 3) {
+      if (!sa[target][parts[1]] || typeof sa[target][parts[1]] !== 'object') sa[target][parts[1]] = {};
+      sa[target][parts[1]][parts[2]] = v;
+    }
+  });
+  state._sa = sa;
+  return sa;
+}
+
+let _saAutoSaveTimer = null;
+async function autoSaveSa() {
+  // Debounce: 600ms warten und einmalig speichern
+  clearTimeout(_saAutoSaveTimer);
+  _saAutoSaveTimer = setTimeout(async () => {
+    const sa = collectSaFromDOM();
+    sa.gemeinsam = document.getElementById('sa-gemeinsam') ? document.getElementById('sa-gemeinsam').checked : (sa.gemeinsam === true);
+    try {
+      await api.put('/api/kunden/' + state.kundeId, { saJson: sa });
+      state.kunde.saJson = sa;
+      // Kleiner stiller Indikator: kurzer Toast erst bei "manuellem" Speichern
+    } catch (e) {
+      console.error('autoSaveSa', e);
+    }
+  }, 600);
 }
 
 function saPersonHtml(prefix, p) {

@@ -1,13 +1,43 @@
 /* pdf.js — drei PDF-Templates: Investitionsrechnung, Reservierung, Selbstauskunft.
    Mechanismus: setzt body-Klasse `pdf-mode-X`, befüllt #pdf-template mit HTML,
-   ruft window.print(). Print-CSS in styles.css blendet alles andere aus. */
+   ruft window.print(). Print-CSS in styles.css blendet alles andere aus.
+
+   Einheitliches Layout: jede Seite hat den gleichen Header (Brot & Butter Logo +
+   Untertitel + ggf. Seitennummer) und Footer (B&B Immo + Vertriebler-Daten). */
+
+// Brot & Butter Immo Logo (Mini-SVG) — wiederverwendbar in allen PDFs.
+function _bubLogo() {
+  return `
+    <div class="bub-logo">
+      <div class="bub-mark">B&amp;B</div>
+      <div class="bub-text">
+        <div class="bub-name">Brot &amp; Butter</div>
+        <div class="bub-sub">Immobilien</div>
+      </div>
+    </div>
+  `;
+}
+
+// Einheitlicher Header pro Seite: Logo + Titel + Untertitel (rechts).
+function _header(title, subtitle) {
+  return `
+    <div class="pdf-head">
+      ${_bubLogo()}
+      <div class="pdf-head-title">
+        <div class="pdf-title">${esc(title || '')}</div>
+        ${subtitle ? `<div class="pdf-subtitle">${esc(subtitle)}</div>` : ''}
+      </div>
+    </div>
+  `;
+}
 
 function _footer(user) {
   const u = user || {};
+  const datum = new Date().toLocaleDateString('de-DE');
   return `
     <div class="pdf-footer">
-      <div><strong>B&amp;B Immo GmbH</strong></div>
-      <div>${esc(u.name || '')} &middot; ${esc(u.email || '')} &middot; ${esc(u.telefon || '')}</div>
+      <div><strong>B&amp;B Immo GmbH</strong> &middot; Burdastraße 23, 77746 Schutterwald</div>
+      <div>${esc(u.name || '')}${u.email ? ' · ' + esc(u.email) : ''}${u.telefon ? ' · ' + esc(u.telefon) : ''} · ${esc(datum)}</div>
     </div>
   `;
 }
@@ -47,48 +77,48 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const we = kalkInputs._weLage || '—';
   const fmt = window.Kalk.fmtEur, fmtPct = window.Kalk.fmtPct, fmtMo = window.Kalk.fmtEurMo;
 
-  const cover = `
+  const datum = new Date().toLocaleDateString('de-DE');
+  // ===== SEITE 1: Kennzahlen + Bonität (Verkaufs-Story) =====
+  const seite1 = `
     <div class="pdf-page">
-      <div class="pdf-cover">
-        <div class="brand">B&amp;B <span class="accent">Immo</span></div>
-        <h1>Investitionsrechnung</h1>
-        <div style="margin-top:18mm; font-size:14px;">
-          Für: <strong>${esc(displayName)}</strong><br>
-          Objekt: <strong>${esc(we)}</strong><br>
-          Datum: ${new Date().toLocaleDateString('de-DE')}
-        </div>
+      ${_header('Investitionsrechnung', datum + ' · für ' + displayName)}
+      <div class="pdf-objekt-info">
+        <strong>Objekt:</strong> ${esc(we)} &middot; <strong>Kaufpreis:</strong> ${fmt(r.kpGesamt)} &middot; <strong>${esc(kalkInputs.qm)} m²</strong>
       </div>
-      ${_footer(user)}
-    </div>
-  `;
 
-  const kpis = `
-    <div class="pdf-page">
-      <h1>Kennzahlen auf einen Blick</h1>
-      <p style="font-size:11px;color:var(--text-tertiary)">Objekt: ${esc(we)}</p>
+      <h2 class="pdf-section-h">Kennzahlen auf einen Blick</h2>
       <div class="kpi-grid-pdf">
-        <div class="kpi-pdf"><div class="label">Kaufpreis gesamt</div><div class="value">${fmt(r.kpGesamt)}</div></div>
         <div class="kpi-pdf"><div class="label">Eigenkapital-Bedarf</div><div class="value">${fmt(r.ekBedarf)}</div></div>
-        <div class="kpi-pdf"><div class="label">Darlehen</div><div class="value">${fmt(r.darlehen)}</div></div>
-        <div class="kpi-pdf"><div class="label">Belastung Jahr 1 mtl.</div><div class="value">${fmtMo(r.belastungMo)}</div></div>
-        <div class="kpi-pdf"><div class="label">Vermögensaufbau netto J10</div><div class="value">${fmt(r.vermoegenNetto10)}</div></div>
-        <div class="kpi-pdf"><div class="label">IRR (10 J)</div><div class="value">${fmtPct(r.irr)}</div></div>
+        <div class="kpi-pdf ${r.belastungMo < 0 ? 'neg' : 'pos'}"><div class="label">Belastung Jahr 1 mtl.</div><div class="value">${fmtMo(r.belastungMo)}</div></div>
+        <div class="kpi-pdf"><div class="label">EK-Rendite (IRR) 10 J.</div><div class="value">${fmtPct(r.irr)}</div></div>
+        <div class="kpi-pdf"><div class="label">Vermögen brutto 10 J.</div><div class="value">${fmt(r.vermoegenBrutto10)}</div></div>
+        <div class="kpi-pdf pos"><div class="label">Vermögen netto 10 J.</div><div class="value">${fmt(r.vermoegenNetto10)}</div></div>
+        ${r.markteinkaufVorteil ? `<div class="kpi-pdf pos"><div class="label">Markteinkauf-Vorteil</div><div class="value">${fmt(r.markteinkaufVorteil)}</div></div>` : ''}
       </div>
 
-      <h2>Mietsubvention &amp; Marktvorteil</h2>
-      <table>
-        <tr><td>Mietsubvention gesamt</td><td class="num">${fmt(r.mietsubventionGesamt)}</td></tr>
-        <tr><td>Markteinkauf-Vorteil</td><td class="num">${fmt(r.markteinkaufVorteil)}</td></tr>
-        <tr><td>Sparen-vs-Investieren Delta J10</td><td class="num">${fmt(r.sparenVsKaufenDelta)}</td></tr>
-      </table>
+      <h2 class="pdf-section-h">Bonität (Bank-Sicht)</h2>
+      <div class="kpi-grid-pdf kpi-grid-4">
+        <div class="kpi-pdf ${r.bonVor >= 0 ? 'pos' : 'neg'}"><div class="label">Einkommen frei vor Invest.</div><div class="value">${fmtMo(r.bonVor || 0)}</div></div>
+        <div class="kpi-pdf ${r.bonNach >= 0 ? 'pos' : 'neg'}"><div class="label">Einkommen frei nach Invest.</div><div class="value">${fmtMo(r.bonNach || 0)}</div></div>
+        <div class="kpi-pdf"><div class="label">Eigenkapital vor Invest.</div><div class="value">${fmt(r.bonVermoegen || 0)}</div></div>
+        <div class="kpi-pdf ${r.bonVermoegenVsEk >= 0 ? 'pos' : 'neg'}"><div class="label">Eigenkapital nach Invest.</div><div class="value">${fmt(r.bonVermoegenVsEk || 0)}</div></div>
+      </div>
+
+      <h2 class="pdf-section-h">Vertriebs-Argumente</h2>
+      <div class="argument-grid">
+        ${r.markteinkaufVorteil ? `<div class="arg-box"><div class="arg-h">Markteinkauf-Vorteil</div><div class="arg-v">${fmt(r.markteinkaufVorteil)}</div><div class="arg-d">unter Marktpreis eingekauft</div></div>` : ''}
+        <div class="arg-box"><div class="arg-h">Mietsubvention gesamt</div><div class="arg-v">${fmt(r.mietsubventionGesamt)}</div><div class="arg-d">Anlaufphase abgefedert</div></div>
+        <div class="arg-box"><div class="arg-h">Vorteil ggü. Sparen</div><div class="arg-v">${fmt(r.sparenVsKaufenDelta)}</div><div class="arg-d">über 10 Jahre</div></div>
+      </div>
       ${_footer(user)}
     </div>
   `;
 
   const cf = `
     <div class="pdf-page">
-      <h1>Cashflow-Detail (10 Jahre)</h1>
-      <p style="font-size:11px;color:var(--text-tertiary)">Jahres-Werte. Cashflow positiv = Überschuss; negativ = Eigenleistung.</p>
+      ${_header('Cashflow & Vermögensaufbau', displayName + ' · ' + esc(we))}
+      <h2 class="pdf-section-h">Cashflow Jahr 1 – 10</h2>
+      <p style="font-size:10.5px;color:#777;margin:0 0 6px 0;">Jahres-Werte. Cashflow positiv = Überschuss; negativ = Eigenleistung pro Jahr.</p>
       <table>
         <thead>
           <tr><th>Jahr</th><th class="num">Miete</th><th class="num">Zinsen</th><th class="num">Tilgung</th><th class="num">HG</th><th class="num">St-Vorteil</th><th class="num">Cashflow</th><th class="num">Restschuld</th></tr>
@@ -115,8 +145,9 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   // Vermögensaufbau pro Jahr (10 J)
   const vermPage = `
     <div class="pdf-page">
-      <h1>Vermögensaufbau (10 Jahre)</h1>
-      <p style="font-size:11px;color:var(--text-tertiary)">Brutto = Immobilien-Wert minus Restschuld. Netto = Brutto minus eingesetztes EK plus kumulierter Cashflow (ehrliche Vergleichsgröße).</p>
+      ${_header('Vermögensaufbau & Sparen vs. Investieren', displayName + ' · ' + esc(we))}
+      <h2 class="pdf-section-h">Vermögensaufbau 10 Jahre</h2>
+      <p style="font-size:10.5px;color:#777;margin:0 0 6px 0;">Brutto = Immobilien-Wert − Restschuld. Netto = Brutto − eingesetztes EK + kumulierter Cashflow (ehrliche Vergleichsgröße).</p>
       <table>
         <thead>
           <tr><th>Jahr</th><th class="num">Wert</th><th class="num">Restschuld</th><th class="num">kum. CF</th><th class="num">Brutto</th><th class="num">Netto</th></tr>
@@ -135,8 +166,8 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         </tbody>
       </table>
 
-      <h2>Sparen vs. Investieren (10 Jahre)</h2>
-      <p style="font-size:11px;color:var(--text-tertiary)">Vergleich: alles Geld auf Tagesgeld lassen vs. Immobilien-Investment inkl. Cashflow.</p>
+      <h2 class="pdf-section-h">Sparen vs. Investieren (10 Jahre)</h2>
+      <p style="font-size:10.5px;color:#777;margin:0 0 6px 0;">Vergleich: alles Geld auf Tagesgeld lassen vs. Immobilien-Investment inkl. Cashflow.</p>
       <table>
         <thead>
           <tr><th>Jahr</th><th class="num">Nur Sparen</th><th class="num">Mit Immobilie</th><th class="num">Delta</th></tr>
@@ -156,38 +187,45 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
     </div>
   `;
 
-  // Bonität-Seite
+  // Bonitäts-Detail-Seite — zeigt Saldo-Rechnung für die Bank
   const bon = `
     <div class="pdf-page">
-      <h1>Bonität (Bank-Sicht)</h1>
-      <p style="font-size:11px;color:var(--text-tertiary)">Quelle: ${r.bonModus === 'detail' ? 'Selbstauskunft' : 'Profil-Defaults'}.</p>
-      <div class="kpi-grid-pdf">
-        <div class="kpi-pdf"><div class="label">Einkommen anrechenbar</div><div class="value">${fmtMo(r.bonEinnahmen)}</div></div>
-        <div class="kpi-pdf"><div class="label">Ausgaben gesamt</div><div class="value">${fmtMo(r.bonAusgaben)}</div></div>
-        <div class="kpi-pdf"><div class="label">Frei vor Investment</div><div class="value">${fmtMo(r.bonVor)}</div></div>
-        <div class="kpi-pdf"><div class="label">Frei nach Investment</div><div class="value">${fmtMo(r.bonNach)}</div></div>
-        <div class="kpi-pdf"><div class="label">Freies Vermögen</div><div class="value">${fmt(r.bonVermoegen)}</div></div>
-        <div class="kpi-pdf"><div class="label">Vermögen − EK-Bedarf</div><div class="value">${fmt(r.bonVermoegenVsEk)}</div></div>
-      </div>
+      ${_header('Bonitäts-Effekt', displayName + ' · Bank-Sicht')}
+      <p style="font-size:10.5px;color:#777;margin:0 0 8px 0;">Quelle: ${r.bonModus === 'detail' ? 'Selbstauskunft' : 'manuelle Quick-Eingabe'}. Banken rechnen die Miete pauschal mit 80 % an (Leerstands-/Mietausfallsreserve).</p>
 
-      <h2>Investment-Delta (mtl.)</h2>
-      <table>
-        <tr><td>Miete anrechenbar (80%)</td><td class="num">${fmtMo(r.bonMieteAnr)}</td></tr>
-        <tr><td>Annuität (Zins + Tilgung)</td><td class="num">${fmtMo(r.bonAnnuMo)}</td></tr>
+      <h2 class="pdf-section-h">Saldo-Rechnung</h2>
+      <table class="invest-table">
+        <tr><td>Einnahmen / Monat</td><td class="num pos">+ ${fmtMo(r.bonEinnahmen || 0)}</td></tr>
+        <tr><td>Ausgaben / Monat</td><td class="num neg">− ${fmtMo(r.bonAusgaben || 0)}</td></tr>
+        <tr class="totalrow"><td><strong>Saldo vor Kauf</strong></td><td class="num"><strong>${fmtMo(r.bonVor || 0)}</strong></td></tr>
+        <tr><td>+ Anrechenbare Miete (80 %)</td><td class="num pos">+ ${fmtMo(r.bonMieteAnr || 0)}</td></tr>
+        <tr><td>− Annuität Bank</td><td class="num neg">− ${fmtMo(r.bonAnnuMo || 0)}</td></tr>
         ${r.bonModus === 'detail' ? `
-        <tr><td>Hausgeld (Bank-konservativ)</td><td class="num">${fmtMo(r.hausgeldNurMo || 0)}</td></tr>
-        <tr><td>Hausverwaltung</td><td class="num">${fmtMo(r.hausverwaltungMo || 0)}</td></tr>
+        <tr><td>− Hausgeld (bank-konservativ)</td><td class="num neg">− ${fmtMo(r.hausgeldNurMo || 0)}</td></tr>
+        <tr><td>− Hausverwaltung</td><td class="num neg">− ${fmtMo(r.hausverwaltungMo || 0)}</td></tr>
         ` : ''}
-        <tr><td><strong>Delta Bonität (Investment)</strong></td><td class="num"><strong>${fmtMo(r.bonDelta)}</strong></td></tr>
+        <tr class="totalrow"><td><strong>Saldo nach Kauf</strong></td><td class="num"><strong>${fmtMo(r.bonNach || 0)}</strong></td></tr>
+        <tr><td>Saldo-Delta aus dieser WE</td><td class="num"><strong>${fmtMo(r.bonDelta || 0)}</strong></td></tr>
       </table>
+
+      <h2 class="pdf-section-h">Vermögen aus Bank-Sicht</h2>
+      <table class="invest-table">
+        <tr><td>Verfügbares Eigenkapital</td><td class="num">${fmt(r.bonVermoegen || 0)}</td></tr>
+        <tr><td>− Eigenkapital-Bedarf</td><td class="num neg">− ${fmt(r.ekBedarf)}</td></tr>
+        <tr class="totalrow"><td><strong>EK nach Investment</strong></td><td class="num ${r.bonVermoegenVsEk >= 0 ? 'pos' : 'neg'}"><strong>${fmt(r.bonVermoegenVsEk || 0)}</strong></td></tr>
+      </table>
+
+      <div class="pdf-hint">
+        Nur <em>liquide oder leicht beleihbare Werte</em> zählen für die Bank (Sparbuch, Tagesgeld, Aktien, ETFs, Rückkaufwert Lebensversicherung). Nicht: Eigenheim oder Bestandsimmobilien.
+      </div>
       ${_footer(user)}
     </div>
   `;
 
   const annahmen = `
     <div class="pdf-page">
-      <h1>Annahmen &amp; Hinweise</h1>
-      <table>
+      ${_header('Annahmen & Hinweise', displayName + ' · ' + esc(we))}
+      <table class="invest-table">
         <tr><td>Kaufpreis Wohnung</td><td class="num">${fmt(kalkInputs.kaufpreis)}</td></tr>
         <tr><td>Stellplatz-KP</td><td class="num">${fmt(kalkInputs.stellplatzKp)}</td></tr>
         <tr><td>Quadratmeter</td><td class="num">${esc(kalkInputs.qm)} m²</td></tr>
@@ -207,17 +245,16 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       </table>
 
       <div class="pdf-disclaimer">
-        Diese Investitionsrechnung beruht auf den oben dokumentierten Annahmen.
-        Sie ist keine Anlageberatung im Sinne des WpHG. Tatsächliche Mieten,
-        Zinssätze, Steuersätze und Wertentwicklungen können abweichen.
-        Verbindlich ist ausschließlich der notarielle Kaufvertrag. Steuerliche
-        Aspekte sind mit dem Steuerberater abzustimmen.
+        Diese Investitionsrechnung beruht auf den oben dokumentierten Annahmen. Sie ist
+        keine Anlageberatung im Sinne des WpHG. Tatsächliche Mieten, Zinssätze, Steuersätze
+        und Wertentwicklungen können abweichen. Verbindlich ist ausschließlich der notarielle
+        Kaufvertrag. Steuerliche Aspekte sind mit dem Steuerberater abzustimmen.
       </div>
       ${_footer(user)}
     </div>
   `;
 
-  _doPrint(cover + kpis + cf + vermPage + bon + annahmen, 'invest');
+  _doPrint(seite1 + bon + cf + vermPage + annahmen, 'invest');
 }
 
 /* ====================================================================
@@ -260,15 +297,7 @@ function reservierung(kunde, kalkInputs, user) {
 
   const html = `
     <div class="pdf-page reservierung-page">
-      <div class="reserv-head">
-        <div class="reserv-title"><strong>Kaufabsichtserklärung und Reservierungsvereinbarung</strong></div>
-        <div class="reserv-logo">
-          <div class="bub-logo">
-            <div class="bub-mark">B&amp;B</div>
-            <div class="bub-text">Brot &amp; Butter<br><span>Immobilien</span></div>
-          </div>
-        </div>
-      </div>
+      ${_header('Kaufabsichtserklärung & Reservierungsvereinbarung', 'B&B Immo GmbH')}
 
       <div class="reserv-parties">
         <p><strong>ZWISCHEN</strong></p>
@@ -366,10 +395,7 @@ function selbstauskunft(kunde, user) {
   // === SEITE 1: PERSÖNLICHE VERHÄLTNISSE + EINKOMMEN + FIXKOSTEN ===
   const seite1 = `
     <div class="pdf-page sa-page">
-      <div class="sa-head">
-        <div class="sa-title"><strong>SELBSTAUSKUNFT</strong> – VERTRAULICH</div>
-        <div class="sa-page-num">SEITE 1</div>
-      </div>
+      ${_header('Selbstauskunft – Vertraulich', 'Seite 1 · Persönliche Verhältnisse & Einkommen')}
       <table class="sa-table">
         <thead><tr><th class="sa-section-h">PERSÖNLICHE VERHÄLTNISSE</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER / EHEPARTNER' : ''}</th></tr></thead>
         <tbody>
@@ -421,10 +447,7 @@ function selbstauskunft(kunde, user) {
   // === SEITE 2: VERMÖGEN + IMMOBILIEN + VERBINDLICHKEITEN ===
   const seite2 = `
     <div class="pdf-page sa-page">
-      <div class="sa-head">
-        <div class="sa-title"><strong>SELBSTAUSKUNFT</strong> – VERTRAULICH</div>
-        <div class="sa-page-num">SEITE 2</div>
-      </div>
+      ${_header('Selbstauskunft – Vertraulich', 'Seite 2 · Vermögen & Verbindlichkeiten')}
       <table class="sa-table">
         <thead><tr><th class="sa-section-h">VERMÖGEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
         <tbody>
@@ -477,10 +500,7 @@ function selbstauskunft(kunde, user) {
   }
   const seite3 = `
     <div class="pdf-page sa-page">
-      <div class="sa-head">
-        <div class="sa-title"><strong>SELBSTAUSKUNFT</strong> – Bonitäts-Auswertung</div>
-        <div class="sa-page-num">SEITE 3</div>
-      </div>
+      ${_header('Selbstauskunft – Bonitäts-Auswertung', 'Seite 3 · Bank-Sicht')}
       ${bonDetail ? `
       <h2 style="margin-top:0;">Anrechenbares Einkommen</h2>
       <table>
