@@ -22,7 +22,7 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 31 — Admin-Delete echt, Paket-Modus mit Person-Inputs (Zins/Tilgung/Bonität), Filter auf Titel-Feld (Wesseling matcht jetzt)
+git commit -m "Iter 32 — Zweistufige WE-Auswahl: erst Projekt, dann Wohneinheit (Single + Paket)
 
 - Iter 15 (Stabilisierung):
   * airtable.js: normalizeAirtableResponse — Single-Select-Objekte zu name-Strings reduziert.

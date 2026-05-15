@@ -521,10 +521,20 @@ function renderTabKalkulator() {
       return (a.lage || '').localeCompare(b.lage || '');
     });
   });
+  const projektNames = Object.keys(wesByProjekt).sort();
+  // Zweistufige Auswahl: erst Projekt, dann Wohneinheit.
+  // Aktives Projekt: aus state.kalk._projektFilter ODER aus dem aktuell gewählten WE ableiten.
+  let aktivesProjekt = state.kalk._projektFilter || '';
+  if (!aktivesProjekt && !isPaket && i._weId) {
+    const sel = wes.find(x => x.id === i._weId);
+    if (sel) aktivesProjekt = sel.projektName || '';
+  }
+  if (!aktivesProjekt && projektNames.length === 1) aktivesProjekt = projektNames[0];
+  const wesImProjekt = aktivesProjekt && wesByProjekt[aktivesProjekt] ? wesByProjekt[aktivesProjekt] : [];
 
   el.innerHTML = `
     <div class="card">
-      <div class="card-title">Wohneinheit</div>
+      <div class="card-title">Objekt &amp; Wohneinheit</div>
       <div class="flex gap-12 mb-12" style="align-items:center;">
         <label style="text-transform:none;letter-spacing:0;display:flex;align-items:center;gap:6px;">
           <input type="radio" name="we-mode" value="single" ${!isPaket ? 'checked' : ''} onclick="setWeMode('single')"> Einzel-WE
@@ -533,30 +543,32 @@ function renderTabKalkulator() {
           <input type="radio" name="we-mode" value="paket" ${isPaket ? 'checked' : ''} onclick="setWeMode('paket')"> Paket (mehrere)
         </label>
       </div>
-      <div class="grid-2">
+      <div class="grid-3">
+        <div>
+          <label>1. Objekt / Projekt</label>
+          <select id="projekt-select">
+            <option value="">— Projekt wählen —</option>
+            ${projektNames.map(p => `
+              <option value="${esc(p)}" ${aktivesProjekt === p ? 'selected' : ''}>${esc(p)} (${wesByProjekt[p].length} WE)</option>
+            `).join('')}
+          </select>
+          <div class="text-tertiary text-small mt-4">${projektNames.length} Objekt${projektNames.length === 1 ? '' : 'e'} in Vermarktung</div>
+        </div>
         <div>
           ${isPaket ? `
-            <label>Wohneinheiten im Paket</label>
-            <select id="we-paket-select" multiple size="8" style="height:auto;">
-              ${Object.keys(wesByProjekt).sort().map(proj => `
-                <optgroup label="${esc(proj)}">
-                  ${wesByProjekt[proj].map(w => `
-                    <option value="${esc(w.id)}" ${state.kalk._paketWeIds.includes(w.id) ? 'selected' : ''}>${esc(weLabel(w))}</option>
-                  `).join('')}
-                </optgroup>
+            <label>2. Wohneinheiten im Paket</label>
+            <select id="we-paket-select" multiple size="8" style="height:auto;" ${!aktivesProjekt ? 'disabled' : ''}>
+              ${wesImProjekt.map(w => `
+                <option value="${esc(w.id)}" ${state.kalk._paketWeIds.includes(w.id) ? 'selected' : ''}>${esc(weLabel(w))}</option>
               `).join('')}
             </select>
-            <div class="text-tertiary text-small mt-4">Ctrl/Cmd + Klick für mehrere. Aktuell: ${state.kalk._paketWeIds.length} WE${state.kalk._paketWeIds.length === 1 ? '' : 's'}.</div>
+            <div class="text-tertiary text-small mt-4">${!aktivesProjekt ? 'Erst Projekt wählen.' : 'Ctrl/Cmd + Klick für mehrere. Aktuell: ' + state.kalk._paketWeIds.length + ' WE'}</div>
           ` : `
-            <label>Wohneinheit aus Airtable (${wes.length} verfügbar)</label>
-            <select id="we-select">
-              <option value="">— Eigene Eingabe / Default —</option>
-              ${Object.keys(wesByProjekt).sort().map(proj => `
-                <optgroup label="${esc(proj)}">
-                  ${wesByProjekt[proj].map(w => `
-                    <option value="${esc(w.id)}" ${i._weId === w.id ? 'selected' : ''}>${esc(weLabel(w))}</option>
-                  `).join('')}
-                </optgroup>
+            <label>2. Wohneinheit</label>
+            <select id="we-select" ${!aktivesProjekt ? 'disabled' : ''}>
+              <option value="">${aktivesProjekt ? '— WE wählen —' : '— Erst Projekt wählen —'}</option>
+              ${wesImProjekt.map(w => `
+                <option value="${esc(w.id)}" ${i._weId === w.id ? 'selected' : ''}>${esc(weLabel(w))}</option>
               `).join('')}
             </select>
             ${i._weLage ? `<div class="text-tertiary text-small mt-4">Aktiv: ${esc(i._weLage)}</div>` : ''}
@@ -568,7 +580,6 @@ function renderTabKalkulator() {
             <option value="quick" ${(!i.bonModus || i.bonModus === 'quick') ? 'selected' : ''}>Quick (manuelle Eingabe)</option>
             <option value="detail" ${i.bonModus === 'detail' ? 'selected' : ''}>Detail (aus Selbstauskunft)</option>
           </select>
-          <div class="text-tertiary text-small mt-4">Quick = du gibst Einkommen/Ausgaben/Vermögen direkt ein. Detail = aus dem Selbstauskunft-Tab.</div>
           <div class="mt-12">
             <button class="secondary" onclick="resetKalk()">Auf Default zurücksetzen</button>
           </div>
@@ -618,6 +629,20 @@ function renderTabKalkulator() {
   `;
 
   // Listeners
+  const projektSel = document.getElementById('projekt-select');
+  if (projektSel) projektSel.onchange = (e) => {
+    state.kalk._projektFilter = e.target.value;
+    // Beim Projekt-Wechsel die aktive WE-Auswahl zurücksetzen (Einzel + Paket).
+    if (state.kalk._weId) {
+      const sel = state.wohneinheiten.find(x => x.id === state.kalk._weId);
+      if (!sel || sel.projektName !== e.target.value) loadWeIntoKalk('');
+    }
+    state.kalk._paketWeIds = (state.kalk._paketWeIds || []).filter(wid => {
+      const w = state.wohneinheiten.find(x => x.id === wid);
+      return w && w.projektName === e.target.value;
+    });
+    renderTabKalkulator();
+  };
   const weSel = document.getElementById('we-select');
   if (weSel) weSel.onchange = (e) => loadWeIntoKalk(e.target.value);
   const wePaketSel = document.getElementById('we-paket-select');
