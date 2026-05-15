@@ -22,7 +22,7 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 26 — Snapshot-Sort im Code (kein 422 mehr), Tab zeigt ID-Fallback, Laden-Button disabled bei leerem kalkJson, Console-Logs
+git commit -m "Iter 27 — Snapshot-Filter im Code (ARRAYJOIN-Bug umgangen: liefert Namen statt IDs)
 
 - Iter 15 (Stabilisierung):
   * airtable.js: normalizeAirtableResponse — Single-Select-Objekte zu name-Strings reduziert.

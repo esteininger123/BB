@@ -32,17 +32,17 @@ module.exports = async (req, res) => {
       const allowed = await canAccessKunde(session, kundeId);
       if (!allowed) return res.status(403).json({ error: 'Kein Zugriff auf diesen Kunden' });
 
-      const formula = `FIND('${kundeId}', ARRAYJOIN({Kunde}))>0`;
-      // Sort NICHT im Airtable-Request — das `Created`-Feld ist im Datensatz oft leer.
-      // Stattdessen nach dem Laden im Code via r.createdTime sortieren (Airtable Auto-Property).
-      const params = { filterByFormula: formula };
-      const records = await listAll(TABLES.SNAPSHOTS, params, 500);
-      // Auto-Created-Time aus Record-Level mitgeben (Fallback). Sortierung: neueste zuerst.
-      const mapped = records.map(r => {
-        const out = snapshotRecordToApi(r);
-        if (!out.created) out.created = r.createdTime || null;
-        return out;
-      });
+      // Wichtig: ARRAYJOIN({Kunde}) liefert den NAMEN des Linked-Records (z.B. "Toni Bader"),
+      // NICHT die Record-ID. Filtern via filterByFormula auf Record-ID schlägt daher fehl.
+      // Lösung: alle Snapshots laden und im Code per Record-ID filtern.
+      const allRecords = await listAll(TABLES.SNAPSHOTS, {}, 5000);
+      const mapped = allRecords
+        .map(r => {
+          const out = snapshotRecordToApi(r);
+          if (!out.created) out.created = r.createdTime || null;
+          return out;
+        })
+        .filter(s => s.kundeId === kundeId);
       mapped.sort((a, b) => (b.created || '').localeCompare(a.created || ''));
       return res.status(200).json(mapped);
     }
