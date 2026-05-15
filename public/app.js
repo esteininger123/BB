@@ -851,12 +851,23 @@ function loadWeIntoKalk(weId) {
   }
   const w = state.wohneinheiten.find(x => x.id === weId);
   if (!w) return;
-  // Backend-API-Feld heißt 'kp' (nicht 'kaufpreis'). Kompatibilität.
-  state.kalk.kaufpreis = w.kp || w.kaufpreis || state.kalk.kaufpreis;
-  state.kalk.qm = w.qm || state.kalk.qm;
-  state.kalk.kaltmiete = w.kaltmiete || state.kalk.kaltmiete;
+
+  // 1) Default-Werte aus we-presets.js (pro Record-ID gepflegt aus Excel + Standards)
+  //    Diese Werte sind die VERBINDLICHE Quelle — Airtable ergänzt nur was abweicht.
+  const preset = (window.WE_PRESETS_BY_RECID || {})[weId];
+  if (preset) {
+    // Komplettes Preset übernehmen (Hausgeld, Subvention, AfA, Wertsteigerung, ...)
+    Object.assign(state.kalk, JSON.parse(JSON.stringify(preset)));
+  } else {
+    // Fallback: nur die Airtable-Basics + Hausgeld-Faustregel.
+    state.kalk.kaufpreis = w.kp || w.kaufpreis || state.kalk.kaufpreis;
+    state.kalk.qm = w.qm || state.kalk.qm;
+    state.kalk.kaltmiete = w.kaltmiete || state.kalk.kaltmiete;
+    if (w.qm) state.kalk.hausgeld = Math.round(w.qm);
+  }
+
+  // 2) WE-Metadata immer aus Airtable (Lage-Text, Projekt-Name)
   state.kalk._weId = weId;
-  // Lage-Text bevorzugen (vollständige Adresse), Fallback auf lage-Bezeichnung
   state.kalk._weLage = w.lageText || w.lage || w.weNr || '';
   state.kalk._weNr = w.weNr || '';
   state.kalk._projektName = w.projektName || '';

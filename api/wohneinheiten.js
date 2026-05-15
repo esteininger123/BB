@@ -50,7 +50,9 @@ module.exports = async (req, res) => {
     // Wir filtern via Substring auf den Objekt-Link-Text — robust gegen Umbenennungen.
     // Wenn weitere Projekte zugelassen werden sollen: WOHNEINHEIT_OBJEKT_FILTER setzen
     // (kommagetrennte Substring-Liste).
-    const objektFilterRaw = process.env.WOHNEINHEIT_OBJEKT_FILTER || 'Heidelberger';
+    // Default-Filter: Heidelberger Str. (Bruchsal) + Wesseling — beide aktiv für Vertriebs-Calls.
+    // Überschreibbar via Vercel-Env-Var WOHNEINHEIT_OBJEKT_FILTER (kommagetrennt).
+    const objektFilterRaw = process.env.WOHNEINHEIT_OBJEKT_FILTER || 'Heidelberger,Wesseling';
     const objektTokens = objektFilterRaw.split(',').map(s => s.trim()).filter(Boolean);
     const objektFormula = objektTokens.length === 1
       ? `FIND('${objektTokens[0]}', ARRAYJOIN({Objekt}))>0`
