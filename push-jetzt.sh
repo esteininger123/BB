@@ -22,7 +22,7 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 24 — V1-Layout: KPI-Row mit Info-Tooltips, 7 Story-Sections, Slider mit V1-Bereichen, Themenbereich-Nummerierung
+git commit -m "Iter 25 — Eingabe-Sektionen 2-spaltig, KPI-Row 1-reihig, WE-Labels aus Airtable-Titel + Sortierung WE-Nr
 
 - Iter 15 (Stabilisierung):
   * airtable.js: normalizeAirtableResponse — Single-Select-Objekte zu name-Strings reduziert.

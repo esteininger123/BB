@@ -486,21 +486,27 @@ function renderTabKalkulator() {
   const isPaket = state.kalk._isPaket === true;
 
   const currentProfil = detectProfil(i);
+  // Airtable-Titel ("WE: 1, EG Links, Heidelberger Straße 21, 76646 Bruchsal") als Label.
+  // KP optional hinten dran, damit Edgar Preisspanne sieht.
   const weLabel = (w) => {
-    const parts = [];
-    if (w.projektName) parts.push(w.projektName);
-    if (w.weNr) parts.push('WE ' + w.weNr);
-    if (w.lage && !parts.length) parts.push(w.lage);
-    const left = parts.join(' · ') || w.id;
-    const kp = (w.kp || 0) > 0 ? ' — ' + (Math.round(w.kp/1000) + 'k') : '';
-    return left + kp;
+    const titel = w.lage || w.lageText || w.id;
+    const kp = (w.kp || 0) > 0 ? ' — ' + Math.round(w.kp).toLocaleString('de-DE') + ' €' : '';
+    return titel + kp;
   };
-  // WEs nach Projekt gruppieren, wenn möglich
+  // WEs nach Projekt gruppieren + innerhalb des Projekts nach WE-Nummer sortieren.
   const wesByProjekt = {};
   wes.forEach(w => {
     const key = w.projektName || 'Sonstige';
     if (!wesByProjekt[key]) wesByProjekt[key] = [];
     wesByProjekt[key].push(w);
+  });
+  Object.keys(wesByProjekt).forEach(p => {
+    wesByProjekt[p].sort((a, b) => {
+      const aNr = parseInt(a.weNr, 10);
+      const bNr = parseInt(b.weNr, 10);
+      if (isFinite(aNr) && isFinite(bNr)) return aNr - bNr;
+      return (a.lage || '').localeCompare(b.lage || '');
+    });
   });
 
   el.innerHTML = `
@@ -560,7 +566,9 @@ function renderTabKalkulator() {
     ${isPaket ? '' : `
     <div class="card mt-16">
       <div class="card-title">Eingaben</div>
-      ${kalkInputsThemenHtml(i)}
+      <div class="kalk-section-grid">
+        ${kalkInputsThemenHtml(i)}
+      </div>
     </div>
     `}
 
