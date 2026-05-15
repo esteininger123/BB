@@ -576,14 +576,12 @@ function renderTabKalkulator() {
       </div>
     </div>
 
-    ${isPaket ? '' : `
     <div class="card mt-16">
-      <div class="card-title">Eingaben</div>
+      <div class="card-title">${isPaket ? 'Persönliche Eingaben (für das Paket)' : 'Eingaben'}</div>
       <div class="kalk-section-grid">
-        ${kalkInputsThemenHtml(i)}
+        ${isPaket ? kalkInputsPaketHtml(i) : kalkInputsThemenHtml(i)}
       </div>
     </div>
-    `}
 
     <div class="kpi-grid mt-16" id="kpi-grid"></div>
 
@@ -643,6 +641,74 @@ function setWeMode(mode) {
 window.setWeMode = setWeMode;
 
 // Themen-Gruppierung mit <details>-Sektionen und Slider für Prozent-Werte.
+// Paket-Modus: nur Person-Settings (Finanzierung, Steuer, Bonität) — die Objekt-Werte
+// kommen aus den ausgewählten WEs (jeweils mit Preset aus we-presets.js).
+function kalkInputsPaketHtml(i) {
+  const slider = (label, key, minPct, maxPct, stepPct) => {
+    const valPct = (i[key] || 0) * 100;
+    return `
+      <div class="slider-row">
+        <label>${esc(label)} <span class="slider-val" data-slider-val="${key}">${valPct.toFixed(2)} %</span></label>
+        <input type="range" data-slider="${key}" min="${minPct}" max="${maxPct}" step="${stepPct}" value="${valPct.toFixed(4)}">
+        <input data-kalk="${key}" type="number" step="${stepPct / 100}" min="${minPct / 100}" max="${maxPct / 100}" value="${i[key] === undefined || i[key] === null ? '' : i[key]}" class="slider-num">
+      </div>`;
+  };
+  const sliderEur = (label, key, min, max, step, unit) => {
+    const u = unit === undefined ? '€' : unit;
+    const val = i[key] || 0;
+    const isInt = step >= 1;
+    const valStr = isInt ? Math.round(val).toLocaleString('de-DE') : val.toLocaleString('de-DE');
+    return `
+      <div class="slider-row">
+        <label>${esc(label)} <span class="slider-val" data-slider-val="${key}">${valStr}${u ? ' ' + u : ''}</span></label>
+        <input type="range" data-slider="${key}" data-slider-fmt="eur" data-slider-unit="${esc(u)}" min="${min}" max="${max}" step="${step}" value="${val}">
+        <input data-kalk="${key}" type="number" step="${step}" min="${min}" value="${i[key] === undefined || i[key] === null ? '' : i[key]}" class="slider-num">
+      </div>`;
+  };
+  const select = (label, key, opts) => `
+    <div>
+      <label>${esc(label)}</label>
+      <select data-kalk="${key}">
+        ${opts.map(o => `<option value="${esc(o.v)}" ${String(i[key]) === String(o.v) ? 'selected' : ''}>${esc(o.l)}</option>`).join('')}
+      </select>
+    </div>`;
+  const isQuick = !i.bonModus || i.bonModus === 'quick';
+  return `
+    <details class="kalk-section" open>
+      <summary>Finanzierung</summary>
+      <div class="grid-1">
+        ${slider('Zinssatz', 'zins', 2, 8, 0.05)}
+        ${slider('Anfängliche Tilgung', 'tilgung', 0.5, 5, 0.25)}
+        ${select('Kaufnebenkosten mitfinanziert?', 'knkMitfinanziert', [
+          {v:'false', l:'Nein'}, {v:'true', l:'Ja'}
+        ])}
+      </div>
+    </details>
+    <details class="kalk-section" open>
+      <summary>Steuer</summary>
+      <div class="grid-1">
+        ${slider('Persönlicher Steuersatz', 'steuersatz', 25, 50, 1)}
+      </div>
+    </details>
+    ${isQuick ? `
+    <details class="kalk-section" open>
+      <summary>Bonität (Quick)</summary>
+      <div class="grid-1">
+        ${sliderEur('Monatliche Einnahmen', 'bonEinnahmen', 1500, 30000, 100, '€/Mo')}
+        ${sliderEur('Monatliche Ausgaben', 'bonAusgaben', 800, 15000, 50, '€/Mo')}
+        ${sliderEur('Verfügbares Eigenkapital (ohne Immobilien)', 'bonVermoegen', 0, 1000000, 1000)}
+      </div>
+    </details>
+    ` : ''}
+    <details class="kalk-section">
+      <summary>Hinweis</summary>
+      <div style="padding: 4px 14px 14px;">
+        <p class="text-tertiary text-small">Im Paket-Modus werden die Objekt-Werte (Kaufpreis, qm, Miete, Hausgeld, AfA, Subvention etc.) automatisch pro WE aus den gepflegten Vorlagen gezogen. Hier oben nur die <strong>persönlichen Settings</strong> einstellen.</p>
+      </div>
+    </details>
+  `;
+}
+
 function kalkInputsThemenHtml(i) {
   // Plain Number-Input
   const num = (label, key, suffix, step) => `
@@ -896,18 +962,22 @@ function recalcAndRender() {
   let r;
   try {
     if (state.kalk._isPaket && Array.isArray(state.kalk._paketWeIds) && state.kalk._paketWeIds.length > 0) {
-      // Paket-Modus: jede WE aus Airtable ziehen, recalcPaket aufrufen
+      // Paket-Modus: jede WE aus Airtable ziehen, recalcPaket aufrufen.
+      // Falls für die WE ein gepflegtes Preset in we-presets.js existiert → das nutzen.
+      // Sonst Default-Preset aus Airtable-Werten + Faustregeln.
       const weInputs = state.kalk._paketWeIds.map(wid => {
         const w = state.wohneinheiten.find(x => x.id === wid);
         if (!w) return null;
-        // Default-Preset-ähnliches Input, mit den WE-Daten gefüllt
+        const preset = (window.WE_PRESETS_BY_RECID || {})[wid];
+        if (preset) {
+          return Object.assign({}, JSON.parse(JSON.stringify(preset)), {
+            _weId: w.id, _weLage: w.lageText || w.lage, _weNr: w.weNr, _projektName: w.projektName,
+          });
+        }
+        // Fallback ohne Preset (sollte nicht passieren bei Heidelberger/Wesseling)
         return {
-          kaufpreis: w.kp || 0,
-          stellplatzKp: 0,
-          qm: w.qm || 0,
-          marktwertProQm: 0,
-          kaltmiete: w.kaltmiete || 0,
-          stellplatzMiete: 0,
+          kaufpreis: w.kp || 0, stellplatzKp: 0, qm: w.qm || 0, marktwertProQm: 0,
+          kaltmiete: w.kaltmiete || 0, stellplatzMiete: 0,
           subventionMo: 0, subventionMonate: 0,
           mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
           hausgeld: Math.round((w.qm || 0)),

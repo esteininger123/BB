@@ -22,7 +22,7 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 30 — WE_PRESETS_BY_RECID mit echten Excel-Werten + Heidelberger-Standards (17 WEs)
+git commit -m "Iter 31 — Admin-Delete echt, Paket-Modus mit Person-Inputs (Zins/Tilgung/Bonität), Filter auf Titel-Feld (Wesseling matcht jetzt)
 
 - Iter 15 (Stabilisierung):
   * airtable.js: normalizeAirtableResponse — Single-Select-Objekte zu name-Strings reduziert.

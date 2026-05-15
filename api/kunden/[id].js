@@ -80,19 +80,8 @@ module.exports = async (req, res) => {
       }
       if (!canAccess(session, rec)) return res.status(403).json({ error: 'Kein Zugriff auf diesen Kunden' });
 
-      if (session.rolle === 'Admin') {
-        // Admin darf nicht löschen — stattdessen Phase auf "Abgebrochen"
-        await airtable('update', TABLES.KUNDEN, {
-          recordId: id,
-          fields: {
-            [KUNDEN_FIELDS.PHASE]: 'Abgebrochen',
-            [KUNDEN_FIELDS.LAST_ACTIVITY]: new Date().toISOString()
-          }
-        });
-        return res.status(200).json({ ok: true, action: 'abgebrochen' });
-      }
-
-      // Vertriebler darf seinen Kunden löschen
+      // Echtes Delete für alle (Admin + Vertriebler). Edgar will den Kunden weg, nicht
+      // nur auf "Abgebrochen" parken. Wer Anhaltspunkte braucht: Airtable-Backup.
       await airtable('delete', TABLES.KUNDEN, { recordId: id });
       return res.status(200).json({ ok: true, action: 'deleted' });
     }

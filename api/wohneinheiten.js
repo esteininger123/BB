@@ -54,10 +54,13 @@ module.exports = async (req, res) => {
     // Überschreibbar via Vercel-Env-Var WOHNEINHEIT_OBJEKT_FILTER (kommagetrennt).
     const objektFilterRaw = process.env.WOHNEINHEIT_OBJEKT_FILTER || 'Heidelberger,Wesseling';
     const objektTokens = objektFilterRaw.split(',').map(s => s.trim()).filter(Boolean);
+    // Wir filtern im {Titel}-Feld (Formel: "WE: X, Lage, Straße Nr, PLZ Ort"), weil
+    // dort die echte Ortsangabe steht. Das verlinkte Objekt-Feld enthält nur den
+    // Objekt-Code wie "Obj: WES_RHEIN 290, 14" — da würde 'Wesseling' nicht matchen.
     const objektFormula = objektTokens.length === 1
-      ? `FIND('${objektTokens[0]}', ARRAYJOIN({Objekt}))>0`
+      ? `FIND('${objektTokens[0]}', {Titel})>0`
       : objektTokens.length > 1
-        ? 'OR(' + objektTokens.map(t => `FIND('${t}', ARRAYJOIN({Objekt}))>0`).join(', ') + ')'
+        ? 'OR(' + objektTokens.map(t => `FIND('${t}', {Titel})>0`).join(', ') + ')'
         : 'TRUE()';
 
     const formula = `AND({Status}='${WE_STATUS_VERMARKTUNG}', FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0, ${objektFormula})`;
