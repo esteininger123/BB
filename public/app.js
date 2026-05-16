@@ -680,7 +680,8 @@ function renderTabKalkulator() {
         <div class="chart-container" style="height:420px;"><canvas id="chart-vermoegen"></canvas></div>
         <div class="chart-formula" style="margin-top:12px;padding:12px 16px;background:#f8fafc;border-left:3px solid #B08A4D;border-radius:6px;font-size:13px;">
           <strong>Formel:</strong> Gesamtvermögen = (Marktwert × Wertsteigerung<sup>n</sup>) − Restschuld + kum. Cashflows<br>
-          <span class="text-tertiary text-small">Marktwert steigt mit Wertsteigerung. Restschuld sinkt mit Tilgung. Die Differenz (Schere) plus die kumulierten Cashflows ist das Gesamtvermögen.</span>
+          <strong>Vermögenszuwachs</strong> = Gesamtvermögen − eingesetztes EK (blaue Linie unten zeigt, was zum Start reingesteckt wurde — bleibt konstant)<br>
+          <span class="text-tertiary text-small">Marktwert steigt mit Wertsteigerung. Restschuld sinkt mit Tilgung. Die Schere zwischen beiden plus die kumulierten Cashflows ist das Gesamtvermögen.</span>
         </div>
       </div>
 
@@ -689,6 +690,8 @@ function renderTabKalkulator() {
         <div class="card">
           <div class="card-title">Cashflow 10 Jahre</div>
           <div class="text-tertiary text-small">Operativer Cashflow (vor Steuer) + Steuervorteil = Cashflow nach Steuer.</div>
+          <!-- Drei farbige Werte für Jahr 1 als „Story-Block" über dem Chart -->
+          <div id="cf-werte-block" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0;"></div>
           <div class="chart-container"><canvas id="chart-cashflow"></canvas></div>
           <div class="chart-formula" style="margin-top:12px;padding:10px 14px;background:#f8fafc;border-left:3px solid #2D6E47;border-radius:6px;font-size:12px;">
             <strong>Formel:</strong> Operativer CF = Miete − Zinsen − Tilgung − Hausgeld − Verwaltung<br>
@@ -703,19 +706,20 @@ function renderTabKalkulator() {
             <strong>Formel:</strong> Nur Sparen = EK × (1 + Zins)<sup>n</sup><br>
             <strong>Mit Immobilie</strong> = (Wert − Restschuld) + kum. CF (steigt mit Tilgung + Mieterhöhung)
           </div>
-        <div class="spar-zins-row" style="display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;">
-          <label for="spar-zins-slider" style="font-weight:600;color:#2c5282;white-space:nowrap;text-transform:none;letter-spacing:0;">Verzinsung des Eigenkapitals p.a.:</label>
-          <input type="range" id="spar-zins-slider" min="0" max="12" step="0.05"
-                 value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
-                 style="flex:1;cursor:pointer;">
-          <span id="spar-zins-val" style="font-weight:700;color:#2c5282;min-width:60px;text-align:right;">
-            ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} %
-          </span>
-          <input type="number" id="spar-zins-num" min="0" max="12" step="0.05"
-                 value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
-                 style="width:80px;padding:4px 6px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;">
+          <div class="spar-zins-row" style="display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;">
+            <label for="spar-zins-slider" style="font-weight:600;color:#2c5282;white-space:nowrap;text-transform:none;letter-spacing:0;">Verzinsung des Eigenkapitals p.a.:</label>
+            <input type="range" id="spar-zins-slider" min="0" max="12" step="0.05"
+                   value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
+                   style="flex:1;cursor:pointer;">
+            <span id="spar-zins-val" style="font-weight:700;color:#2c5282;min-width:60px;text-align:right;">
+              ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} %
+            </span>
+            <input type="number" id="spar-zins-num" min="0" max="12" step="0.05"
+                   value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
+                   style="width:80px;padding:4px 6px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;">
+          </div>
+          <p class="text-tertiary text-small" style="margin:6px 14px 0;">Annahme für die EK-Verzinsung im Vergleichs-Szenario (Default 2,5 %, Festgeld z.B. 3,5 %, Wertpapier-Mix z.B. 6–8 %).</p>
         </div>
-        <p class="text-tertiary text-small" style="margin:6px 14px 0;">Annahme für die EK-Verzinsung im Vergleichs-Szenario (Default 2,5 %, Festgeld z.B. 3,5 %, Wertpapier-Mix z.B. 6–8 %).</p>
       </div>
 
       <!-- Story-Sektionen (Vertriebs-Erzählung) -->
@@ -1518,6 +1522,8 @@ function drawCharts(r) {
   const restschuld   = r.vermoegen.map(v => Math.round(v.restschuld));
   const kumCf        = r.vermoegen.map(v => Math.round(v.kumCf || 0));
   const gesamtVerm   = r.vermoegen.map(v => Math.round(v.vermoegenBrutto)); // = Gesamtvermögen neu
+  const ekBedarf     = Math.round(r.ekBedarf || 0);
+  const ekLinie      = years.map(() => ekBedarf); // konstante Linie für eingesetztes EK
 
   // Cashflow: 10 Jahre (r.cf hat 30 Jahre — wir nehmen die ersten 10)
   const cf10        = r.cf.slice(0, 10);
@@ -1525,6 +1531,35 @@ function drawCharts(r) {
   const cfOperativ  = cf10.map(c => Math.round((c.cfJahr || 0) - (c.stVorteilJahr || 0))); // vor Steuer
   const cfStVorteil = cf10.map(c => Math.round(c.stVorteilJahr || 0));                      // nur Steuervorteil
   const cfNachSt    = cf10.map(c => Math.round(c.cfJahr || 0));                              // gesamt = operativ + Steuervorteil
+
+  // --- Drei farbige Werte für Jahr 1 (Cashflow-Story-Block) ---
+  const werteBlock = document.getElementById('cf-werte-block');
+  if (werteBlock && cf10.length > 0) {
+    const op   = cfOperativ[0];
+    const stV  = cfStVorteil[0];
+    const nach = cfNachSt[0];
+    const fmtMoVal = (v) => (v >= 0 ? '+ ' : '− ') + Math.abs(Math.round(v)).toLocaleString('de-DE') + ' €/Mo';
+    const fmtJrVal = (v) => (v >= 0 ? '+ ' : '− ') + Math.abs(Math.round(v)).toLocaleString('de-DE') + ' €';
+    const farbe = (v) => v >= 0 ? '#2D6E47' : '#9A3E33';
+    const bg    = (v) => v >= 0 ? '#e8f5ee' : '#fdecea';
+    werteBlock.innerHTML = `
+      <div style="padding:10px 14px;background:${bg(op)};border-radius:6px;border-left:3px solid ${farbe(op)};">
+        <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Operativer CF Jahr 1</div>
+        <div style="font-size:18px;font-weight:700;color:${farbe(op)};margin-top:2px;">${fmtJrVal(op)}</div>
+        <div class="text-tertiary text-small">${fmtMoVal(op/12)} · vor Steuer</div>
+      </div>
+      <div style="padding:10px 14px;background:#fef5e7;border-radius:6px;border-left:3px solid #B08A4D;">
+        <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Steuervorteil Jahr 1</div>
+        <div style="font-size:18px;font-weight:700;color:#B08A4D;margin-top:2px;">+ ${Math.round(stV).toLocaleString('de-DE')} €</div>
+        <div class="text-tertiary text-small">+ ${Math.round(stV/12).toLocaleString('de-DE')} €/Mo · AfA × Steuersatz</div>
+      </div>
+      <div style="padding:10px 14px;background:${bg(nach)};border-radius:6px;border-left:3px solid ${farbe(nach)};">
+        <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">CF nach Steuer Jahr 1</div>
+        <div style="font-size:18px;font-weight:700;color:${farbe(nach)};margin-top:2px;">${fmtJrVal(nach)}</div>
+        <div class="text-tertiary text-small">${fmtMoVal(nach/12)} · echter Cashflow</div>
+      </div>
+    `;
+  }
 
   // Sparen vs. Investieren: bleibt wie gehabt
   const sparenLbls = r.sparen.map(s => 'J' + s.y);
@@ -1614,6 +1649,21 @@ function drawCharts(r) {
           tension: 0.3,
           pointRadius: 2,
           pointHoverRadius: 5,
+          fill: false,
+        },
+        // Eingesetztes Eigenkapital — konstante horizontale Linie, nicht-abschreibbar,
+        // hilft visuell zu zeigen, dass der EK ÜBER die Zeit konstant bleibt und der
+        // Vermögensaufbau darüber hinaus stattfindet.
+        {
+          label: 'Eingesetztes EK (konstant)',
+          data: ekLinie,
+          borderColor: '#2c5282',
+          backgroundColor: 'rgba(44,82,130,0)',
+          borderWidth: 1.5,
+          borderDash: [4, 4],
+          tension: 0,
+          pointRadius: 0,
+          pointHoverRadius: 4,
           fill: false,
         },
       ],

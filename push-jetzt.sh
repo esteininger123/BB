@@ -22,7 +22,28 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 41.6 — Charts umgebaut: großer Vermögensaufbau-Graph + 2 kleine darunter + Formeln
+git commit -m "Iter 41.7 — Layout-Fix Charts + Cashflow-Werte-Block + Eigenkapital-Linie
+
+- LAYOUT-BUG gefixt: Sparen-Card war nicht geschlossen → Snapshot wurde hochgezogen,
+  Sparen-Bereich nur linke Spalte sichtbar. Schließendes </div> ergänzt + spar-zins-row
+  korrekt INNERHALB der Sparen-Card platziert.
+
+- Cashflow-Werte-Block über dem Chart (drei farbige Karten Jahr 1):
+  * Operativer CF (grün positiv / rot negativ)
+  * Steuervorteil (gold)
+  * CF nach Steuer (grün/rot je nach Vorzeichen)
+  Jede Karte zeigt Jahres-Wert + Monatswert + Erklärung.
+
+- Eigenkapital-Linie im Hauptchart (Vermögensaufbau):
+  * Konstante horizontale gestrichelte Linie (blau, #2c5282) auf Höhe ekBedarf.
+  * Visualisiert: 'das ist was reingesteckt wurde, alles darüber ist Vermögenszuwachs.'
+  * Formel-Box erklärt: 'Vermögenszuwachs = Gesamtvermögen − eingesetztes EK.'
+
+- Cache-Bust auf v=52.
+
+---
+
+Iter 41.6 — Charts umgebaut: großer Vermögensaufbau-Graph + 2 kleine darunter + Formeln
 
 - Layout neu:
   * GROSSER Hauptchart oben: 'Vermögensaufbau 10 Jahre' (Höhe 420px).
@@ -284,5 +305,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=51-Version lädt."
+echo "damit der Browser die neue v=52-Version lädt."
 echo ""
