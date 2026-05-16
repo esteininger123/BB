@@ -525,8 +525,11 @@ function recalc(i) {
   // Iter 10: AfA-Bemessung immer auf den Kaufpreis (= das was im Vertrag steht).
   //   Steuerrechtlich gilt: anteilig würden Notar/Grundbuch auf die Anschaffungs-
   //   kosten aktiviert. Pragmatisch nicht — wir nehmen die Vertrags-Basis.
-  const afaBemessungBetrag = kpGesamt;
-  const afaJahr = afaBemessungBetrag * i.gebaeudeAnteil * i.afaSatz;
+  // AfA-Bemessung: Kaufpreis × Gebäude-Anteil (Boden-Anteil wird abgezogen — der ist nicht abschreibbar).
+  // Bei fehlendem gebaeudeAnteil: Default 80 %.
+  const gebaeudeAnteilFaktor = (i.gebaeudeAnteil !== undefined && i.gebaeudeAnteil !== null && isFinite(i.gebaeudeAnteil)) ? i.gebaeudeAnteil : 0.8;
+  const afaBemessungBetrag = kpGesamt * gebaeudeAnteilFaktor;
+  const afaJahr = afaBemessungBetrag * i.afaSatz;
   const afaMo = afaJahr / 12;
 
   // Excel-CUMIPMT / CUMPRINC mit beliebiger Periodenspanne (von start_p bis end_p, inkl.)
@@ -647,7 +650,7 @@ function recalc(i) {
 
     // Steuervorteil — Werbungskosten = AfA + Zinsen + Mietverwaltung + Hausverwaltung (WEG)
     // Mietverwaltung und Hausverwaltung gelten beide als nicht-umlagefähige Werbungskosten.
-    const wkAfa = afaBemessungBetrag * i.gebaeudeAnteil * i.afaSatz;
+    const wkAfa = afaBemessungBetrag * i.afaSatz;
     const stVerlustJahr = wkAfa + zinsenJahr + mvJahr + hvJahr - mieteJahr;
     const stVorteilJahr = stVerlustJahr * i.steuersatz;
 

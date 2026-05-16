@@ -22,7 +22,31 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 41.3 — Grunderwerbsteuer + Gebäude-Anteil + Hausgeld-Inflation als pflegbare Felder
+git commit -m "Iter 41.4 — AfA-Bemessung Bug-Fix (Gebäude-Anteil wurde nicht abgezogen in Anzeige) + Excel-Daten Lahr/Karlsruhe
+
+- BUG-FIX kalkulator.js: afaBemessungBetrag jetzt sauber = kpGesamt × gebaeudeAnteil.
+  Bisher war afaBemessungBetrag = kpGesamt (voller Kaufpreis), und afaJahr rechnete
+  doppelt mit × gebaeudeAnteil. Endwerte stimmten, aber Display-Wert AfA-Basis
+  war fälschlich 173.800 € statt 139.040 € (Beispiel Wesseling WE 5).
+- UI: AfA-Basis-Label zeigt jetzt explizit '× Gebäude-Anteil 80 %' im Klartext.
+- UI: AfA-Satz mit 2 Nachkommastellen (3,45 % statt 3,5 %).
+
+- Excel-Daten Lahr WE 6: aus Kalk_Lahr_WHG6.xlsx auf Status Aktiv gepflegt
+  (Hausgeld 62,70, Hausverwaltung 41,65, AfA 4,5 %, Mietzuschuss 0, Wertsteig. 3 %).
+
+- Excel-Daten Karlsruhe WE 7: aus KA Heinstr. 6 REV01 — Vermietungsstatus 'Leer
+  seit 09.03.2025', Soll-Miete 900 €/Mo, letzte Mietsteigerung 2025-03-09.
+  Hausgeld/Hausverwaltung pro WE müssen noch ermittelt werden (Cockpit auf
+  Hausebene).
+
+- 5 Cockpit-Projekte (Haueneberstein, Offenburg August-Hund, Sandweier,
+  Limeshain, Pfaffenhofen) bleiben auf Entwurf — Henry pflegt im Wochenend-Auftrag.
+
+- Cache-Bust auf v=49.
+
+---
+
+Iter 41.3 — Grunderwerbsteuer + Gebäude-Anteil + Hausgeld-Inflation als pflegbare Felder
 
 - Drei neue Felder in Kalkulations-Stammdaten:
   * 'Grunderwerbsteuer' (Percent) — pro Bundesland: BaWü 5 %, Bayern 3,5 %,
@@ -203,5 +227,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=48-Version lädt."
+echo "damit der Browser die neue v=49-Version lädt."
 echo ""

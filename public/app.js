@@ -1411,8 +1411,8 @@ function renderStories(r) {
   const steuervorteil = story('03 — Steuervorteil', 'AfA + Werbungskosten = Cashflow-Hebel', `
     <div class="story-grid">
       <table class="story-table">
-        <tr><td>AfA-Basis (Kaufpreis × Gebäude-Anteil)</td><td class="num">${fmt(afaBemessung)}</td></tr>
-        <tr><td>AfA-Satz</td><td class="num">${fmtPct(i.afaSatz)}</td></tr>
+        <tr><td>AfA-Basis (Kaufpreis × Gebäude-Anteil ${fmtPct(i.gebaeudeAnteil || 0.8, 0)})</td><td class="num">${fmt(afaBemessung)}</td></tr>
+        <tr><td>AfA-Satz</td><td class="num">${fmtPct(i.afaSatz, 2)}</td></tr>
         <tr><td><strong>AfA pro Jahr (konstant)</strong></td><td class="num"><strong>${fmt(afaJahr)}</strong></td></tr>
         <tr><td>+ Zinsen Jahr 1</td><td class="num">${fmt(zinsenJ1)}</td></tr>
         <tr><td>+ Mietverwaltung (SEV) Jahr 1</td><td class="num">${fmt(mvJ1)}</td></tr>
