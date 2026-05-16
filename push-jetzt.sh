@@ -22,7 +22,40 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 41.2 — Stammdaten-Audit + einheitliche Bezeichnungen + Excel-Daten live aus Airtable
+git commit -m "Iter 41.3 — Grunderwerbsteuer + Gebäude-Anteil + Hausgeld-Inflation als pflegbare Felder
+
+- Drei neue Felder in Kalkulations-Stammdaten:
+  * 'Grunderwerbsteuer' (Percent) — pro Bundesland: BaWü 5 %, Bayern 3,5 %,
+    NRW 6,5 %, Hessen 6 %. Wird in der Kalkulation für KNK statt hardcoded 5 %
+    verwendet.
+  * 'Gebäude-Anteil' (Percent) — für AfA-Bemessung, Default 80 %.
+  * 'Hausgeld-Inflation p.a.' (Percent) — Default 2 %.
+
+- Werte initial befüllt für alle 43 WEs anhand PLZ → Bundesland:
+  * 76xxx / 77xxx / 79xxx → BaWü 5,0 %
+  * 50xxx (Wesseling) → NRW 6,5 %
+  * 63xxx (Limeshain) → Hessen 6,0 %
+  * 85xxx (Pfaffenhofen) → Bayern 3,5 %
+  Gebäude-Anteil 80 % + HG-Inflation 2 % als Default für alle —
+  Henry/Steuerberater pflegt individuell nach.
+
+- Kalkulator-Logik:
+  * recalc() in kalkulator.js: KNK-Berechnung jetzt
+    grEstPct + 1,5 % Notar + 0,5 % Grundbuch + 1,5 % Provision
+    statt hardcoded 8,5 %. Fallback 5 % (BaWü) bei fehlenden Stammdaten.
+  * Wesseling-WEs: bisher 8,5 % KNK → ab jetzt 10 % (korrekt).
+  * Pfaffenhofen-WEs: bisher 8,5 % → ab jetzt 7 %.
+
+- Frontend: loadWeIntoKalk übernimmt grEstPct, gebaeudeAnteil, hgInflation
+  aus Airtable in state.kalk.
+
+- Admin-Audit-Tabelle erweitert um 3 Spalten: Geb.-Anteil, HG-Inflation, GrESt.
+
+- Cache-Bust auf v=48.
+
+---
+
+Iter 41.2 — Stammdaten-Audit + einheitliche Bezeichnungen + Excel-Daten live aus Airtable
 
 - Bezeichnung aller 43 WEs einheitlich auf Format 'WE: X, Lage, Straße, PLZ Ort'
   (= identisch mit WE-Titel aus Wohneinheit-Tabelle).
@@ -170,5 +203,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=47-Version lädt."
+echo "damit der Browser die neue v=48-Version lädt."
 echo ""

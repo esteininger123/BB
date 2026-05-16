@@ -1152,6 +1152,9 @@ async function loadWeIntoKalk(weId) {
       if (sd.mietzuschussMonate !== null)    state.kalk.subventionMonate = sd.mietzuschussMonate;
       if (sd.afaGutachten !== null)          state.kalk.afaSatz = sd.afaGutachten;
       if (sd.wertsteigerung !== null)        state.kalk.wertsteigerung = sd.wertsteigerung;
+      if (sd.grEst !== null)                 state.kalk.grEstPct = sd.grEst;
+      if (sd.gebaeudeAnteil !== null)        state.kalk.gebaeudeAnteil = sd.gebaeudeAnteil;
+      if (sd.hgInflation !== null)           state.kalk.hgInflation = sd.hgInflation;
       // Mieterhöhungs-Logik → mappen auf bestehende kalkulator.js-Felder
       state.kalk._vermietungsModus = sd.vermietungsModus;
       state.kalk._kappungsgrenze = sd.kappungsgrenze;
@@ -2445,7 +2448,10 @@ function renderAdminStammdatenAudit(audit) {
                     <th class="num">Hausverw.</th>
                     <th class="num">Mietzu-<br>schuss / Mo</th>
                     <th class="num">AfA<br>Gut.</th>
+                    <th class="num">Geb.-<br>Anteil</th>
                     <th class="num">Wertst.<br>p.a.</th>
+                    <th class="num">HG-<br>Infl.</th>
+                    <th class="num">GrESt</th>
                     <th>Mieterh.<br>Modus</th>
                     <th class="num">Letzte<br>Mieterh.</th>
                     <th>Quelle / Notiz</th>
@@ -2469,7 +2475,10 @@ function renderAdminStammdatenAudit(audit) {
                         <td class="num">${sd ? eurN(sd.hausverwaltung) : statusBadge(null)}</td>
                         <td class="num">${sd && sd.mietzuschuss > 0 ? eurN(sd.mietzuschuss) + '<br>' + (sd.mietzuschussMonate || 0) + ' Mo' : '<span class="text-tertiary">–</span>'}</td>
                         <td class="num">${sd ? pctN(sd.afaGutachten) : statusBadge(null)}</td>
+                        <td class="num">${sd ? pctN(sd.gebaeudeAnteil) : statusBadge(null)}</td>
                         <td class="num">${sd ? pctN(sd.wertsteigerung) : statusBadge(null)}</td>
+                        <td class="num">${sd ? pctN(sd.hgInflation) : statusBadge(null)}</td>
+                        <td class="num">${sd ? pctN(sd.grEst) : statusBadge(null)}</td>
                         <td><span class="text-tertiary text-small">${esc((sd && sd.vermietungsModus) || '–')}<br>${esc((sd && sd.kappungsgrenze) || '')}</span></td>
                         <td class="num text-small">${dateN(r.vermietung && r.vermietung.letzteMietsteigerung)}<br><span class="text-tertiary" style="font-size:10px;">${esc((r.vermietung && r.vermietung.letzteMietsteigerungQuelle) || '')}</span></td>
                         <td class="text-tertiary text-small">${esc((sd && sd.quelle) || '–')}${sd && sd.notizen ? '<br><em>' + esc((sd.notizen || '').slice(0, 80)) + '…</em>' : ''}</td>

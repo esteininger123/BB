@@ -138,6 +138,9 @@ const KALK_STAMMDATEN_FIELDS = {
   KAPPUNGSGRENZE:        'fldna2Hj1m1ST94Z3',
   INDEXMIETE:            'fldFlwdAP4xQ2muO5',
   LETZTE_MIETSTEIGERUNG: 'fldpLwMLe2PTCO3t7',
+  GRESt:                 'fld8pmE00wfH0v7jR',
+  GEBAEUDE_ANTEIL:       'fld56AAbrC4yPJQrb',
+  HG_INFLATION:          'fld6KJtkjtXjSVhtk',
   NOTIZEN:               'fld097ACU9qRS5kwq',
   QUELLE:                'fldrMUcQs06YF0lGi',
 };

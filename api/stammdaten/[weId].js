@@ -212,6 +212,9 @@ function kalkStammRecordToApi(rec) {
     kappungsgrenze,
     indexmiete:            num(f[KALK_STAMMDATEN_FIELDS.INDEXMIETE]),
     letzteMietsteigerung:  f[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG] || null,
+    grEst:                 num(f[KALK_STAMMDATEN_FIELDS.GRESt]),
+    gebaeudeAnteil:        num(f[KALK_STAMMDATEN_FIELDS.GEBAEUDE_ANTEIL]),
+    hgInflation:           num(f[KALK_STAMMDATEN_FIELDS.HG_INFLATION]),
     notizen:               f[KALK_STAMMDATEN_FIELDS.NOTIZEN] || '',
     quelle:                f[KALK_STAMMDATEN_FIELDS.QUELLE] || '',
   };
@@ -308,6 +311,9 @@ module.exports = async (req, res) => {
       if (body.kappungsgrenze !== undefined)        fields[KALK_STAMMDATEN_FIELDS.KAPPUNGSGRENZE]       = body.kappungsgrenze;
       if (body.indexmiete !== undefined)            fields[KALK_STAMMDATEN_FIELDS.INDEXMIETE]           = num(body.indexmiete);
       if (body.letzteMietsteigerung !== undefined)  fields[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG] = body.letzteMietsteigerung || null;
+      if (body.grEst !== undefined)                 fields[KALK_STAMMDATEN_FIELDS.GRESt]                = num(body.grEst);
+      if (body.gebaeudeAnteil !== undefined)        fields[KALK_STAMMDATEN_FIELDS.GEBAEUDE_ANTEIL]      = num(body.gebaeudeAnteil);
+      if (body.hgInflation !== undefined)           fields[KALK_STAMMDATEN_FIELDS.HG_INFLATION]         = num(body.hgInflation);
       if (body.notizen !== undefined)               fields[KALK_STAMMDATEN_FIELDS.NOTIZEN]              = body.notizen || '';
 
       // Quelle automatisch setzen: "App-Edit {VertrieblerName} {YYYY-MM-DD}"
