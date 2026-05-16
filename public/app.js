@@ -673,22 +673,36 @@ function renderTabKalkulator() {
         <!-- Bonitäts-Anzeige (wird in recalcAndRender gefüllt) -->
       </div>
 
-      <div class="grid-2 mt-16">
-        <div class="card">
-          <div class="card-title">Vermögensaufbau netto (10 J)</div>
-          <div class="text-tertiary text-small">Wert minus Restschuld minus eingesetztes EK plus kumulierter Cashflow.</div>
-          <div class="chart-container"><canvas id="chart-vermoegen"></canvas></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Cashflow (30 J)</div>
-          <div class="text-tertiary text-small">Jahres-Cashflow nach Steuern. Negative Jahre = Eigenleistung.</div>
-          <div class="chart-container"><canvas id="chart-cashflow"></canvas></div>
+      <!-- HAUPTCHART: Vermögensaufbau (groß, 10 J) — Schere Marktwert ↔ Restschuld -->
+      <div class="card mt-16">
+        <div class="card-title">Vermögensaufbau 10 Jahre</div>
+        <div class="text-tertiary text-small">Die Schere zwischen Marktwert und Restschuld öffnet sich Jahr für Jahr — das ist der Vermögensaufbau.</div>
+        <div class="chart-container" style="height:420px;"><canvas id="chart-vermoegen"></canvas></div>
+        <div class="chart-formula" style="margin-top:12px;padding:12px 16px;background:#f8fafc;border-left:3px solid #B08A4D;border-radius:6px;font-size:13px;">
+          <strong>Formel:</strong> Gesamtvermögen = (Marktwert × Wertsteigerung<sup>n</sup>) − Restschuld + kum. Cashflows<br>
+          <span class="text-tertiary text-small">Marktwert steigt mit Wertsteigerung. Restschuld sinkt mit Tilgung. Die Differenz (Schere) plus die kumulierten Cashflows ist das Gesamtvermögen.</span>
         </div>
       </div>
-      <div class="card mt-16">
-        <div class="card-title">Sparen vs. Investieren (10 J)</div>
-        <div class="text-tertiary text-small">Vergleich: EK verzinst sich auf einem Anlage-Konto vs. EK fließt als Immobilien-Investment inkl. CF.</div>
-        <div class="chart-container"><canvas id="chart-sparen"></canvas></div>
+
+      <!-- DARUNTER: Cashflow + Sparen-vs-Investieren nebeneinander -->
+      <div class="grid-2 mt-16">
+        <div class="card">
+          <div class="card-title">Cashflow 10 Jahre</div>
+          <div class="text-tertiary text-small">Operativer Cashflow (vor Steuer) + Steuervorteil = Cashflow nach Steuer.</div>
+          <div class="chart-container"><canvas id="chart-cashflow"></canvas></div>
+          <div class="chart-formula" style="margin-top:12px;padding:10px 14px;background:#f8fafc;border-left:3px solid #2D6E47;border-radius:6px;font-size:12px;">
+            <strong>Formel:</strong> Operativer CF = Miete − Zinsen − Tilgung − Hausgeld − Verwaltung<br>
+            <strong>CF nach Steuer</strong> = Operativer CF + Steuervorteil (AfA × Steuersatz)
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Sparen vs. Investieren (10 J)</div>
+          <div class="text-tertiary text-small">EK verzinst sich auf Anlage-Konto vs. EK als Immobilien-Investment inkl. CF.</div>
+          <div class="chart-container"><canvas id="chart-sparen"></canvas></div>
+          <div class="chart-formula" style="margin-top:12px;padding:10px 14px;background:#f8fafc;border-left:3px solid #7A7A72;border-radius:6px;font-size:12px;">
+            <strong>Formel:</strong> Nur Sparen = EK × (1 + Zins)<sup>n</sup><br>
+            <strong>Mit Immobilie</strong> = (Wert − Restschuld) + kum. CF (steigt mit Tilgung + Mieterhöhung)
+          </div>
         <div class="spar-zins-row" style="display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;">
           <label for="spar-zins-slider" style="font-weight:600;color:#2c5282;white-space:nowrap;text-transform:none;letter-spacing:0;">Verzinsung des Eigenkapitals p.a.:</label>
           <input type="range" id="spar-zins-slider" min="0" max="12" step="0.05"
@@ -1495,25 +1509,35 @@ function renderStories(r) {
 
 function drawCharts(r) {
   if (!window.Chart) return;
-  // Defensiv: wenn Charts-Container noch nicht im DOM (z.B. vor WE-Auswahl), nicht zeichnen.
   if (!document.getElementById('chart-vermoegen')) return;
-  const years = r.vermoegen.map(v => 'J' + v.y);
-  const verm = r.vermoegen.map(v => Math.round(v.vermoegenNetto));
-  const cfYears = r.cf.map(c => 'J' + c.y);
-  const cfVals = r.cf.map(c => Math.round(c.cfJahr));
-  const sparenLbls = r.sparen.map(s => 'J' + s.y);
-  const sparenNur = r.sparen.map(s => Math.round(s.nurSparen));
-  const sparenMit = r.sparen.map(s => Math.round(s.mitImmo));
 
-  // Gemeinsame Chart-Optionen: Index-Mode für tolerantes Hovern,
-  // intersect=false damit Tooltip auch ohne Punkt-Treffer kommt,
-  // Euro-Formatierung auf Tooltip + Y-Achse.
+  // --- Daten vorbereiten ---
+  // Vermögensaufbau: nur 10 Jahre (r.vermoegen ist 0..10)
+  const years = r.vermoegen.map(v => 'J' + v.y);
+  const marktwert    = r.vermoegen.map(v => Math.round(v.wert));
+  const restschuld   = r.vermoegen.map(v => Math.round(v.restschuld));
+  const kumCf        = r.vermoegen.map(v => Math.round(v.kumCf || 0));
+  const gesamtVerm   = r.vermoegen.map(v => Math.round(v.vermoegenBrutto)); // = Gesamtvermögen neu
+
+  // Cashflow: 10 Jahre (r.cf hat 30 Jahre — wir nehmen die ersten 10)
+  const cf10        = r.cf.slice(0, 10);
+  const cfYears     = cf10.map(c => 'J' + c.y);
+  const cfOperativ  = cf10.map(c => Math.round((c.cfJahr || 0) - (c.stVorteilJahr || 0))); // vor Steuer
+  const cfStVorteil = cf10.map(c => Math.round(c.stVorteilJahr || 0));                      // nur Steuervorteil
+  const cfNachSt    = cf10.map(c => Math.round(c.cfJahr || 0));                              // gesamt = operativ + Steuervorteil
+
+  // Sparen vs. Investieren: bleibt wie gehabt
+  const sparenLbls = r.sparen.map(s => 'J' + s.y);
+  const sparenNur  = r.sparen.map(s => Math.round(s.nurSparen));
+  const sparenMit  = r.sparen.map(s => Math.round(s.mitImmo));
+
+  // --- Helper / Optionen ---
   const eurTooltip = {
     callbacks: {
       label: (ctx) => {
         const v = ctx.parsed.y;
         const lbl = ctx.dataset.label || '';
-        return lbl + ': ' + (typeof v === 'number' ? v.toLocaleString('de-DE') + ' €' : v);
+        return lbl + ': ' + (typeof v === 'number' ? Math.round(v).toLocaleString('de-DE') + ' €' : v);
       }
     }
   };
@@ -1521,7 +1545,7 @@ function drawCharts(r) {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
-    plugins: { tooltip: eurTooltip },
+    plugins: { tooltip: eurTooltip, legend: { position: 'top' } },
     scales: {
       y: {
         ticks: {
@@ -1533,33 +1557,125 @@ function drawCharts(r) {
     }
   };
 
+  // ============================================================
+  // HAUPTCHART: Vermögensaufbau — Schere Marktwert ↔ Restschuld
+  // ============================================================
   if (chartV) chartV.destroy();
   chartV = new Chart(document.getElementById('chart-vermoegen'), {
     type: 'line',
-    data: { labels: years, datasets: [{
-      label: 'Vermögensaufbau netto', data: verm,
-      borderColor: '#B08A4D', backgroundColor: 'rgba(176,138,77,0.15)',
-      tension: 0.3, fill: true, pointRadius: 3, pointHoverRadius: 6,
-    }] },
+    data: {
+      labels: years,
+      datasets: [
+        // Marktwert oben — gefüllter Bereich nach unten zur Restschuld
+        {
+          label: 'Marktwert (Immobilie)',
+          data: marktwert,
+          borderColor: '#2D6E47',
+          backgroundColor: 'rgba(45,110,71,0.10)',
+          borderWidth: 2.5,
+          tension: 0.3,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          fill: '+1',   // füllt bis zum nächsten Dataset (= Restschuld) → das ist die Schere
+        },
+        // Restschuld — die Unterkante der Schere
+        {
+          label: 'Restschuld (Darlehen)',
+          data: restschuld,
+          borderColor: '#9A3E33',
+          backgroundColor: 'rgba(154,62,51,0.05)',
+          borderWidth: 2.5,
+          borderDash: [6, 3],
+          tension: 0.3,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          fill: false,
+        },
+        // Gesamtvermögen — die Haupt-Linie für die Story
+        {
+          label: 'Gesamtvermögen',
+          data: gesamtVerm,
+          borderColor: '#B08A4D',
+          backgroundColor: 'rgba(176,138,77,0)',
+          borderWidth: 3.5,
+          tension: 0.3,
+          pointRadius: 4,
+          pointHoverRadius: 7,
+          fill: false,
+        },
+        // Kumulierter Cashflow — dünne Hilfslinie, oft negativ in Anlaufphase
+        {
+          label: 'Kumulierter Cashflow',
+          data: kumCf,
+          borderColor: '#7A7A72',
+          backgroundColor: 'rgba(122,122,114,0)',
+          borderWidth: 1.5,
+          borderDash: [2, 4],
+          tension: 0.3,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+          fill: false,
+        },
+      ],
+    },
     options: baseOpts
   });
 
+  // ============================================================
+  // CASHFLOW: 10 Jahre, operativ + Steuervorteil gestapelt
+  // ============================================================
   if (chartC) chartC.destroy();
   chartC = new Chart(document.getElementById('chart-cashflow'), {
     type: 'bar',
-    data: { labels: cfYears, datasets: [{
-      label: 'Cashflow', data: cfVals,
-      backgroundColor: cfVals.map(v => v >= 0 ? 'rgba(45,110,71,0.7)' : 'rgba(154,62,51,0.7)'),
-    }] },
-    options: baseOpts
+    data: {
+      labels: cfYears,
+      datasets: [
+        {
+          label: 'Operativer CF (vor Steuer)',
+          data: cfOperativ,
+          backgroundColor: cfOperativ.map(v => v >= 0 ? 'rgba(45,110,71,0.7)' : 'rgba(154,62,51,0.7)'),
+          stack: 'cf',
+        },
+        {
+          label: 'Steuervorteil',
+          data: cfStVorteil,
+          backgroundColor: 'rgba(176,138,77,0.75)',
+          stack: 'cf',
+        },
+      ],
+    },
+    options: Object.assign({}, baseOpts, {
+      scales: {
+        x: { stacked: true },
+        y: Object.assign({}, baseOpts.scales.y, { stacked: true }),
+      },
+      plugins: Object.assign({}, baseOpts.plugins, {
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const v = ctx.parsed.y;
+              const lbl = ctx.dataset.label || '';
+              return lbl + ': ' + (typeof v === 'number' ? Math.round(v).toLocaleString('de-DE') + ' €' : v);
+            },
+            footer: (items) => {
+              const sum = items.reduce((s, it) => s + (it.parsed.y || 0), 0);
+              return 'CF nach Steuer: ' + Math.round(sum).toLocaleString('de-DE') + ' €';
+            }
+          }
+        }
+      }),
+    })
   });
 
+  // ============================================================
+  // SPAREN vs. INVESTIEREN
+  // ============================================================
   if (chartS) chartS.destroy();
   chartS = new Chart(document.getElementById('chart-sparen'), {
     type: 'line',
     data: { labels: sparenLbls, datasets: [
-      { label: 'Nur Sparen', data: sparenNur, borderColor: '#7A7A72', tension: 0.3, pointRadius: 2, pointHoverRadius: 5 },
-      { label: 'Mit Immobilie', data: sparenMit, borderColor: '#B08A4D', tension: 0.3, pointRadius: 2, pointHoverRadius: 5 },
+      { label: 'Nur Sparen', data: sparenNur, borderColor: '#7A7A72', borderWidth: 2, tension: 0.3, pointRadius: 2, pointHoverRadius: 5 },
+      { label: 'Mit Immobilie', data: sparenMit, borderColor: '#B08A4D', borderWidth: 2.5, tension: 0.3, pointRadius: 2, pointHoverRadius: 5 },
     ] },
     options: baseOpts
   });

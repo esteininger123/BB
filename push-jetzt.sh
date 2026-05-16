@@ -22,7 +22,32 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 41.5 — Saubere Vermögens-Begriffe: Verkaufserlös, Gesamtvermögen, Vermögenszuwachs
+git commit -m "Iter 41.6 — Charts umgebaut: großer Vermögensaufbau-Graph + 2 kleine darunter + Formeln
+
+- Layout neu:
+  * GROSSER Hauptchart oben: 'Vermögensaufbau 10 Jahre' (Höhe 420px).
+    4 Linien: Marktwert (grün), Restschuld (rot gestrichelt), Gesamtvermögen
+    (gold, dick), kum. CF (grau gestrichelt). Die Fläche zwischen Marktwert
+    und Restschuld ist gefüllt — das ist die 'Schere', die sich Jahr für Jahr
+    öffnet (= Vermögensaufbau visuell).
+  * Darunter 2 kleinere Charts nebeneinander: Cashflow + Sparen vs. Investieren.
+
+- Cashflow-Chart neu:
+  * 10 Jahre statt 30.
+  * Gestapeltes Bar-Chart: Operativer CF (vor Steuer, grün/rot je nach Vorzeichen)
+    + Steuervorteil (gold). Summe = CF nach Steuer.
+  * Tooltip zeigt: Operativer CF + Steuervorteil + 'CF nach Steuer' als Footer.
+
+- Erklär-Boxen mit Formel unter jedem Chart:
+  * Vermögensaufbau: 'Gesamtvermögen = (Marktwert × Wertsteigerung^n) − Restschuld + kum. Cashflows'
+  * Cashflow: 'Operativer CF = Miete − Zinsen − Tilgung − Hausgeld − Verwaltung. CF nach Steuer = + Steuervorteil (AfA × Steuersatz)'
+  * Sparen vs. Investieren: 'Nur Sparen = EK × (1 + Zins)^n. Mit Immobilie = Verkaufserlös + kum. CF'
+
+- Cache-Bust auf v=51.
+
+---
+
+Iter 41.5 — Saubere Vermögens-Begriffe: Verkaufserlös, Gesamtvermögen, Vermögenszuwachs
 
 - kalkulator.js: Vermögens-Hierarchie umstrukturiert.
   Bisher: Vermögen brutto = Wert − Restschuld
@@ -259,5 +284,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=50-Version lädt."
+echo "damit der Browser die neue v=51-Version lädt."
 echo ""
