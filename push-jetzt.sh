@@ -22,7 +22,38 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 41-Hotfix — Doppeltes 'async'-Keyword vor loadWeIntoKalk entfernt (verursachte weißen Screen). Cache-Bust v=45.
+git commit -m "Iter 41.1 — Erweiterung: 15 fehlende WEs nachgepflegt + Letzte Mietsteigerung + Vermietungs-Status
+
+- 15 neue WEs in Kalkulations-Stammdaten (alle Status Entwurf, leer für Henry):
+  Haueneberstein (6 WEs Am Mühlwäldle 5), Offenburg (7 WEs August-Hund-Str. 4),
+  Heidelberger Bruchsal (WE 13 + WE 16 nachgepflegt).
+  Gesamt jetzt: 43 WEs in Vermarktung in der Kalkulations-Tabelle.
+
+- Neues Feld in Kalkulations-Stammdaten: 'Letzte Mietsteigerung' (Date, europäisch).
+  Henry/Schenki kann pflegen; wenn leer, fällt Backend zurück auf den jüngsten
+  Mietvertrag-GUELTIG_AB oder VERTRAGSBEGINN.
+
+- Backend api/stammdaten/[weId].js erweitert:
+  * loadMietvertragInfoForWE: aggregiert Stellplatzmiete UND ermittelt
+    'vermietet/leer' UND letzte Mietsteigerung über alle verlinkten Verträge.
+  * Response um 'vermietung'-Block ergänzt:
+    { status: 'vermietet'|'leer', vertragVorhanden, letzteMietsteigerung,
+      letzteMietsteigerungQuelle }
+  * PUT akzeptiert jetzt 'letzteMietsteigerung' als Date-String.
+
+- Frontend public/app.js:
+  * loadWeIntoKalk speichert state.kalk._vermietungsStatus +
+    _letzteMietsteigerung. Berechnet state.kalk.monateSeitMieterhoehung
+    automatisch aus Datum (für recalc).
+  * UI: 'vermietet' (grünes Badge) / 'leer' (rotes Badge) direkt am
+    aktiven WE im Kalkulator + 'letzte Mietsteig.: DD.MM.YYYY'.
+
+- Henry-Anleitung aktualisiert (31 leere WEs statt 16, plus die 15 neuen).
+- Cache-Bust auf v=46.
+
+---
+
+Hotfix Iter 41 — Doppeltes 'async'-Keyword vor loadWeIntoKalk entfernt (verursachte weißen Screen).
 
 ---
 
@@ -105,5 +136,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=45-Version lädt."
+echo "damit der Browser die neue v=46-Version lädt."
 echo ""

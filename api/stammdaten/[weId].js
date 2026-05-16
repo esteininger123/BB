@@ -84,9 +84,13 @@ async function loadStellplaetzeForWE(weId) {
   }
 }
 
-// Liefert die Stellplatzmiete aus dem aktiven Mietvertrag (falls verlinkt).
-// Aggregiert über mehrere Mietverträge falls eine WE mehrere aktive Mieter hat.
-async function loadStellplatzmieteFromVertrag(weId) {
+// Liefert alle Mietvertrag-relevanten Infos für eine WE in einem Pass:
+//   - Stellplatzmiete-Summe (aggregiert über verknüpfte Mietverträge)
+//   - Vermietungs-Status (vermietet=true, wenn mind. 1 Vertrag mit dieser WE existiert,
+//     der nicht offensichtlich archiviert ist)
+//   - Letzte Mietsteigerung (Datum) — nimmt das jüngste GUELTIG_AB-Datum,
+//     fallback auf das jüngste VERTRAGSBEGINN-Datum
+async function loadMietvertragInfoForWE(weId) {
   try {
     const recs = await listAll(TABLES.MIETVERTRAG, {
       fields: [
@@ -94,11 +98,18 @@ async function loadStellplatzmieteFromVertrag(weId) {
         MIETVERTRAG_FIELDS.STELLPLATZ_LINK,
         MIETVERTRAG_FIELDS.STELLPLATZMIETE,
         MIETVERTRAG_FIELDS.STATUS_LOOKUP,
+        MIETVERTRAG_FIELDS.VERTRAGSBEGINN,
+        MIETVERTRAG_FIELDS.GUELTIG_AB,
+        MIETVERTRAG_FIELDS.VERTRAGSART,
       ],
     }, 5000);
 
-    let total = 0;
-    let count = 0;
+    let stplMietsumme = 0;
+    let vertraegeMitStellplatz = 0;
+    let jungsteMietsteigerung = null; // YYYY-MM-DD
+    let jungsterVertragsbeginn = null;
+    let vertragVorhanden = false;
+
     recs.forEach(r => {
       const f = r.fields || {};
       const weLink = f[MIETVERTRAG_FIELDS.WE_LINK] || [];
@@ -107,17 +118,39 @@ async function loadStellplatzmieteFromVertrag(weId) {
         return id === weId;
       });
       if (!linked) return;
+      vertragVorhanden = true;
       const stpl = f[MIETVERTRAG_FIELDS.STELLPLATZ_LINK];
       const stplMiete = num(f[MIETVERTRAG_FIELDS.STELLPLATZMIETE]) || 0;
       if (stpl && stplMiete > 0) {
-        total += stplMiete;
-        count += 1;
+        stplMietsumme += stplMiete;
+        vertraegeMitStellplatz += 1;
+      }
+      const gueltig = f[MIETVERTRAG_FIELDS.GUELTIG_AB];
+      const beginn = f[MIETVERTRAG_FIELDS.VERTRAGSBEGINN];
+      if (gueltig && (!jungsteMietsteigerung || gueltig > jungsteMietsteigerung)) {
+        jungsteMietsteigerung = gueltig;
+      }
+      if (beginn && (!jungsterVertragsbeginn || beginn > jungsterVertragsbeginn)) {
+        jungsterVertragsbeginn = beginn;
       }
     });
-    return { mietsumme: total, vertraegeMitStellplatz: count };
+
+    return {
+      stellplatzMietsumme: stplMietsumme,
+      vertraegeMitStellplatz,
+      vertragVorhanden,
+      letzteMietsteigerung: jungsteMietsteigerung || jungsterVertragsbeginn || null,
+      jungsterVertragsbeginn,
+    };
   } catch (e) {
-    console.error('loadStellplatzmieteFromVertrag failed:', e.message);
-    return { mietsumme: 0, vertraegeMitStellplatz: 0 };
+    console.error('loadMietvertragInfoForWE failed:', e.message);
+    return {
+      stellplatzMietsumme: 0,
+      vertraegeMitStellplatz: 0,
+      vertragVorhanden: false,
+      letzteMietsteigerung: null,
+      jungsterVertragsbeginn: null,
+    };
   }
 }
 
@@ -178,6 +211,7 @@ function kalkStammRecordToApi(rec) {
     vermietungsModus,
     kappungsgrenze,
     indexmiete:            num(f[KALK_STAMMDATEN_FIELDS.INDEXMIETE]),
+    letzteMietsteigerung:  f[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG] || null,
     notizen:               f[KALK_STAMMDATEN_FIELDS.NOTIZEN] || '',
     quelle:                f[KALK_STAMMDATEN_FIELDS.QUELLE] || '',
   };
@@ -207,18 +241,28 @@ module.exports = async (req, res) => {
         qmPreis:   num(wf[WE_FIELDS.QM_PREIS]),
       };
 
-      // --- 2) Stellplätze + Mietvertrag-Stellplatzmiete parallel ---
-      const [stellplaetze, vertragStpl, kalkRec] = await Promise.all([
+      // --- 2) Stellplätze + Mietvertrag-Info parallel ---
+      const [stellplaetze, vertragInfo, kalkRec] = await Promise.all([
         loadStellplaetzeForWE(weId),
-        loadStellplatzmieteFromVertrag(weId),
+        loadMietvertragInfoForWE(weId),
         loadKalkStammdatenForWE(weId),
       ]);
 
       // Stellplatz-Aggregat: Kaufpreis-Summe + Miete (Mietvertrag hat Vorrang, sonst alte Spalte)
       const stpKaufpreisSumme = stellplaetze.reduce((s, x) => s + (x.kaufpreis || 0), 0);
       const stpAlteMieteSumme = stellplaetze.reduce((s, x) => s + (x.mieteMo || 0), 0);
-      // Vertrag-Stellplatzmiete hat Priorität (siehe SOP-E: Mietvertrag = Single Source of Truth)
-      const stpMieteEffektiv = vertragStpl.mietsumme > 0 ? vertragStpl.mietsumme : stpAlteMieteSumme;
+      const stpMieteEffektiv = vertragInfo.stellplatzMietsumme > 0 ? vertragInfo.stellplatzMietsumme : stpAlteMieteSumme;
+
+      // Vermietungs-Status: vermietet wenn Vertrag vorhanden ODER Kaltmiete > 0 in WE
+      // (Excel-Werte berücksichtigen, falls Mietvertrag-Tabelle nicht gepflegt ist)
+      const vermietet = vertragInfo.vertragVorhanden || (we.kaltmiete > 0);
+
+      // Letzte Mietsteigerung: erst aus Kalk-Stammdaten (manuell gepflegt von Henry/Schenki),
+      // sonst aus Mietvertrag-Tabelle (GUELTIG_AB || VERTRAGSBEGINN), sonst null.
+      const kalkLetzte = (kalkRec && kalkRec.fields && kalkRec.fields[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG]) || null;
+      const letzteMietsteigerung = kalkLetzte || vertragInfo.letzteMietsteigerung || null;
+      const letzteMietsteigerungQuelle = kalkLetzte ? 'kalk-stammdaten' :
+        (vertragInfo.letzteMietsteigerung ? 'mietvertrag' : 'unbekannt');
 
       return res.status(200).json({
         we,
@@ -226,8 +270,14 @@ module.exports = async (req, res) => {
           anzahl:        stellplaetze.length,
           kaufpreisSumme: stpKaufpreisSumme,
           mieteMoSumme:   stpMieteEffektiv,
-          mieteMoQuelle:  vertragStpl.mietsumme > 0 ? 'mietvertrag' : (stpAlteMieteSumme > 0 ? 'stellplatz-alt' : 'keine'),
-          details:        stellplaetze, // einzelne Stellplätze (für Detailanzeige)
+          mieteMoQuelle:  vertragInfo.stellplatzMietsumme > 0 ? 'mietvertrag' : (stpAlteMieteSumme > 0 ? 'stellplatz-alt' : 'keine'),
+          details:        stellplaetze,
+        },
+        vermietung: {
+          status:                 vermietet ? 'vermietet' : 'leer',
+          vertragVorhanden:       vertragInfo.vertragVorhanden,
+          letzteMietsteigerung,            // ISO-Date oder null
+          letzteMietsteigerungQuelle,      // 'kalk-stammdaten' | 'mietvertrag' | 'unbekannt'
         },
         kalkStammdaten: kalkStammRecordToApi(kalkRec),
       });
@@ -257,6 +307,7 @@ module.exports = async (req, res) => {
       if (body.vermietungsModus !== undefined)      fields[KALK_STAMMDATEN_FIELDS.VERMIETUNGS_MODUS]    = body.vermietungsModus;
       if (body.kappungsgrenze !== undefined)        fields[KALK_STAMMDATEN_FIELDS.KAPPUNGSGRENZE]       = body.kappungsgrenze;
       if (body.indexmiete !== undefined)            fields[KALK_STAMMDATEN_FIELDS.INDEXMIETE]           = num(body.indexmiete);
+      if (body.letzteMietsteigerung !== undefined)  fields[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG] = body.letzteMietsteigerung || null;
       if (body.notizen !== undefined)               fields[KALK_STAMMDATEN_FIELDS.NOTIZEN]              = body.notizen || '';
 
       // Quelle automatisch setzen: "App-Edit {VertrieblerName} {YYYY-MM-DD}"

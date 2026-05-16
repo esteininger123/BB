@@ -611,7 +611,17 @@ function renderTabKalkulator() {
               `).join('')}
             </select>
             ${i._weId ? `
-              <div class="text-tertiary text-small mt-4">Aktiv: ${esc(i._weNr ? 'WE ' + i._weNr + ' · ' : '')}${esc(i._weLage || '')}</div>
+              <div class="text-tertiary text-small mt-4" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <span>Aktiv: ${esc(i._weNr ? 'WE ' + i._weNr + ' · ' : '')}${esc(i._weLage || '')}</span>
+                ${i._vermietungsStatus === 'vermietet' ? `
+                  <span style="background:#c6f6d5;color:#22543d;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">● vermietet</span>
+                ` : i._vermietungsStatus === 'leer' ? `
+                  <span style="background:#fed7d7;color:#742a2a;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">○ leer</span>
+                ` : ''}
+                ${i._letzteMietsteigerung ? `
+                  <span style="background:#e2e8f0;color:#2d3748;padding:2px 8px;border-radius:10px;font-size:11px;">letzte Mietsteig.: ${esc(fmtDate(i._letzteMietsteigerung))}</span>
+                ` : ''}
+              </div>
               ${i._stellplatzAnzahl > 0 ? `
                 <div class="text-tertiary text-small mt-4" style="background:#f8fafc;padding:8px 12px;border-radius:6px;border-left:3px solid #2c5282;">
                   <strong>+ ${i._stellplatzAnzahl} Stellplatz${i._stellplatzAnzahl > 1 ? 'e' : ''}</strong>
@@ -1115,6 +1125,20 @@ async function loadWeIntoKalk(weId) {
       state.kalk._stellplatzMieteQuelle = (resp.stellplaetze && resp.stellplaetze.mieteMoQuelle) || 'keine';
       // Wohnungs-Kaltmiete (ohne Stellplatz) — wird für Mietsteigerungs-Logik gebraucht
       state.kalk._wohnungsKaltmiete = resp.we.kaltmiete || 0;
+    }
+    // Vermietungs-Status + letzte Mietsteigerung
+    if (resp && resp.vermietung) {
+      state.kalk._vermietungsStatus = resp.vermietung.status;            // 'vermietet' | 'leer'
+      state.kalk._vertragVorhanden  = resp.vermietung.vertragVorhanden;
+      state.kalk._letzteMietsteigerung = resp.vermietung.letzteMietsteigerung;  // YYYY-MM-DD oder null
+      state.kalk._letzteMietsteigerungQuelle = resp.vermietung.letzteMietsteigerungQuelle;
+      // monateSeitMieterhoehung aus Datum berechnen — fließt in recalc() ein.
+      if (resp.vermietung.letzteMietsteigerung) {
+        const lastDate = new Date(resp.vermietung.letzteMietsteigerung);
+        const now = new Date();
+        const monate = Math.max(0, Math.round((now - lastDate) / (1000 * 60 * 60 * 24 * 30.44)));
+        state.kalk.monateSeitMieterhoehung = monate;
+      }
     }
     if (resp && resp.kalkStammdaten && resp.kalkStammdaten.status === 'Aktiv') {
       const sd = resp.kalkStammdaten;

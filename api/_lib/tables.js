@@ -111,6 +111,8 @@ const MIETVERTRAG_FIELDS = {
   STELLPLATZMIETE: 'fldcGEefFtNEFbatS',   // € (bestätigt von Edgar 15.05.2026)
   VERTRAGSART:     'fld41qYdKxjyIdDlO',
   STATUS_LOOKUP:   'fld02ScVlHI1f4AZr',   // Lookup via WE: Aktiv / Archiviert
+  VERTRAGSBEGINN:  'fldDdFKwsytwadjqG',   // Originaldatum Vertrag (bei Neuvertrag)
+  GUELTIG_AB:      'fldLkBwWJj8fAZAHJ',   // 'Anpassung gültig ab' (bei Erhöhung/Staffel) — Datum der letzten Mietsteigerung
 };
 
 // --- Mieter-Tabelle ---
@@ -135,6 +137,7 @@ const KALK_STAMMDATEN_FIELDS = {
   VERMIETUNGS_MODUS:     'fldZmkdo4sEAeJqnV',
   KAPPUNGSGRENZE:        'fldna2Hj1m1ST94Z3',
   INDEXMIETE:            'fldFlwdAP4xQ2muO5',
+  LETZTE_MIETSTEIGERUNG: 'fldpLwMLe2PTCO3t7',
   NOTIZEN:               'fld097ACU9qRS5kwq',
   QUELLE:                'fldrMUcQs06YF0lGi',
 };
