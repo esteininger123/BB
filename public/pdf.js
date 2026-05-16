@@ -106,8 +106,8 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <div class="kpi-pdf"><div class="label">Eigenkapital-Bedarf</div><div class="value">${fmt(r.ekBedarf)}</div></div>
         <div class="kpi-pdf ${r.belastungMo < 0 ? 'neg' : 'pos'}"><div class="label">Belastung Jahr 1 mtl.</div><div class="value">${fmtMo(r.belastungMo)}</div></div>
         <div class="kpi-pdf"><div class="label">EK-Rendite (IRR) 10 J.</div><div class="value">${fmtPct(r.irr)}</div></div>
-        <div class="kpi-pdf"><div class="label">Vermögen brutto 10 J.</div><div class="value">${fmt(r.vermoegenBrutto10)}</div></div>
-        <div class="kpi-pdf pos"><div class="label">Vermögen netto 10 J.</div><div class="value">${fmt(r.vermoegenNetto10)}</div></div>
+        <div class="kpi-pdf"><div class="label">Gesamtvermögen 10 J.</div><div class="value">${fmt(r.vermoegenBrutto10)}</div></div>
+        <div class="kpi-pdf pos"><div class="label">Vermögenszuwachs 10 J.</div><div class="value">${fmt(r.vermoegenNetto10)}</div></div>
         ${r.markteinkaufVorteil ? `<div class="kpi-pdf pos"><div class="label">Markteinkauf-Vorteil</div><div class="value">${fmt(r.markteinkaufVorteil)}</div></div>` : ''}
       </div>
 
@@ -162,10 +162,10 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
     <div class="pdf-page">
       ${_header('Vermögensaufbau & Sparen vs. Investieren', displayName + ' · ' + esc(we))}
       <h2 class="pdf-section-h">Vermögensaufbau 10 Jahre</h2>
-      <p style="font-size:10.5px;color:#777;margin:0 0 6px 0;">Brutto = Immobilien-Wert − Restschuld. Netto = Brutto − eingesetztes EK + kumulierter Cashflow (ehrliche Vergleichsgröße).</p>
+      <p style="font-size:10.5px;color:#777;margin:0 0 6px 0;">Verkaufserlös = Marktwert − Restschuld. Gesamtvermögen = Verkaufserlös + kumulierte Cashflows. Vermögenszuwachs = Gesamtvermögen − eingesetztes EK (echter Reinerlös).</p>
       <table>
         <thead>
-          <tr><th>Jahr</th><th class="num">Wert</th><th class="num">Restschuld</th><th class="num">kum. CF</th><th class="num">Brutto</th><th class="num">Netto</th></tr>
+          <tr><th>Jahr</th><th class="num">Marktwert</th><th class="num">Restschuld</th><th class="num">Verkaufserlös</th><th class="num">kum. CF</th><th class="num">Gesamtvermögen</th><th class="num">Zuwachs</th></tr>
         </thead>
         <tbody>
           ${r.vermoegen.map(v => `
@@ -173,6 +173,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
               <td>J${v.y}</td>
               <td class="num">${fmt(v.wert)}</td>
               <td class="num">${fmt(v.restschuld)}</td>
+              <td class="num">${fmt(v.verkaufserloes || (v.wert - v.restschuld))}</td>
               <td class="num">${fmt(v.kumCf)}</td>
               <td class="num">${fmt(v.vermoegenBrutto)}</td>
               <td class="num"><strong>${fmt(v.vermoegenNetto)}</strong></td>

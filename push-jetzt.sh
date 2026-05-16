@@ -22,7 +22,39 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 41.4 — AfA-Bemessung Bug-Fix (Gebäude-Anteil wurde nicht abgezogen in Anzeige) + Excel-Daten Lahr/Karlsruhe
+git commit -m "Iter 41.5 — Saubere Vermögens-Begriffe: Verkaufserlös, Gesamtvermögen, Vermögenszuwachs
+
+- kalkulator.js: Vermögens-Hierarchie umstrukturiert.
+  Bisher: Vermögen brutto = Wert − Restschuld
+          Vermögen netto = Brutto − EK + kumCF
+  Neu:    Verkaufserlös   = Wert − Restschuld
+          Gesamtvermögen  = Verkaufserlös + kumCF
+          Vermögenszuwachs = Gesamtvermögen − eingesetztes EK
+  vermoegenBrutto10 wird jetzt zu Gesamtvermögen (alter Wert + kumCF).
+  vermoegenNetto10 (Vermögenszuwachs) bleibt mathematisch unverändert.
+
+- IRR-Endwert nutzt jetzt explizit 'verkaufserloes' statt vermoegenBrutto,
+  um Doppelzählung der CFs zu vermeiden (CFs sind schon einzeln in irrSeries).
+  Gleicher Fix in recalcPaket (Paket-Modus).
+- Sparen-vs-Investieren-Vergleich nutzt verkaufserloes statt vermoegenBrutto
+  (Single + Paket).
+
+- UI-Labels umbenannt:
+  * KPI 'Vermögen brutto 10 J.' → 'Gesamtvermögen 10 J.'
+  * KPI 'Vermögen netto 10 J.'  → 'Vermögenszuwachs 10 J.'
+  * Info-Boxen mit klarer Erklär-Kaskade.
+  * Story-Section 'Exit nach 10 J.' zeigt jetzt die volle Kaskade transparent:
+    Marktwert → Restschuld → Verkaufserlös → +kumCF → =Gesamtvermögen
+    → −EK → =Vermögenszuwachs.
+
+- PDF Investrechnung: Header-KPIs umbenannt + Vermögensaufbau-Tabelle
+  bekommt zusätzliche Spalten Verkaufserlös, Gesamtvermögen, Zuwachs.
+
+- Cache-Bust auf v=50.
+
+---
+
+Iter 41.4 — AfA-Bemessung Bug-Fix (Gebäude-Anteil wurde nicht abgezogen in Anzeige) + Excel-Daten Lahr/Karlsruhe
 
 - BUG-FIX kalkulator.js: afaBemessungBetrag jetzt sauber = kpGesamt × gebaeudeAnteil.
   Bisher war afaBemessungBetrag = kpGesamt (voller Kaufpreis), und afaJahr rechnete
@@ -227,5 +259,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=49-Version lädt."
+echo "damit der Browser die neue v=50-Version lädt."
 echo ""

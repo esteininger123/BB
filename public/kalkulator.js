@@ -669,25 +669,34 @@ function recalc(i) {
     });
   }
 
-  // Vermögensentwicklung Jahr 0..10
-  // Startwert: wenn marktwertProQm > 0: marktwert * qm; sonst kpGesamt
+  // Vermögensentwicklung Jahr 0..10 — saubere Begriffshierarchie:
+  //   Marktwert(y)       = startwert × (1 + Wertsteigerung)^y
+  //   Verkaufserlös(y)   = Marktwert(y) − Restschuld(y)        (= EK im Objekt)
+  //   Gesamtvermögen(y)  = Verkaufserlös(y) + kumulierte CFs   (= Endstand inkl. Cashflows)
+  //   Vermögenszuwachs(y)= Gesamtvermögen(y) − eingesetztes EK (= Delta gegenüber Start)
+  //
+  // 'vermoegenBrutto' (alter Name) wird zu Gesamtvermögen,
+  // 'vermoegenNetto'  (alter Name) wird zu Vermögenszuwachs.
+  // Wert für Vermögenszuwachs ist mathematisch identisch zur alten Netto-Berechnung —
+  // nur Gesamtvermögen ist neu definiert (alt: nur Verkaufserlös, neu: + kumCFs).
   const startwert = i.marktwertProQm > 0 ? i.marktwertProQm * i.qm : kpGesamt;
   const vermoegen = [];
   for (let y = 0; y <= 10; y++) {
     const wert = startwert * Math.pow(1 + i.wertsteigerung, y);
     const restschuld = y === 0 ? darlehen : cf[y - 1].restschuld;
-    const vermoegenBrutto = wert - restschuld;
+    const verkaufserloes = wert - restschuld;
     const kumCf = y === 0 ? 0 : cf.slice(0, y).reduce((s, x) => s + x.cfJahr, 0);
-    const vermoegenNetto = vermoegenBrutto - ekBedarf + kumCf;
-    vermoegen.push({ y, wert, restschuld, vermoegenBrutto, kumCf, vermoegenNetto });
+    const vermoegenBrutto = verkaufserloes + kumCf;          // = Gesamtvermögen (neu)
+    const vermoegenNetto  = vermoegenBrutto - ekBedarf;      // = Vermögenszuwachs (Delta)
+    vermoegen.push({ y, wert, restschuld, verkaufserloes, vermoegenBrutto, kumCf, vermoegenNetto });
   }
 
-  // IRR-Cashflow: [-ek, cf1..cf9, cf10 + Vermögen brutto Jahr 9 (Excel-Off-by-One bewusst gespiegelt)]
-  // Excel-Formel war =K12+K22 (Spalte K = Jahr 9 wegen Header B=Jahr 0).
-  // Wir spiegeln das hier exakt, damit IRR identisch zu Excel ist (11,5 % statt 12,8 %).
+  // IRR-Cashflow nutzt den VERKAUFSERLÖS (wert − restschuld) als Endwert in Jahr 9,
+  // weil die CFs schon einzeln als irrSeries-Glieder eingehen — sonst würden Cashflows
+  // doppelt zählen.
   const irrSeries = [-ekBedarf];
   for (let y = 1; y <= 9; y++) irrSeries.push(cf[y - 1].cfJahr);
-  irrSeries.push(cf[9].cfJahr + vermoegen[9].vermoegenBrutto);
+  irrSeries.push(cf[9].cfJahr + vermoegen[9].verkaufserloes);
 
   const irrValue = irr(irrSeries, 0.10);
 
@@ -881,16 +890,19 @@ function recalcPaket(weInputsArr, personSettings) {
       y,
       wert: sum(null, r => r.vermoegen[y].wert),
       restschuld: sum(null, r => r.vermoegen[y].restschuld),
+      verkaufserloes: sum(null, r => r.vermoegen[y].verkaufserloes || 0),
       vermoegenBrutto: sum(null, r => r.vermoegen[y].vermoegenBrutto),
       kumCf: sum(null, r => r.vermoegen[y].kumCf || 0),
       vermoegenNetto: sum(null, r => r.vermoegen[y].vermoegenNetto),
     });
   }
 
-  // 5. IRR auf der aggregierten CF-Reihe (J0 = -ekBedarf, J1..J9 = cfJahr, J10 = cfJahr + vermBrutto)
+  // 5. IRR auf der aggregierten CF-Reihe (J0 = -ekBedarf, J1..J9 = cfJahr,
+  //    J10 = cfJahr + Verkaufserlös). Verkaufserlös (nicht vermoegenBrutto)
+  //    weil CFs schon einzeln in der Reihe stehen → sonst Doppelzählung.
   const irrSeries = [-ekBedarf];
   for (let y = 0; y < 9; y++) irrSeries.push(cf[y].cfJahr);
-  irrSeries.push(cf[9].cfJahr + vermoegen[10].vermoegenBrutto);
+  irrSeries.push(cf[9].cfJahr + vermoegen[10].verkaufserloes);
   const irrValue = irr(irrSeries, 0.10);
 
   // 6. Sparen-vs-Investieren auf Paket-Ebene
@@ -904,7 +916,10 @@ function recalcPaket(weInputsArr, personSettings) {
     nurSparenLauf = nurSparenLauf * (1 + sparZins);
     const cfJ = cf[y - 1].cfJahr;
     tagesgeldRest = tagesgeldRest * (1 + sparZins) + cfJ;
-    const vermBrutto = vermoegen[y].vermoegenBrutto;
+    // Verkaufserlös (Wert − Restschuld) ohne CFs — die kommen via tagesgeldRest rein,
+    // sonst Doppelzählung. (Gesamtvermögen wäre verkaufserloes + kumCf — das wäre
+    // hier falsch, weil tagesgeldRest die CFs schon enthält.)
+    const vermBrutto = vermoegen[y].verkaufserloes;
     const mitImmoEhrlich = tagesgeldRest + vermBrutto;
     sparen.push({ y, nurSparen: nurSparenLauf, mitImmo: mitImmoEhrlich, delta: mitImmoEhrlich - nurSparenLauf });
   }

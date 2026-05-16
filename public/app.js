@@ -1285,10 +1285,10 @@ function recalcAndRender() {
       'Was monatlich aus deiner Tasche geht in Jahr 1. Mieten + Subvention − Annuität − Hausgeld − Hausverwaltung − Mietverwaltung + Steuervorteil. Positiv = Cashflow positiv.', cls(r.belastungMo)),
     kpiCard('EK-Rendite (IRR) 10 J.', fmtPct(r.irr),
       'Interner Zinsfuß über tatsächliche Cashflow-Reihe inkl. Exit-Erlös. Berücksichtigt: eingesetztes EK, jährliche Cashflows, Verkaufserlös nach §23-EStG-Frist.'),
-    kpiCard('Vermögen brutto 10 J.', fmt(r.vermoegenBrutto10),
-      'Immobilienwert nach 10 J. minus Restschuld. Wertentwicklung mit Inflation (Default 3 % p.a.). NICHT enthalten: eingesetztes EK + Cashflows.'),
-    kpiCard('Vermögen netto 10 J.', fmt(r.vermoegenNetto10),
-      'Ehrliche Vermögensbilanz: Vermögen brutto − eingesetztes EK + kumulierte Cashflows.', 'positive'),
+    kpiCard('Gesamtvermögen 10 J.', fmt(r.vermoegenBrutto10),
+      'Endstand nach 10 Jahren: Marktwert minus Restschuld plus kumulierte Cashflows. Das was an Vermögen wirklich da ist (vor Abzug des eingesetzten EK).'),
+    kpiCard('Vermögenszuwachs 10 J.', fmt(r.vermoegenNetto10),
+      'Ehrliche Vermögensbilanz: Gesamtvermögen 10 J. minus eingesetztes Eigenkapital. Das ist der echte Zuwachs gegenüber dem Start.', 'positive'),
   ];
   // Markteinkauf-Vorteil nur wenn marktwertProQm > 0 gesetzt
   const mwQm = (state.kalk && parseFloat(state.kalk.marktwertProQm)) || 0;
@@ -1433,18 +1433,19 @@ function renderStories(r) {
       <div class="stat-item"><div class="stat-lbl">Hebel 2 · Tilgung Jahr 1</div><div class="stat-val">${fmt(tilgungJ1)}</div></div>
       <div class="stat-item"><div class="stat-lbl">Hebel 3 · Markteinkauf</div><div class="stat-val">${fmt(r.markteinkaufVorteil || 0)}</div></div>
     </div>
-    <p class="story-explain">Nach 10 Jahren: Vermögen <strong>brutto</strong> ${fmt(r.vermoegenBrutto10)} (= Wert ${fmt(wert10)} − Restschuld ${fmt(restschuld10)}). <strong>Netto</strong> — nach Abzug eingesetztes EK + kumulierter Cashflow — bleibt <strong>${fmt(r.vermoegenNetto10)}</strong>.</p>
+    <p class="story-explain">Nach 10 Jahren: <strong>Gesamtvermögen ${fmt(r.vermoegenBrutto10)}</strong> (= Marktwert ${fmt(wert10)} − Restschuld ${fmt(restschuld10)} + kumulierte Cashflows ${fmt(kumCf10)}). Abzüglich des eingesetzten EK ${fmt(r.ekBedarf)} bleibt als echter <strong>Vermögenszuwachs ${fmt(r.vermoegenNetto10)}</strong>.</p>
   `);
 
   const exit10 = story('05 — Exit nach 10 Jahren', 'Steuerfrei verkaufen (§23 EStG)', `
     <div class="story-grid">
       <table class="story-table">
-        <tr><td>Geschätzter Wert Jahr 10</td><td class="num">${fmt(wert10)}</td></tr>
-        <tr><td>Restschuld Jahr 10</td><td class="num">− ${fmt(restschuld10)}</td></tr>
-        <tr><td><strong>Vermögen brutto (Verkaufserlös vor Steuer)</strong></td><td class="num pos"><strong>${fmt(r.vermoegenBrutto10)}</strong></td></tr>
-        <tr><td>Eingesetztes EK</td><td class="num">− ${fmt(r.ekBedarf)}</td></tr>
-        <tr><td>Kumulierter Cashflow Jahr 1-10</td><td class="num">${fmt(kumCf10)}</td></tr>
-        <tr><td><strong>Vermögen netto (ehrliche Bilanz)</strong></td><td class="num"><strong>${fmt(r.vermoegenNetto10)}</strong></td></tr>
+        <tr><td>Geschätzter Marktwert Jahr 10</td><td class="num">${fmt(wert10)}</td></tr>
+        <tr><td>− Restschuld Jahr 10</td><td class="num">− ${fmt(restschuld10)}</td></tr>
+        <tr><td><strong>= Verkaufserlös (steuerfrei nach §23)</strong></td><td class="num"><strong>${fmt(wert10 - restschuld10)}</strong></td></tr>
+        <tr><td>+ Kumulierter Cashflow Jahr 1-10</td><td class="num">${fmt(kumCf10)}</td></tr>
+        <tr><td><strong>= Gesamtvermögen nach 10 J.</strong></td><td class="num pos"><strong>${fmt(r.vermoegenBrutto10)}</strong></td></tr>
+        <tr><td>− Eingesetztes EK</td><td class="num">− ${fmt(r.ekBedarf)}</td></tr>
+        <tr class="totalrow"><td><strong>= Vermögenszuwachs (echter Reinerlös)</strong></td><td class="num pos"><strong>${fmt(r.vermoegenNetto10)}</strong></td></tr>
         <tr><td>IRR über 10 Jahre</td><td class="num"><strong>${fmtPct(r.irr)}</strong></td></tr>
       </table>
       <div class="story-explain">
