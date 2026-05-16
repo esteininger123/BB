@@ -1097,20 +1097,22 @@ async function loadWeIntoKalk(weId) {
   state.kalk._weNr = w.weNr || '';
   state.kalk._projektName = w.projektName || '';
 
-  // 2) Fallback initial setzen aus we-stammdaten.js (Excel-Werte) — wird ggf. überschrieben.
-  const preset = (window.WE_PRESETS_BY_RECID || {})[weId];
-  if (preset) {
-    Object.assign(state.kalk, JSON.parse(JSON.stringify(preset)));
-  } else {
-    state.kalk.kaufpreis = w.kp || w.kaufpreis || state.kalk.kaufpreis;
-    state.kalk.qm = w.qm || state.kalk.qm;
-    state.kalk.kaltmiete = w.kaltmiete || state.kalk.kaltmiete;
-    if (w.qm) state.kalk.hausgeld = Math.round(w.qm);
-  }
+  // 2) Defaults zurücksetzen aus getDefaults() — falls Airtable Lücken hat,
+  //    haben wir wenigstens vernünftige Standardwerte (Wertsteigerung 3 % etc.).
+  //    Iter 41.2 (16.05.2026): KEIN Fallback mehr auf we-stammdaten.js — Airtable
+  //    ist Single Source of Truth. Wenn Airtable Status != Aktiv → Warnung im UI.
+  const def = (window.Kalk && window.Kalk.getDefaults) ? window.Kalk.getDefaults() : {};
+  Object.keys(def).forEach(k => {
+    if (k === 'sparZins') return; // sparZins nicht überschreiben (UI-Slider-State)
+    state.kalk[k] = def[k];
+  });
+  // WE-Basis aus Airtable
+  state.kalk.kaufpreis = w.kp || w.kaufpreis || 0;
+  state.kalk.qm = w.qm || 0;
+  state.kalk.kaltmiete = w.kaltmiete || 0;
 
-  // 3) NEU (Iter 41): Live-Airtable-Stammdaten holen — wenn Status=Aktiv → überschreibt Fallback.
-  //    Wenn Endpoint fehlschlägt oder Status=Entwurf → wir bleiben beim Excel-Fallback aus 2).
-  state.kalk._stammdatenQuelle = preset ? 'excel-fallback' : 'we-basics';
+  // 3) Live-Airtable-Stammdaten holen — Airtable ist Wahrheit (siehe SOP-E).
+  state.kalk._stammdatenQuelle = 'airtable-load';
   try {
     const resp = await api.get('/api/stammdaten/' + encodeURIComponent(weId));
     if (resp && resp.we) {
@@ -1169,10 +1171,15 @@ async function loadWeIntoKalk(weId) {
       state.kalk._stammdatenId = sd.id;
       state.kalk._stammdatenStatus = sd.status;
     } else if (resp && resp.kalkStammdaten) {
-      // Entwurf existiert, aber nicht aktiv — wir nutzen Fallback, merken aber die ID
-      state.kalk._stammdatenQuelle = 'excel-fallback-airtable-entwurf';
+      // Entwurf existiert, aber nicht aktiv — wir nutzen die getDefaults()-Werte
+      // (Wertsteigerung 3 %, etc.), aber zeigen klar im UI „Daten nicht aktiv".
+      state.kalk._stammdatenQuelle = 'airtable-entwurf-defaults';
       state.kalk._stammdatenId = resp.kalkStammdaten.id;
       state.kalk._stammdatenStatus = resp.kalkStammdaten.status;
+    } else {
+      // Gar kein Datensatz in Airtable → Defaults
+      state.kalk._stammdatenQuelle = 'airtable-fehlt-defaults';
+      state.kalk._stammdatenStatus = 'fehlt';
     }
   } catch (e) {
     // Endpoint nicht erreichbar oder Fehler → wir bleiben beim Excel-Fallback
@@ -2224,13 +2231,15 @@ async function renderAdmin() {
   const app = document.getElementById('app');
   app.innerHTML = `<div class="main"><h1 class="page-title">Admin</h1><div class="empty-state">Lade…</div></div>`;
   try {
-    // Stats + Wohneinheiten parallel laden
-    const [stats, wohneinheiten] = await Promise.all([
+    // Stats + Wohneinheiten + Stammdaten-Audit parallel laden
+    const [stats, wohneinheiten, audit] = await Promise.all([
       api.get('/api/admin/stats'),
-      api.get('/api/wohneinheiten')
+      api.get('/api/wohneinheiten'),
+      api.get('/api/stammdaten').catch(() => []),
     ]);
     state.adminStats = stats;
     state.adminWohneinheiten = wohneinheiten || [];
+    state.adminStammAudit = Array.isArray(audit) ? audit : [];
   } catch (e) {
     app.innerHTML = `<div class="main"><div class="error-banner">${esc(e.message)}</div></div>`;
     return;
@@ -2338,57 +2347,7 @@ async function renderAdmin() {
         `}
       </div>
 
-      <div class="card mt-16">
-        <div class="card-title">
-          Wohneinheiten-Stammdaten <span class="text-tertiary text-small" style="font-weight:normal;">(read-only, Live aus Airtable · Filter: Status = "Vermarktung / Im Verkauf", Maklerfirma = B&amp;B Immo GmbH, Projekte Heidelberger Str. + Wesseling)</span>
-          <button class="secondary" style="float:right;font-size:13px;" onclick="reloadAdminWohneinheiten()">⟳ Aus Airtable neu laden</button>
-        </div>
-        ${wes.length === 0 ? `
-          <div class="empty-state">Keine Wohneinheiten gefunden — Filter prüfen oder Status in Airtable kontrollieren.</div>
-        ` : projektKeys.map(pn => {
-          const arr = wesByProjekt[pn];
-          const sum = projektSumme(arr);
-          return `
-            <details open style="margin-top:12px;">
-              <summary style="cursor:pointer;font-weight:600;padding:8px 0;border-bottom:1px solid #e2e8f0;">
-                ${esc(pn)} <span class="text-tertiary text-small" style="font-weight:normal;margin-left:8px;">${sum.count} WEs · ${eur(sum.kp)} gesamt · ${num(sum.qm, 1)} m² · ${eur(sum.miete)}/Mo Miete</span>
-              </summary>
-              <table class="table mt-8" style="font-size:13px;">
-                <thead>
-                  <tr>
-                    <th>WE-Nr</th>
-                    <th>Lage</th>
-                    <th class="num">Kaufpreis</th>
-                    <th class="num">m²</th>
-                    <th class="num">€/m²</th>
-                    <th class="num">Kaltmiete/Mo</th>
-                    <th class="num">Mietspiegel €/m²</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${arr.sort((a,b) => (a.weNr || '').localeCompare(b.weNr || '', 'de', {numeric:true})).map(w => {
-                    const mietspiegel = (w.qm && w.kaltmiete) ? (w.kaltmiete / w.qm) : null;
-                    return `
-                      <tr>
-                        <td><strong>${esc(w.weNr || '—')}</strong></td>
-                        <td class="text-tertiary">${esc(w.lageText || w.lage || '—')}</td>
-                        <td class="num">${eur(w.kp)}</td>
-                        <td class="num">${num(w.qm, 1)}</td>
-                        <td class="num">${eur(w.qmPreis)}</td>
-                        <td class="num">${eur(w.kaltmiete)}</td>
-                        <td class="num">${mietspiegel !== null ? num(mietspiegel, 2) + ' €' : '–'}</td>
-                      </tr>
-                    `;
-                  }).join('')}
-                </tbody>
-              </table>
-            </details>
-          `;
-        }).join('')}
-        <div class="text-tertiary text-small mt-12" style="font-style:italic;">
-          Bearbeitung läuft über Airtable. Wenn du Kalkulationen anpassen willst, gib mir die Werte oder die Excel/PDF — ich pflege Airtable und du lädst hier neu.
-        </div>
-      </div>
+      ${renderAdminStammdatenAudit(state.adminStammAudit || [])}
     </div>
   `;
 }
@@ -2397,7 +2356,7 @@ async function reloadAdminWohneinheiten() {
   try {
     toast('Lade Wohneinheiten neu aus Airtable…', 'info');
     state.adminWohneinheiten = await api.get('/api/wohneinheiten');
-    // Auch den Kalkulator-Cache leeren, damit dort beim nächsten Öffnen frisch geladen wird.
+    state.adminStammAudit = await api.get('/api/stammdaten').catch(() => []);
     state.wohneinheiten = null;
     renderAdmin();
     toast('Wohneinheiten neu geladen', 'success');
@@ -2406,6 +2365,129 @@ async function reloadAdminWohneinheiten() {
   }
 }
 window.reloadAdminWohneinheiten = reloadAdminWohneinheiten;
+
+// Stammdaten-Audit-Tabelle: zeigt pro WE alle kalkulationsrelevanten Felder + Status
+// Sortiert nach Projekt (aus WE-Titel abgeleitet). Markiert fehlende Werte rot.
+function renderAdminStammdatenAudit(audit) {
+  const eurN = (v) => (v === null || v === undefined || !isFinite(v)) ? '<span style="color:#c53030;">–</span>' : Math.round(v).toLocaleString('de-DE') + ' €';
+  const pctN = (v) => (v === null || v === undefined || !isFinite(v)) ? '<span style="color:#c53030;">–</span>' : (v * 100).toFixed(2).replace('.', ',') + ' %';
+  const numN = (v) => (v === null || v === undefined || !isFinite(v)) ? '<span style="color:#c53030;">–</span>' : Math.round(v).toLocaleString('de-DE');
+  const dateN = (v) => v ? new Date(v).toLocaleDateString('de-DE') : '<span style="color:#c53030;">–</span>';
+  const statusBadge = (s) => {
+    if (s === 'Aktiv') return '<span style="background:#c6f6d5;color:#22543d;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">Aktiv</span>';
+    if (s === 'Entwurf') return '<span style="background:#fefcbf;color:#744210;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">Entwurf</span>';
+    if (s === 'Archiviert') return '<span style="background:#e2e8f0;color:#4a5568;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">Archiv</span>';
+    return '<span style="background:#fed7d7;color:#742a2a;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">fehlt</span>';
+  };
+  const vermBadge = (s) => {
+    if (s === 'vermietet') return '<span style="background:#c6f6d5;color:#22543d;padding:1px 6px;border-radius:8px;font-weight:600;font-size:10px;">vermietet</span>';
+    if (s === 'leer') return '<span style="background:#fed7d7;color:#742a2a;padding:1px 6px;border-radius:8px;font-weight:600;font-size:10px;">leer</span>';
+    return '';
+  };
+
+  // Nach Projekt gruppieren (Projektname aus Titel ableiten — alles nach „, "  vom Ende — Adresse/PLZ-Ort)
+  const projektAus = (titel) => {
+    // Titel-Form: "WE: 1, EG Links, Heidelberger Straße 21, 76646 Bruchsal"
+    const parts = (titel || '').split(',').map(s => s.trim());
+    if (parts.length < 4) return parts.slice(2).join(', ') || 'unbekannt';
+    return parts.slice(2).join(', ');
+  };
+  const byProjekt = {};
+  audit.forEach(row => {
+    const titel = (row.we && row.we.titel) || '';
+    const p = projektAus(titel);
+    if (!byProjekt[p]) byProjekt[p] = [];
+    byProjekt[p].push(row);
+  });
+  const projektKeys = Object.keys(byProjekt).sort();
+
+  // Statistik: wie viele Aktiv / Entwurf / Fehlt
+  const counts = audit.reduce((a, r) => {
+    const st = (r.stammdaten && r.stammdaten.status) || 'fehlt';
+    a[st] = (a[st] || 0) + 1;
+    return a;
+  }, {});
+
+  return `
+    <div class="card mt-16">
+      <div class="card-title">
+        Kalkulations-Stammdaten-Audit
+        <span class="text-tertiary text-small" style="font-weight:normal;">(live aus Airtable · zeigt alle WEs in Vermarktung · markiert Lücken rot)</span>
+        <button class="secondary" style="float:right;font-size:13px;" onclick="reloadAdminWohneinheiten()">⟳ Neu laden</button>
+      </div>
+      <div class="text-tertiary text-small mb-12">
+        <strong>${audit.length} WEs</strong> · ${counts['Aktiv'] || 0} Aktiv (App nutzt direkt) · ${counts['Entwurf'] || 0} Entwurf · ${counts['fehlt'] || 0} ohne Stammdaten-Eintrag.
+        Nur „Aktiv" wird im Kalkulator als verbindliche Wahrheit übernommen — bei „Entwurf" oder „fehlt" laufen Default-Annahmen (Wertsteigerung 3 %, AfA 2 %, Hausgeld 1 €/m²).
+      </div>
+      ${audit.length === 0 ? `<div class="empty-state">Keine Stammdaten-Datensätze gefunden — Endpoint prüfen.</div>` : projektKeys.map(pn => {
+        const arr = byProjekt[pn].sort((a, b) => {
+          const an = parseInt(a.we.weNr) || 0; const bn = parseInt(b.we.weNr) || 0;
+          return an - bn;
+        });
+        const aktiv = arr.filter(r => r.stammdaten && r.stammdaten.status === 'Aktiv').length;
+        return `
+          <details open style="margin-top:12px;">
+            <summary style="cursor:pointer;font-weight:600;padding:8px 0;border-bottom:1px solid #e2e8f0;">
+              ${esc(pn)} <span class="text-tertiary text-small" style="font-weight:normal;margin-left:8px;">${arr.length} WEs · ${aktiv} Aktiv</span>
+            </summary>
+            <div style="overflow-x:auto;">
+              <table class="table mt-8" style="font-size:12px;min-width:1400px;">
+                <thead>
+                  <tr style="background:#f7fafc;">
+                    <th>WE</th>
+                    <th>Status</th>
+                    <th>Vermietung</th>
+                    <th class="num">Kaufpreis</th>
+                    <th class="num">m²</th>
+                    <th class="num">Kaltmiete</th>
+                    <th class="num">+Stellpl.<br>KP / Miete</th>
+                    <th class="num">Hausgeld<br>+Rücklage</th>
+                    <th class="num">Hausverw.</th>
+                    <th class="num">Mietzu-<br>schuss / Mo</th>
+                    <th class="num">AfA<br>Gut.</th>
+                    <th class="num">Wertst.<br>p.a.</th>
+                    <th>Mieterh.<br>Modus</th>
+                    <th class="num">Letzte<br>Mieterh.</th>
+                    <th>Quelle / Notiz</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${arr.map(r => {
+                    const sd = r.stammdaten;
+                    const we = r.we;
+                    const lageText = (we.titel || '').split(',').slice(1, 2).join(',').trim();
+                    return `
+                      <tr style="${sd && sd.status === 'Aktiv' ? '' : 'background:#fffaf0;'}">
+                        <td><strong>WE ${esc(we.weNr || '?')}</strong><br><span class="text-tertiary text-small">${esc(lageText)}</span></td>
+                        <td>${statusBadge(sd && sd.status)}</td>
+                        <td>${vermBadge(r.vermietung && r.vermietung.status)}</td>
+                        <td class="num">${eurN(we.kp)}</td>
+                        <td class="num">${numN(we.qm)}</td>
+                        <td class="num">${eurN(we.kaltmiete)}</td>
+                        <td class="num">${r.stellplaetze && r.stellplaetze.anzahl > 0 ? eurN(r.stellplaetze.kaufpreisSumme) + '<br>' + eurN(r.stellplaetze.mieteMoSumme) : '<span class="text-tertiary">–</span>'}</td>
+                        <td class="num">${sd ? eurN(sd.hausgeldRuecklage) : statusBadge(null)}</td>
+                        <td class="num">${sd ? eurN(sd.hausverwaltung) : statusBadge(null)}</td>
+                        <td class="num">${sd && sd.mietzuschuss > 0 ? eurN(sd.mietzuschuss) + '<br>' + (sd.mietzuschussMonate || 0) + ' Mo' : '<span class="text-tertiary">–</span>'}</td>
+                        <td class="num">${sd ? pctN(sd.afaGutachten) : statusBadge(null)}</td>
+                        <td class="num">${sd ? pctN(sd.wertsteigerung) : statusBadge(null)}</td>
+                        <td><span class="text-tertiary text-small">${esc((sd && sd.vermietungsModus) || '–')}<br>${esc((sd && sd.kappungsgrenze) || '')}</span></td>
+                        <td class="num text-small">${dateN(r.vermietung && r.vermietung.letzteMietsteigerung)}<br><span class="text-tertiary" style="font-size:10px;">${esc((r.vermietung && r.vermietung.letzteMietsteigerungQuelle) || '')}</span></td>
+                        <td class="text-tertiary text-small">${esc((sd && sd.quelle) || '–')}${sd && sd.notizen ? '<br><em>' + esc((sd.notizen || '').slice(0, 80)) + '…</em>' : ''}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        `;
+      }).join('')}
+      <div class="text-tertiary text-small mt-12" style="font-style:italic;">
+        Bearbeitung läuft in Airtable. Direktlink: <a href="https://airtable.com/appikHUetNyeonXBX/tblz5KNtzkLSLHHFo" target="_blank">Kalkulations-Stammdaten-Tabelle</a> bzw. <a href="https://airtable.com/appikHUetNyeonXBX/tblAV81mX1MaxqVQi" target="_blank">Wohneinheit-Tabelle</a>.
+      </div>
+    </div>
+  `;
+}
 
 /* ============================== RENDER DISPATCH ============================== */
 

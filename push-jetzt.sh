@@ -22,7 +22,41 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 41.1 — Erweiterung: 15 fehlende WEs nachgepflegt + Letzte Mietsteigerung + Vermietungs-Status
+git commit -m "Iter 41.2 — Stammdaten-Audit + einheitliche Bezeichnungen + Excel-Daten live aus Airtable
+
+- Bezeichnung aller 43 WEs einheitlich auf Format 'WE: X, Lage, Straße, PLZ Ort'
+  (= identisch mit WE-Titel aus Wohneinheit-Tabelle).
+
+- 12 Excel-WEs (Heidelberger + Wesseling) auf Status=Aktiv geschaltet:
+  Heidelberger 1, 2, 4, 6, 7, 8, 12, 15 + Wesseling 3, 4, 5, 8.
+  App liest jetzt LIVE aus Airtable, nicht mehr aus we-stammdaten.js.
+  WE 14 Heidelberger bleibt Entwurf (Excel fehlt, Henry pflegt nach).
+
+- Frontend public/app.js loadWeIntoKalk:
+  * KEIN Fallback mehr auf we-stammdaten.js. Bei Status != Aktiv oder
+    keinen Datensatz: state.kalk wird mit getDefaults() initialisiert
+    (Wertsteigerung 3 %, AfA 2 %, Hausgeld 1 €/m² etc.).
+  * Stammdaten-Quelle-Indikator: 'airtable-aktiv' / 'airtable-entwurf-defaults'
+    / 'airtable-fehlt-defaults'.
+
+- Backend api/stammdaten/index.js (neu):
+  * GET /api/stammdaten — alle Stammdaten-Records (Admin-only) inkl.
+    WE-Basis + Stellplatz-Aggregat + Mietvertrag-Info pro WE.
+  * Für die Admin-Audit-Ansicht.
+
+- Admin-Frontend: Stammdaten-Audit-Karte ersetzt die alte
+  Wohneinheiten-Stammdaten-Karte. Zeigt pro WE:
+  Status, Vermietungs-Status, Kaufpreis, m², Kaltmiete, Stellplatz-KP+Miete,
+  Hausgeld+Rücklage, Hausverwaltung, Mietzuschuss+Laufzeit, AfA-Gutachten,
+  Wertsteigerung, Vermietungs-Modus+Kappungsgrenze, Letzte Mietsteigerung
+  (mit Quelle), Quelle/Notiz. Lücken werden rot markiert. Gruppiert nach
+  Projekt. Statistik oben: Aktiv / Entwurf / fehlt.
+
+- Cache-Bust auf v=47.
+
+---
+
+Iter 41.1 — Erweiterung: 15 fehlende WEs nachgepflegt + Letzte Mietsteigerung + Vermietungs-Status
 
 - 15 neue WEs in Kalkulations-Stammdaten (alle Status Entwurf, leer für Henry):
   Haueneberstein (6 WEs Am Mühlwäldle 5), Offenburg (7 WEs August-Hund-Str. 4),
@@ -136,5 +170,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=46-Version lädt."
+echo "damit der Browser die neue v=47-Version lädt."
 echo ""
