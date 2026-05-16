@@ -1,9 +1,9 @@
 #!/bin/bash
-# Push-Skript für die aktuelle Iteration (Iter 40).
+# Push-Skript für die aktuelle Iteration (Iter 41 — Airtable-Stammdaten-Migration).
 # Ausführen mit:
 #   bash ~/Documents/Claude-Cowork/02_BB_Immo/Kalkulations-Vorlage/webapp-v2/push-jetzt.sh
 #
-# Es committet alle Änderungen, die Claude über Nacht im Mount gemacht hat,
+# Es committet alle Änderungen, die Claude im Mount gemacht hat,
 # und pusht zu GitHub. Vercel deployed dann automatisch (~30 Sek).
 
 set -e
@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 
 echo ""
 echo "==========================================="
-echo "  B&B Kalkulator V2 — Push Iter 40"
+echo "  B&B Kalkulator V2 — Push Iter 41"
 echo "==========================================="
 echo ""
 
@@ -22,76 +22,68 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 40 — Bonität-Detail komplett überarbeitet + SA-Auswertung live + Hypovision-PDF mit B&B-Branding form-fillable + Datenschutz-Texte
+git commit -m "Iter 41 — Airtable als Single Source für Kalkulations-Stammdaten
 
-- Bonität-Detail-Logik (kalkulator.js):
-  * computeBonitaetDetailed() liefert jetzt sauber: liquidesVermoegen,
-    immobilienVermoegen, gesamtVermoegen, ueberschussMo.
-  * Klarere Trennung: Liquide Assets (Bank-Sicht, einsetzbar für neue Imm.)
-    vs. Bestandsimmobilien (im Beleihungsauslauf gebunden, NICHT einsetzbar).
-  * Backward-compat: freiesVermoegen = liquidesVermoegen.
+- Iter 41a — Stellplatz-Tabelle erweitert:
+  * Neues Currency-Feld 'Kaufpreis' in tblCfcVP5ipG91yHg.
+  * Bestehende Spalte 'Mietkosten Stellplatz' bleibt als Übergang stehen
+    (laut SOP-E §6.3 wird sie zugunsten der Mietvertrag-Spalte 'Stellplatzmiete'
+    migriert — Schenki bereinigt im Tagesgeschäft).
 
-- SA-Auswertung live (app.js):
-  * Neuer saAuswertungHtml()-Block am Ende der Selbstauskunft-Form.
-  * Drei KPI-Boxen: Anrechenbarer Überschuss, Gesamtvermögen,
-    'Einsetzbar für Immobilie' (nur liquide — wichtigste Bank-Kennzahl).
-  * Aufschlüsselung im Detail-Akkordeon (Einnahmen/Ausgaben/Vermögen).
-  * Live-Recalc bei jedem input-Event, ohne Server-Roundtrip.
+- Iter 41b — Neue Airtable-Tabelle 'Kalkulations-Stammdaten':
+  * tblz5KNtzkLSLHHFo mit 15 Feldern: Bezeichnung, Wohneinheit-Link, Status
+    (Entwurf/Aktiv/Archiviert), Hausverwaltung, Hausgeld+Rücklage,
+    Mietverwaltung Default, Mietzuschuss, Mietzuschuss-Laufzeit, AfA-Gutachten,
+    Wertsteigerung p.a., Vermietungs-Modus, Kappungsgrenze, Indexmiete,
+    Notizen, Quelle.
+  * Owner Henry (Kaufpreise + Kalkulations-Stammdaten) +
+    Schenki (Mieten + Mietverträge).
 
-- Selbstauskunft-Felder (app.js):
-  * Immo1/Immo2: Baujahr und Erwerbsjahr in 2 getrennte Felder.
+- Iter 41c — 28 WEs initial befüllt:
+  * 12 WEs mit Excel-Werten aus we-stammdaten.js als Status=Entwurf
+    (Heidelberger 1,2,4,6,7,8,12,15 + Wesseling 3,4,5,8).
+  * 1 WE leer (Heidelberger 14, Excel fehlt) — Henry pflegt nach.
+  * 15 WEs leer für Henry-Pflege (Sandweier, Limeshain, Waldkirch,
+    Karlsruhe, Pfaffenhofen, Lahr, Sinzheim).
+  * Status durchgängig Entwurf → App nutzt noch Excel-Fallback; Henry
+    schaltet pro WE auf Aktiv wenn fertig.
 
-- SA-PDF Hypovision-Layout mit B&B-Branding (pdf.js):
-  * Form-fillable: alle Eingabe-Zellen rendern als <input> mit dotted
-    Unterlinie wenn leer — Kunde kann am Bildschirm ausfüllen oder
-    auf Papier eintragen.
-  * Filled cells: Wert in fetter Schrift (sa-fld-filled).
-  * Checkboxen mit ☑/☐, gefärbtes Häkchen wenn aktiv.
-  * Baujahr + Erwerbsjahr getrennt.
-  * Versicherungs-Block immer sichtbar (auch leer).
-  * NEU Seite 4: Datenschutz I. Darlehensvermittlung, II. SCHUFA/Creditreform,
-    III. Finanzierungsanfrage-DSGVO.
-  * NEU Seite 5: IV. Steuer-ID-Mitwirkungspflicht, V. Grundbuch-Abrufverfahren,
-    VI. Vollständigkeits-/Wahrheitserklärung + Unterschriften.
+- Iter 41e — Neuer Backend-Endpoint api/stammdaten/[weId].js:
+  * GET: kombinierte Daten WE + Stellplätze (Aggregat KP + Miete aus
+    altem Stellplatz-Feld ODER aus aktivem Mietvertrag mit Vorrang) +
+    aktive Kalkulations-Stammdaten-Zeile.
+  * PUT: Update oder Create der Kalk-Stammdaten via App (nur Admin).
+    Beim Setzen auf Aktiv wird ein anderer Aktiv-Datensatz für die
+    gleiche WE auf Archiviert gesetzt (Doppel-Aktiv-Schutz).
+  * Quelle wird automatisch gesetzt auf 'App-Edit {email} {datum}'.
 
-- Styles (styles.css):
-  * .sa-fld + input.sa-fld für form-fillable Look.
-  * .sa-legal + .legal-h/.legal-p für die Datenschutz-Seiten.
-  * .sa-auswertung-card + Aufschluss-Tabellen.
+- Iter 41f — Projekt-Filter im Wohneinheiten-Endpoint entfernt:
+  * Heidelberger+Wesseling-Substring-Filter raus.
+  * App zeigt jetzt alle B&B-Projekte in Status=Vermarktung.
+  * Projekt-Pretty-Mapping erweitert um Sandweier, Limeshain, Waldkirch,
+    Karlsruhe, Pfaffenhofen, Lahr, Sinzheim.
 
-- Cache-Bust auf v=37.
+- Iter 41g — Frontend public/app.js loadWeIntoKalk:
+  * Asynchroner Lade-Pfad: ruft /api/stammdaten/:weId, kombiniert
+    Wohneinheit + Stellplatz-Aggregat + Kalk-Stammdaten.
+  * Wenn Status=Aktiv in Airtable: überschreibt Excel-Fallback.
+  * Wenn Entwurf/null: nutzt we-stammdaten.js als Fallback.
+  * Mieterhöhungs-Logik abgeleitet aus vermietungsModus + kappungsgrenze
+    (Bestand 15/20 % alle 3 J → mietsteigerungsModus=sprung;
+    Neuvermietung → mietsteigerungsModus=index mit indexmiete).
+  * Stellplatz-Anzeige: separate Info-Box unter WE-Selektor mit
+    Anzahl, KP-Summe und Miete-Quelle.
+  * Stammdaten-Quelle transparent angezeigt ('airtable-aktiv' /
+    'excel-fallback' / 'we-basics' / 'excel-fallback-airtable-entwurf').
 
-- Iter 40.1 — Admin-Erweiterung:
-  * Bugfix: Kunden-Name in 'Alle Kunden'-Tabelle war leer, weil /api/admin/stats
-    das NAME-Feld nicht aus Airtable abgefragt hat. Jetzt: name + vorname +
-    nachname + email werden geholt, Frontend nutzt name → 'Vorname Nachname'
-    → email → 'Kunde {id}' als Fallback-Kaskade.
-  * Vertriebler-Tabelle zeigt jetzt: Kunden gesamt, In Bearbeitung, Reserviert,
-    Notar-Termin, Beurkundet (pro Vertriebler + Summen-Zeile).
-  * Neuer WE-Stammdaten-Block in der Admin-Ansicht: read-only Liste aller
-    WEs aus Airtable (gruppiert nach Projekt), inkl. Refresh-Button zum
-    Neuladen direkt aus Airtable.
+- tables.js erweitert um STELLPLATZ_FIELDS, MIETVERTRAG_FIELDS,
+  MIETER_FIELDS, KALK_STAMMDATEN_FIELDS und Status-Konstanten.
 
-- Iter 40.2 — WE-Stammdaten aus 12 Excel-Kalkulationen:
-  * Neue Datei public/we-stammdaten.js — Single Source of Truth pro WE
-    (Heidelberger 1, 2, 4, 6, 7, 8, 12, 15 + Wesseling 3, 4, 5, 8).
-  * Pro WE: Kaufpreis, qm, Stellplatz-KP, Kaltmiete Jahr 1, Hausgeld+Rücklage,
-    Hausverwaltung, AfA-Gutachten %, Wertsteigerung % p.a., Mietzuschuss €/Mo
-    + Laufzeit, 30-Jahres-Mietstaffel, Marktmiete-Referenz.
-  * Mapper am Ende: überträgt Stammdaten in window.WE_PRESETS_BY_RECID, das
-    die App in app.js loadWeIntoKalk() schon liest → zero-touch-Integration.
-  * Heidelberger WE 14 hat noch keine Excel — auf der Diff-Liste, bei Domi
-    nachfragen.
-  * Diff-Report: _Cockpit/status/2026-05-15_excel-vs-airtable-diff.md.
+- SOP-E v1.0 → v1.1: Verantwortungs-Split Henry/Schenki dokumentiert.
+- Neue Anleitung für Henry: _Cockpit/anleitungen/2026-05-15_Henry-Auftrag-Kalkulations-Stammdaten.md
+- Cockpit aktualisiert.
 
-- Iter 40.3 — Individueller Tagesgeldzins direkt am Sparen-Chart:
-  * Inline-Slider (Range 0–6 %, Step 0,05 %) + Zahlen-Input direkt unter dem
-    Sparen-vs-Investieren-Chart, nicht mehr in Sektion Finanzierung.
-  * Schreibt in state.kalk.sparZins → fließt in recalc/recalcPaket ein.
-  * Story-Sektion 07 + PDF-Sparen-vs-Investieren-Block zeigen den
-    aktiv gewählten Zins transparent (z.B. '2,50 % p.a.', '3,50 % p.a.').
-  * Default 2,5 % p.a., wird bei WE-Wechsel nicht überschrieben.
-  * Cache-Bust auf v=38."
+- Cache-Bust auf v=44."
 
 # 3. Push
 echo ""
@@ -108,5 +100,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=37-Version lädt."
+echo "damit der Browser die neue v=44-Version lädt."
 echo ""

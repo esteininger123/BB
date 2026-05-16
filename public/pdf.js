@@ -5,23 +5,30 @@
    Einheitliches Layout: jede Seite hat den gleichen Header (Brot & Butter Logo +
    Untertitel + ggf. Seitennummer) und Footer (B&B Immo + Vertriebler-Daten). */
 
-// Brot & Butter Immobilien Logo.
-// Lädt primär die offizielle Logo-Datei aus /assets/bb-logo.jpg (von bub-immo.de).
-// Wenn die Datei fehlt (onerror), springt der SVG-Replikat-Fallback ein.
-// So funktioniert das PDF ohne Logo-File und sieht mit File 1:1 wie das Web-Logo aus.
-function _bubLogo() {
-  // Inline-SVG-Fallback (base64-encoded), wird nur sichtbar wenn das JPG nicht lädt.
-  const fallbackSvg = `<svg class="bub-logo-svg" viewBox="0 0 300 80" xmlns="http://www.w3.org/2000/svg">
-      <text x="5" y="62" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="400" fill="#cdb792" letter-spacing="-6">B</text>
-      <text x="38" y="62" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="400" fill="#cdb792" letter-spacing="-6">B</text>
-      <text x="0" y="58" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="600" fill="#8E6E3D" letter-spacing="-6">B</text>
-      <text x="33" y="58" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="600" fill="#8E6E3D" letter-spacing="-6">B</text>
-      <text x="92" y="40" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="300" fill="#1a1a1a" letter-spacing="0.5">Brot &amp; Butter</text>
-      <text x="92" y="65" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#1a1a1a" letter-spacing="0.5">Immobilien</text>
-    </svg>`;
-  const fallbackB64 = btoa(unescape(encodeURIComponent(fallbackSvg)));
-  // <img> versucht zuerst /assets/bb-logo.jpg; onerror → Data-URL mit SVG-Replikat.
-  return `<img class="bub-logo-svg" src="/assets/bb-logo.jpg" alt="Brot & Butter Immobilien" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,${fallbackB64}';">`;
+// Brot & Butter Immobilien Logo — nur Schriftzug, ohne die zwei B's.
+// Inline-SVG für maximale Print-Schärfe; kein File-Loader mehr.
+// Schmale moderne Sans-Serif (font-weight: 200), zweizeilig wie das Original.
+function _bubLogo(extraClass) {
+  extraClass = extraClass || '';
+  return `<svg class="bub-logo-svg ${esc(extraClass)}" viewBox="0 0 500 130" xmlns="http://www.w3.org/2000/svg" aria-label="Brot & Butter Immobilien">
+    <text x="0" y="55" font-family="'Helvetica Neue','Inter',Helvetica,Arial,sans-serif" font-size="50" font-weight="200" fill="#1a1a1a" letter-spacing="-0.5">Brot &amp; Butter</text>
+    <text x="0" y="115" font-family="'Helvetica Neue','Inter',Helvetica,Arial,sans-serif" font-size="50" font-weight="200" fill="#1a1a1a" letter-spacing="-0.5">Immobilien</text>
+  </svg>`;
+}
+
+// Header für die Selbstauskunft-PDF.
+// Format: B&B-Logo links · "SELBSTAUSKUNFT – VERTRAULICH" rechts + "Seite X / N" darunter.
+// Logo prominent als Briefkopf — kein Watermark mehr.
+function _saHeader(seite, total) {
+  return `
+    <div class="sa-head">
+      ${_bubLogo('sa-logo')}
+      <div class="sa-title-block">
+        <div class="sa-title">SELBSTAUSKUNFT <span class="sa-title-sub">– VERTRAULICH</span></div>
+        <div class="sa-page-num">Seite ${esc(String(seite))} / ${esc(String(total || 4))}</div>
+      </div>
+    </div>
+  `;
 }
 
 // Einheitlicher Header pro Seite: Logo + Titel + Untertitel (rechts).
@@ -40,10 +47,12 @@ function _header(title, subtitle) {
 function _footer(user) {
   const u = user || {};
   const datum = new Date().toLocaleDateString('de-DE');
+  const vertriebler = [esc(u.name || ''), u.email ? esc(u.email) : '', u.telefon ? esc(u.telefon) : ''].filter(Boolean).join(' · ');
   return `
     <div class="pdf-footer">
-      <div><strong>B&amp;B Immo GmbH</strong> &middot; Burdastraße 23, 77746 Schutterwald</div>
-      <div>${esc(u.name || '')}${u.email ? ' · ' + esc(u.email) : ''}${u.telefon ? ' · ' + esc(u.telefon) : ''} · ${esc(datum)}</div>
+      <div class="pdf-footer-l">B&amp;B Immo GmbH &middot; Burdastraße 23 &middot; 77746 Schutterwald &middot; HRB 727 814 (Freiburg)</div>
+      <div class="pdf-footer-c">${vertriebler}</div>
+      <div class="pdf-footer-r">${esc(datum)}</div>
     </div>
   `;
 }
@@ -358,11 +367,18 @@ function reservierung(kunde, kalkInputs, user) {
 }
 
 /* ====================================================================
-   SELBSTAUSKUNFT (Hypovision-Layout mit B&B-Branding, form-fillable)
+   SELBSTAUSKUNFT — Hypovision-Struktur 1:1, B&B-Branding
+   ====================================================================
+   4 Seiten:
+     1) Persönliche Verhältnisse + Einkommen + Fixkosten
+     2) Vermögen + Immobilien + Verbindlichkeiten
+     3) Erklärungen I–III (Darlehensvermittlung, SCHUFA/Creditreform, DSGVO)
+     4) Erklärungen IV–VI (Steuer-ID, Grundbuch, Wahrheit) + EINE Unterschrift
+   GwG/PEP/Herkunft-EK sind im Frontend-Form vorhanden (CRM-Zweck), aber
+   NICHT mehr im Banker-PDF — Hypovision-Original hat das auch nicht.
    ==================================================================== */
 function selbstauskunft(kunde, user) {
   const k = kunde || {};
-  // Backend liefert saJson bereits geparsed (Object oder null).
   let sa = k.saJson;
   if (typeof sa === 'string') { try { sa = JSON.parse(sa); } catch(e) { sa = null; } }
   if (!sa || typeof sa !== 'object') sa = {};
@@ -370,90 +386,52 @@ function selbstauskunft(kunde, user) {
   const m = sa.mitantragsteller || {};
   const gemeinsam = sa.gemeinsam === true;
 
-  const fmt = window.Kalk.fmtEur;
   const fmtNum = (v) => (v === null || v === undefined || v === '') ? '' : (typeof v === 'number' ? Math.round(v).toLocaleString('de-DE') + ' €' : v);
   const dt = (v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? new Date(v).toLocaleDateString('de-DE') : (v || '');
 
-  // ----- Form-Field-Helper: rendert <input>-Elemente (form-fillable) oder
-  //       wenn Wert vorhanden, den Wert als Text in einem bordered Field-Look. -----
+  // Form-Field-Helper: leer → <input>, gefüllt → Text. Beides ohne sichtbaren Rand.
   function fld(value) {
-    // Leerer Wert → leeres Input-Feld (im Browser-Print zur PDF-Form). Wert → Text.
     const v = (value === null || value === undefined || value === '') ? '' : String(value);
-    if (v === '') {
-      return `<input type="text" class="sa-fld" value="">`;
-    }
+    if (v === '') return `<input type="text" class="sa-fld" value="">`;
     return `<span class="sa-fld sa-fld-filled">${esc(v)}</span>`;
   }
   function row(label, valA, valM) {
     return `<tr><td class="sa-label">${esc(label)}</td><td>${fld(valA)}</td><td>${gemeinsam ? fld(valM) : ''}</td></tr>`;
   }
   function rowChk(label, opts, valA, valM) {
-    const fmtOpt = (v) => {
-      return opts.map(o => (o === v ? `<span class="sa-chk on">☑</span> ${esc(o)}` : `<span class="sa-chk">☐</span> ${esc(o)}`)).join('&nbsp;&nbsp;');
-    };
+    const fmtOpt = (v) => opts.map(o => (o === v
+      ? `<span class="sa-chk on">☑</span> ${esc(o)}`
+      : `<span class="sa-chk">☐</span> ${esc(o)}`)).join('&nbsp;&nbsp;');
     return `<tr><td class="sa-label">${esc(label)}</td><td>${fmtOpt(valA)}</td><td>${gemeinsam ? fmtOpt(valM) : ''}</td></tr>`;
   }
-  function darlBlock(p, key, label) {
-    const d = p[key] || {};
-    return `
-      <tr>
-        <td class="sa-label">${esc(label)}</td>
-        <td>urspr.: ${fld(fmtNum(d.urspruenglich))} &middot; bis: ${fld(dt(d.laufzeitBis))}<br>mtl.: ${fld(fmtNum(d.belastungMo))} &middot; Rest: ${fld(fmtNum(d.restsaldo))}</td>
-        <td></td>
-      </tr>
-    `;
+  // Baufinanzierungen: 1 Zeile pro Datenfeld, je 2 Spalten (Baufi 1 / Baufi 2).
+  // Daten gehören typischerweise beiden Antragstellern gemeinsam → keine Person-Trennung.
+  function baufiRow(label, key) {
+    const v1 = (a.bf1 || {})[key];
+    const v2 = (a.bf2 || {})[key];
+    const fmt = (key === 'laufzeitBis') ? dt : (v => typeof v === 'number' ? fmtNum(v) : v);
+    return `<tr><td class="sa-label">${esc(label)}</td><td>${fld(fmt(v1))}</td><td>${fld(fmt(v2))}</td></tr>`;
+  }
+
+  // Sonstige Verbindlichkeiten: Spalten Zweck | urspr. Höhe | Laufzeit bis | mtl. | Restsaldo.
+  // 4 Slots (kd1–kd4) — wenn alle leer, bleiben die Zeilen als beschreibbare Form.
+  function sonstVerbRow(key, idx) {
+    const d = a[key] || {};
+    return `<tr>
+      <td>${fld(d.zweck || '')}</td>
+      <td>${fld(fmtNum(d.urspruenglich))}</td>
+      <td>${fld(dt(d.laufzeitBis))}</td>
+      <td>${fld(fmtNum(d.belastungMo))}</td>
+      <td>${fld(fmtNum(d.restsaldo))}</td>
+    </tr>`;
   }
 
   const versA = a.vers || {};
-  const gwgA = a.gwg || {};
-  const gwgM = m.gwg || {};
-  const herk = sa.herkunftEk || {};
 
-  // Helper: PEP-Block (Person-spezifisch). Pflicht nach §1 Abs.12 GwG.
-  function pepBlock(p, label) {
-    const status = p.pep === 'ja' ? 'ja' : (p.pep === 'nein' ? 'nein' : '');
-    return `
-      <div class="sa-pep-block">
-        <div class="pep-title">PEP-Erklärung &middot; ${esc(label)}</div>
-        <div style="font-size:8.5px; color:#555; margin-bottom:1.5mm;">
-          Politisch exponierte Person (PEP) = Person, die ein hochrangiges öffentliches Amt ausübt oder ausgeübt hat,
-          oder Familienangehörige/nahestehende Person einer solchen (§1 Abs. 12&ndash;14 GwG).
-        </div>
-        <div>
-          <span class="sa-chk ${status === 'nein' ? 'on' : ''}">${status === 'nein' ? '☑' : '☐'}</span> Ich bin <strong>keine</strong> politisch exponierte Person.
-          &nbsp;&nbsp;
-          <span class="sa-chk ${status === 'ja' ? 'on' : ''}">${status === 'ja' ? '☑' : '☐'}</span> Ich bin politisch exponierte Person — Details:
-          ${fld(p.pepDetails || '')}
-        </div>
-      </div>
-    `;
-  }
-
-  // Helper: Herkunft EK (sa-weit, nicht person-spezifisch).
-  function herkunftBlock() {
-    const chk = (k, label) => `<span><span class="sa-chk ${herk[k] ? 'on' : ''}">${herk[k] ? '☑' : '☐'}</span> ${esc(label)}</span>`;
-    return `
-      <div class="sa-herkunft-block">
-        <div class="h-title">Herkunft des eingesetzten Eigenkapitals</div>
-        <div class="h-checks">
-          ${chk('ersparnisse', 'Eigene Ersparnisse')}
-          ${chk('wertpapier', 'Wertpapier-/Depot-Verkauf')}
-          ${chk('erbe', 'Erbschaft')}
-          ${chk('schenkung', 'Schenkung')}
-          ${chk('immobilien', 'Immobilienverkauf')}
-          ${chk('sonstiges', 'Sonstiges')}
-        </div>
-        <div style="margin-top:1.5mm;">
-          <span style="font-size:9px; color:#555;">Erläuterung:</span> ${fld(herk.erlaeuterung || '')}
-        </div>
-      </div>
-    `;
-  }
-
-  // === SEITE 1: PERSÖNLICHE VERHÄLTNISSE + IDENTIFIKATION (GwG) + EINKOMMEN + FIXKOSTEN ===
+  // === SEITE 1: PERSÖNLICHE VERHÄLTNISSE + EINKOMMEN + FIXKOSTEN ===
   const seite1 = `
     <div class="pdf-page sa-page">
-      ${_header('Selbstauskunft – Vertraulich', 'Seite 1 · Persönliche Verhältnisse & Einkommen')}
+      ${_saHeader(1, 4)}
       <table class="sa-table">
         <thead><tr><th class="sa-section-h">PERSÖNLICHE VERHÄLTNISSE</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER / EHEPARTNER' : ''}</th></tr></thead>
         <tbody>
@@ -480,23 +458,6 @@ function selbstauskunft(kunde, user) {
           ${row('IBAN', a.iban, m.iban)}
           ${row('BIC', a.bic, m.bic)}
         </tbody>
-        <thead><tr><th class="sa-section-h">IDENTIFIKATION (§10 GwG)</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
-        <tbody>
-          ${rowChk('Ausweisart', ['Personalausweis','Reisepass','Sonstiges'], gwgA.ausweisArt, gwgM.ausweisArt)}
-          ${row('Ausweis-Nr.', gwgA.ausweisNr, gwgM.ausweisNr)}
-          ${row('ausstellende Behörde', gwgA.ausweisBehoerde, gwgM.ausweisBehoerde)}
-          ${row('ausgestellt am', dt(gwgA.ausweisAusgestellt), dt(gwgM.ausweisAusgestellt))}
-          ${row('gültig bis', dt(gwgA.ausweisGueltig), dt(gwgM.ausweisGueltig))}
-        </tbody>
-      </table>
-      <div class="sa-compliance-note">
-        Hinweis: Die finanzierende Bank ist nach §10 Geldwäschegesetz (GwG) verpflichtet, die Identität jedes
-        Vertragspartners festzustellen und zu überprüfen. Die obigen Angaben dienen der Vorprüfung; die
-        endgültige Identifikation erfolgt durch die Bank (PostIdent / VideoIdent / Identifizierung beim Notar).
-      </div>
-      ${pepBlock(a, 'Antragsteller')}
-      ${gemeinsam ? pepBlock(m, 'Mitantragsteller') : ''}
-      <table class="sa-table" style="margin-top:3mm;">
         <thead><tr><th class="sa-section-h">EINKOMMEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
         <tbody>
           ${row('Netto-Gehalt', fmtNum(a.nettoMo), fmtNum(m.nettoMo))}
@@ -505,6 +466,11 @@ function selbstauskunft(kunde, user) {
           ${row('Sonstige Einkommen', fmtNum(a.sonstigeMo), fmtNum(m.sonstigeMo))}
           ${row('Unterhalt', fmtNum(a.unterhaltMo), fmtNum(m.unterhaltMo))}
           ${row('Kindergeld', fmtNum(a.kindergeldMo), fmtNum(m.kindergeldMo))}
+          ${(() => {
+            const sumA = (a.nettoMo || 0) + (a.vermietungMo || 0) + (a.sonstigeMo || 0) + (a.unterhaltMo || 0) + (a.kindergeldMo || 0);
+            const sumM = (m.nettoMo || 0) + (m.vermietungMo || 0) + (m.sonstigeMo || 0) + (m.unterhaltMo || 0) + (m.kindergeldMo || 0);
+            return `<tr><td class="sa-label" style="font-weight:600;">Gesamt</td><td style="font-weight:600;">${sumA > 0 ? fld(fmtNum(sumA)) : fld('')}</td><td style="font-weight:600;">${gemeinsam && sumM > 0 ? fld(fmtNum(sumM)) : (gemeinsam ? fld('') : '')}</td></tr>`;
+          })()}
           ${row('Zu versteuerndes Einkommen / Jahr', fmtNum(a.zveJahr), fmtNum(m.zveJahr))}
           ${rowChk('Kirchensteuerpflicht', ['ja','nein'], a.kirchensteuer, m.kirchensteuer)}
         </tbody>
@@ -522,7 +488,7 @@ function selbstauskunft(kunde, user) {
   // === SEITE 2: VERMÖGEN + IMMOBILIEN + VERBINDLICHKEITEN ===
   const seite2 = `
     <div class="pdf-page sa-page">
-      ${_header('Selbstauskunft – Vertraulich', 'Seite 2 · Vermögen & Verbindlichkeiten')}
+      ${_saHeader(2, 4)}
       <table class="sa-table">
         <thead><tr><th class="sa-section-h">VERMÖGEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
         <tbody>
@@ -536,72 +502,128 @@ function selbstauskunft(kunde, user) {
           <tr><td class="sa-label">Versicherungssumme</td><td>${fld(fmtNum(versA.summe))}</td><td></td></tr>
           <tr><td class="sa-label">mtl. Beitrag / Rückkaufwert</td><td>${fld(fmtNum(versA.belastungMo))} &nbsp;/&nbsp; ${fld(fmtNum(versA.rueckkauf))}</td><td></td></tr>
         </tbody>
-      </table>
-      ${herkunftBlock()}
-      <table class="sa-table" style="margin-top:3mm;">
         <thead><tr><th class="sa-section-h">IMMOBILIENVERMÖGEN</th><th>Immobilie 1</th><th>Immobilie 2</th></tr></thead>
         <tbody>
           <tr><td class="sa-label">Art des Objekts</td><td>${fld((a.immo1 && a.immo1.art) || '')}</td><td>${fld((a.immo2 && a.immo2.art) || '')}</td></tr>
           <tr><td class="sa-label">Anschrift</td><td>${fld((a.immo1 && a.immo1.anschrift) || '')}</td><td>${fld((a.immo2 && a.immo2.anschrift) || '')}</td></tr>
-          <tr><td class="sa-label">Baujahr</td><td>${fld((a.immo1 && a.immo1.baujahr) || '')}</td><td>${fld((a.immo2 && a.immo2.baujahr) || '')}</td></tr>
-          <tr><td class="sa-label">Erwerbsjahr</td><td>${fld((a.immo1 && a.immo1.erwerbsjahr) || '')}</td><td>${fld((a.immo2 && a.immo2.erwerbsjahr) || '')}</td></tr>
+          <tr><td class="sa-label">Baujahr / Erwerbsjahr</td><td>${fld((a.immo1 && a.immo1.baujahr) || '')} / ${fld((a.immo1 && a.immo1.erwerbsjahr) || '')}</td><td>${fld((a.immo2 && a.immo2.baujahr) || '')} / ${fld((a.immo2 && a.immo2.erwerbsjahr) || '')}</td></tr>
           <tr><td class="sa-label">Wohnfläche (m²)</td><td>${fld((a.immo1 && a.immo1.wohnflaeche) || '')}</td><td>${fld((a.immo2 && a.immo2.wohnflaeche) || '')}</td></tr>
           <tr><td class="sa-label">Verkehrswert</td><td>${fld(fmtNum(a.immo1 && a.immo1.verkehrswert))}</td><td>${fld(fmtNum(a.immo2 && a.immo2.verkehrswert))}</td></tr>
           <tr><td class="sa-label">Hypotheken & Grundschulden</td><td>${fld(fmtNum(a.immo1 && a.immo1.hypotheken))}</td><td>${fld(fmtNum(a.immo2 && a.immo2.hypotheken))}</td></tr>
-          <tr><td class="sa-label">Mieteinnahmen / Monat</td><td>${fld(fmtNum(a.immo1 && a.immo1.mietenMo))}</td><td>${fld(fmtNum(a.immo2 && a.immo2.mietenMo))}</td></tr>
+          <tr><td class="sa-label">Mieteinnahmen pro Monat</td><td>${fld(fmtNum(a.immo1 && a.immo1.mietenMo))}</td><td>${fld(fmtNum(a.immo2 && a.immo2.mietenMo))}</td></tr>
         </tbody>
-        <thead><tr><th class="sa-section-h">VERBINDLICHKEITEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
+        <thead><tr><th class="sa-section-h">BAUFINANZIERUNGEN</th><th>BAUFINANZIERUNG 1</th><th>BAUFINANZIERUNG 2</th></tr></thead>
         <tbody>
-          ${darlBlock(a, 'bf1', 'Baufinanzierung 1')}
-          ${darlBlock(a, 'bf2', 'Baufinanzierung 2')}
-          ${darlBlock(a, 'kd1', 'Konsumentendarlehen 1')}
-          ${darlBlock(a, 'kd2', 'Konsumentendarlehen 2')}
-          ${gemeinsam ? darlBlock(m, 'bf1', 'Baufinanzierung 1 (Mit)') : ''}
-          ${gemeinsam ? darlBlock(m, 'bf2', 'Baufinanzierung 2 (Mit)') : ''}
-          ${gemeinsam ? darlBlock(m, 'kd1', 'Konsumentendarlehen 1 (Mit)') : ''}
-          ${gemeinsam ? darlBlock(m, 'kd2', 'Konsumentendarlehen 2 (Mit)') : ''}
+          ${baufiRow('urspr. Darlehenshöhe', 'urspruenglich')}
+          ${baufiRow('Laufzeit bis', 'laufzeitBis')}
+          ${baufiRow('mtl. Belastung', 'belastungMo')}
+          ${baufiRow('Restsaldo', 'restsaldo')}
         </tbody>
       </table>
+      <table class="sa-table sa-verb-table" style="margin-top:3mm;">
+        <thead><tr><th>SONSTIGE VERBINDLICHKEITEN</th><th>URSPR. HÖHE</th><th>LAUFZEIT BIS</th><th>MTL. BELASTUNG</th><th>RESTSALDO</th></tr></thead>
+        <tbody>
+          ${sonstVerbRow('kd1', 1)}
+          ${sonstVerbRow('kd2', 2)}
+          ${sonstVerbRow('kd3', 3)}
+          ${sonstVerbRow('kd4', 4)}
+        </tbody>
+      </table>
+      <div style="font-size:7.5px; color:#666; margin-top:1mm; font-style:italic;">Weitere Immobilien bzw. Verbindlichkeiten bitte als Anlage beifügen.</div>
       ${_footer(user)}
     </div>
   `;
 
-  // === SEITE 3: Bonität + Unterschrift ===
-  let bonDetail = null;
-  if (window.Kalk && window.Kalk.computeBonitaetDetailed) {
-    bonDetail = window.Kalk.computeBonitaetDetailed(sa, gemeinsam);
-  }
+  // === SEITE 3: ERKLÄRUNGEN I–III (1:1 aus Hypovision, B&B-Wortlaut) ===
   const seite3 = `
-    <div class="pdf-page sa-page">
-      ${_header('Selbstauskunft – Bonitäts-Auswertung', 'Seite 3 · Bank-Sicht')}
-      ${bonDetail ? `
-      <h2 style="margin-top:0;">Anrechenbares Einkommen</h2>
-      <table>
-        <tr><td>Netto-Gehalt (anrechenbar)</td><td class="num">${fmt((bonDetail.einkommenA.netto || 0) + (bonDetail.einkommenM.netto || 0))}</td></tr>
-        <tr><td>Vermietung (80% Anrechnung)</td><td class="num">${fmt((bonDetail.einkommenA.vermAnr || 0) + (bonDetail.einkommenM.vermAnr || 0))}</td></tr>
-        <tr><td>Sonstige (Unterhalt, Kindergeld, Sonstige)</td><td class="num">${fmt((bonDetail.einkommenA.sonstigeAnr || 0) + (bonDetail.einkommenM.sonstigeAnr || 0))}</td></tr>
-        <tr><td><strong>Summe / Monat</strong></td><td class="num"><strong>${fmt(bonDetail.einkommenAnrechenbarMo)}</strong></td></tr>
-      </table>
-      <h2>Ausgaben (Bank-Sicht)</h2>
-      <table>
-        <tr><td>Haushaltspauschale (${bonDetail.erwachsene} Erw. + ${bonDetail.kinder} Kinder)</td><td class="num">${fmt(bonDetail.haushaltPauschale)}</td></tr>
-        <tr><td>Fixkosten (Miete + Unterhalt + PKV)</td><td class="num">${fmt(bonDetail.fixkostenMo)}</td></tr>
-        <tr><td>Verbindlichkeiten mtl. (Baufi + Konsum + Vers.)</td><td class="num">${fmt(bonDetail.verbindlichkeitenMo)}</td></tr>
-        <tr><td><strong>Summe / Monat</strong></td><td class="num"><strong>${fmt(bonDetail.ausgabenGesamtMo)}</strong></td></tr>
-      </table>
-      <h2>Frei verfügbar &amp; Vermögen</h2>
-      <table>
-        <tr><td>Frei vor Investment / Monat</td><td class="num"><strong>${fmt(bonDetail.einkommenAnrechenbarMo - bonDetail.ausgabenGesamtMo)}</strong></td></tr>
-        <tr><td>Freies Vermögen (Bank-Sicht)</td><td class="num"><strong>${fmt(bonDetail.freiesVermoegen)}</strong></td></tr>
-        <tr><td>Verbindlichkeiten gesamt</td><td class="num">${fmt(bonDetail.verbindlichkeitenGesamt)}</td></tr>
-      </table>
-      ` : '<p>Keine Selbstauskunft-Daten erfasst.</p>'}
-      <div class="pdf-disclaimer">
-        Ich versichere/Wir versichern, dass die obigen Angaben nach bestem Wissen, vollständig und wahrheitsgemäß
-        gemacht wurden. Mir/uns ist bekannt, dass falsche Angaben zur Vertragsaufhebung führen können.
-        Hiermit stimme/n ich/wir der Übermittlung der Daten an die kreditgebende Bank sowie an SCHUFA und Creditreform
-        gemäß DS-GVO zu.
-      </div>
+    <div class="pdf-page sa-page sa-legal">
+      ${_saHeader(3, 4)}
+      <div style="font-size:11px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; margin-bottom:4mm;">Erklärung der Darlehensnehmer · Einwilligungserklärungen</div>
+      <h2 class="legal-h">I. Darlehensvermittlung und Anschlussbetreuung</h2>
+      <p class="legal-p">
+        Hiermit beauftrage/n ich/wir die <strong>B&amp;B Immo GmbH</strong> mit der Vermittlung eines Darlehens zur
+        Immobilienfinanzierung sowie damit in Zusammenhang stehender Finanzdienstleistungen und Betreuung während
+        der Auszahlung dieses Darlehens. Ich/wir bevollmächtige/n die B&amp;B Immo GmbH, alle hierfür erforderlichen
+        Unterlagen (Darlehensantrag, Objekt- und Bonitätsunterlagen etc.) an einen zur Finanzierung vorgesehenen
+        Darlehensgeber weiterzuleiten, Konditionsangebote bei dem Darlehensgeber einzuholen und sämtlichen mit der
+        Finanzierung zusammenhängenden Schriftverkehr für mich/uns entgegenzunehmen. Mir/uns ist bekannt, dass eine
+        verbindliche Darlehenszusage nur von einem Darlehensgeber selbst gegeben werden kann und dass Darlehenszusagen
+        von Darlehensgebern jederzeit widerrufen werden können, insbesondere wenn sich Abweichungen zu den von mir/uns
+        gemachten Angaben herausstellen. Ich versichere/wir versichern, dass gegen mich/uns bisher keine Zwangsmaßnahmen
+        (z.B. Gehaltspfändung, Zwangsversteigerung, Insolvenzverfahren) eingeleitet wurden und dass ich/wir meinen/unseren
+        Zahlungsverpflichtungen in der Vergangenheit immer ordnungsgemäß nachgekommen bin/sind. Ich handle/wir handeln
+        im eigenen wirtschaftlichen Interesse und nicht auf fremde Veranlassung (insbesondere nicht als Treuhänder).
+      </p>
+      <h2 class="legal-h">II. Datenübermittlung an die SCHUFA und Befreiung vom Bankgeheimnis</h2>
+      <p class="legal-p">
+        Der Vertragspartner (Darlehensgeber/Bank/Sparkasse) übermittelt im Rahmen dieses Vertragsverhältnisses
+        erhobene personenbezogene Daten über die Beantragung, die Durchführung und Beendigung dieser
+        Geschäftsbeziehung sowie Daten über nicht vertragsgemäßes Verhalten oder betrügerisches Verhalten an die
+        SCHUFA Holding AG, Kormoranweg 5, 65201 Wiesbaden. Rechtsgrundlagen dieser Übermittlungen sind Artikel
+        6 Absatz 1 lit. b und Artikel 6 Absatz 1 lit. f der Datenschutz-Grundverordnung (DS-GVO). Übermittlungen
+        auf der Grundlage von Artikel 6 Absatz 1 lit. f DS-GVO dürfen nur erfolgen, soweit dies zur Wahrung
+        berechtigter Interessen der Bank/Sparkasse oder Dritter erforderlich ist und nicht die Interessen oder
+        Grundrechte und Grundfreiheiten der betroffenen Person, die den Schutz personenbezogener Daten erfordern,
+        überwiegen. Der Datenaustausch mit der SCHUFA dient auch der Erfüllung gesetzlicher Pflichten zur
+        Durchführung von Kreditwürdigkeitsprüfungen von Kunden (§ 505a BGB, § 18a KWG). Der Kunde befreit den
+        Vertragspartner insoweit auch vom Bankgeheimnis. Die SCHUFA verarbeitet die erhaltenen Daten und
+        verwendet sie auch zum Zwecke der Profilbildung (Scoring), um ihren Vertragspartnern im Europäischen
+        Wirtschaftsraum und in der Schweiz sowie ggf. weiteren Drittländern Informationen unter anderem zur
+        Beurteilung der Kreditwürdigkeit von natürlichen Personen zu geben. Nähere Informationen zur Tätigkeit der
+        SCHUFA können dem SCHUFA-Informationsblatt nach Art. 14 DS-GVO entnommen oder online unter
+        <em>www.schufa.de/datenschutz</em> eingesehen werden.
+      </p>
+      <h2 class="legal-h">III. Datenübermittlung an Creditreform (Freiberufler &amp; Selbständige)</h2>
+      <p class="legal-p">
+        Der Darlehensgeber übermittelt der Wirtschaftsauskunftei Creditreform Boniversum GmbH, Hellersbergstraße
+        11, 41460 Neuss im Rahmen der Beantragung bonitärer Leistungen Daten (Name, Adresse, Geburtsdatum, ggf.
+        Voranschrift sowie Anfragegrund) zum Zweck der Bonitätsprüfung. Rechtsgrundlagen sind Art. 6 Abs. 1 lit. b
+        und Art. 6 Abs. 1 lit. f DS-GVO. Der Datenaustausch dient auch der Erfüllung gesetzlicher Pflichten zur
+        Durchführung von Kreditwürdigkeitsprüfungen (§ 505a BGB, § 18a KWG). Der Kunde befreit den Darlehensgeber
+        insoweit auch vom Bankgeheimnis. Weitere Informationen zur Datenverarbeitung bei Creditreform sind unter
+        <em>https://www.creditreform.de/EU-DSGVO/</em> abrufbar.
+      </p>
+      ${_footer(user)}
+    </div>
+  `;
+
+  // === SEITE 4: ERKLÄRUNGEN IV–VI + UNTERSCHRIFT ===
+  const seite4 = `
+    <div class="pdf-page sa-page sa-legal">
+      ${_saHeader(4, 4)}
+      <h2 class="legal-h">IV. Mitwirkungspflicht Steuer-Identifikationsnummer (Steuer-ID)</h2>
+      <p class="legal-p">
+        Mir/uns ist bekannt, dass ich/wir verpflichtet bin/sind, gemäß § 154 Abs. 2a der Abgabenordnung meine/unsere
+        steuerliche Identifikation bekannt zu geben. Sofern die Steuer-ID bis zum Vertragsschluss nicht mitgeteilt
+        wurde, teile/n ich/wir diese dem betreffenden Kreditinstitut spätestens 14 Tage nach Vertragsabschluss
+        schriftlich mit (Mitwirkungspflicht). Kreditinstitute sind ab dem 01.01.2018 gesetzlich dazu verpflichtet,
+        die Steuer-ID für jeden Kontoinhaber sowie jeden anderen Verfügungsberechtigten zu erheben und aufzuzeichnen.
+        Bei Missachtung der Mitwirkungspflicht muss die Bank im Wege des maschinellen Anfrageverfahrens die Steuer-ID
+        beim Bundeszentralamt für Steuern (BZSt) erfragen und ist bei unzureichender Mitwirkung verpflichtet, dies
+        festzuhalten und dem BZSt mitzuteilen.
+      </p>
+      <h2 class="legal-h">V. Nutzung des automatisierten Grundbuch-Abrufverfahrens</h2>
+      <p class="legal-p">
+        Der Darlehensgeber kann das automatisierte Verfahren zur Übermittlung von Daten aus dem maschinell geführten
+        Grundbuch zur Prüfung von Darlehensanträgen nutzen. Dies gilt auch für die Übermittlung von Anträgen auf
+        Auskunft aus dem Grundbuch gemäß § 133 Abs. 4 Grundbuchordnung. Der Darlehensgeber kann die übermittelten
+        Daten nur dann nutzen, wenn der Kunde bereits (Mit-)Eigentümer bzw. Erbbauberechtigter des betroffenen
+        Grundstücks ist. Die Datennutzung bezieht sich auf sämtliche Grundbücher, in die der Kunde als
+        (Mit-)Eigentümer bzw. Erbbauberechtigter eingetragen ist oder wird.
+      </p>
+      <h2 class="legal-h">VI. Vollständigkeits- und Wahrheitserklärung</h2>
+      <p class="legal-p">
+        Ich versichere/wir versichern, alle vorstehenden Angaben nach bestem Wissen vollständig und wahrheitsgemäß
+        gemacht zu haben. Falsche oder unvollständige Angaben können zur Vertragsaufhebung sowie zur strafrechtlichen
+        Verfolgung wegen Kreditbetrugs (§ 265b StGB) führen. Wesentliche Änderungen der wirtschaftlichen
+        Verhältnisse zwischen Abgabe der Selbstauskunft und Auszahlung des Darlehens werde/n ich/wir unverzüglich
+        mitteilen.
+      </p>
+      <p class="legal-p" style="margin-top:5mm;">
+        Mit meiner/unserer Unterschrift stimme/n ich/wir den obigen Versicherungen sowie der Nutzung des
+        automatisierten Grundbuch-Abrufverfahrens (Ziffer V) zu. Die Datenschutzhinweise der Auskunfteien haben
+        wir zur Kenntnis genommen.
+      </p>
       <div class="sa-sigblock">
         <div class="sig-col">
           <div class="sig-line"><span class="sig-tag">{{Signature1}}</span></div>
@@ -619,85 +641,7 @@ function selbstauskunft(kunde, user) {
     </div>
   `;
 
-  // === SEITE 4 + 5: DATENSCHUTZ & EINWILLIGUNGEN (1:1-Wortlaut aus Hypovision) ===
-  const seite4 = `
-    <div class="pdf-page sa-page sa-legal">
-      ${_header('Selbstauskunft – Datenschutz & Einwilligungen', 'Seite 4 · Erklärungen des Antragstellers')}
-      <h2 class="legal-h">I. Hinweis zur Darlehensvermittlung</h2>
-      <p class="legal-p">
-        Die B&amp;B Immo GmbH tritt im Rahmen der Finanzierungsvermittlung ausschließlich als unabhängiger Darlehensvermittler
-        gemäß § 34c GewO auf. Sie ist berechtigt, Selbstauskünfte, Bonitätsunterlagen sowie die zur Bearbeitung einer
-        Finanzierungsanfrage notwendigen Daten an potenzielle Darlehensgeber (Banken, Bausparkassen, Versicherungen) zu
-        übermitteln. Die Auswahl der Darlehensgeber erfolgt im Interesse des Antragstellers und ohne dauerhafte Bindung
-        an ein bestimmtes Institut.
-      </p>
-      <h2 class="legal-h">II. Einwilligung SCHUFA &amp; Creditreform</h2>
-      <p class="legal-p">
-        Ich willige/Wir willigen ein, dass die B&amp;B Immo GmbH sowie die mit ihr zusammenarbeitenden kreditgebenden
-        Institute Daten über die Aufnahme, die Durchführung und Beendigung dieser Geschäftsverbindung sowie Daten über
-        nicht vertragsgemäßes Verhalten oder betrügerisches Verhalten an die SCHUFA Holding AG (Kormoranweg 5, 65201
-        Wiesbaden) und die Creditreform Boniversum GmbH (Hellersbergstraße 11, 41460 Neuss) übermitteln. Die SCHUFA bzw.
-        Creditreform speichert und übermittelt diese Daten an ihre Vertragspartner im EWR-Raum sowie in der Schweiz, um
-        diesen Informationen zur Beurteilung der Kreditwürdigkeit von natürlichen Personen zu geben. Weitere Informationen
-        zur SCHUFA-Tätigkeit sind unter <em>www.schufa.de</em> bzw. <em>www.boniversum.de</em> abrufbar.
-      </p>
-      <h2 class="legal-h">III. Datenschutz im Rahmen der Finanzierungsanfrage</h2>
-      <p class="legal-p">
-        Die personenbezogenen Daten aus dieser Selbstauskunft werden gemäß Art. 6 Abs. 1 lit. b DS-GVO zur Anbahnung und
-        Durchführung des Vermittlungsverhältnisses verarbeitet. Eine Weitergabe an Dritte erfolgt nur, soweit dies zur
-        Erfüllung der Vermittlungsleistung erforderlich ist (insb. an die zur Auswahl stehenden Darlehensgeber und
-        an Notare im Rahmen einer ggf. nachfolgenden Beurkundung). Die Daten werden so lange gespeichert, wie dies für
-        die Geschäftsbeziehung erforderlich ist, mindestens jedoch entsprechend der gesetzlichen Aufbewahrungsfristen
-        (§ 257 HGB, § 147 AO). Die Rechte auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung,
-        Datenübertragbarkeit und Widerspruch nach Art. 15 ff. DS-GVO bleiben unberührt. Beschwerden können an die
-        zuständige Aufsichtsbehörde (LfDI Baden-Württemberg, Königstraße 10a, 70173 Stuttgart) gerichtet werden.
-      </p>
-      ${_footer(user)}
-    </div>
-  `;
-
-  const seite5 = `
-    <div class="pdf-page sa-page sa-legal">
-      ${_header('Selbstauskunft – Datenschutz & Einwilligungen', 'Seite 5 · Mitwirkungspflichten')}
-      <h2 class="legal-h">IV. Mitwirkungspflicht Steuer-Identifikationsnummer</h2>
-      <p class="legal-p">
-        Nach § 154 Abgabenordnung (AO) i.V.m. § 24c Kreditwesengesetz (KWG) sind kreditgebende Institute verpflichtet,
-        bei der Aufnahme einer Geschäftsverbindung die Steueridentifikationsnummer des Vertragspartners zu erheben und
-        zu speichern. Mit Abgabe dieser Selbstauskunft erkläre/n ich/wir mich/uns bereit, der finanzierenden Bank meine/unsere
-        Steueridentifikationsnummer mitzuteilen, sofern diese im Rahmen der Antragstellung nicht bereits hier vermerkt ist.
-      </p>
-      <h2 class="legal-h">V. Einwilligung in das automatisierte Grundbuch-Abrufverfahren</h2>
-      <p class="legal-p">
-        Ich willige/Wir willigen ein, dass die finanzierende Bank zum Zweck der Bonitäts- und Sicherheitenprüfung
-        Auskünfte aus dem Grundbuch im automatisierten Abrufverfahren nach § 133 Grundbuchordnung (GBO) einholt, soweit
-        ein berechtigtes Interesse vorliegt. Dies betrifft sowohl die zu finanzierende Immobilie als auch von mir/uns
-        in dieser Selbstauskunft angegebene Bestandsimmobilien.
-      </p>
-      <h2 class="legal-h">VI. Vollständigkeits- und Wahrheitserklärung</h2>
-      <p class="legal-p">
-        Ich versichere/Wir versichern, dass die obigen Angaben nach bestem Wissen vollständig und wahrheitsgemäß gemacht
-        wurden. Mir/Uns ist bekannt, dass falsche oder unvollständige Angaben zur Vertragsaufhebung sowie zur
-        strafrechtlichen Verfolgung wegen Kreditbetrugs (§ 265b StGB) führen können. Wesentliche Änderungen der wirtschaftlichen
-        Verhältnisse zwischen Abgabe der Selbstauskunft und Auszahlung des Darlehens werde/n ich/wir unverzüglich mitteilen.
-      </p>
-      <div class="sa-sigblock">
-        <div class="sig-col">
-          <div class="sig-line"><span class="sig-tag">{{Signature1}}</span></div>
-          <div class="sig-meta">Ort, Datum &middot; Unterschrift Antragsteller</div>
-          <div class="sig-meta sig-tag" style="margin-top:1mm;">{{Date1}}</div>
-        </div>
-        ${gemeinsam ? `
-        <div class="sig-col">
-          <div class="sig-line"><span class="sig-tag">{{Signature2}}</span></div>
-          <div class="sig-meta">Ort, Datum &middot; Unterschrift Mit-Antragsteller</div>
-          <div class="sig-meta sig-tag" style="margin-top:1mm;">{{Date2}}</div>
-        </div>` : '<div></div>'}
-      </div>
-      ${_footer(user)}
-    </div>
-  `;
-
-  _doPrint(seite1 + seite2 + seite3 + seite4 + seite5, 'sa');
+  _doPrint(seite1 + seite2 + seite3 + seite4, 'sa');
 }
 
 window.PDF = { investitionsrechnung, reservierung, selbstauskunft };

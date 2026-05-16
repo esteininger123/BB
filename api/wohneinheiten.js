@@ -12,8 +12,15 @@ const { weRecordToApi } = require('./_lib/mappers');
 // Toleriert Fehler (z.B. wenn Projekt-Tabelle anders heißt) und liefert leeres Mapping.
 // Mapping: Projekt-Code aus Airtable → kundenfreundlicher Projekt-Name.
 const PROJEKT_PRETTY = {
-  'BRUCH_HEID_21':     'Heidelberger Str. 21, Bruchsal',
-  'WES_RHEIN 290/292': 'Wesseling, Rheinstr. 290+292',
+  'BRUCH_HEID_21':       'Heidelberger Str. 21, Bruchsal',
+  'WES_RHEIN 290/292':   'Wesseling, Rheinstr. 290+292',
+  'BAD_NORDRING_10':     'Sandweier (Baden-Baden), Nordring 10',
+  'LIM_ALTENS_5':        'Limeshain, Altenstädter Weg 5',
+  'WALDK_THEOD':         'Waldkirch, Theodor-Heuss-Str. 13+15',
+  'KA_HEIN_6':           'Karlsruhe, Heinstraße 6',
+  'PFAFF_GEO-HIP_28':    'Pfaffenhofen, Georg-Hipp-Str. 28',
+  'LAHR_GAERTN_20':      'Lahr, Gärtnerstraße 20',
+  'SINZ_KORNBL_7':       'Sinzheim, Kornblumenweg 7',
 };
 
 function beautifyProjektName(rawNameOrCode) {
@@ -103,17 +110,13 @@ module.exports = async (req, res) => {
     // Lookups geben Arrays zurück → FIND() + ARRAYJOIN(). Auch Trailing-Spaces wie
     // "B&B Immo GmbH  " sind dank FIND() unproblematisch.
     //
-    // Zusätzlich beschränken auf das aktive Verkaufs-Projekt (Heidelberger Str. 21).
-    // Wir filtern via Substring auf den Objekt-Link-Text — robust gegen Umbenennungen.
-    // Wenn weitere Projekte zugelassen werden sollen: WOHNEINHEIT_OBJEKT_FILTER setzen
-    // (kommagetrennte Substring-Liste).
-    // Default-Filter: Heidelberger Str. (Bruchsal) + Wesseling — beide aktiv für Vertriebs-Calls.
-    // Überschreibbar via Vercel-Env-Var WOHNEINHEIT_OBJEKT_FILTER (kommagetrennt).
-    const objektFilterRaw = process.env.WOHNEINHEIT_OBJEKT_FILTER || 'Heidelberger,Wesseling';
+    // Iter 41 (15.05.2026): Projekt-Substring-Filter (Heidelberger/Wesseling) entfernt.
+    // Henry pflegt alle B&B-Projekte in Vermarktung — die App zeigt jetzt automatisch alles,
+    // was Status="Vermarktung / Im Verkauf" + Maklerfirma=B&B Immo GmbH hat.
+    // Wenn doch ein Filter nötig ist (z.B. Demo-Modus), kann WOHNEINHEIT_OBJEKT_FILTER
+    // als Env-Var gesetzt werden — kommagetrennte Substring-Liste auf {Titel}.
+    const objektFilterRaw = process.env.WOHNEINHEIT_OBJEKT_FILTER || '';
     const objektTokens = objektFilterRaw.split(',').map(s => s.trim()).filter(Boolean);
-    // Wir filtern im {Titel}-Feld (Formel: "WE: X, Lage, Straße Nr, PLZ Ort"), weil
-    // dort die echte Ortsangabe steht. Das verlinkte Objekt-Feld enthält nur den
-    // Objekt-Code wie "Obj: WES_RHEIN 290, 14" — da würde 'Wesseling' nicht matchen.
     const objektFormula = objektTokens.length === 1
       ? `FIND('${objektTokens[0]}', {Titel})>0`
       : objektTokens.length > 1

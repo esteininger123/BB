@@ -610,7 +610,21 @@ function renderTabKalkulator() {
                 <option value="${esc(w.id)}" ${i._weId === w.id ? 'selected' : ''}>${esc(weLabel(w))}</option>
               `).join('')}
             </select>
-            ${i._weId ? `<div class="text-tertiary text-small mt-4">Aktiv: ${esc(i._weNr ? 'WE ' + i._weNr + ' · ' : '')}${esc(i._weLage || '')}</div>` : ''}
+            ${i._weId ? `
+              <div class="text-tertiary text-small mt-4">Aktiv: ${esc(i._weNr ? 'WE ' + i._weNr + ' · ' : '')}${esc(i._weLage || '')}</div>
+              ${i._stellplatzAnzahl > 0 ? `
+                <div class="text-tertiary text-small mt-4" style="background:#f8fafc;padding:8px 12px;border-radius:6px;border-left:3px solid #2c5282;">
+                  <strong>+ ${i._stellplatzAnzahl} Stellplatz${i._stellplatzAnzahl > 1 ? 'e' : ''}</strong>
+                  ${i._stellplatzKp > 0 ? ' · KP ' + Math.round(i._stellplatzKp).toLocaleString('de-DE') + ' €' : ''}
+                  ${i._stellplatzMiete > 0 ? ' · Miete ' + Math.round(i._stellplatzMiete) + ' €/Mo (' + esc(i._stellplatzMieteQuelle || '') + ')' : ''}
+                </div>
+              ` : ''}
+              ${i._stammdatenQuelle ? `
+                <div class="text-tertiary text-small mt-4" style="font-style:italic;">
+                  Stammdaten-Quelle: <strong>${esc(i._stammdatenQuelle)}</strong>${i._stammdatenStatus ? ' (' + esc(i._stammdatenStatus) + ')' : ''}
+                </div>
+              ` : ''}
+            ` : ''}
           `}
         </div>
         <div>
@@ -1052,37 +1066,95 @@ function detectProfil(k) {
   return 'standard';
 }
 
-function loadWeIntoKalk(weId) {
+async // async, weil Airtable-Stammdaten via fetch geholt werden
+async function loadWeIntoKalk(weId) {
   if (!weId) {
     delete state.kalk._weId;
     delete state.kalk._weLage;
     delete state.kalk._weNr;
     delete state.kalk._projektName;
+    delete state.kalk._stammdatenQuelle;
+    delete state.kalk._stellplatzAnzahl;
     renderTabKalkulator();
     return;
   }
   const w = state.wohneinheiten.find(x => x.id === weId);
   if (!w) return;
 
-  // 1) Default-Werte aus we-presets.js (pro Record-ID gepflegt aus Excel + Standards)
-  //    Diese Werte sind die VERBINDLICHE Quelle — Airtable ergänzt nur was abweicht.
+  // 1) WE-Metadata immer aus Airtable (Lage-Text, Projekt-Name)
+  state.kalk._weId = weId;
+  state.kalk._weLage = w.lageText || w.lage || w.weNr || '';
+  state.kalk._weNr = w.weNr || '';
+  state.kalk._projektName = w.projektName || '';
+
+  // 2) Fallback initial setzen aus we-stammdaten.js (Excel-Werte) — wird ggf. überschrieben.
   const preset = (window.WE_PRESETS_BY_RECID || {})[weId];
   if (preset) {
-    // Komplettes Preset übernehmen (Hausgeld, Subvention, AfA, Wertsteigerung, ...)
     Object.assign(state.kalk, JSON.parse(JSON.stringify(preset)));
   } else {
-    // Fallback: nur die Airtable-Basics + Hausgeld-Faustregel.
     state.kalk.kaufpreis = w.kp || w.kaufpreis || state.kalk.kaufpreis;
     state.kalk.qm = w.qm || state.kalk.qm;
     state.kalk.kaltmiete = w.kaltmiete || state.kalk.kaltmiete;
     if (w.qm) state.kalk.hausgeld = Math.round(w.qm);
   }
 
-  // 2) WE-Metadata immer aus Airtable (Lage-Text, Projekt-Name)
-  state.kalk._weId = weId;
-  state.kalk._weLage = w.lageText || w.lage || w.weNr || '';
-  state.kalk._weNr = w.weNr || '';
-  state.kalk._projektName = w.projektName || '';
+  // 3) NEU (Iter 41): Live-Airtable-Stammdaten holen — wenn Status=Aktiv → überschreibt Fallback.
+  //    Wenn Endpoint fehlschlägt oder Status=Entwurf → wir bleiben beim Excel-Fallback aus 2).
+  state.kalk._stammdatenQuelle = preset ? 'excel-fallback' : 'we-basics';
+  try {
+    const resp = await api.get('/api/stammdaten/' + encodeURIComponent(weId));
+    if (resp && resp.we) {
+      // WE-Basis-Werte aus dem Endpoint — der ist autoritativ (lebt direkt aus Wohneinheit-Tabelle)
+      state.kalk.kaufpreis = (resp.we.kp || 0) + (resp.stellplaetze && resp.stellplaetze.kaufpreisSumme || 0);
+      state.kalk.qm = resp.we.qm || state.kalk.qm;
+      state.kalk.kaltmiete = (resp.we.kaltmiete || 0) + (resp.stellplaetze && resp.stellplaetze.mieteMoSumme || 0);
+      // Stellplatz separat tracken für UI-Anzeige
+      state.kalk._stellplatzAnzahl = (resp.stellplaetze && resp.stellplaetze.anzahl) || 0;
+      state.kalk._stellplatzKp = (resp.stellplaetze && resp.stellplaetze.kaufpreisSumme) || 0;
+      state.kalk._stellplatzMiete = (resp.stellplaetze && resp.stellplaetze.mieteMoSumme) || 0;
+      state.kalk._stellplatzMieteQuelle = (resp.stellplaetze && resp.stellplaetze.mieteMoQuelle) || 'keine';
+      // Wohnungs-Kaltmiete (ohne Stellplatz) — wird für Mietsteigerungs-Logik gebraucht
+      state.kalk._wohnungsKaltmiete = resp.we.kaltmiete || 0;
+    }
+    if (resp && resp.kalkStammdaten && resp.kalkStammdaten.status === 'Aktiv') {
+      const sd = resp.kalkStammdaten;
+      // Airtable überschreibt Excel-Fallback (nur wenn Status=Aktiv)
+      if (sd.hausverwaltung !== null)        state.kalk.hausverwaltung = sd.hausverwaltung;
+      if (sd.hausgeldRuecklage !== null)     state.kalk.hausgeld = sd.hausgeldRuecklage;
+      if (sd.mietverwaltungDefault !== null) state.kalk.mietverwaltung = sd.mietverwaltungDefault;
+      if (sd.mietzuschuss !== null)          state.kalk.subventionMo = sd.mietzuschuss;
+      if (sd.mietzuschussMonate !== null)    state.kalk.subventionMonate = sd.mietzuschussMonate;
+      if (sd.afaGutachten !== null)          state.kalk.afaSatz = sd.afaGutachten;
+      if (sd.wertsteigerung !== null)        state.kalk.wertsteigerung = sd.wertsteigerung;
+      // Mieterhöhungs-Logik → mappen auf bestehende kalkulator.js-Felder
+      state.kalk._vermietungsModus = sd.vermietungsModus;
+      state.kalk._kappungsgrenze = sd.kappungsgrenze;
+      state.kalk._indexmiete = sd.indexmiete;
+      if (sd.vermietungsModus === 'Neuvermietung (Indexmiete)') {
+        state.kalk.mietsteigerungsModus = 'index';
+        state.kalk.steigerungProz = (sd.indexmiete !== null && sd.indexmiete !== undefined) ? sd.indexmiete : 0.02;
+      } else if (sd.vermietungsModus === 'Bestand') {
+        state.kalk.mietsteigerungsModus = 'sprung';
+        if (sd.kappungsgrenze === '20 % alle 3 Jahre') {
+          state.kalk.steigerungProz = 0.20;
+        } else {
+          state.kalk.steigerungProz = 0.15; // Default 15 %
+        }
+      } // 'Frei / Leerstand' → bestehender Wert bleibt
+      state.kalk._stammdatenQuelle = 'airtable-aktiv';
+      state.kalk._stammdatenId = sd.id;
+      state.kalk._stammdatenStatus = sd.status;
+    } else if (resp && resp.kalkStammdaten) {
+      // Entwurf existiert, aber nicht aktiv — wir nutzen Fallback, merken aber die ID
+      state.kalk._stammdatenQuelle = 'excel-fallback-airtable-entwurf';
+      state.kalk._stammdatenId = resp.kalkStammdaten.id;
+      state.kalk._stammdatenStatus = resp.kalkStammdaten.status;
+    }
+  } catch (e) {
+    // Endpoint nicht erreichbar oder Fehler → wir bleiben beim Excel-Fallback
+    console.warn('[stammdaten] Airtable-Endpoint fehlgeschlagen, nutze Fallback:', e.message);
+  }
+
   renderTabKalkulator();
 }
 window.loadWeIntoKalk = loadWeIntoKalk;
@@ -1991,9 +2063,10 @@ function saPersonHtml(prefix, p) {
     </details>
 
     <details class="sa-section">
-      <summary>Verbindlichkeiten — Konsumentendarlehen 1 (optional)</summary>
+      <summary>Sonstige Verbindlichkeit 1 (optional)</summary>
       <div class="grid-2">
-        ${sub('kd1', 'urspruenglich', 'number', 'urspr. Darlehenshöhe', '€')}
+        ${sub('kd1', 'zweck', 'text', 'Zweck (z.B. Autokredit, Möbel)')}
+        ${sub('kd1', 'urspruenglich', 'number', 'urspr. Höhe', '€')}
         ${sub('kd1', 'laufzeitBis', 'date', 'Laufzeit bis')}
         ${sub('kd1', 'belastungMo', 'number', 'mtl. Belastung', '€/Mo')}
         ${sub('kd1', 'restsaldo', 'number', 'Restsaldo', '€')}
@@ -2001,12 +2074,35 @@ function saPersonHtml(prefix, p) {
     </details>
 
     <details class="sa-section">
-      <summary>Verbindlichkeiten — Konsumentendarlehen 2 (optional)</summary>
+      <summary>Sonstige Verbindlichkeit 2 (optional)</summary>
       <div class="grid-2">
-        ${sub('kd2', 'urspruenglich', 'number', 'urspr. Darlehenshöhe', '€')}
+        ${sub('kd2', 'zweck', 'text', 'Zweck (z.B. Kreditkarte, Dispo)')}
+        ${sub('kd2', 'urspruenglich', 'number', 'urspr. Höhe', '€')}
         ${sub('kd2', 'laufzeitBis', 'date', 'Laufzeit bis')}
         ${sub('kd2', 'belastungMo', 'number', 'mtl. Belastung', '€/Mo')}
         ${sub('kd2', 'restsaldo', 'number', 'Restsaldo', '€')}
+      </div>
+    </details>
+
+    <details class="sa-section">
+      <summary>Sonstige Verbindlichkeit 3 (optional)</summary>
+      <div class="grid-2">
+        ${sub('kd3', 'zweck', 'text', 'Zweck')}
+        ${sub('kd3', 'urspruenglich', 'number', 'urspr. Höhe', '€')}
+        ${sub('kd3', 'laufzeitBis', 'date', 'Laufzeit bis')}
+        ${sub('kd3', 'belastungMo', 'number', 'mtl. Belastung', '€/Mo')}
+        ${sub('kd3', 'restsaldo', 'number', 'Restsaldo', '€')}
+      </div>
+    </details>
+
+    <details class="sa-section">
+      <summary>Sonstige Verbindlichkeit 4 (optional)</summary>
+      <div class="grid-2">
+        ${sub('kd4', 'zweck', 'text', 'Zweck')}
+        ${sub('kd4', 'urspruenglich', 'number', 'urspr. Höhe', '€')}
+        ${sub('kd4', 'laufzeitBis', 'date', 'Laufzeit bis')}
+        ${sub('kd4', 'belastungMo', 'number', 'mtl. Belastung', '€/Mo')}
+        ${sub('kd4', 'restsaldo', 'number', 'Restsaldo', '€')}
       </div>
     </details>
   `;

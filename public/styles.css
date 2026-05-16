@@ -424,13 +424,21 @@ label {
   .pdf-footer {
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    padding: 8px 14mm;
-    border-top: 1px solid var(--border);
-    font-size: 9px;
-    color: var(--text-tertiary);
-    display: flex; justify-content: space-between;
+    padding: 4mm 12mm 3mm 12mm;
+    border-top: 0.3px solid #b8b8b8;
+    font-size: 7px;
+    font-weight: 300;
+    color: #777;
+    letter-spacing: 0.2px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 8mm;
+    align-items: center;
     background: #fff;
   }
+  .pdf-footer .pdf-footer-l { text-align: left; }
+  .pdf-footer .pdf-footer-c { text-align: center; }
+  .pdf-footer .pdf-footer-r { text-align: right; }
 }
 
 /* PDF-Template Styling (auch ausserhalb print sichtbar wenn nötig) */
@@ -1044,27 +1052,55 @@ label {
   margin: 1mm 0;
 }
 
-/* ============================== Selbstauskunft-PDF (Hypovision-Form) ============================== */
+/* ============================== Selbstauskunft-PDF (Hypovision-Layout, B&B-Branding, sehr dünn) ============================== */
 .pdf-template .sa-page {
   font-family: 'Inter', sans-serif;
-  font-size: 9.5px;
+  font-size: 8.5px;
+  font-weight: 300;
   line-height: 1.35;
   color: #000;
+  position: relative;
 }
+/* Header: B&B-Schriftzug links, Titel + Seite rechts. Dezenter, mit Hairline-Trennlinie. */
 .pdf-template .sa-head {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 4mm;
-  border-bottom: 2px solid #000;
-  padding-bottom: 2mm;
+  align-items: flex-end;
+  margin-bottom: 7mm;
+  padding-bottom: 4mm;
+  border-bottom: 0.3px solid #000;
+}
+.pdf-template .sa-head .sa-logo {
+  height: 9mm !important;
+  width: auto !important;
+  max-width: 55mm;
+  display: block;
+}
+.pdf-template .sa-head .sa-title-block {
+  text-align: right;
+  line-height: 1.15;
 }
 .pdf-template .sa-title {
-  font-size: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 2.5px;
+  color: #000;
+  text-transform: uppercase;
+}
+.pdf-template .sa-title .sa-title-sub {
+  font-weight: 300;
+  font-size: 9.5px;
+  letter-spacing: 3px;
+  margin-left: 2mm;
+  color: #333;
 }
 .pdf-template .sa-page-num {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 7.5px;
+  font-weight: 300;
+  color: #888;
+  letter-spacing: 2px;
+  margin-top: 2mm;
+  text-transform: uppercase;
 }
 .pdf-template .sa-table {
   width: 100%;
@@ -1072,97 +1108,125 @@ label {
   margin: 0;
 }
 .pdf-template .sa-table thead th {
-  background: var(--accent-dark, #8E6E3D);
+  background: #000;
   color: #fff;
-  font-size: 10px;
+  font-size: 8.5px;
   font-weight: 700;
   text-align: left;
-  padding: 5px 7px;
-  letter-spacing: 0.3px;
+  padding: 4px 8px;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
+  border: none;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
 .pdf-template .sa-table thead th.sa-section-h {
-  width: 38%;
+  width: 32%;
 }
 .pdf-template .sa-table tbody td {
-  border: 1px solid #cdb792;
-  padding: 4px 6px;
-  vertical-align: top;
-  width: 31%;
+  border-bottom: 0.4px solid #c8c8c8;
+  border-right: none;
+  border-left: none;
+  border-top: none;
+  padding: 3.5px 8px;
+  vertical-align: middle;
+  width: 34%;
+  height: 18px;
+  font-weight: 300;
 }
 .pdf-template .sa-table tbody td.sa-label {
-  width: 38%;
-  background: #faf7f0;
-  font-weight: 500;
-  color: #3A3A35;
+  width: 32%;
+  background: #fff;
+  font-weight: 300;
+  color: #1a1a1a;
+  border-right: none;
 }
+/* Spezial-Tabelle: Sonstige Verbindlichkeiten (5 Spalten: Zweck | Höhe | Laufzeit | mtl. | Rest) */
+.pdf-template .sa-verb-table thead th {
+  font-size: 7.5px;
+  letter-spacing: 0.4px;
+  padding: 3.5px 6px;
+}
+.pdf-template .sa-verb-table thead th:first-child { width: 36%; }
+.pdf-template .sa-verb-table thead th:not(:first-child) { width: 16%; }
+.pdf-template .sa-verb-table tbody td {
+  width: auto;
+  padding: 3px 6px;
+  height: 15px;
+}
+.pdf-template .sa-verb-table tbody td:first-child { width: 36%; }
+.pdf-template .sa-verb-table tbody td:not(:first-child) { width: 16%; }
 
-/* --- Form-fillable Felder (Hypovision-Look, B&B-Branding) --- */
+/* --- Form-fillable Felder (Hypovision-Look, dünn) --- */
 .pdf-template .sa-fld {
   display: inline-block;
-  min-width: 60%;
-  min-height: 14px;
-  padding: 2px 4px;
+  min-width: 70%;
+  min-height: 12px;
+  padding: 1px 2px;
   border: none;
-  border-bottom: 1px dotted #888;
   background: transparent;
   font-family: 'Inter', sans-serif;
-  font-size: 9.5px;
+  font-size: 8.5px;
+  font-weight: 400;
   color: #000;
   vertical-align: baseline;
 }
 .pdf-template input.sa-fld {
   width: 95%;
   outline: none;
+  border: none;
 }
 .pdf-template input.sa-fld:focus {
   background: #fffde8;
 }
 .pdf-template .sa-fld-filled {
-  font-weight: 600;
-  border-bottom: 1px dotted #ccc;
+  font-weight: 400;
+  border: none;
 }
 .pdf-template .sa-chk {
   font-size: 11px;
-  color: #555;
+  color: #1a1a1a;
   margin-right: 2px;
 }
 .pdf-template .sa-chk.on {
-  color: var(--accent-dark, #8E6E3D);
+  color: #000;
   font-weight: 700;
 }
 
-/* --- Datenschutz-/Legal-Seiten --- */
+/* --- Datenschutz-/Legal-Seiten — dünn und elegant --- */
 .pdf-template .sa-legal {
   font-family: 'Inter', sans-serif;
-  font-size: 9.5px;
-  line-height: 1.5;
+  font-size: 8.5px;
+  font-weight: 300;
+  line-height: 1.55;
   color: #1a1a1a;
 }
 .pdf-template .sa-legal .legal-h {
-  font-size: 12px;
+  font-size: 9.5px;
   font-weight: 700;
-  color: var(--accent-dark, #8E6E3D);
-  margin: 6mm 0 2mm 0;
-  border-bottom: 1px solid var(--accent-dark, #8E6E3D);
-  padding-bottom: 1mm;
+  color: #000;
+  margin: 5mm 0 1.5mm 0;
+  padding-bottom: 0;
   background: none;
-  text-transform: none;
-  letter-spacing: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  border-bottom: none;
 }
 .pdf-template .sa-legal .legal-p {
-  margin: 0 0 3mm 0;
+  margin: 0 0 2.5mm 0;
   text-align: justify;
+  font-weight: 300;
+}
+.pdf-template .sa-legal .legal-p strong {
+  font-weight: 600;
 }
 
-/* --- PandaDoc-Signatur-Anker (sichtbar als unauffälliger Marker, im PDF erkennt PandaDoc den Tag) --- */
+/* --- PandaDoc-Signatur-Anker (dünn, dezent) --- */
 .pdf-template .sa-sigblock {
-  margin-top: 14mm;
+  margin-top: 12mm;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 18mm;
+  gap: 14mm;
 }
 .pdf-template .sa-sigblock .sig-col {
   position: relative;
@@ -1170,48 +1234,52 @@ label {
 .pdf-template .sa-sigblock .sig-tag {
   display: inline-block;
   font-family: 'Courier New', monospace;
-  font-size: 8px;
-  color: #b8a070;
+  font-size: 7px;
+  color: #c0c0c0;
   letter-spacing: 0.2px;
   line-height: 1;
 }
 .pdf-template .sa-sigblock .sig-line {
-  height: 18mm;
-  border-bottom: 1px solid #000;
-  margin-bottom: 2mm;
+  height: 16mm;
+  border-bottom: 0.4px solid #000;
+  margin-bottom: 1.5mm;
   position: relative;
 }
 .pdf-template .sa-sigblock .sig-meta {
-  font-size: 9.5px;
-  color: #3A3A35;
+  font-size: 8px;
+  font-weight: 300;
+  color: #555;
+  letter-spacing: 0.3px;
 }
 
-/* --- Compliance-Block (GwG-Identifikation / PEP / Herkunft EK) --- */
+/* --- Compliance-Block (GwG-Identifikation / PEP / Herkunft EK) — Schwarz-Weiß wie Original --- */
 .pdf-template .sa-compliance-note {
   font-size: 8.5px;
   font-style: italic;
-  color: #555;
+  color: #444;
   margin-top: 1mm;
   margin-bottom: 2mm;
   padding: 2mm 3mm;
-  background: #faf7f0;
-  border-left: 2px solid var(--accent, #B08A4D);
+  background: #f5f5f5;
+  border-left: 2px solid #000;
 }
 .pdf-template .sa-pep-block,
 .pdf-template .sa-herkunft-block {
   margin-top: 3mm;
   padding: 3mm;
-  border: 1px solid #cdb792;
-  background: #fdfbf6;
+  border: 1px solid #000;
+  background: #fff;
 }
 .pdf-template .sa-pep-block .pep-title,
 .pdf-template .sa-herkunft-block .h-title {
   font-size: 10px;
   font-weight: 700;
-  color: var(--accent-dark, #8E6E3D);
+  color: #000;
   margin-bottom: 1.5mm;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #000;
+  padding-bottom: 1mm;
 }
 .pdf-template .sa-herkunft-block .h-checks {
   display: grid;

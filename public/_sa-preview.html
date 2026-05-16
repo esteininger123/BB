@@ -1,0 +1,118 @@
+<!doctype html>
+<!-- Standalone-Preview für die Selbstauskunft-PDF.
+     Per Doppelklick öffnen, Cmd+P → "PDF speichern" für 1:1-Vergleich mit dem
+     Hypovision-Original. Nutzt Dummy-Daten — keine Backend-Anbindung nötig.
+
+     NACH dem Push kann diese Datei gelöscht werden — sie ist nur für visuelles QA.  -->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>SA-Preview (Dummy)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=43">
+<style>
+  body { margin: 0; padding: 0; background: #ddd; }
+  .preview-bar { position: fixed; top: 0; right: 0; padding: 8px 14px; background: #000; color: #fff; font-family: sans-serif; font-size: 12px; z-index: 999; }
+  @media print { .preview-bar { display: none; } }
+  /* PDF-Mode aktivieren ohne body-Klasse: Print-Layout immer */
+  body.pdf-mode-preview .pdf-template { display: block !important; }
+  body.pdf-mode-preview .pdf-page {
+    page-break-after: always;
+    min-height: 245mm;
+    width: 210mm;
+    margin: 10px auto;
+    padding: 14mm 12mm 18mm 12mm;
+    background: #fff;
+    box-shadow: 0 0 6px rgba(0,0,0,0.2);
+    box-sizing: border-box;
+    position: relative;
+  }
+  @media print {
+    body { background: #fff !important; }
+    .pdf-page { margin: 0 !important; box-shadow: none !important; }
+    @page { size: A4; margin: 0; }
+  }
+</style>
+</head>
+<body class="pdf-mode-preview">
+<div class="preview-bar">SA-Preview · Cmd+P für PDF · Dummy-Daten</div>
+<div id="pdf-template" class="pdf-template"></div>
+
+<!-- Minimal-Stubs für Abhängigkeiten -->
+<script>
+  // Kalk-Stub mit den Formatter-Funktionen + Bonität-Stub
+  window.Kalk = {
+    fmtEur: (v) => v == null ? '–' : Math.round(v).toLocaleString('de-DE') + ' €',
+    fmtPct: (v) => v == null ? '–' : (v * 100).toFixed(1) + ' %',
+    fmtEurMo: (v) => v == null ? '–' : Math.round(v).toLocaleString('de-DE') + ' €/Mo',
+    computeBonitaetDetailed: (sa, gem) => ({
+      einkommenA: { netto: 4500, vermAnr: 600, sonstigeAnr: 250 },
+      einkommenM: gem ? { netto: 3200, vermAnr: 0, sonstigeAnr: 184 } : { netto: 0, vermAnr: 0, sonstigeAnr: 0 },
+      einkommenAnrechenbarMo: gem ? 8734 : 5350,
+      erwachsene: gem ? 2 : 1,
+      kinder: 1,
+      haushaltPauschale: gem ? 1500 : 950,
+      fixkostenMo: 1800,
+      verbindlichkeitenMo: 420,
+      verbindlichkeitenGesamt: 32500,
+      ausgabenGesamtMo: gem ? 3720 : 3170,
+      freiesVermoegen: 45000
+    })
+  };
+</script>
+<script src="pdf.js?v=43"></script>
+
+<!-- Render mit Dummy-Daten -->
+<script>
+  const dummyKunde = {
+    name: 'Bader',
+    vorname: 'Toni',
+    saJson: {
+      gemeinsam: true,
+      antragsteller: {
+        name: 'Bader', vorname: 'Toni', geburtsname: '',
+        strasse: 'Musterstraße 42', plz: '77694', ort: 'Kehl',
+        telefonPrivat: '07851 / 123456', telefonGeschaeftlich: '',
+        email: 'toni.bader@example.com', geburtsdatum: '1985-06-12',
+        staatsangehoerigkeit: 'deutsch', beruf: 'Maschinenbauingenieur',
+        firma: 'Robert Bosch GmbH', beschaeftigtSeit: '2018-04-01',
+        befristung: 'unbefristet', steuerId: '12 345 678 901',
+        familienstand: 'verheiratet', kinderAnzahl: 1, kinderAlter: '4',
+        kinderPlanung: 'nein', kfzAnzahl: 2,
+        bank: 'Sparkasse Hanauerland', iban: 'DE89 6645 0050 0000 1234 56', bic: 'SOLADES1OFG',
+        nettoMo: 4500, anzahlGehaelter: 13, vermietungMo: 750, sonstigeMo: 200, unterhaltMo: 0, kindergeldMo: 250, zveJahr: 62000, kirchensteuer: 'ja',
+        mieteMo: 1450, unterhaltZahlungMo: 0, pkvMo: 0,
+        bankguthaben: 28500, wertpapiere: 12000, sparbuecher: 0, bausparen: 6500, sonstigeVermoegen: 0,
+        gwg: { ausweisArt: 'Personalausweis', ausweisNr: 'T123456789', ausweisBehoerde: 'Stadt Kehl', ausweisAusgestellt: '2022-03-15', ausweisGueltig: '2032-03-14' },
+        pep: 'nein', pepDetails: ''
+      },
+      mitantragsteller: {
+        name: 'Bader', vorname: 'Lisa', strasse: 'Musterstraße 42', plz: '77694', ort: 'Kehl',
+        email: 'lisa.bader@example.com', geburtsdatum: '1987-09-22',
+        staatsangehoerigkeit: 'deutsch', beruf: 'Lehrerin',
+        firma: 'Land Baden-Württemberg', beschaeftigtSeit: '2014-09-01',
+        befristung: 'unbefristet', steuerId: '98 765 432 109',
+        familienstand: 'verheiratet', kinderAnzahl: 1, kinderAlter: '4',
+        nettoMo: 3200, anzahlGehaelter: 12, zveJahr: 41000, kirchensteuer: 'ja',
+        gwg: { ausweisArt: 'Personalausweis', ausweisNr: 'M987654321', ausweisBehoerde: 'Stadt Kehl', ausweisAusgestellt: '2023-08-10', ausweisGueltig: '2033-08-09' },
+        pep: 'nein'
+      },
+      herkunftEk: {
+        ersparnisse: true,
+        schenkung: true,
+        erbe: false,
+        wertpapier: false,
+        immobilien: false,
+        sonstiges: false,
+        erlaeuterung: 'Eltern Schenkung 25.000 € (Mai 2026), Rest aus Sparvertrag.'
+      }
+    }
+  };
+  const dummyUser = { name: 'Edgar Steininger', email: 'e.steininger@immo-stein.de', telefon: '07805 / 919-330' };
+  // window.print() unterdrücken — wir wollen nur sehen, nicht direkt drucken
+  window.print = function() { console.log('[preview] window.print() unterdrückt — Cmd+P manuell für PDF-Export'); };
+  document.body.classList.add('pdf-mode-sa');
+  PDF.selbstauskunft(dummyKunde, dummyUser);
+</script>
+</body>
+</html>

@@ -13,6 +13,14 @@ const TABLES = {
   PROJEKT:     process.env.PROJEKT_TABLE_ID     || 'tblbBSh0fyPelFLvz',
   // Echte Projekt-Tabelle (z.B. "WES_RHEIN 290/292" = 1 Projekt mit 2 Objekten).
   PROJEKT_HEAD: process.env.PROJEKT_HEAD_TABLE_ID || 'tblisPG7YixRpd9cD',
+  // Stellplatz-Tabelle (1 Datensatz pro physischem Stellplatz).
+  STELLPLATZ:   'tblCfcVP5ipG91yHg',
+  // Mietvertrag-Tabelle (führt Stellplatz-Miete im Vertrag — siehe SOP-E).
+  MIETVERTRAG:  'tblJQWNQaJiLEfNRh',
+  // Mieter-Tabelle (Person/en hinter Mietverhältnis).
+  MIETER:       'tblGu9FjDuwh2uLdP',
+  // Kalkulations-Stammdaten (Single Source of Truth für Web-App, siehe SOP-E).
+  KALK_STAMMDATEN: 'tblz5KNtzkLSLHHFo',
 };
 
 // Felder der Objekt-Tabelle, die wir lesen
@@ -84,6 +92,57 @@ const WE_FIELDS = {
 const WE_STATUS_VERMARKTUNG = 'Vermarktung / Im Verkauf';
 const MAKLER_BUB = 'B&B Immo GmbH';
 
+// --- Stellplatz-Tabelle ---
+const STELLPLATZ_FIELDS = {
+  TITEL:       'fldkuLZ19YIo56qzo', // "StPl: 207, 2, Garage"
+  WE_LINK:     'fldauQ7MzcvZvHVk3', // Link zur Wohneinheit
+  TYP:         'fldyZ1H5JqRQdiH3b', // SingleSelect: Garage / Fläche
+  MIETKOSTEN:  'fld1M0EJ4VLZGVh3l', // Currency € (alte Spalte „Mietkosten Stellplatz" — wird laut SOP-E migriert in Mietvertrag)
+  KAUFPREIS:   'fldcoVGhBtTWF6QRv', // NEU 15.05.2026 — Kaufpreis-Anteil pro Stellplatz (Currency €)
+};
+
+// --- Mietvertrag-Tabelle ---
+const MIETVERTRAG_FIELDS = {
+  TITEL:           'fldiP1aT7hgMYMEoc',   // "Neuvertrag - 540 € kalt, ab 1.1.24 (#226)"
+  WE_LINK:         'fldaGWDfYOiFxLoiy',   // Link Wohneinheit
+  MIETER_LINK:     'fldJwZXEVGFvrvz4D',   // Link Mieter
+  STELLPLATZ_LINK: 'fldUl2EXwP4gHBPJP',   // Link Stellplatz
+  KALTMIETE:       'fldx838HHHMRvD5fT',   // €
+  STELLPLATZMIETE: 'fldcGEefFtNEFbatS',   // € (bestätigt von Edgar 15.05.2026)
+  VERTRAGSART:     'fld41qYdKxjyIdDlO',
+  STATUS_LOOKUP:   'fld02ScVlHI1f4AZr',   // Lookup via WE: Aktiv / Archiviert
+};
+
+// --- Mieter-Tabelle ---
+const MIETER_FIELDS = {
+  NAME:        'fldWvNPHHQophnDNp',
+  WE_LINK:     'fldotm9D1VDoM08P8',
+  VERTRAEGE:   'fldQwNUd8mmsa7mwR',
+};
+
+// --- Kalkulations-Stammdaten (neu 15.05.2026, siehe SOP-E) ---
+const KALK_STAMMDATEN_FIELDS = {
+  BEZEICHNUNG:           'fldclI3ygaQa6Ewvm',
+  WOHNEINHEIT:           'flduMs8t49N1gLIBs',
+  STATUS:                'fldTOy2kV3SkCkhw6',
+  HAUSVERWALTUNG:        'fldhiKD2iB4NekByK',
+  HAUSGELD_RUECKLAGE:    'fldrYNoUkgtGaTQWW',
+  MIETVERWALTUNG_DEF:    'fldhteQkjFBA0J447',
+  MIETZUSCHUSS:          'fldcvKf7Snlw2RJI3',
+  MIETZUSCHUSS_MONATE:   'fld1eVXIlDx3DM3LX',
+  AFA_GUTACHTEN:         'fldF36zoKE6Foiu5f',
+  WERTSTEIGERUNG:        'fldhB9tsIkpcLGDur',
+  VERMIETUNGS_MODUS:     'fldZmkdo4sEAeJqnV',
+  KAPPUNGSGRENZE:        'fldna2Hj1m1ST94Z3',
+  INDEXMIETE:            'fldFlwdAP4xQ2muO5',
+  NOTIZEN:               'fld097ACU9qRS5kwq',
+  QUELLE:                'fldrMUcQs06YF0lGi',
+};
+
+const KALK_STATUS_AKTIV    = 'Aktiv';
+const KALK_STATUS_ENTWURF  = 'Entwurf';
+const KALK_STATUS_ARCHIV   = 'Archiviert';
+
 module.exports = {
   TABLES,
   VERTRIEBLER_FIELDS,
@@ -92,6 +151,13 @@ module.exports = {
   WE_FIELDS,
   PROJEKT_FIELDS,
   PROJEKT_HEAD_FIELDS,
+  STELLPLATZ_FIELDS,
+  MIETVERTRAG_FIELDS,
+  MIETER_FIELDS,
+  KALK_STAMMDATEN_FIELDS,
   WE_STATUS_VERMARKTUNG,
-  MAKLER_BUB
+  MAKLER_BUB,
+  KALK_STATUS_AKTIV,
+  KALK_STATUS_ENTWURF,
+  KALK_STATUS_ARCHIV,
 };
