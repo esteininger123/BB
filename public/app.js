@@ -1066,7 +1066,7 @@ function detectProfil(k) {
   return 'standard';
 }
 
-async // async, weil Airtable-Stammdaten via fetch geholt werden
+// async, weil Airtable-Stammdaten via fetch geholt werden
 async function loadWeIntoKalk(weId) {
   if (!weId) {
     delete state.kalk._weId;

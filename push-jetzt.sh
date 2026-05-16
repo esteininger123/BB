@@ -22,7 +22,12 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 41 — Airtable als Single Source für Kalkulations-Stammdaten
+git commit -m "Iter 41-Hotfix — Doppeltes 'async'-Keyword vor loadWeIntoKalk entfernt (verursachte weißen Screen). Cache-Bust v=45.
+
+---
+
+Vorherige Iter-41-Beschreibung:
+Iter 41 — Airtable als Single Source für Kalkulations-Stammdaten
 
 - Iter 41a — Stellplatz-Tabelle erweitert:
   * Neues Currency-Feld 'Kaufpreis' in tblCfcVP5ipG91yHg.
@@ -100,5 +105,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=44-Version lädt."
+echo "damit der Browser die neue v=45-Version lädt."
 echo ""
