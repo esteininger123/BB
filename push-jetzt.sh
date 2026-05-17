@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 
 echo ""
 echo "==========================================="
-echo "  B&B Kalkulator V2 — Push Iter 41"
+echo "  B&B Kalkulator V2 — Push Iter 41.8"
 echo "==========================================="
 echo ""
 
@@ -22,7 +22,33 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 41.7 — Layout-Fix Charts + Cashflow-Werte-Block + Eigenkapital-Linie
+git commit -m "Iter 41.8 — Gewinn-Zone visuell + Maklerprovision aus KNK entfernt
+
+- Hauptchart 'Vermögensaufbau 10 J.' erweitert um 6. Dataset + Füllung:
+  * Gefüllte Gewinn-Zone zwischen Gesamtvermögen (Dataset 2) und EK-Linie
+    (Dataset 4) — gold transparent über EK (Gewinn) / rot unter EK (Verlust).
+    fill: { target: 4, above: 'rgba(176,138,77,0.30)', below: 'rgba(154,62,51,0.20)' }
+  * NEUE Linie '★ Vermögenszuwachs (= Gewinn)' als 6. Dataset (grün dünn,
+    pointStyle: rectRot) — macht den absoluten Gewinn-Wert direkt am Chart lesbar
+    statt nur als KPI über dem Chart.
+
+- KNK-Formel: Maklerprovision 1,5 % rausgenommen.
+  Grund: B&B verkauft direkt an den Kapitalanleger — keine externe Käufer-
+  Maklerprovision. Die 1,5 % stammten als Historik aus den alten Excel-Kalku-
+  lationen (Henry-Setup mit Makler).
+  Neu: knkPct = grEstPct + 1,5 % Notar + 0,5 % Grundbuch.
+  Wirkung pro Bundesland:
+    BaWü/BW   8,5 %  →  7,0 %
+    NRW      10,0 %  →  8,5 %
+    Bayern    7,0 %  →  5,5 %
+    Hessen    9,5 %  →  8,0 %
+  EK-Bedarf (= KNK bei 100 %-Finanzierung) sinkt entsprechend.
+
+- Cache-Bust auf v=53.
+
+---
+
+Iter 41.7 — Layout-Fix Charts + Cashflow-Werte-Block + Eigenkapital-Linie
 
 - LAYOUT-BUG gefixt: Sparen-Card war nicht geschlossen → Snapshot wurde hochgezogen,
   Sparen-Bereich nur linke Spalte sichtbar. Schließendes </div> ergänzt + spar-zins-row
@@ -305,5 +331,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=52-Version lädt."
+echo "damit der Browser die neue v=53-Version lädt."
 echo ""

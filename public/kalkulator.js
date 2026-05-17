@@ -496,10 +496,11 @@ function computeBonitaetDetailed(sa, gemeinsam) {
  */
 function recalc(i) {
   const kpGesamt = i.kaufpreis + i.stellplatzKp;
-  // Kaufnebenkosten: GrESt (variabel pro Bundesland) + Notar 1,5 % + Grundbuch 0,5 % + Provision 1,5 %.
-  // GrESt kommt aus Airtable-Stammdaten (i.grEstPct), Fallback 5 % (BaWü).
+  // Kaufnebenkosten: GrESt (variabel pro Bundesland) + Notar 1,5 % + Grundbuch 0,5 %.
+  // Keine Maklerprovision — B&B verkauft direkt. GrESt kommt aus Airtable-Stammdaten
+  // (i.grEstPct), Fallback 5 % (BaWü).
   const grEstPct = (i.grEstPct !== undefined && i.grEstPct !== null && isFinite(i.grEstPct)) ? i.grEstPct : 0.05;
-  const knkPct = grEstPct + 0.015 + 0.005 + 0.015;
+  const knkPct = grEstPct + 0.015 + 0.005;
   const knk = kpGesamt * knkPct;
   const investitionGesamt = kpGesamt + knk;
   // Iter 7: AfA-Gutachten-Kosten komplett raus aus EK-Bedarf (B&B trägt das,

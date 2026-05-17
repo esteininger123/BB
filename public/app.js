@@ -1593,7 +1593,8 @@ function drawCharts(r) {
   };
 
   // ============================================================
-  // HAUPTCHART: Vermögensaufbau — Schere Marktwert ↔ Restschuld
+  // HAUPTCHART: Vermögensaufbau — Schere Marktwert↔Restschuld,
+  // PLUS gefüllte Gewinn-Zone zwischen EK und Gesamtvermögen
   // ============================================================
   if (chartV) chartV.destroy();
   chartV = new Chart(document.getElementById('chart-vermoegen'), {
@@ -1601,19 +1602,20 @@ function drawCharts(r) {
     data: {
       labels: years,
       datasets: [
-        // Marktwert oben — gefüllter Bereich nach unten zur Restschuld
+        // [0] Marktwert oben — gefüllter Bereich nach unten zur Restschuld
         {
           label: 'Marktwert (Immobilie)',
           data: marktwert,
           borderColor: '#2D6E47',
-          backgroundColor: 'rgba(45,110,71,0.10)',
+          backgroundColor: 'rgba(45,110,71,0.08)',
           borderWidth: 2.5,
           tension: 0.3,
           pointRadius: 3,
           pointHoverRadius: 6,
-          fill: '+1',   // füllt bis zum nächsten Dataset (= Restschuld) → das ist die Schere
+          fill: '+1',   // füllt bis Restschuld → Schere
+          order: 3,
         },
-        // Restschuld — die Unterkante der Schere
+        // [1] Restschuld — Unterkante der Schere
         {
           label: 'Restschuld (Darlehen)',
           data: restschuld,
@@ -1625,20 +1627,23 @@ function drawCharts(r) {
           pointRadius: 3,
           pointHoverRadius: 6,
           fill: false,
+          order: 3,
         },
-        // Gesamtvermögen — die Haupt-Linie für die Story
+        // [2] Gesamtvermögen — Haupt-Linie. Füllung von hier nach unten bis EK-Linie [4]
+        //     → der gefüllte Bereich IST der Vermögenszuwachs / Gewinn.
         {
           label: 'Gesamtvermögen',
           data: gesamtVerm,
           borderColor: '#B08A4D',
-          backgroundColor: 'rgba(176,138,77,0)',
+          backgroundColor: 'rgba(176,138,77,0.35)',
           borderWidth: 3.5,
           tension: 0.3,
           pointRadius: 4,
           pointHoverRadius: 7,
-          fill: false,
+          fill: { target: 4, above: 'rgba(176,138,77,0.30)', below: 'rgba(154,62,51,0.20)' },
+          order: 1,
         },
-        // Kumulierter Cashflow — dünne Hilfslinie, oft negativ in Anlaufphase
+        // [3] Kumulierter Cashflow — Hilfslinie
         {
           label: 'Kumulierter Cashflow',
           data: kumCf,
@@ -1650,25 +1655,54 @@ function drawCharts(r) {
           pointRadius: 2,
           pointHoverRadius: 5,
           fill: false,
+          order: 4,
         },
-        // Eingesetztes Eigenkapital — konstante horizontale Linie, nicht-abschreibbar,
-        // hilft visuell zu zeigen, dass der EK ÜBER die Zeit konstant bleibt und der
-        // Vermögensaufbau darüber hinaus stattfindet.
+        // [4] Eingesetztes Eigenkapital — konstante horizontale Linie (Boden für Gewinn-Zone)
         {
-          label: 'Eingesetztes EK (konstant)',
+          label: 'Eingesetztes EK (KNK)',
           data: ekLinie,
           borderColor: '#2c5282',
           backgroundColor: 'rgba(44,82,130,0)',
-          borderWidth: 1.5,
+          borderWidth: 2,
           borderDash: [4, 4],
           tension: 0,
           pointRadius: 0,
           pointHoverRadius: 4,
           fill: false,
+          order: 2,
+        },
+        // [5] Vermögenszuwachs — eigene Linie zwischen EK und Gesamtvermögen,
+        //     macht den „Gewinn" als zusätzliche Größe lesbar
+        {
+          label: '★ Vermögenszuwachs (= Gewinn)',
+          data: r.vermoegen.map(v => Math.round(v.vermoegenNetto || 0)),
+          borderColor: '#22543d',
+          backgroundColor: 'rgba(34,84,61,0)',
+          borderWidth: 2,
+          borderDash: [],
+          tension: 0.3,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          pointStyle: 'rectRot',
+          fill: false,
+          order: 0,
         },
       ],
     },
-    options: baseOpts
+    options: Object.assign({}, baseOpts, {
+      plugins: Object.assign({}, baseOpts.plugins, {
+        legend: { position: 'top', labels: { boxWidth: 16, padding: 10, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const v = ctx.parsed.y;
+              const lbl = ctx.dataset.label || '';
+              return lbl + ': ' + (typeof v === 'number' ? Math.round(v).toLocaleString('de-DE') + ' €' : v);
+            }
+          }
+        }
+      })
+    })
   });
 
   // ============================================================
