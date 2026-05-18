@@ -88,8 +88,11 @@ async function loadStellplaetzeForWE(weId) {
 //   - Stellplatzmiete-Summe (aggregiert über verknüpfte Mietverträge)
 //   - Vermietungs-Status (vermietet=true, wenn mind. 1 Vertrag mit dieser WE existiert,
 //     der nicht offensichtlich archiviert ist)
-//   - Letzte Mietsteigerung (Datum) — nimmt das jüngste GUELTIG_AB-Datum,
-//     fallback auf das jüngste VERTRAGSBEGINN-Datum
+//   - Letzte Mietsteigerung (Datum) — nimmt das jüngste VERTRAGSBEGINN-Datum,
+//     fallback auf das jüngste GUELTIG_AB-Datum (Iter 41.13).
+//     Begründung: Stichprobe 18.05.2026 — Vertragsbeginn zu 97,9 % gefüllt,
+//     'Anpassung gültig ab' nur zu 58 %. Bei jeder Erhöhung wird laut SOP-E §3.3
+//     ein neuer Vertragsdatensatz mit entsprechendem Vertragsbeginn angelegt.
 async function loadMietvertragInfoForWE(weId) {
   try {
     const recs = await listAll(TABLES.MIETVERTRAG, {
@@ -139,7 +142,8 @@ async function loadMietvertragInfoForWE(weId) {
       stellplatzMietsumme: stplMietsumme,
       vertraegeMitStellplatz,
       vertragVorhanden,
-      letzteMietsteigerung: jungsteMietsteigerung || jungsterVertragsbeginn || null,
+      // Iter 41.13: Vertragsbeginn ist verlässlicher gepflegt als 'Anpassung gültig ab'
+      letzteMietsteigerung: jungsterVertragsbeginn || jungsteMietsteigerung || null,
       jungsterVertragsbeginn,
     };
   } catch (e) {
@@ -464,7 +468,7 @@ module.exports = async (req, res) => {
       const kalkLetzte = (kalkRec && kalkRec.fields && kalkRec.fields[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG]) || null;
       const letzteMietsteigerung = kalkLetzte || vertragInfo.letzteMietsteigerung || null;
       const letzteMietsteigerungQuelle = kalkLetzte ? 'kalk-stammdaten' :
-        (vertragInfo.letzteMietsteigerung ? 'mietvertrag' : 'unbekannt');
+        (vertragInfo.letzteMietsteigerung ? 'mietvertrag-vertragsbeginn' : 'unbekannt');
 
       // Stellplatz-Typ-Aufteilung (Garage vs. Fläche/Stellplatz)
       const garageCount  = stellplaetze.filter(s => /garage/i.test(s.typ)).length;

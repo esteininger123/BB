@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 
 echo ""
 echo "==========================================="
-echo "  B&B Kalkulator V2 — Push Iter 41.12"
+echo "  B&B Kalkulator V2 — Push Iter 41.13"
 echo "==========================================="
 echo ""
 
@@ -22,7 +22,43 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 41.12 — Staffelmiete LINEAR (statt exponentiell) + Airtable-Feld umbenannt
+git commit -m "Iter 41.13 — Vertragsbeginn-Priorität + Auto-Entwurf-Automation live + SOP-E v1.3
+
+- api/stammdaten/[weId].js: in loadMietvertragInfoForWE Priorität von
+  GUELTIG_AB ('Anpassung gültig ab') auf VERTRAGSBEGINN umgedreht.
+  Grund: Stichprobe 18.05.2026 zeigt 97,9 % Pflegequote bei Vertragsbeginn
+  vs. nur 58 % bei Anpassung gültig ab. Bei jeder Erhöhung wird laut SOP-E
+  §3.3 ein neuer Vertragsdatensatz mit entsprechendem Vertragsbeginn
+  angelegt — das ist das verlässliche Signal.
+
+- Quellen-Label in der App-Response umbenannt:
+  'mietvertrag' → 'mietvertrag-vertragsbeginn'.
+
+- Airtable-Automation 'Auto-Entwurf — Stammdaten geändert' (Iter 41.9)
+  erweitert: jetzt 16 watched fields, inkl. zwei Lookup-Felder, die
+  Änderungen aus anderen Tabellen propagieren:
+  * 'Verkaufspreis (geplant) (from Wohneinheit)' — Lookup auf
+    WE.Kaufpreis. Fängt Kaufpreis-Änderungen auf der Wohneinheit-Tabelle ab.
+  * 'Vertragsbeginn (from Mietvertrag) (from Wohneinheit)' — Rollup
+    MAX(Vertragsbeginn) über alle verlinkten Mietverträge, dann Lookup
+    auf Kalk-Stammdaten. Fängt neue/geänderte Mietverträge ab.
+  Mit nur EINER Automation decken wir alle drei Eskalations-Pfade ab
+  (Stammdaten direkt, WE-Kaufpreis, Mietvertrag-Änderungen).
+
+- SOP-E v1.3:
+  * §3.1 um Vertragsart 'Modernisierungserhöhung' ergänzt (existierte
+    de facto im Bestand, war in SOP nicht dokumentiert — 3 Records in
+    Stichprobe).
+  * Pflichtfeld-Hinweis Vertragsbeginn + Backup-Hinweis Anpassung-gültig-ab.
+  * Versionsgeschichte v1.3 dokumentiert.
+
+- SOP-Cockpit aktualisiert: SOP-E auf v1.3, Verteilungs-Punkt offen.
+
+- Cache-Bust auf v=58.
+
+---
+
+Iter 41.12 — Staffelmiete LINEAR (statt exponentiell) + Airtable-Feld umbenannt
 
 - kalkulator.js: neuer Mietsteigerungs-Modus 'staffel' eingeführt.
   Logik: Startmiete × (1 + n × %)  ← LINEAR
@@ -485,5 +521,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=57-Version lädt."
+echo "damit der Browser die neue v=58-Version lädt."
 echo ""
