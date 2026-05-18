@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 
 echo ""
 echo "==========================================="
-echo "  B&B Kalkulator V2 — Push Iter 41.10"
+echo "  B&B Kalkulator V2 — Push Iter 41.12"
 echo "==========================================="
 echo ""
 
@@ -22,7 +22,72 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 41.10 — Mietsubvention 2-Phasen-Modell + Cap qm-skaliert
+git commit -m "Iter 41.12 — Staffelmiete LINEAR (statt exponentiell) + Airtable-Feld umbenannt
+
+- kalkulator.js: neuer Mietsteigerungs-Modus 'staffel' eingeführt.
+  Logik: Startmiete × (1 + n × %)  ← LINEAR
+  (statt vorher exponentiell wie 'index' (1+%)^n.)
+  Beispiel 500 € × 3 % linear: J1=500, J2=515, J3=530, J4=545, J5=560, J6=575.
+  Bestand (Modus 'sprung') und Altverträge (Modus 'index') bleiben unverändert
+  exponentiell wie bisher.
+
+- app.js loadWeIntoKalk: Bei Vermietungs-Modus 'Neuvermietung' wird jetzt
+  'staffel' (linear) gewählt statt 'index' (exponentiell). Default 3 %, Override
+  über Airtable-Feld 'Staffelmiete %'.
+
+- Airtable: Feld 'Indexmiete' (fldFlwdAP4xQ2muO5) umbenannt zu 'Staffelmiete %'.
+  Beschreibung aktualisiert: lineare Berechnung, Default 3 %, keine Index-
+  Verträge im Bestand.
+
+- Airtable: Beschreibung des Single-Select-Felds 'Vermietungs-Modus' aktuali-
+  siert. Die Option 'Neuvermietung (Indexmiete)' kann manuell in Airtable
+  umbenannt werden zu 'Neuvermietung' oder 'Neuvermietung (Staffelmiete)' —
+  die App akzeptiert alle Strings die 'neuvermietung' enthalten.
+
+- SOP-E §3.6 präzisiert: Staffel = lineare Erhöhung (festes Euro-Plus pro
+  Jahr), nicht exponentiell. Beispiel mit konkreten Jahreswerten. Hinweis
+  dass es keine Index-Altverträge gibt.
+
+- Cache-Bust auf v=57.
+
+---
+
+Iter 41.11 — Neuvermietung Staffel 3 % p.a. + SOP-E v1.2 Pflege-Disziplin
+
+- app.js loadWeIntoKalk: Bei Vermietungs-Modus = 'Neuvermietung*' wird ab jetzt
+  3 % p.a. (Staffelmiete) als Default genutzt, NICHT mehr 2 % Indexmiete.
+  Wenn das Stammdaten-Feld 'Indexmiete' explizit > 0 gesetzt ist (Altvertrag),
+  wird dieser Wert weiter respektiert.
+
+- Hintergrund: Edgar-Beschluss 18.05.2026 — für alle künftigen Neuvermietungen
+  werden Staffelmietverträge mit 3 % jährlicher Erhöhung abgeschlossen, keine
+  Indexmieten mehr. Begründung: Staffel = planbare Kalkulation, Index
+  schwankt.
+
+- SOP-E auf v1.2 angehoben:
+  * §1 Henry als 'Owner Kalkulation' präzisiert (zuständig für Miete bei
+    Verkauf, Marktmiete, Marktpreis IS+HD, Letzte Mietsteigerung).
+  * Trennschärfe 'Letzte Mietsteigerung': Schenki im Mietvertrag, Henry in
+    Kalkulations-Stammdaten — Henry prüft, ob Schenkis Eintrag durch Beleg
+    gedeckt ist.
+  * Neues §3.5 Beleg-Pflicht für Mieterhöhungen: schriftliche Bestätigung,
+    Übernahme beim Kauf, Staffel-Stufe oder Mietspiegel-Zustellnachweis.
+    Wenn kein Beleg → Notiz im Mieter-Datensatz, aber nicht in Mietvertrag.
+  * Neues §3.6 Policy Neuvermietung = Staffel 3 % p.a. — Indexmieten werden
+    bei Neuvermietungen ab 18.05.2026 nicht mehr abgeschlossen. Altbestand
+    läuft weiter.
+  * §8 Schnittstelle Kalkulator komplett auf Iter 41.11 aktualisiert
+    (2-Phasen-Subv, Markt-Schnitt, Aktiv-Filter, Stellplatz/Garage,
+    Auto-Entwurf bei Änderungen).
+
+- SOP-Cockpit aktualisiert: SOP-E auf v1.2, Verteilungs-Punkt offen
+  (v1.1 wurde nie verteilt, v1.2 enthält den vollen Stand).
+
+- Cache-Bust auf v=56.
+
+---
+
+Iter 41.10 — Mietsubvention 2-Phasen-Modell + Cap qm-skaliert
 
 - Neues Feld 'Marktmiete' (€/Mo) in Kalkulations-Stammdaten (fldnrgRONiWWsSxZb).
   Henry pflegt; deckelt die Subvention auf den rechtl. Erhöhungsspielraum.
@@ -420,5 +485,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=55-Version lädt."
+echo "damit der Browser die neue v=57-Version lädt."
 echo ""

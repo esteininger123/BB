@@ -1209,9 +1209,15 @@ async function loadWeIntoKalk(weId) {
       state.kalk._vermietungsModus = sd.vermietungsModus;
       state.kalk._kappungsgrenze = sd.kappungsgrenze;
       state.kalk._indexmiete = sd.indexmiete;
-      if (sd.vermietungsModus === 'Neuvermietung (Indexmiete)') {
-        state.kalk.mietsteigerungsModus = 'index';
-        state.kalk.steigerungProz = (sd.indexmiete !== null && sd.indexmiete !== undefined) ? sd.indexmiete : 0.02;
+      // Iter 41.11 (18.05.2026) — Edgar-Policy: Neuvermietung = Staffelmiete 3 % p.a. (LINEAR).
+      // Altbestand hat keine Indexverträge (Edgar 18.05.: "Altbestand haben wir nie neu vermietet mit Index").
+      // sd.indexmiete = Staffelmiete % (Feld in Airtable seit 18.05. umbenannt zu 'Staffelmiete %').
+      const modusLower = (sd.vermietungsModus || '').toLowerCase();
+      if (modusLower.includes('neuvermietung')) {
+        state.kalk.mietsteigerungsModus = 'staffel'; // linear: Startmiete × (1 + n × %)
+        state.kalk.steigerungProz = (sd.indexmiete !== null && sd.indexmiete !== undefined && sd.indexmiete > 0)
+          ? sd.indexmiete
+          : 0.03; // 3 % Default
       } else if (sd.vermietungsModus === 'Bestand') {
         state.kalk.mietsteigerungsModus = 'sprung';
         if (sd.kappungsgrenze === '20 % alle 3 Jahre') {

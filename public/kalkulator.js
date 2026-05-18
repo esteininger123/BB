@@ -578,9 +578,16 @@ function recalc(i) {
   //   monateSeit = 24 → M1 = 12 (Anfang Jahr 1 → also de-facto schon im Jahr 1)
   //   monateSeit = 36 → M1 = 1  (sofort)
   // Wir rechnen pro Monat, für jeden Monat m wird die Anzahl der Sprünge ermittelt:
-  //   Sprung-Modus: nSprünge(m) = m >= M1 ? floor((m - M1) / 36) + 1 : 0
-  //   Index-Modus:  nSprünge(m) = m >= M1 ? floor((m - M1) / 12) + 1 : 0
-  //   Faktor(m) = (1 + steigerungProz)^nSprünge(m)
+  //   Sprung-Modus (Bestand):     nSprünge(m) = m >= M1 ? floor((m - M1) / 36) + 1 : 0
+  //   Staffel-Modus (Neuvermietung, linear, Iter 41.11):
+  //                               nSprünge(m) = m >= M1 ? floor((m - M1) / 12) + 1 : 0
+  //   Index-Modus (Altverträge mit Index, exponentiell):
+  //                               wie Staffel, aber Faktor exponentiell
+  //
+  //   Faktor(m):
+  //     Sprung + Index:  (1 + steigerungProz)^nSprünge(m)   ← exponentiell
+  //     Staffel:         1 + nSprünge(m) × steigerungProz    ← linear (Iter 41.11)
+  //
   // Jahresmiete = Summe der Monatsmieten Monate (y-1)*12+1 bis y*12.
   const monateSeit = i.monateSeitMieterhoehung || 0;
   const M1 = Math.max(1, 36 - monateSeit);
@@ -589,14 +596,24 @@ function recalc(i) {
     if (m < M1) return 0;
     return Math.floor((m - M1) / 36) + 1;
   }
-  function nSprungeIndex(m) {
+  function nSprungeJaehrlich(m) {
     if (m < M1) return 0;
     return Math.floor((m - M1) / 12) + 1;
   }
   function nSprungeFor(m) {
     if (i.mietsteigerungsModus === 'sprung') return nSprungeSprung(m);
-    if (i.mietsteigerungsModus === 'index')  return nSprungeIndex(m);
+    if (i.mietsteigerungsModus === 'index')  return nSprungeJaehrlich(m);
+    if (i.mietsteigerungsModus === 'staffel') return nSprungeJaehrlich(m);
     return 0;
+  }
+  function faktorFor(m) {
+    const n = nSprungeFor(m);
+    if (i.mietsteigerungsModus === 'staffel') {
+      // Staffelmiete linear: Startmiete × (1 + n × %).
+      // Beispiel 500 € · 3 % · n=2 → 500 × 1,06 = 530 € (nicht 530,45 wie bei exp.).
+      return 1 + n * i.steigerungProz;
+    }
+    return Math.pow(1 + i.steigerungProz, n);
   }
 
   for (let y = 1; y <= 30; y++) {
@@ -605,8 +622,7 @@ function recalc(i) {
     let kaltmieteMoEndJahr = 0;
     for (let monthOfYear = 1; monthOfYear <= 12; monthOfYear++) {
       const m = (y - 1) * 12 + monthOfYear; // Absoluter Monat 1..360
-      const n = nSprungeFor(m);
-      const faktor = Math.pow(1 + i.steigerungProz, n);
+      const faktor = faktorFor(m);
       const geplanteMo = i.kaltmiete * faktor;
       // Iter 12: Marktmieten-Cap entfernt — Mietsteigerung läuft nur noch über
       // mietsteigerungsModus (sprung/index) und steigerungProz.
@@ -803,10 +819,10 @@ function recalc(i) {
   const kaufpreisProQm = i.qm > 0 ? (i.kaufpreis / i.qm) : 0;
   const markteinkaufVorteil = i.marktwertProQm > 0 ? (i.marktwertProQm - kaufpreisProQm) * i.qm : 0;
 
-  // Erste Erhöhung in Monat M1 (sofern nicht 'sprung'/'index' weg) — Storytelling
+  // Erste Erhöhung in Monat M1 (sofern Mietsteigerung aktiv) — Storytelling
   let ersteErhoehungMonat = null;
   let ersteErhoehungJahrLabel = null;
-  if (i.mietsteigerungsModus === 'sprung' || i.mietsteigerungsModus === 'index') {
+  if (['sprung', 'index', 'staffel'].includes(i.mietsteigerungsModus)) {
     ersteErhoehungMonat = M1;
     const yEst = Math.ceil(M1 / 12);
     ersteErhoehungJahrLabel = 'Jahr ' + yEst;

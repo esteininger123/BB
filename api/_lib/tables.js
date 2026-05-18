@@ -144,7 +144,7 @@ const KALK_STAMMDATEN_FIELDS = {
   WERTSTEIGERUNG:        'fldhB9tsIkpcLGDur',
   VERMIETUNGS_MODUS:     'fldZmkdo4sEAeJqnV',
   KAPPUNGSGRENZE:        'fldna2Hj1m1ST94Z3',
-  INDEXMIETE:            'fldFlwdAP4xQ2muO5',
+  INDEXMIETE:            'fldFlwdAP4xQ2muO5', // ab 18.05.2026 in Airtable umbenannt zu "Staffelmiete %" — JS-Key bleibt INDEXMIETE für Backward-Compat
   LETZTE_MIETSTEIGERUNG: 'fldpLwMLe2PTCO3t7',
   GRESt:                 'fld8pmE00wfH0v7jR',
   GEBAEUDE_ANTEIL:       'fld56AAbrC4yPJQrb',
