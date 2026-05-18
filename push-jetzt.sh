@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 
 echo ""
 echo "==========================================="
-echo "  B&B Kalkulator V2 — Push Iter 41.8"
+echo "  B&B Kalkulator V2 — Push Iter 41.10"
 echo "==========================================="
 echo ""
 
@@ -22,7 +22,96 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 41.8 — Gewinn-Zone visuell + Maklerprovision aus KNK entfernt
+git commit -m "Iter 41.10 — Mietsubvention 2-Phasen-Modell + Cap qm-skaliert
+
+- Neues Feld 'Marktmiete' (€/Mo) in Kalkulations-Stammdaten (fldnrgRONiWWsSxZb).
+  Henry pflegt; deckelt die Subvention auf den rechtl. Erhöhungsspielraum.
+
+- Mietsubvention komplett neu modelliert (computeAutoSubvention in
+  api/stammdaten/[weId].js):
+  Käufer sieht ab Tag 1 die End-Miete = MbV + 2 Kappung-Stufen, konstant
+  über bis zu 6 Jahre. B&B legt 6 Jahre lang die Differenz drauf.
+
+  * Phase 1 (Mo 0 bis 36 − verstrichene-Mo-seit-letzter-Erhöhung):
+    B&B zahlt vollen Aufschlag X.
+  * Phase 2 (36 Mo, beginnt nach P1): Mieter erhöht legal um 1 Kappung,
+    B&B zahlt nur noch (X − MbV × Kapp).
+
+- Markt-Deckelung: X kann max. (Marktmiete − MbV) sein. Wenn MbV ≥ Markt
+  → keine Subv möglich.
+
+- 10-%-Schwelle: Phase 2 entfällt, wenn nach Phase 1 die Käufer-Miete
+  schon ≤ 10 % unter Marktmiete liegt (kein Erhöhungsspielraum mehr).
+
+- Cap = max(5.000 €, qm × 150 €/qm). Wenn rechnerisch (P1+P2) > Cap →
+  Käufer-Aufschlag X wird reduziert, sodass Summe = Cap. Beide Phasen
+  laufen weiter (Laufzeit bleibt), Käufer-Miete bleibt 6 Jahre konstant,
+  nur niedriger als ideal.
+
+- Maximal 2 Erhöhungsstufen, nie 3 — auch wenn Sperrfrist lange vorbei.
+
+- Manueller Mietzuschuss in Stammdaten hat Vorrang (1-Phase-Override).
+
+- Kalkulator-recalc verarbeitet jetzt subventionPhasen[] korrekt
+  (Monatsweise Aggregation pro Jahr aus Array von Phasen).
+
+- UI Cashflow-Block zeigt:
+  * Phase 1 Subv/Mo × Mo
+  * Phase 2 Subv/Mo × Mo (wenn aktiv)
+  * Gesamt-Subv-Summe
+  * Cap-Warnung wenn Cap greift
+  * Erklär-Text aus dem Backend (warum 1 oder 2 Phasen)
+
+- Datenquelle 'Letzte Mietsteigerung' Hierarchie unverändert:
+  1) Kalk-Stammdaten manuell, 2) Mietvertrag.Anpassung-gültig-ab,
+  3) Mietvertrag.Vertragsbeginn, 4) Annahme 36 Mo. App zeigt Quelle.
+
+- Cache-Bust auf v=55.
+
+- Henry-Anleitung 'Mietsubvention 2-Phasen-Modell' im
+  _Cockpit/anleitungen/ als Referenz.
+
+---
+
+Iter 41.9 — Henry-Feedback: MbV, Subv-Auto, Markt-Schnitt, Aktiv-Filter, Garage/Stellplatz
+
+- Drei neue Felder in Kalkulations-Stammdaten:
+  * 'Miete bei Verkauf' (Currency €/Mo) — fldy0UJDRV7CNoN6D
+  * 'Marktpreis ImmoScout' (Currency €/qm) — fldhMmMxLn1PSjbwN
+  * 'Marktpreis Homeday' (Currency €/qm) — fldvlXM6pBUzVYdpF
+  Henry pflegt sie pro Aktiv-WE.
+
+- Datenquelle Kalkulator restriktiver:
+  Filter jetzt zusätzlich auf Kalk-Stammdaten.Status = Aktiv. WEs ohne aktiven
+  Stammdaten-Eintrag (z.B. Eigennutzer-Verkäufe, Makler-Einheiten) erscheinen
+  nicht mehr im Vertriebs-Kalkulator. Henry entscheidet pro WE explizit.
+
+- Mietsubvention auto-berechnet (Server-side in stammdaten/[weId].js):
+  * Vermietungsmodus Bestand + Kappung > 0 → subv/Mo = MbV × Kappung,
+    Laufzeit = max(0, 36 − Monate_seit_letzter_Mietsteigerung).
+  * Modus Neuvermietung / Leerstand → subv = 0 (B&B vermietet vor Verkauf neu).
+  * Manueller Mietzuschuss in Stammdaten hat Vorrang (Override).
+  Beispiel: MbV 920 € × 15 % = 138 €/Mo · letzte Erhöhung 01.01.2026 → 32 Mo
+  Subvention (heute Mai 2026).
+
+- Markteinkauf-Hebel: Schnitt aus ImmoScout + Homeday (vorher: Single-Wert).
+  Wenn nur eines gepflegt → der vorhandene. UI-Hinweis welche Quelle.
+
+- Stellplatz vs. Garage: Backend liefert garageCount + flaecheCount separat,
+  Frontend zeigt z.B. '+ 2 Garagen + 1 Stellplatz' statt '+ 3 Stellplätze'.
+  Stellplatz-TYP-Feld in Airtable wird konsumiert (war schon da).
+
+- Miete bei Verkauf überschreibt WE-Kaltmiete im Kalkulator wenn gepflegt.
+  Stellplatzmiete wird separat addiert (unverändert).
+
+- Field-IDs ZUSTAENDIGER_MAKLER + MAKLER_LOOKUP in tables.js ergänzt für
+  spätere Filter-Erweiterung (Edgar 17.05.: Makler-Feld 'Team B&B' optional).
+
+- Cache-Bust auf v=54.
+
+---
+
+Iter 41.8 — Gewinn-Zone visuell + Maklerprovision aus KNK entfernt
 
 - Hauptchart 'Vermögensaufbau 10 J.' erweitert um 6. Dataset + Füllung:
   * Gefüllte Gewinn-Zone zwischen Gesamtvermögen (Dataset 2) und EK-Linie
@@ -331,5 +420,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=53-Version lädt."
+echo "damit der Browser die neue v=55-Version lädt."
 echo ""

@@ -5,7 +5,11 @@
 const { verifySession } = require('./_lib/auth');
 const { airtable, listAll } = require('./_lib/airtable');
 const { methodNotAllowed, sendError } = require('./_lib/http');
-const { TABLES, WE_FIELDS, PROJEKT_FIELDS, PROJEKT_HEAD_FIELDS, WE_STATUS_VERMARKTUNG, MAKLER_BUB } = require('./_lib/tables');
+const {
+  TABLES, WE_FIELDS, PROJEKT_FIELDS, PROJEKT_HEAD_FIELDS,
+  KALK_STAMMDATEN_FIELDS, KALK_STATUS_AKTIV,
+  WE_STATUS_VERMARKTUNG, MAKLER_BUB
+} = require('./_lib/tables');
 const { weRecordToApi } = require('./_lib/mappers');
 
 // Versucht Projekt-Namen aus den verlinkten Records zu laden.
@@ -105,14 +109,42 @@ module.exports = async (req, res) => {
   if (!session) return res.status(401).json({ error: 'Nicht eingeloggt' });
 
   try {
+    // Iter 41.9 (17.05.2026) — Henry-Feedback:
+    // Datenquelle des Kalkulators war zu breit (Makler-Einheiten + Eigennutzer-Verkäufe
+    // erschienen mit). Neuer Filter: nur WEs, für die in Kalkulations-Stammdaten ein
+    // Datensatz mit Status=Aktiv existiert. So entscheidet Henry pro WE explizit, ob
+    // sie im KAV gezeigt wird.
+    //
+    // Step 1: Alle aktiven Stammdaten-Records laden → daraus die verlinkten WE-IDs sammeln.
+    // Step 2: WE-Tabelle abfragen mit Vermarktung + Firma=B&B Immo + WE-ID in der Aktiv-Liste.
+
+    // --- Step 1: aktive Stammdaten holen ---
+    const stammdatenRecords = await listAll(TABLES.KALK_STAMMDATEN, {
+      filterByFormula: `{${KALK_STAMMDATEN_FIELDS.STATUS}}='${KALK_STATUS_AKTIV}'`,
+      fields: [KALK_STAMMDATEN_FIELDS.WOHNEINHEIT],
+      pageSize: 100
+    }, 1000);
+
+    const aktiveWeIds = new Set();
+    stammdatenRecords.forEach(r => {
+      const links = (r.fields || {})[KALK_STAMMDATEN_FIELDS.WOHNEINHEIT] || [];
+      if (!Array.isArray(links)) return;
+      links.forEach(link => {
+        const id = (link && typeof link === 'object' && link.id) ? link.id : (typeof link === 'string' ? link : null);
+        if (id) aktiveWeIds.add(id);
+      });
+    });
+
+    // Wenn keine WE auf Aktiv → leeres Array zurückgeben (statt unfiltered alles laden).
+    if (aktiveWeIds.size === 0) {
+      return res.status(200).json([]);
+    }
+
     // Status ist Single-Select → exakter Vergleich.
     // Firma-Feld auf der Wohneinheit ist ein Lookup vom Projekt → "Firma (from Projekt) (from Objekt)".
     // Lookups geben Arrays zurück → FIND() + ARRAYJOIN(). Auch Trailing-Spaces wie
     // "B&B Immo GmbH  " sind dank FIND() unproblematisch.
     //
-    // Iter 41 (15.05.2026): Projekt-Substring-Filter (Heidelberger/Wesseling) entfernt.
-    // Henry pflegt alle B&B-Projekte in Vermarktung — die App zeigt jetzt automatisch alles,
-    // was Status="Vermarktung / Im Verkauf" + Maklerfirma=B&B Immo GmbH hat.
     // Wenn doch ein Filter nötig ist (z.B. Demo-Modus), kann WOHNEINHEIT_OBJEKT_FILTER
     // als Env-Var gesetzt werden — kommagetrennte Substring-Liste auf {Titel}.
     const objektFilterRaw = process.env.WOHNEINHEIT_OBJEKT_FILTER || '';
@@ -123,7 +155,11 @@ module.exports = async (req, res) => {
         ? 'OR(' + objektTokens.map(t => `FIND('${t}', {Titel})>0`).join(', ') + ')'
         : 'TRUE()';
 
-    const formula = `AND({Status}='${WE_STATUS_VERMARKTUNG}', FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0, ${objektFormula})`;
+    // WE-ID-Filter aus aktiven Stammdaten
+    const weIdArr = Array.from(aktiveWeIds);
+    const weIdFormula = 'OR(' + weIdArr.map(id => `RECORD_ID()='${id}'`).join(', ') + ')';
+
+    const formula = `AND({Status}='${WE_STATUS_VERMARKTUNG}', FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0, ${objektFormula}, ${weIdFormula})`;
 
     const fields = [
       WE_FIELDS.LAGE_BEZ,

@@ -620,9 +620,29 @@ function recalc(i) {
     // Stellplätze sind nicht mietpreisgebunden — folgen marktüblicher Inflation.
     const spMieteMo = i.stellplatzMiete * Math.pow(1 + (i.wertsteigerung || 0), y - 1);
 
-    // Subvention: B18 * MAX(0, MIN(12, B19 - (n-1)*12)) / 12
-    const monatePerJahr = Math.max(0, Math.min(12, i.subventionMonate - (y - 1) * 12));
-    const subventionMoEff = i.subventionMo * monatePerJahr / 12;
+    // Subvention: 2-Phasen-Modell (Iter 41.10).
+    // i.subventionPhasen = [{ mo, monate }, { mo, monate }] — falls vorhanden, wird das genutzt.
+    // Fallback: 1-Phase über i.subventionMo + i.subventionMonate (Backward-Compat).
+    let subventionMoEff = 0;
+    if (Array.isArray(i.subventionPhasen) && i.subventionPhasen.length > 0) {
+      let monateBisher = 0;
+      for (const ph of i.subventionPhasen) {
+        if (!ph || !ph.monate || !ph.mo) { monateBisher += (ph && ph.monate) || 0; continue; }
+        const phaseStartMo = monateBisher;
+        const phaseEndMo   = monateBisher + ph.monate;
+        const jahrStartMo  = (y - 1) * 12;
+        const jahrEndMo    = y * 12;
+        const overlapStart = Math.max(phaseStartMo, jahrStartMo);
+        const overlapEnd   = Math.min(phaseEndMo, jahrEndMo);
+        const overlap      = Math.max(0, overlapEnd - overlapStart);
+        if (overlap > 0) subventionMoEff += ph.mo * overlap / 12;
+        monateBisher = phaseEndMo;
+      }
+    } else {
+      // Fallback 1-Phase: B18 × MAX(0, MIN(12, B19 − (n−1)×12)) / 12
+      const monatePerJahr = Math.max(0, Math.min(12, (i.subventionMonate || 0) - (y - 1) * 12));
+      subventionMoEff = (i.subventionMo || 0) * monatePerJahr / 12;
+    }
 
     const mieteJahr = (kaltmieteMo + spMieteMo + subventionMoEff) * 12;
 
@@ -800,7 +820,9 @@ function recalc(i) {
     vermoegenBrutto10: vermoegen[10].vermoegenBrutto,
     vermoegenNetto10: vermoegen[10].vermoegenNetto,
     belastungMo,
-    mietsubventionGesamt: i.subventionMo * i.subventionMonate,
+    mietsubventionGesamt: (Array.isArray(i.subventionPhasen) && i.subventionPhasen.length > 0)
+      ? i.subventionPhasen.reduce((s, ph) => s + ((ph.mo || 0) * (ph.monate || 0)), 0)
+      : (i.subventionMo || 0) * (i.subventionMonate || 0),
     markteinkaufVorteil, kaufpreisProQm,
     bonEinnahmen, bonAusgaben, bonVermoegen,
     bonVor, bonNach, bonDelta, bonMieteAnr, bonAnnuMo,

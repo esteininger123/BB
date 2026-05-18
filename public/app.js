@@ -624,7 +624,14 @@ function renderTabKalkulator() {
               </div>
               ${i._stellplatzAnzahl > 0 ? `
                 <div class="text-tertiary text-small mt-4" style="background:#f8fafc;padding:8px 12px;border-radius:6px;border-left:3px solid #2c5282;">
-                  <strong>+ ${i._stellplatzAnzahl} Stellplatz${i._stellplatzAnzahl > 1 ? 'e' : ''}</strong>
+                  <strong>${(() => {
+                    const g = i._stellplatzGarageCount || 0;
+                    const f = i._stellplatzFlaecheCount || 0;
+                    if (g > 0 && f > 0) return `+ ${g} Garage${g > 1 ? 'n' : ''} + ${f} Stellplatz${f > 1 ? 'e' : ''}`;
+                    if (g > 0) return `+ ${g} Garage${g > 1 ? 'n' : ''}`;
+                    if (f > 0) return `+ ${f} Stellplatz${f > 1 ? 'e' : ''}`;
+                    return `+ ${i._stellplatzAnzahl} Stellplatz${i._stellplatzAnzahl > 1 ? 'e' : ''}`;
+                  })()}</strong>
                   ${i._stellplatzKp > 0 ? ' · KP ' + Math.round(i._stellplatzKp).toLocaleString('de-DE') + ' €' : ''}
                   ${i._stellplatzMiete > 0 ? ' · Miete ' + Math.round(i._stellplatzMiete) + ' €/Mo (' + esc(i._stellplatzMieteQuelle || '') + ')' : ''}
                 </div>
@@ -1140,6 +1147,8 @@ async function loadWeIntoKalk(weId) {
       state.kalk.kaltmiete = (resp.we.kaltmiete || 0) + (resp.stellplaetze && resp.stellplaetze.mieteMoSumme || 0);
       // Stellplatz separat tracken für UI-Anzeige
       state.kalk._stellplatzAnzahl = (resp.stellplaetze && resp.stellplaetze.anzahl) || 0;
+      state.kalk._stellplatzGarageCount  = (resp.stellplaetze && resp.stellplaetze.garageCount) || 0;
+      state.kalk._stellplatzFlaecheCount = (resp.stellplaetze && resp.stellplaetze.flaecheCount) || 0;
       state.kalk._stellplatzKp = (resp.stellplaetze && resp.stellplaetze.kaufpreisSumme) || 0;
       state.kalk._stellplatzMiete = (resp.stellplaetze && resp.stellplaetze.mieteMoSumme) || 0;
       state.kalk._stellplatzMieteQuelle = (resp.stellplaetze && resp.stellplaetze.mieteMoQuelle) || 'keine';
@@ -1162,17 +1171,40 @@ async function loadWeIntoKalk(weId) {
     }
     if (resp && resp.kalkStammdaten && resp.kalkStammdaten.status === 'Aktiv') {
       const sd = resp.kalkStammdaten;
+      const derived = resp.derived || {};
       // Airtable überschreibt Excel-Fallback (nur wenn Status=Aktiv)
       if (sd.hausverwaltung !== null)        state.kalk.hausverwaltung = sd.hausverwaltung;
       if (sd.hausgeldRuecklage !== null)     state.kalk.hausgeld = sd.hausgeldRuecklage;
       if (sd.mietverwaltungDefault !== null) state.kalk.mietverwaltung = sd.mietverwaltungDefault;
-      if (sd.mietzuschuss !== null)          state.kalk.subventionMo = sd.mietzuschuss;
-      if (sd.mietzuschussMonate !== null)    state.kalk.subventionMonate = sd.mietzuschussMonate;
+      // Iter 41.10 — 2-Phasen-Modell. Backend liefert phasen[]; Kalkulator nutzt die.
+      // mo + monate bleiben als Aggregat für Backward-Compat (z.B. alte UI-Bereiche).
+      state.kalk.subventionPhasen   = derived.subventionPhasen || [];
+      state.kalk.subventionMo       = (derived.subventionMo     != null) ? derived.subventionMo     : (sd.mietzuschuss        || 0);
+      state.kalk.subventionMonate   = (derived.subventionMonate != null) ? derived.subventionMonate : (sd.mietzuschussMonate  || 0);
+      state.kalk._subventionQuelle  = derived.subventionQuelle || 'unbekannt';
+      state.kalk._subventionTotalEur     = derived.subventionTotalEur || 0;
+      state.kalk._subventionCapEur       = derived.subventionCapEur || 0;
+      state.kalk._subventionCapGreift    = !!derived.subventionCapGreift;
+      state.kalk._subventionErlaeuterung = derived.subventionErlaeuterung || '';
       if (sd.afaGutachten !== null)          state.kalk.afaSatz = sd.afaGutachten;
       if (sd.wertsteigerung !== null)        state.kalk.wertsteigerung = sd.wertsteigerung;
       if (sd.grEst !== null)                 state.kalk.grEstPct = sd.grEst;
       if (sd.gebaeudeAnteil !== null)        state.kalk.gebaeudeAnteil = sd.gebaeudeAnteil;
       if (sd.hgInflation !== null)           state.kalk.hgInflation = sd.hgInflation;
+      // Iter 41.9 — Miete bei Verkauf: wenn gepflegt, überschreibt die WE-Kaltmiete.
+      // Stellplatzmiete wird oben addiert; MbV ersetzt nur die Wohnungs-Kaltmiete.
+      if (sd.mieteBeiVerkauf != null && sd.mieteBeiVerkauf > 0) {
+        const stplMiete = state.kalk._stellplatzMiete || 0;
+        state.kalk.kaltmiete = sd.mieteBeiVerkauf + stplMiete;
+        state.kalk._mieteBeiVerkaufActive = true;
+      }
+      // Iter 41.9 — Markt-Schnitt (IS + HD)
+      if (derived.marktpreisGemittelt && derived.marktpreisGemittelt > 0) {
+        state.kalk.marktwertProQm = derived.marktpreisGemittelt;
+        state.kalk._marktpreisQuelle = derived.marktpreisGemitteltQuelle;
+      }
+      state.kalk._marktpreisIS = sd.marktpreisImmoscout;
+      state.kalk._marktpreisHD = sd.marktpreisHomeday;
       // Mieterhöhungs-Logik → mappen auf bestehende kalkulator.js-Felder
       state.kalk._vermietungsModus = sd.vermietungsModus;
       state.kalk._kappungsgrenze = sd.kappungsgrenze;
@@ -1392,6 +1424,20 @@ function renderStories(r) {
     </div>
   ` : '';
 
+  // Markt-Schnitt-Hinweis (Iter 41.9): IS + HD Werte transparent ausweisen
+  const isPrice = state.kalk._marktpreisIS;
+  const hdPrice = state.kalk._marktpreisHD;
+  const marktSrc = state.kalk._marktpreisQuelle;
+  const marktQuellenHinweis = (isPrice || hdPrice) ? `
+    <div class="text-tertiary text-small" style="margin-top:8px;">
+      Markt-Schnitt aus
+      ${isPrice ? `<strong>ImmoScout ${Math.round(isPrice).toLocaleString('de-DE')} €/qm</strong>` : 'ImmoScout —'}
+      ${' · '}
+      ${hdPrice ? `<strong>Homeday ${Math.round(hdPrice).toLocaleString('de-DE')} €/qm</strong>` : 'Homeday —'}
+      ${marktSrc === 'schnitt' ? ' (Schnitt beider)' : (marktSrc === 'nur-is' ? ' (nur IS verfügbar)' : (marktSrc === 'nur-hd' ? ' (nur HD verfügbar)' : ''))}
+    </div>
+  ` : '';
+
   const markteinkauf = (marktQm > 0) ? story('01 — Markteinkauf', 'Eingekauft unter Marktpreis', `
     <div class="story-grid">
       <table class="story-table">
@@ -1402,6 +1448,7 @@ function renderStories(r) {
       </table>
       <div class="story-explain">
         Diese Wohnung wird mit <strong>${Math.round(kpQm).toLocaleString('de-DE')} €/qm</strong> gekauft, der Marktpreis liegt bei <strong>${Math.round(marktQm).toLocaleString('de-DE')} €/qm</strong>. Der Vorteil <strong>steckt im Kaufpreis</strong> und macht den Vermögensaufbau ab Tag 1 belastbar — unabhängig von Wertsteigerung und Mietentwicklung.
+        ${marktQuellenHinweis}
       </div>
     </div>
   `) : '';
@@ -1420,7 +1467,29 @@ function renderStories(r) {
       </table>
       <div class="story-explain">
         Die <strong>ehrliche monatliche Zahl</strong>, die der Käufer mitbringt (oder die ihm bleibt, wenn positiv).
-        ${i.subventionMonate ? `<p>Mietsubvention <strong>${fmtEurMo(i.subventionMo)}</strong> über <strong>${i.subventionMonate} Monate</strong> — Summe <strong>${fmt(r.mietsubventionGesamt)}</strong>. Fängt die Anlaufphase ab.</p>` : ''}
+        ${(() => {
+          // Iter 41.10 — Mietsubvention: 2-Phasen-Aufschlüsselung wenn vorhanden
+          const phasen = Array.isArray(i.subventionPhasen) ? i.subventionPhasen : [];
+          if (phasen.length === 0 && !i.subventionMonate) return '';
+          const totalEur = r.mietsubventionGesamt || 0;
+          const capInfo = state.kalk._subventionCapGreift ? ` <span style="color:#c05621;">(Cap greift — max ${fmt(state.kalk._subventionCapEur)})</span>` : '';
+          if (phasen.length >= 2) {
+            const p1 = phasen[0], p2 = phasen[1];
+            return `<p><strong>Mietsubvention gesamt: ${fmt(totalEur)}</strong>${capInfo}<br>
+              · Phase 1: <strong>${fmtEurMo(p1.mo)}</strong> × ${p1.monate} Mo = ${fmt(p1.mo * p1.monate)}<br>
+              · Phase 2: <strong>${fmtEurMo(p2.mo)}</strong> × ${p2.monate} Mo = ${fmt(p2.mo * p2.monate)}<br>
+              ${state.kalk._subventionErlaeuterung ? `<span class="text-tertiary text-small">${esc(state.kalk._subventionErlaeuterung)}</span>` : ''}
+            </p>`;
+          } else if (phasen.length === 1) {
+            const p = phasen[0];
+            return `<p><strong>Mietsubvention gesamt: ${fmt(totalEur)}</strong>${capInfo}<br>
+              · ${esc(p.label || 'Phase 1')}: <strong>${fmtEurMo(p.mo)}</strong> × ${p.monate} Mo<br>
+              ${state.kalk._subventionErlaeuterung ? `<span class="text-tertiary text-small">${esc(state.kalk._subventionErlaeuterung)}</span>` : ''}
+            </p>`;
+          } else {
+            return `<p>Mietsubvention <strong>${fmtEurMo(i.subventionMo)}</strong> über <strong>${i.subventionMonate} Monate</strong> — Summe <strong>${fmt(totalEur)}</strong>. Fängt die Anlaufphase ab.</p>`;
+          }
+        })()}
         ${r.ersteErhoehungMonat ? `<p>Erste Mieterhöhung in <strong>Monat ${r.ersteErhoehungMonat}</strong> (${esc(r.ersteErhoehungJahrLabel)}). Mietsteigerung danach: ${fmtPct(i.steigerungProz)}.</p>` : ''}
       </div>
     </div>

@@ -217,7 +217,206 @@ function kalkStammRecordToApi(rec) {
     hgInflation:           num(f[KALK_STAMMDATEN_FIELDS.HG_INFLATION]),
     notizen:               f[KALK_STAMMDATEN_FIELDS.NOTIZEN] || '',
     quelle:                f[KALK_STAMMDATEN_FIELDS.QUELLE] || '',
+    // Iter 41.9 — Henry-Feedback 17.05.2026:
+    mieteBeiVerkauf:       num(f[KALK_STAMMDATEN_FIELDS.MIETE_BEI_VERKAUF]),
+    marktpreisImmoscout:   num(f[KALK_STAMMDATEN_FIELDS.MARKTPREIS_IS]),
+    marktpreisHomeday:     num(f[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]),
+    marktmiete:            num(f[KALK_STAMMDATEN_FIELDS.MARKTMIETE]),
   };
+}
+
+// --- Iter 41.10: 2-Phasen-Mietsubvention (Edgar/Henry-Modell 18.05.2026) ---
+//
+// Logik:
+// - Käufer sieht ab Tag 1 die konstante Käufer-Miete = MbV + X über bis zu 6 Jahre.
+// - X = Käufer-Aufschlag pro Monat. Ideal: X = MbV × ((1+Kapp)² − 1), gedeckelt durch
+//   die Marktmiete (rechtl. Erhöhungslimit) und durch den Subv-Cap (€).
+// - Phase 1 läuft (36 − Mo seit letzter Erhöhung) Monate. Subv P1/Mo = X.
+//   (Mieter zahlt MbV; B&B legt X drauf, sodass Käufer MbV + X sieht.)
+// - Phase 2 läuft 36 Monate, sofern nach Phase 1 die Käufer-Miete noch
+//   > 10 % unter Marktmiete liegt. Sonst entfällt P2.
+//   (Mieter wird in P2 legal um MbV × Kapp erhöht; Subv P2/Mo = X − MbV × Kapp.)
+// - Cap = max(5.000 €, qm × 150 €/qm). Override per Stammdaten möglich (heute nicht).
+// - Wenn (P1-Subv + P2-Subv) > Cap, wird X so reduziert, dass die Summe genau dem
+//   Cap entspricht. Käufer-Miete bleibt 6 Jahre konstant, nur niedriger als ideal.
+// - Manueller Mietzuschuss in Stammdaten hat Vorrang vor der Auto-Berechnung
+//   (wird als einzige Phase ausgewiesen).
+// - Vermietungsmodus ≠ 'Bestand' (Neuvermietung, Index, leer) → keine Subvention.
+function parseKappPct(kappRaw) {
+  if (typeof kappRaw === 'string') {
+    const m = kappRaw.match(/(\d+([.,]\d+)?)/);
+    if (m) return parseFloat(m[1].replace(',', '.')) / 100;
+  }
+  if (typeof kappRaw === 'number') {
+    return kappRaw > 1 ? kappRaw / 100 : kappRaw;
+  }
+  return 0;
+}
+
+function computeAutoSubvention(kalkApi, vermietung, weQm) {
+  const empty = { phasen: [], totalEur: 0, mo: 0, monate: 0, quelle: 'keine', erlaeuterung: '' };
+
+  if (!kalkApi) return Object.assign({}, empty, { quelle: 'keine-stammdaten' });
+
+  // Manueller Override → eine Phase
+  const manMo  = kalkApi.mietzuschuss;
+  const manMon = kalkApi.mietzuschussMonate;
+  if ((manMo != null && manMo > 0) || (manMon != null && manMon > 0)) {
+    const mo = manMo || 0, monate = manMon || 0;
+    return {
+      phasen: [{ mo, monate, label: 'Manuell (Override)' }],
+      totalEur: Math.round(mo * monate),
+      mo, monate, quelle: 'manuell',
+      erlaeuterung: 'Manuell gepflegter Mietzuschuss in Stammdaten hat Vorrang.'
+    };
+  }
+
+  // Vermietungsmodus checken
+  const modus = (kalkApi.vermietungsModus || '').toLowerCase();
+  if (modus !== 'bestand') {
+    return Object.assign({}, empty, {
+      quelle: 'auto-' + (modus || 'leer'),
+      erlaeuterung: 'Keine Subvention bei Modus "' + (kalkApi.vermietungsModus || 'leer') + '" (B&B vermietet bei Leerstand neu, Käufer übernimmt Neuvermietung).'
+    });
+  }
+
+  const mbv = kalkApi.mieteBeiVerkauf;
+  if (!mbv || mbv <= 0) return Object.assign({}, empty, { quelle: 'auto-mbv-fehlt', erlaeuterung: 'Miete bei Verkauf in Stammdaten fehlt.' });
+
+  const kappPct = parseKappPct(kalkApi.kappungsgrenze);
+  if (!kappPct || kappPct <= 0) return Object.assign({}, empty, { quelle: 'auto-kappung-fehlt', erlaeuterung: 'Kappungsgrenze in Stammdaten fehlt.' });
+
+  const marktmiete = kalkApi.marktmiete || 0;
+
+  // Phase-1-Laufzeit aus letzter Mietsteigerung
+  const letzte = (vermietung && vermietung.letzteMietsteigerung) || kalkApi.letzteMietsteigerung;
+  let monateSeit = null; // null = unbekannt → konservativ 0 Mo verstrichen
+  if (letzte) {
+    const datum = new Date(letzte);
+    const heute = new Date();
+    monateSeit = Math.max(0, (heute.getFullYear() - datum.getFullYear()) * 12 + (heute.getMonth() - datum.getMonth()));
+  }
+  const p1Monate = monateSeit !== null ? Math.max(0, 36 - monateSeit) : 36;
+  const p2Monate = 36;
+
+  // X_ideal = MbV × ((1+Kapp)² − 1)   (= 2 Erhöhungsstufen drauf)
+  // Markt-Deckelung: X kann max. (Marktmiete − MbV) sein, sonst rechtl. nicht haltbar.
+  const xIdealEhneMarkt = mbv * ((1 + kappPct) * (1 + kappPct) - 1);
+  const xMaxMarkt = marktmiete > 0 ? Math.max(0, marktmiete - mbv) : xIdealEhneMarkt;
+  const xIdeal = Math.min(xIdealEhneMarkt, xMaxMarkt);
+
+  if (xIdeal <= 0) {
+    return Object.assign({}, empty, {
+      quelle: 'auto-kein-spielraum',
+      erlaeuterung: 'Miete bei Verkauf ≥ Marktmiete — keine legale Erhöhung möglich.'
+    });
+  }
+
+  // 10-%-Schwelle: Phase 2 nur wenn Käufer-Miete nach P1 (= MbV + 1×Kapp) noch > 10 % unter Markt.
+  // Käufer-Miete nach P1 wäre MbV + MbV × Kapp = MbV × (1+Kapp). Wenn der Abstand
+  // zur Marktmiete ≤ 10 %, brauchen wir keine 2. Stufe.
+  let p2Aktiv = true;
+  if (marktmiete > 0) {
+    const kaufermieteNachP1 = mbv * (1 + kappPct);
+    const abstandPct = (marktmiete - kaufermieteNachP1) / marktmiete;
+    if (abstandPct <= 0.10) p2Aktiv = false;
+  }
+
+  // X_ideal in der 2-Stufen-Variante
+  // Wenn nur P1 aktiv ist, beträgt X höchstens MbV × Kapp (= 1 Stufe).
+  let xFinal = xIdeal;
+  if (!p2Aktiv) {
+    const xEinStufe = Math.min(mbv * kappPct, xMaxMarkt);
+    xFinal = xEinStufe;
+  }
+
+  // Roh-Subv-Beträge
+  // P1: B&B zahlt X jeden Monat (Mieter zahlt MbV).
+  // P2 (falls aktiv): Mieter erhöht legal um MbV × Kapp; B&B zahlt X − MbV × Kapp.
+  let p1Mo = xFinal;
+  let p2Mo = p2Aktiv ? Math.max(0, xFinal - mbv * kappPct) : 0;
+
+  let p1Eur = p1Mo * p1Monate;
+  let p2Eur = p2Aktiv ? (p2Mo * p2Monate) : 0;
+  let totalRoh = p1Eur + p2Eur;
+
+  // Cap
+  const cap = Math.max(5000, (weQm || 0) * 150);
+  let capGreift = false;
+  let capDetail = '';
+
+  if (totalRoh > cap && cap > 0) {
+    capGreift = true;
+    // X so kürzen, dass Total = Cap. Beide Phasen laufen weiter (Laufzeit bleibt).
+    // Total = (p1Monate × X) + p2Aktiv × (p2Monate × (X − MbV × Kapp))
+    //       = X × (p1Monate + p2Aktiv × p2Monate) − p2Aktiv × p2Monate × MbV × Kapp
+    // → X = (Cap + p2Aktiv × p2Monate × MbV × Kapp) / (p1Monate + p2Aktiv × p2Monate)
+    const denom = p1Monate + (p2Aktiv ? p2Monate : 0);
+    if (denom > 0) {
+      const xNew = (cap + (p2Aktiv ? p2Monate * mbv * kappPct : 0)) / denom;
+      xFinal = Math.max(0, xNew);
+      p1Mo = xFinal;
+      p2Mo = p2Aktiv ? Math.max(0, xFinal - mbv * kappPct) : 0;
+      p1Eur = p1Mo * p1Monate;
+      p2Eur = p2Aktiv ? (p2Mo * p2Monate) : 0;
+      totalRoh = p1Eur + p2Eur;
+      capDetail = `Cap ${Math.round(cap).toLocaleString('de-DE')} € greift (qm ${weQm || '?'} × 150 €/qm, min 5.000). Käufer-Aufschlag auf ${Math.round(xFinal)} €/Mo reduziert.`;
+    }
+  }
+
+  const phasen = [];
+  if (p1Monate > 0 && p1Mo > 0) {
+    phasen.push({
+      mo: Math.round(p1Mo * 100) / 100,
+      monate: p1Monate,
+      label: 'Phase 1 (bis 1. legale Mieterhöhung)'
+    });
+  }
+  if (p2Aktiv && p2Monate > 0 && p2Mo > 0) {
+    phasen.push({
+      mo: Math.round(p2Mo * 100) / 100,
+      monate: p2Monate,
+      label: 'Phase 2 (Jahr 4–6)'
+    });
+  }
+
+  let erlaeuterung = '';
+  if (p2Aktiv && phasen.length === 2) {
+    erlaeuterung = `Käufer sieht ${Math.round(mbv + xFinal)} €/Mo über 6 Jahre konstant. Mieter zahlt P1 ${Math.round(mbv)} €, P2 ${Math.round(mbv * (1 + kappPct))} € (1. Erhöhung). B&B zahlt P1 ${Math.round(p1Mo)} €/Mo, P2 ${Math.round(p2Mo)} €/Mo.`;
+  } else if (phasen.length === 1) {
+    erlaeuterung = `Nur 1 Stufe sinnvoll (Käufer-Miete schon nahe an Marktmiete oder Markt deckelt). B&B zahlt ${Math.round(p1Mo)} €/Mo über ${p1Monate} Mo.`;
+  }
+  if (capDetail) erlaeuterung = capDetail + ' ' + erlaeuterung;
+
+  // Für Backward-Compat: mo + monate als "gewichteter Durchschnitt"-Wert ausweisen,
+  // damit alte Frontend-Pfade weiterhin sinnvolle Werte sehen. Neuer Pfad nutzt phasen[].
+  const totalMo = (phasen.reduce((s, p) => s + p.monate, 0)) || 0;
+  const totalEur = Math.round(p1Eur + p2Eur);
+  const moDurchschnitt = totalMo > 0 ? Math.round(totalEur / totalMo * 100) / 100 : 0;
+
+  return {
+    phasen,
+    totalEur,
+    mo: moDurchschnitt,
+    monate: totalMo,
+    capEur: Math.round(cap),
+    capGreift,
+    quelle: capGreift ? 'auto-cap' : (p2Aktiv ? 'auto-2-phasen' : 'auto-1-phase'),
+    erlaeuterung,
+  };
+}
+
+// --- Iter 41.9: Markteinkauf-Hebel Schnitt aus IS+HD ---
+function computeMarktpreisGemittelt(kalkApi) {
+  if (!kalkApi) return { wert: 0, quelle: 'keine' };
+  const is = kalkApi.marktpreisImmoscout;
+  const hd = kalkApi.marktpreisHomeday;
+  const hasIs = is != null && is > 0;
+  const hasHd = hd != null && hd > 0;
+  if (hasIs && hasHd) return { wert: Math.round((is + hd) / 2), quelle: 'schnitt' };
+  if (hasIs) return { wert: is, quelle: 'nur-is' };
+  if (hasHd) return { wert: hd, quelle: 'nur-hd' };
+  return { wert: 0, quelle: 'keine' };
 }
 
 module.exports = async (req, res) => {
@@ -267,22 +466,50 @@ module.exports = async (req, res) => {
       const letzteMietsteigerungQuelle = kalkLetzte ? 'kalk-stammdaten' :
         (vertragInfo.letzteMietsteigerung ? 'mietvertrag' : 'unbekannt');
 
+      // Stellplatz-Typ-Aufteilung (Garage vs. Fläche/Stellplatz)
+      const garageCount  = stellplaetze.filter(s => /garage/i.test(s.typ)).length;
+      const flaecheCount = stellplaetze.length - garageCount;
+
+      const kalkApi = kalkStammRecordToApi(kalkRec);
+      const vermietungObj = {
+        status:                 vermietet ? 'vermietet' : 'leer',
+        vertragVorhanden:       vertragInfo.vertragVorhanden,
+        letzteMietsteigerung,
+        letzteMietsteigerungQuelle,
+      };
+
+      // Subvention auto + Markt-Schnitt direkt vom Backend liefern
+      const subv = computeAutoSubvention(kalkApi, vermietungObj, we.qm);
+      const marktSchnitt = computeMarktpreisGemittelt(kalkApi);
+
       return res.status(200).json({
         we,
         stellplaetze: {
           anzahl:        stellplaetze.length,
+          garageCount,
+          flaecheCount,
           kaufpreisSumme: stpKaufpreisSumme,
           mieteMoSumme:   stpMieteEffektiv,
           mieteMoQuelle:  vertragInfo.stellplatzMietsumme > 0 ? 'mietvertrag' : (stpAlteMieteSumme > 0 ? 'stellplatz-alt' : 'keine'),
           details:        stellplaetze,
         },
-        vermietung: {
-          status:                 vermietet ? 'vermietet' : 'leer',
-          vertragVorhanden:       vertragInfo.vertragVorhanden,
-          letzteMietsteigerung,            // ISO-Date oder null
-          letzteMietsteigerungQuelle,      // 'kalk-stammdaten' | 'mietvertrag' | 'unbekannt'
+        vermietung: vermietungObj,
+        kalkStammdaten: kalkApi,
+        // Abgeleitete Werte:
+        derived: {
+          // Backward-Compat (Iter 41.9): Aggregat-Werte für alte Pfade
+          subventionMo:     subv.mo,
+          subventionMonate: subv.monate,
+          subventionQuelle: subv.quelle,
+          // Iter 41.10: 2-Phasen-Modell
+          subventionPhasen:      subv.phasen || [],
+          subventionTotalEur:    subv.totalEur || 0,
+          subventionCapEur:      subv.capEur,
+          subventionCapGreift:   subv.capGreift,
+          subventionErlaeuterung: subv.erlaeuterung || '',
+          marktpreisGemittelt:        marktSchnitt.wert,
+          marktpreisGemitteltQuelle:  marktSchnitt.quelle,
         },
-        kalkStammdaten: kalkStammRecordToApi(kalkRec),
       });
     }
 
@@ -315,6 +542,12 @@ module.exports = async (req, res) => {
       if (body.gebaeudeAnteil !== undefined)        fields[KALK_STAMMDATEN_FIELDS.GEBAEUDE_ANTEIL]      = num(body.gebaeudeAnteil);
       if (body.hgInflation !== undefined)           fields[KALK_STAMMDATEN_FIELDS.HG_INFLATION]         = num(body.hgInflation);
       if (body.notizen !== undefined)               fields[KALK_STAMMDATEN_FIELDS.NOTIZEN]              = body.notizen || '';
+      // Iter 41.9 — neue Felder
+      if (body.mieteBeiVerkauf !== undefined)       fields[KALK_STAMMDATEN_FIELDS.MIETE_BEI_VERKAUF]    = num(body.mieteBeiVerkauf);
+      if (body.marktpreisImmoscout !== undefined)   fields[KALK_STAMMDATEN_FIELDS.MARKTPREIS_IS]        = num(body.marktpreisImmoscout);
+      if (body.marktpreisHomeday !== undefined)     fields[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]        = num(body.marktpreisHomeday);
+      // Iter 41.10
+      if (body.marktmiete !== undefined)            fields[KALK_STAMMDATEN_FIELDS.MARKTMIETE]           = num(body.marktmiete);
 
       // Quelle automatisch setzen: "App-Edit {VertrieblerName} {YYYY-MM-DD}"
       const datum = new Date().toISOString().slice(0, 10);

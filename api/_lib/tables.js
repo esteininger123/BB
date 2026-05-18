@@ -86,11 +86,19 @@ const WE_FIELDS = {
   LAGE_TEXT:   'fldL2xgJwlFcGDUfx',
   QM_PREIS:    'fldGClYivJ0IdvAyG',
   WE_NR:       'fldGia0unyS8cBaE5',
-  PROJEKT:     'fld1cp8nYcq6wXZx6'
+  PROJEKT:     'fld1cp8nYcq6wXZx6',
+  // Iter 41.9 — zusätzlicher Vertriebsfilter (Team B&B):
+  ZUSTAENDIGER_MAKLER: 'fldNWc3458mHkH01m', // Link-Feld auf Makler-Tabelle
+  MAKLER_LOOKUP:       'fldVgHqxy7zVKynsg', // Lookup spiegelt den Makler-Namen
 };
 
 const WE_STATUS_VERMARKTUNG = 'Vermarktung / Im Verkauf';
 const MAKLER_BUB = 'B&B Immo GmbH';
+// Iter 41.9 — Vertriebs-Filter aus Henry-Feedback. Wenn die WE im Eigenvertrieb (KAV)
+// verkauft wird, weist Henry/Schenki den Makler-Record "Team B&B" zu. Der Filter ist
+// derzeit NICHT zwingend (Edgar 17.05.: "kann auch jemand anderes sein oder niemand"),
+// daher reicht für den App-Filter Kalk-Stammdaten.Status=Aktiv.
+const TEAM_BB_LABEL = 'Team B&B';
 
 // --- Stellplatz-Tabelle ---
 const STELLPLATZ_FIELDS = {
@@ -143,6 +151,12 @@ const KALK_STAMMDATEN_FIELDS = {
   HG_INFLATION:          'fld6KJtkjtXjSVhtk',
   NOTIZEN:               'fld097ACU9qRS5kwq',
   QUELLE:                'fldrMUcQs06YF0lGi',
+  // Iter 41.9 — Henry-Feedback 17.05.2026:
+  MIETE_BEI_VERKAUF:     'fldy0UJDRV7CNoN6D', // Currency €/Mo — die Miete, die der Käufer übernimmt
+  MARKTPREIS_IS:         'fldhMmMxLn1PSjbwN', // Currency €/m² — ImmoScout-Marktpreis
+  MARKTPREIS_HD:         'fldvlXM6pBUzVYdpF', // Currency €/m² — Homeday-Marktpreis
+  // Iter 41.10 — Mietsubvention 2-Phasen-Modell:
+  MARKTMIETE:            'fldnrgRONiWWsSxZb', // Currency €/Mo — Kalt-Marktmiete (deckelt Erhöhungs-Subv)
 };
 
 const KALK_STATUS_AKTIV    = 'Aktiv';
@@ -163,6 +177,7 @@ module.exports = {
   KALK_STAMMDATEN_FIELDS,
   WE_STATUS_VERMARKTUNG,
   MAKLER_BUB,
+  TEAM_BB_LABEL,
   KALK_STATUS_AKTIV,
   KALK_STATUS_ENTWURF,
   KALK_STATUS_ARCHIV,
