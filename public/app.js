@@ -1033,6 +1033,13 @@ function bindKalkInputs() {
       const raw = parseFloat(slider.value);
       const v = isEur ? raw : (raw / 100); // Prozent → Dezimal
       state.kalk[k] = v;
+      // Iter 41.15 (Audit-Fix #5): Manuelle Subv-Slider-Verstellung deaktiviert das
+      // 2-Phasen-Modell, damit der Slider-Wert wirklich Effekt hat.
+      if ((k === 'subventionMo' || k === 'subventionMonate') &&
+          Array.isArray(state.kalk.subventionPhasen) && state.kalk.subventionPhasen.length > 0) {
+        state.kalk.subventionPhasen = [];
+        state.kalk._subventionQuelle = 'manuell-slider';
+      }
       // Begleitendes Number-Input + Label synchronisieren
       const num = document.querySelector(`input[data-kalk="${k}"]`);
       if (num) num.value = isEur ? v : v.toFixed(4);
@@ -1060,6 +1067,14 @@ function bindKalkInputs() {
       // NaN → null (für leere Number-Felder)
       if (typeof v === 'number' && !isFinite(v)) v = null;
       state.kalk[k] = v;
+      // Iter 41.15 (Audit-Fix #5): Wenn 2-Phasen-Subv aktiv ist und der Vertriebler
+      // den Subv-Slider manuell verstellt → Phasen-Array zurücksetzen, damit recalc
+      // ab jetzt mit dem Slider-Wert rechnet (statt das Phasen-Array zu nutzen).
+      if ((k === 'subventionMo' || k === 'subventionMonate') &&
+          Array.isArray(state.kalk.subventionPhasen) && state.kalk.subventionPhasen.length > 0) {
+        state.kalk.subventionPhasen = [];
+        state.kalk._subventionQuelle = 'manuell-slider';
+      }
       // Begleitenden Slider mitziehen, falls vorhanden
       const slider = document.querySelector(`input[type="range"][data-slider="${k}"]`);
       if (slider && typeof v === 'number') {
@@ -1141,16 +1156,23 @@ async function loadWeIntoKalk(weId) {
   try {
     const resp = await api.get('/api/stammdaten/' + encodeURIComponent(weId));
     if (resp && resp.we) {
-      // WE-Basis-Werte aus dem Endpoint — der ist autoritativ (lebt direkt aus Wohneinheit-Tabelle)
-      state.kalk.kaufpreis = (resp.we.kp || 0) + (resp.stellplaetze && resp.stellplaetze.kaufpreisSumme || 0);
+      // Iter 41.15 (18.05.2026, Audit-Fix): Stellplatz/Garage SAUBER GETRENNT von der Wohnung.
+      // Vorher wurden KP und Miete aggregiert ins kaufpreis/kaltmiete-Feld gemixt → Slider zeigte 0,
+      // Stellplatzmiete wuchs mit Wohnungs-Kappung statt mit Inflation, PDF zeigte Garage nicht.
+      // Jetzt: separate State-Felder für Wohnung vs. Stellplatz. Header zeigt weiterhin Aggregat.
+      const stplKp    = (resp.stellplaetze && resp.stellplaetze.kaufpreisSumme) || 0;
+      const stplMiete = (resp.stellplaetze && resp.stellplaetze.mieteMoSumme) || 0;
+      state.kalk.kaufpreis = resp.we.kp || 0;          // NUR Wohnung
       state.kalk.qm = resp.we.qm || state.kalk.qm;
-      state.kalk.kaltmiete = (resp.we.kaltmiete || 0) + (resp.stellplaetze && resp.stellplaetze.mieteMoSumme || 0);
-      // Stellplatz separat tracken für UI-Anzeige
+      state.kalk.kaltmiete = resp.we.kaltmiete || 0;   // NUR Wohnung
+      state.kalk.stellplatzKp    = stplKp;             // separat in den Kalkulator-Input
+      state.kalk.stellplatzMiete = stplMiete;          // separat (wird mit Inflation, nicht Kappung gewachsen)
+      // Tracking für UI-Header-Anzeige (Aggregat-Zeile)
       state.kalk._stellplatzAnzahl = (resp.stellplaetze && resp.stellplaetze.anzahl) || 0;
       state.kalk._stellplatzGarageCount  = (resp.stellplaetze && resp.stellplaetze.garageCount) || 0;
       state.kalk._stellplatzFlaecheCount = (resp.stellplaetze && resp.stellplaetze.flaecheCount) || 0;
-      state.kalk._stellplatzKp = (resp.stellplaetze && resp.stellplaetze.kaufpreisSumme) || 0;
-      state.kalk._stellplatzMiete = (resp.stellplaetze && resp.stellplaetze.mieteMoSumme) || 0;
+      state.kalk._stellplatzKp = stplKp;
+      state.kalk._stellplatzMiete = stplMiete;
       state.kalk._stellplatzMieteQuelle = (resp.stellplaetze && resp.stellplaetze.mieteMoQuelle) || 'keine';
       // Wohnungs-Kaltmiete (ohne Stellplatz) — wird für Mietsteigerungs-Logik gebraucht
       state.kalk._wohnungsKaltmiete = resp.we.kaltmiete || 0;
@@ -1191,11 +1213,10 @@ async function loadWeIntoKalk(weId) {
       if (sd.grEst !== null)                 state.kalk.grEstPct = sd.grEst;
       if (sd.gebaeudeAnteil !== null)        state.kalk.gebaeudeAnteil = sd.gebaeudeAnteil;
       if (sd.hgInflation !== null)           state.kalk.hgInflation = sd.hgInflation;
-      // Iter 41.9 — Miete bei Verkauf: wenn gepflegt, überschreibt die WE-Kaltmiete.
-      // Stellplatzmiete wird oben addiert; MbV ersetzt nur die Wohnungs-Kaltmiete.
+      // Iter 41.9 / 41.15 — Miete bei Verkauf ersetzt NUR die Wohnungs-Kaltmiete.
+      // Stellplatzmiete bleibt separat in state.kalk.stellplatzMiete.
       if (sd.mieteBeiVerkauf != null && sd.mieteBeiVerkauf > 0) {
-        const stplMiete = state.kalk._stellplatzMiete || 0;
-        state.kalk.kaltmiete = sd.mieteBeiVerkauf + stplMiete;
+        state.kalk.kaltmiete = sd.mieteBeiVerkauf;
         state.kalk._mieteBeiVerkaufActive = true;
       }
       // Iter 41.9 — Markt-Schnitt (IS + HD)
@@ -1336,7 +1357,14 @@ function recalcAndRender() {
     </div>`;
   const kpis = [
     kpiCard('EK-Bedarf', fmt(r.ekBedarf),
-      'Eigenkapital beim Kauf: Kaufnebenkosten (Grunderwerbsteuer + Notar + Grundbuch ≈ 8,5 % vom Kaufpreis). Bei „KNK mitfinanziert: Ja" = 0 €.'),
+      (() => {
+        // Iter 41.15 (Audit-Fix #7): Info-Text dynamisch aus tatsächlichem GrESt
+        const grEstPct = (state.kalk && parseFloat(state.kalk.grEstPct)) || 0.05;
+        const totalPct = grEstPct + 0.015 + 0.005;
+        const grEstStr = (grEstPct * 100).toFixed(grEstPct === 0.065 ? 1 : 1) + ' %';
+        const totalStr = (totalPct * 100).toFixed(1) + ' %';
+        return `Eigenkapital beim Kauf: Kaufnebenkosten (GrESt ${grEstStr} + Notar 1,5 % + Grundbuch 0,5 % = ${totalStr} vom Kaufpreis). Bei „KNK mitfinanziert: Ja" = 0 €.`;
+      })()),
     kpiCard('Belastung / Monat', fmtEurMo(r.belastungMo),
       'Was monatlich aus deiner Tasche geht in Jahr 1. Mieten + Subvention − Annuität − Hausgeld − Hausverwaltung − Mietverwaltung + Steuervorteil. Positiv = Cashflow positiv.', cls(r.belastungMo)),
     kpiCard('EK-Rendite (IRR) 10 J.', fmtPct(r.irr),
@@ -1459,11 +1487,24 @@ function renderStories(r) {
     </div>
   `) : '';
 
+  // Iter 41.15 (Audit-Fix #9): Miete-Aufschlüsselung in Story 02
+  const kaltmieteJ1Mo = i.kaltmiete || 0;
+  const stellplatzMieteJ1Mo = i.stellplatzMiete || 0;
+  const subvJ1Mo = (Array.isArray(i.subventionPhasen) && i.subventionPhasen[0] && i.subventionPhasen[0].monate >= 1)
+    ? i.subventionPhasen[0].mo
+    : (i.subventionMo || 0);
+  const mieteAufschluesselung = `
+    <tr><td>· davon Kaltmiete Wohnung</td><td class="num pos">+ ${fmtEurMo(kaltmieteJ1Mo)}</td></tr>
+    ${stellplatzMieteJ1Mo > 0 ? `<tr><td>· davon Stellplatz-/Garagenmiete</td><td class="num pos">+ ${fmtEurMo(stellplatzMieteJ1Mo)}</td></tr>` : ''}
+    ${subvJ1Mo > 0 ? `<tr><td>· davon Mietsubvention${(Array.isArray(i.subventionPhasen) && i.subventionPhasen.length >= 2) ? ' (Phase 1)' : ''}</td><td class="num pos">+ ${fmtEurMo(subvJ1Mo)}</td></tr>` : ''}
+  `;
+
   const cashflowHeute = story('02 — Cashflow heute', 'Was der Kunde Monat für Monat mitbringt', `
     <div class="story-grid">
       <table class="story-table">
         <thead><tr><th>Position</th><th class="num">€/Monat</th></tr></thead>
-        <tr><td>Mieteinnahmen (Kalt + Stellplatz + Subv.)</td><td class="num pos">+ ${fmtEurMo(r.mieteJ1Mo || 0)}</td></tr>
+        <tr><td><strong>Mieteinnahmen gesamt Jahr 1</strong></td><td class="num pos"><strong>+ ${fmtEurMo(r.mieteJ1Mo || 0)}</strong></td></tr>
+        ${mieteAufschluesselung}
         <tr><td>Annuität Bank</td><td class="num neg">− ${fmtEurMo(r.annuityMo || 0)}</td></tr>
         <tr><td>Hausgeld inkl. Rücklage</td><td class="num neg">− ${fmtEurMo(r.hausgeldNurMo || 0)}</td></tr>
         <tr><td>Mietverwaltung (SEV)</td><td class="num neg">− ${fmtEurMo(r.mietverwaltungMo || 0)}</td></tr>

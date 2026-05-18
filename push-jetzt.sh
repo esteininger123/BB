@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 
 echo ""
 echo "==========================================="
-echo "  B&B Kalkulator V2 — Push Iter 41.13"
+echo "  B&B Kalkulator V2 — Push Iter 41.15"
 echo "==========================================="
 echo ""
 
@@ -22,7 +22,66 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 41.13 — Vertragsbeginn-Priorität + Auto-Entwurf-Automation live + SOP-E v1.3
+git commit -m "Iter 41.15 — Audit-Fixes vor Vertriebs-Live-Schaltung (5 Bugs)
+
+Audit-Bericht: _Cockpit/status/2026-05-18_Kalkulator-Audit-Bericht.md
+15 Inkonsistenzen identifiziert. Diese Iteration fixt die 5 wichtigsten.
+
+#1 [KRITISCH] Stellplatz sauber zerlegen
+- app.js loadWeIntoKalk: state.kalk.kaufpreis enthält jetzt nur WE-Kaufpreis
+  (vorher: WE + Stellplatz aggregiert). state.kalk.stellplatzKp enthält den
+  Garage/Stellplatz-Kaufpreis separat. Analog state.kalk.kaltmiete (nur WE)
+  und state.kalk.stellplatzMiete (nur Stellplatz).
+- Behebt auch automatisch:
+  * Reservierungs-PDF zeigt Garage wieder (vorher fehlte sie weil spKp=0)
+  * Stellplatzmiete wächst mit Inflation (3 %) statt Wohnungskappung (15 %).
+    Nachrechnung Wesseling WE 5 Jahr 10: ca. 1.500 € weniger ausgewiesene
+    Mieteinnahmen über 10 J vs. App-Stand vorher (= korrekt jetzt).
+  * Markteinkauf-Vorteil rechnet mit Wohnungs-Kaufpreis/qm statt Aggregat.
+
+#3 [KRITISCH] Investrechnungs-PDF zeigt 2-Phasen-Subv
+- pdf.js: Mietsubvention wird jetzt als Phase 1 + Phase 2 + Gesamt-Summe
+  ausgewiesen (vorher nur gewichteter Durchschnitt × Gesamt-Monate).
+
+#5 [MITTEL] Slider-Verstellung bei 2-Phasen-Subv reaktiviert manuellen Modus
+- app.js bindKalkInputs: wenn subventionMo oder subventionMonate manuell
+  verstellt werden und subventionPhasen[] gesetzt ist → Phasen leeren,
+  Quelle auf 'manuell-slider'. Slider hat ab jetzt direkte Wirkung statt
+  ignoriert zu werden.
+
+#7 [MITTEL] EK-Bedarf Info-Text dynamisch
+- KPI-Info zeigt jetzt tatsächliche KNK-% aus dem Bundesland statt
+  pauschal '8,5 %'.
+
+#9 [UX] Cashflow-Story zeigt Miete aufgeschlüsselt
+- Mieteinnahmen Jahr 1: Kaltmiete Wohnung + Stellplatzmiete + Subvention
+  separat ausgewiesen, plus Summe. Subv bei 2-Phasen als 'Phase 1' markiert.
+
+- Cache-Bust auf v=60.
+
+Restliche 10 Inkonsistenzen siehe Audit-Bericht für nächste Iterationen.
+
+---
+
+Iter 41.14 — Projekt-Mapping komplett aktualisiert (32 Codes)
+
+- api/wohneinheiten.js PROJEKT_PRETTY-Mapping abgeglichen mit Airtable
+  PROJEKT_HEAD-Tabelle. Vorher waren Codes wie 'KARL_RUMM6' oder
+  'LAHR_GÄRT20' als Raw-Code im Projekt-Dropdown sichtbar.
+  Alle 32 Projekt-Codes aus Airtable jetzt mit Pretty-Name gemappt.
+  Bisheriges Mapping hatte 4 falsche Codes (BAD_NORDRING_10, LIM_ALTENS_5,
+  WALDK_THEOD, KA_HEIN_6, LAHR_GAERTN_20, SINZ_KORNBL_7) und nur
+  Heidelberger + Wesseling stimmten.
+
+- Fallback-Logik: bei unbekanntem Code wird Stadt-Präfix transformiert
+  (z.B. neue Codes mit 'KARL_*' werden automatisch zu 'Karlsruhe, ...').
+  Damit ist die App vor unerwarteten neuen Codes robust.
+
+- Cache-Bust auf v=59.
+
+---
+
+Iter 41.13 — Vertragsbeginn-Priorität + Auto-Entwurf-Automation live + SOP-E v1.3
 
 - api/stammdaten/[weId].js: in loadMietvertragInfoForWE Priorität von
   GUELTIG_AB ('Anpassung gültig ab') auf VERTRAGSBEGINN umgedreht.
@@ -521,5 +580,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=58-Version lädt."
+echo "damit der Browser die neue v=60-Version lädt."
 echo ""

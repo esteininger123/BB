@@ -15,23 +15,90 @@ const { weRecordToApi } = require('./_lib/mappers');
 // Versucht Projekt-Namen aus den verlinkten Records zu laden.
 // Toleriert Fehler (z.B. wenn Projekt-Tabelle anders heißt) und liefert leeres Mapping.
 // Mapping: Projekt-Code aus Airtable → kundenfreundlicher Projekt-Name.
+// Mapping Projekt-Code (aus Airtable PROJEKT_HEAD.CODE) → kundenfreundliche
+// Bezeichnung. Stand 18.05.2026, abgeglichen mit allen 32 Projekt-Codes in Airtable.
+// Iter 41.14: zuvor waren Bezeichnungen wie "KARL_RUMM6" oder "LAHR_GÄRT20" als
+// Raw-Codes im UI sichtbar, weil das Mapping nicht zu Airtable passte.
 const PROJEKT_PRETTY = {
-  'BRUCH_HEID_21':       'Heidelberger Str. 21, Bruchsal',
-  'WES_RHEIN 290/292':   'Wesseling, Rheinstr. 290+292',
-  'BAD_NORDRING_10':     'Sandweier (Baden-Baden), Nordring 10',
-  'LIM_ALTENS_5':        'Limeshain, Altenstädter Weg 5',
-  'WALDK_THEOD':         'Waldkirch, Theodor-Heuss-Str. 13+15',
-  'KA_HEIN_6':           'Karlsruhe, Heinstraße 6',
-  'PFAFF_GEO-HIP_28':    'Pfaffenhofen, Georg-Hipp-Str. 28',
-  'LAHR_GAERTN_20':      'Lahr, Gärtnerstraße 20',
-  'SINZ_KORNBL_7':       'Sinzheim, Kornblumenweg 7',
+  // === In Vermarktung / aktiv im Vertrieb ===
+  'BRUCH_HEID_21':            'Heidelberger Str. 21, Bruchsal',
+  'WES_RHEIN 290/292':        'Wesseling, Rheinstr. 290+292',
+  'SAN_NOR10':                'Sandweier, Nordring 10',
+  '21. LIM_ALTST_5':          'Limeshain, Altenstädter Weg 5',
+  'Wald_Theo_Heu 13-19':      'Waldkirch, Theodor-Heuss-Str. 13–19',
+  'KARL_RUMM6':               'Karlsruhe, Rummelsburger Str. 6',
+  'PFAFF_GEO-HIP_28':         'Pfaffenhofen, Georg-Hipp-Str. 28',
+  'LAHR_GÄRT20':              'Lahr, Gärtnerstraße 20',
+  'SINZ_KORN7':               'Sinzheim, Kornblumenweg 7',
+  'OG_AUG-HU_4':              'Offenburg, August-Hund-Str. 4',
+  'BAD_MÜHL5':                'Baden-Baden, Am Mühlwäldle 5',
+  // === Übriger Bestand (für Live-Schaltung später) ===
+  'MÜLL_VOG 10,12':           'Müllheim, Vogesenstraße 10+12',
+  'FR-KAP_PETER_9':           'Freiburg-Kappel, Peterstal 9',
+  'Rheinsh 1+3_Bruchsal':     'Rheinsheimer Str. 1+3, Bruchsal',
+  'LABOE_HEIK 12-14':         'Laboe, Heikendorfer Weg 12–14',
+  'GUS_WER33':                'Gusterath, Werthstraße 33',
+  'OG_RAB_9-13':              'Offenburg, Rabenstraße 9–13',
+  ' MARKTH_SUED_3_5_5A':      'Marktheidenfeld, Süd 3+5+5A',
+  'OG_HIND6':                 'Offenburg, Hindenburgstraße 6',
+  'MECK_ZUZENH_51-53':        'Meckesheim, Zuzenhauser Str. 51–53',
+  'ILLIN_KURZ_STR_4':         'Illingen, Kurze Straße 4',
+  'SINZ_KART80':              'Sinzheim, Kartungstraße 80',
+  'KARL_SCHNEI22C':           'Karlsruhe, Schneidemühler Str. 22C',
+  'DINK_HOF21':               'Dinkelsbühl, Hoffeldweg 21',
+  'OG_KOLP27':                'Offenburg, Kolpingstraße 27',
+  'STE_ENGEL7':               'Steinfeld, Engelstraße 7',
+  'KEHL_BER6':                'Kehl, Bergstraße 6',
+  'RHEIN_KRO18A':             'Rheinfelden, Kronenstraße 18A',
+  'OG_TAN_23-25':             'Offenburg, Tannenweg 23–25',
+  'KITZ_MOZ 4&4a':            'Kitzingen, Mozartstraße 4 + 4a',
+  'FRIES_IM_BÖLD':            'Friesenheim, Im Böldele',
+  'URL_RUNZ1 (Darstellung)':  'Urloffen, Runzweg 1 (Darstellung)',
+};
+
+// Fallback: wenn der Code im Mapping fehlt, transformiere ihn lesbarer.
+// Unterstriche zu Leerzeichen, bekannte Stadt-Präfixe ausschreiben.
+const STADT_PRAEFIXE = {
+  'BRUCH_':   'Bruchsal, ',
+  'WES_':     'Wesseling, ',
+  'SAN_':     'Sandweier, ',
+  'LIM_':     'Limeshain, ',
+  'WALDK_':   'Waldkirch, ',
+  'KARL_':    'Karlsruhe, ',
+  'KA_':      'Karlsruhe, ',
+  'PFAFF_':   'Pfaffenhofen, ',
+  'LAHR_':    'Lahr, ',
+  'SINZ_':    'Sinzheim, ',
+  'OG_':      'Offenburg, ',
+  'BAD_':     'Baden-Baden, ',
+  'MÜLL_':    'Müllheim, ',
+  'GUS_':     'Gusterath, ',
+  'MECK_':    'Meckesheim, ',
+  'ILLIN_':   'Illingen, ',
+  'DINK_':    'Dinkelsbühl, ',
+  'STE_':     'Steinfeld, ',
+  'KEHL_':    'Kehl, ',
+  'RHEIN_':   'Rheinfelden, ',
+  'KITZ_':    'Kitzingen, ',
+  'FRIES_':   'Friesenheim, ',
+  'URL_':     'Urloffen, ',
+  'MARKTH_':  'Marktheidenfeld, ',
+  'LABOE_':   'Laboe, ',
 };
 
 function beautifyProjektName(rawNameOrCode) {
   if (!rawNameOrCode) return '';
   // Akzeptiert "PR: 17, WES_RHEIN 290/292" oder direkt "WES_RHEIN 290/292"
   const stripped = String(rawNameOrCode).replace(/^PR:\s*\d+,\s*/, '').trim();
-  return PROJEKT_PRETTY[stripped] || stripped;
+  if (PROJEKT_PRETTY[stripped]) return PROJEKT_PRETTY[stripped];
+  // Fallback: bekanntes Stadt-Präfix ausschreiben, Rest als Adress-Hinweis lesbar machen
+  for (const prefix in STADT_PRAEFIXE) {
+    if (stripped.startsWith(prefix)) {
+      const rest = stripped.slice(prefix.length).replace(/_/g, ' ').trim();
+      return STADT_PRAEFIXE[prefix] + rest;
+    }
+  }
+  return stripped;
 }
 
 // Mapping Objekt-ID → Projekt-Name.

@@ -250,7 +250,23 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <tr><td>Hausgeld</td><td class="num">${fmt(kalkInputs.hausgeld)} / Mo</td></tr>
         <tr><td>Hausverwaltung</td><td class="num">${fmt(kalkInputs.hausverwaltung)} / Mo</td></tr>
         <tr><td>Mietverwaltung</td><td class="num">${fmt(kalkInputs.mietverwaltung)} / Mo</td></tr>
-        <tr><td>Subvention</td><td class="num">${fmt(kalkInputs.subventionMo)} × ${esc(kalkInputs.subventionMonate)} Mo</td></tr>
+        ${(() => {
+          // Iter 41.15: Mietsubvention 2-Phasen-Modell sauber im PDF ausweisen
+          const phasen = Array.isArray(kalkInputs.subventionPhasen) ? kalkInputs.subventionPhasen : [];
+          if (phasen.length >= 2) {
+            const p1 = phasen[0], p2 = phasen[1];
+            const total = (p1.mo * p1.monate) + (p2.mo * p2.monate);
+            return `
+              <tr><td>Mietsubvention Phase 1</td><td class="num">${fmt(p1.mo)} / Mo × ${p1.monate} Mo</td></tr>
+              <tr><td>Mietsubvention Phase 2</td><td class="num">${fmt(p2.mo)} / Mo × ${p2.monate} Mo</td></tr>
+              <tr><td>Mietsubvention gesamt</td><td class="num"><strong>${fmt(total)}</strong></td></tr>
+            `;
+          } else if (phasen.length === 1) {
+            const p = phasen[0];
+            return `<tr><td>Mietsubvention</td><td class="num">${fmt(p.mo)} / Mo × ${p.monate} Mo</td></tr>`;
+          }
+          return `<tr><td>Mietsubvention</td><td class="num">${fmt(kalkInputs.subventionMo)} / Mo × ${esc(kalkInputs.subventionMonate)} Mo</td></tr>`;
+        })()}
         <tr><td>Zins</td><td class="num">${fmtPct(kalkInputs.zins)}</td></tr>
         <tr><td>Tilgung</td><td class="num">${fmtPct(kalkInputs.tilgung)}</td></tr>
         <tr><td>AfA-Satz</td><td class="num">${fmtPct(kalkInputs.afaSatz)}</td></tr>
