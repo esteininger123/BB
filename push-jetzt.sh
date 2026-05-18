@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 
 echo ""
 echo "==========================================="
-echo "  B&B Kalkulator V2 — Push Iter 41.16"
+echo "  B&B Kalkulator V2 — Push Iter 41.17"
 echo "==========================================="
 echo ""
 
@@ -22,7 +22,35 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 41.16 — Audit-Fixes Teil 2 (alle verbleibenden Bugs außer PDFs)
+git commit -m "Iter 41.17 — Cashflow-Chart monatlich, CF nach Steuern in den Vordergrund
+
+- kalkulator.js recalc: neues cfMonate[]-Array (120 Einträge = 10 Jahre × 12 Mo).
+  Pro Monat: kaltmiete, spMiete, subv, Zinsen, Tilgung, HG, MV, HV, Steuervorteil,
+  CF-nach-Steuern, CF-operativ. Zinsen + Tilgung pro Monat via Annuitäten-Formel
+  iterativ (statt CUMIPMT pro Jahr → Werte sind monats-präzise).
+  Mietsteigerungs-Sprünge (Kappung in Monat M1, M1+36, ...) sind so im Chart
+  sichtbar als Stufenfunktion.
+
+- app.js drawCharts: Cashflow-Chart komplett umgebaut.
+  Vorher: 10 Bars (jährlich, gestapelt Operativ + Steuervorteil).
+  Jetzt: 120 Datenpunkte (monatlich), Line-Chart mit drei Datasets:
+  * 'CF nach Steuern' — dick (3px), gold gefüllt, im Vordergrund (order: 0).
+    Die wichtigste Zahl für den Vertrieb.
+  * 'Operativer CF (vor Steuer)' — dünn (1px), grün transparent, Hintergrund.
+  * 'Steuervorteil' — dünn (1px) gestrichelt, gold transparent, Hintergrund.
+  X-Achse: nur Jahres-Marken sichtbar (alle 12 Mo: J1, J2, ..., J10).
+  Tooltip: 'Jahr X · Monat Y' mit allen drei Werten parallel.
+
+- Card-Titel und Erklär-Text angepasst:
+  'Cashflow nach Steuern · 10 Jahre monatlich'
+  'Die wichtigste Zahl: was bleibt monatlich. Operativer CF + Steuervorteil
+  sind als Referenzlinien im Hintergrund.'
+
+- Cache-Bust auf v=62.
+
+---
+
+Iter 41.16 — Audit-Fixes Teil 2 (alle verbleibenden Bugs außer PDFs)
 
 PDFs bewusst unverändert — Edgar wird sie eh anpassen.
 
@@ -641,5 +669,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=61-Version lädt."
+echo "damit der Browser die neue v=62-Version lädt."
 echo ""

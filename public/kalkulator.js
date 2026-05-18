@@ -716,6 +716,57 @@ function recalc(i) {
     });
   }
 
+  // Iter 41.17 (18.05.2026): Monats-granulare Cashflow-Serie für die Visualisierung.
+  // Edgar will den Cashflow Monat für Monat über 10 Jahre sehen, mit CF nach Steuern
+  // im Vordergrund. Wir leiten die Monatswerte direkt aus den Inputs ab (statt nur
+  // jährlich) — Mietsteigerungs-Sprünge werden so im Chart korrekt sichtbar.
+  const cfMonate = []; // 120 Einträge (10 Jahre × 12 Mo)
+  let balanceM = darlehen;
+  for (let m = 1; m <= 120; m++) {
+    const y = Math.ceil(m / 12);
+    const faktor = faktorFor(m);
+    const kaltmieteM = i.kaltmiete * faktor;
+    const spMieteM = (i.stellplatzMiete || 0) * Math.pow(1 + (i.wertsteigerung || 0), y - 1);
+    // Subvention monats-präzise: prüfen, in welcher Phase der absolute Monat m liegt
+    let subvM = 0;
+    if (Array.isArray(i.subventionPhasen) && i.subventionPhasen.length > 0) {
+      let monateBisher = 0;
+      for (const ph of i.subventionPhasen) {
+        const phaseStartMo = monateBisher;
+        const phaseEndMo   = monateBisher + (ph.monate || 0);
+        if (m > phaseStartMo && m <= phaseEndMo) { subvM = ph.mo || 0; break; }
+        monateBisher = phaseEndMo;
+      }
+    } else if ((i.subventionMonate || 0) > 0 && m <= (i.subventionMonate || 0)) {
+      subvM = i.subventionMo || 0;
+    }
+    const mieteM = kaltmieteM + spMieteM + subvM;
+    // Zinsen + Tilgung pro Monat (Annuitäten-Formel iterativ)
+    let zinsM = 0, tilgM = 0;
+    if (m <= nper) {
+      zinsM = balanceM * rateM;
+      tilgM = annuityMo - zinsM;
+      balanceM = Math.max(0, balanceM - tilgM);
+    }
+    // HG + MV + HV pro Monat (jährliche Inflation)
+    const hgFaktorM = Math.pow(1 + (i.hgInflation || 0), y - 1);
+    const hausverwM = (i.hausverwaltung || 0) * hgFaktorM;
+    const mvM = (i.mietverwaltung || 0) * hgFaktorM;
+    const hgM = (i.hausgeld || 0) * hgFaktorM + mvM + hausverwM;
+    // Steuervorteil pro Monat — AfA + Zinsen + MV + HV als Werbungskosten gegen Miete
+    const afaM_ = afaJahr / 12;
+    const stVerlustM = afaM_ + zinsM + mvM + hausverwM - mieteM;
+    const stVorteilM = stVerlustM * (i.steuersatz || 0);
+    const cfNachStM = mieteM - zinsM - tilgM - hgM + stVorteilM;
+    const cfOperativM = cfNachStM - stVorteilM; // = vor Steuer
+    cfMonate.push({
+      m, y,
+      kaltmieteM, spMieteM, subvM, mieteM,
+      zinsM, tilgM, hgM, mvM, hausverwM,
+      stVorteilM, cfNachStM, cfOperativM,
+    });
+  }
+
   // Vermögensentwicklung Jahr 0..10 — saubere Begriffshierarchie:
   //   Marktwert(y)       = startwert × (1 + Wertsteigerung)^y
   //   Verkaufserlös(y)   = Marktwert(y) − Restschuld(y)        (= EK im Objekt)
@@ -842,7 +893,7 @@ function recalc(i) {
     inputs: i,
     kpGesamt, knk, investitionGesamt, ekBedarf, darlehen,
     annuityMo, nper, afaMo, afaJahr, afaBemessungBetrag,
-    cf, vermoegen, irr: irrValue,
+    cf, cfMonate, vermoegen, irr: irrValue,
     vermoegenBrutto10: vermoegen[10].vermoegenBrutto,
     vermoegenNetto10: vermoegen[10].vermoegenNetto,
     belastungMo,
