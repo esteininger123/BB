@@ -226,7 +226,29 @@ function kalkStammRecordToApi(rec) {
     marktpreisImmoscout:   num(f[KALK_STAMMDATEN_FIELDS.MARKTPREIS_IS]),
     marktpreisHomeday:     num(f[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]),
     marktmiete:            num(f[KALK_STAMMDATEN_FIELDS.MARKTMIETE]),
+    // Iter 41.17 — Lookup „Miet-status (ist)" aus WE. Roher Wert wird in
+    // resolveVermietungsstatus() normalisiert.
+    weVermietungsstatusRaw: f[KALK_STAMMDATEN_FIELDS.WE_VERMIETUNGSSTATUS] || null,
   };
+}
+
+// Iter 41.17 (18.05.2026) — Vermietungs-Status aus dem WE-Lookup ableiten.
+// Erwartete Werte aus der Wohneinheit-Tabelle: "vermietet" oder "leerstehend"
+// (bzw. Varianten wie "leer", "frei"). Lookups kommen aus Airtable typischerweise
+// als Array; Single-Selects (auch via Lookup) werden vom airtable-Wrapper bereits
+// auf .name reduziert. Wir nehmen den ersten nicht-leeren Eintrag.
+// Rückgabe: 'vermietet' | 'leer' | null (wenn Lookup leer/unklar → Fallback).
+function resolveVermietungsstatusFromLookup(rawVal) {
+  if (rawVal == null) return null;
+  let v = rawVal;
+  if (Array.isArray(v)) v = v.find(x => x != null && x !== '') || null;
+  if (v == null) return null;
+  if (typeof v === 'object' && v.name) v = v.name;
+  const s = String(v).toLowerCase().trim();
+  if (!s) return null;
+  if (s.startsWith('vermiet')) return 'vermietet';
+  if (s.startsWith('leer') || s.startsWith('frei') || s.includes('leerstehend')) return 'leer';
+  return null;
 }
 
 // --- Iter 41.10: 2-Phasen-Mietsubvention (Edgar/Henry-Modell 18.05.2026) ---
@@ -469,24 +491,47 @@ module.exports = async (req, res) => {
       const stpAlteMieteSumme = stellplaetze.reduce((s, x) => s + (x.mieteMo || 0), 0);
       const stpMieteEffektiv = vertragInfo.stellplatzMietsumme > 0 ? vertragInfo.stellplatzMietsumme : stpAlteMieteSumme;
 
-      // Vermietungs-Status: vermietet wenn Vertrag vorhanden ODER Kaltmiete > 0 in WE
-      // (Excel-Werte berücksichtigen, falls Mietvertrag-Tabelle nicht gepflegt ist)
-      const vermietet = vertragInfo.vertragVorhanden || (we.kaltmiete > 0);
+      // --- Vermietungs-Status bestimmen (Iter 41.17, 18.05.2026) ---
+      // Single Source of Truth: Lookup „Miet-status (ist)" aus WE-Tabelle, gespiegelt
+      // in Kalk-Stammdaten. Edgar 18.05.: vorher leitete die App aus „Vertrag + Kaltmiete>0"
+      // ab — bei leerstehenden Einheiten mit Excel-Altmiete > 0 war das falsch.
+      // Reihenfolge:
+      //  1) Lookup-Wert (autoritativ, wenn vorhanden)
+      //  2) Heuristik „Vertrag vorhanden ODER Kaltmiete>0" (Fallback)
+      const kalkApi = kalkStammRecordToApi(kalkRec);
+      const statusVomLookup = resolveVermietungsstatusFromLookup(kalkApi && kalkApi.weVermietungsstatusRaw);
+      let statusFinal, statusQuelle;
+      if (statusVomLookup) {
+        statusFinal = statusVomLookup;
+        statusQuelle = 'we-lookup';
+      } else {
+        const vermietetHeuristisch = vertragInfo.vertragVorhanden || (we.kaltmiete > 0);
+        statusFinal = vermietetHeuristisch ? 'vermietet' : 'leer';
+        statusQuelle = vertragInfo.vertragVorhanden ? 'fallback-mietvertrag' :
+                       (we.kaltmiete > 0 ? 'fallback-kaltmiete' : 'fallback-keine-daten');
+      }
 
-      // Letzte Mietsteigerung: erst aus Kalk-Stammdaten (manuell gepflegt von Henry/Schenki),
-      // sonst aus Mietvertrag-Tabelle (GUELTIG_AB || VERTRAGSBEGINN), sonst null.
+      // Letzte Mietsteigerung:
+      // - status='vermietet' → erst Kalk-Stammdaten (manuell gepflegt), sonst Mietvertrag, sonst null
+      // - status='leer'      → IMMER null (alte Vertragsdaten dürfen nicht in die Steigerungs-Logik!)
       const kalkLetzte = (kalkRec && kalkRec.fields && kalkRec.fields[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG]) || null;
-      const letzteMietsteigerung = kalkLetzte || vertragInfo.letzteMietsteigerung || null;
-      const letzteMietsteigerungQuelle = kalkLetzte ? 'kalk-stammdaten' :
-        (vertragInfo.letzteMietsteigerung ? 'mietvertrag-vertragsbeginn' : 'unbekannt');
+      let letzteMietsteigerung, letzteMietsteigerungQuelle;
+      if (statusFinal === 'leer') {
+        letzteMietsteigerung = null;
+        letzteMietsteigerungQuelle = 'leerstand-keine';
+      } else {
+        letzteMietsteigerung = kalkLetzte || vertragInfo.letzteMietsteigerung || null;
+        letzteMietsteigerungQuelle = kalkLetzte ? 'kalk-stammdaten' :
+          (vertragInfo.letzteMietsteigerung ? 'mietvertrag-vertragsbeginn' : 'unbekannt');
+      }
 
       // Stellplatz-Typ-Aufteilung (Garage vs. Fläche/Stellplatz)
       const garageCount  = stellplaetze.filter(s => /garage/i.test(s.typ)).length;
       const flaecheCount = stellplaetze.length - garageCount;
 
-      const kalkApi = kalkStammRecordToApi(kalkRec);
       const vermietungObj = {
-        status:                 vermietet ? 'vermietet' : 'leer',
+        status:                 statusFinal,
+        statusQuelle,           // 'we-lookup' | 'fallback-...'
         vertragVorhanden:       vertragInfo.vertragVorhanden,
         letzteMietsteigerung,
         letzteMietsteigerungQuelle,

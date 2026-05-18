@@ -626,6 +626,34 @@ function recalc(i) {
     return Math.pow(1 + i.steigerungProz, n);
   }
 
+  // Iter 43 (19.05.2026): Subv-Glättungs-System.
+  // Pro Phase wird eine garantierte Effektivmiete = i.kaltmiete + ph.mo definiert.
+  // Während die Phase läuft, schmilzt die Subv automatisch, wenn die Bestandsmiete
+  // durch Mietsteigerung anwächst. Damit bleibt die Effektivmiete (Käufer-Sicht)
+  // in jeder Phase konstant — kein „Doppel-Spike" zwischen Subv-Auslauf + Mieterhöhung.
+  // Nach Subv-Auslauf fällt die Effektivmiete sauber auf die echte Bestandsmiete.
+  function subvForMonth(m) {
+    const kaltmieteM = i.kaltmiete * faktorFor(m);
+    if (Array.isArray(i.subventionPhasen) && i.subventionPhasen.length > 0) {
+      let monateBisher = 0;
+      for (const ph of i.subventionPhasen) {
+        const phaseStartMo = monateBisher;
+        const phaseEndMo   = monateBisher + (ph && ph.monate ? ph.monate : 0);
+        if (ph && ph.mo && m > phaseStartMo && m <= phaseEndMo) {
+          const effektivZiel = i.kaltmiete + ph.mo;
+          return Math.max(0, effektivZiel - kaltmieteM);
+        }
+        monateBisher = phaseEndMo;
+      }
+      return 0;
+    }
+    if ((i.subventionMonate || 0) > 0 && m <= (i.subventionMonate || 0)) {
+      const effektivZiel = i.kaltmiete + (i.subventionMo || 0);
+      return Math.max(0, effektivZiel - kaltmieteM);
+    }
+    return 0;
+  }
+
   for (let y = 1; y <= 30; y++) {
     // Jahresmiete monats-granular berechnen — gemittelt für mieteJahr
     let kaltmieteJahrSum = 0;
@@ -646,29 +674,14 @@ function recalc(i) {
     // Stellplätze sind nicht mietpreisgebunden — folgen marktüblicher Inflation.
     const spMieteMo = i.stellplatzMiete * Math.pow(1 + (i.wertsteigerung || 0), y - 1);
 
-    // Subvention: 2-Phasen-Modell (Iter 41.10).
-    // i.subventionPhasen = [{ mo, monate }, { mo, monate }] — falls vorhanden, wird das genutzt.
-    // Fallback: 1-Phase über i.subventionMo + i.subventionMonate (Backward-Compat).
-    let subventionMoEff = 0;
-    if (Array.isArray(i.subventionPhasen) && i.subventionPhasen.length > 0) {
-      let monateBisher = 0;
-      for (const ph of i.subventionPhasen) {
-        if (!ph || !ph.monate || !ph.mo) { monateBisher += (ph && ph.monate) || 0; continue; }
-        const phaseStartMo = monateBisher;
-        const phaseEndMo   = monateBisher + ph.monate;
-        const jahrStartMo  = (y - 1) * 12;
-        const jahrEndMo    = y * 12;
-        const overlapStart = Math.max(phaseStartMo, jahrStartMo);
-        const overlapEnd   = Math.min(phaseEndMo, jahrEndMo);
-        const overlap      = Math.max(0, overlapEnd - overlapStart);
-        if (overlap > 0) subventionMoEff += ph.mo * overlap / 12;
-        monateBisher = phaseEndMo;
-      }
-    } else {
-      // Fallback 1-Phase: B18 × MAX(0, MIN(12, B19 − (n−1)×12)) / 12
-      const monatePerJahr = Math.max(0, Math.min(12, (i.subventionMonate || 0) - (y - 1) * 12));
-      subventionMoEff = (i.subventionMo || 0) * monatePerJahr / 12;
+    // Subvention monats-präzise via subvForMonth() (Iter 43: Subv-Glättung).
+    // Subv wird pro Monat geglättet — Effektivmiete bleibt während der Phase konstant.
+    // Jahres-Summe = Summe aller Monats-Subventionen, dann /12 für Ø-Monat-Anzeige.
+    let subvJahrSumme = 0;
+    for (let mm = (y - 1) * 12 + 1; mm <= y * 12; mm++) {
+      subvJahrSumme += subvForMonth(mm);
     }
+    const subventionMoEff = subvJahrSumme / 12;
 
     const mieteJahr = (kaltmieteMo + spMieteMo + subventionMoEff) * 12;
 
@@ -727,19 +740,9 @@ function recalc(i) {
     const faktor = faktorFor(m);
     const kaltmieteM = i.kaltmiete * faktor;
     const spMieteM = (i.stellplatzMiete || 0) * Math.pow(1 + (i.wertsteigerung || 0), y - 1);
-    // Subvention monats-präzise: prüfen, in welcher Phase der absolute Monat m liegt
-    let subvM = 0;
-    if (Array.isArray(i.subventionPhasen) && i.subventionPhasen.length > 0) {
-      let monateBisher = 0;
-      for (const ph of i.subventionPhasen) {
-        const phaseStartMo = monateBisher;
-        const phaseEndMo   = monateBisher + (ph.monate || 0);
-        if (m > phaseStartMo && m <= phaseEndMo) { subvM = ph.mo || 0; break; }
-        monateBisher = phaseEndMo;
-      }
-    } else if ((i.subventionMonate || 0) > 0 && m <= (i.subventionMonate || 0)) {
-      subvM = i.subventionMo || 0;
-    }
+    // Subv-Glättung (Iter 43): siehe subvForMonth() — Effektivmiete bleibt in jeder
+    // Phase konstant, Subv schmilzt mit Bestandsmieten-Steigerung. Kein Spike mehr.
+    const subvM = subvForMonth(m);
     const mieteM = kaltmieteM + spMieteM + subvM;
     // Zinsen + Tilgung pro Monat (Annuitäten-Formel iterativ)
     let zinsM = 0, tilgM = 0;
@@ -897,9 +900,10 @@ function recalc(i) {
     vermoegenBrutto10: vermoegen[10].vermoegenBrutto,
     vermoegenNetto10: vermoegen[10].vermoegenNetto,
     belastungMo,
-    mietsubventionGesamt: (Array.isArray(i.subventionPhasen) && i.subventionPhasen.length > 0)
-      ? i.subventionPhasen.reduce((s, ph) => s + ((ph.mo || 0) * (ph.monate || 0)), 0)
-      : (i.subventionMo || 0) * (i.subventionMonate || 0),
+    // Mietsubvention-Gesamt = tatsächlicher Liquiditätsabfluss durch Subv-Glättung (Iter 43).
+    // NICHT nominal (ph.mo × monate), sondern echte Summe nach Glättung — wenn Bestandsmiete
+    // in der Phase steigt, schmilzt die Subv, also wird real weniger gezahlt.
+    mietsubventionGesamt: cfMonate.reduce((s, mo) => s + (mo.subvM || 0), 0),
     markteinkaufVorteil, kaufpreisProQm,
     bonEinnahmen, bonAusgaben, bonVermoegen,
     bonVor, bonNach, bonDelta, bonMieteAnr, bonAnnuMo,

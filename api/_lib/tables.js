@@ -157,6 +157,12 @@ const KALK_STAMMDATEN_FIELDS = {
   MARKTPREIS_HD:         'fldvlXM6pBUzVYdpF', // Currency €/m² — Homeday-Marktpreis
   // Iter 41.10 — Mietsubvention 2-Phasen-Modell:
   MARKTMIETE:            'fldnrgRONiWWsSxZb', // Currency €/Mo — Kalt-Marktmiete (deckelt Erhöhungs-Subv)
+  // Iter 41.17 (18.05.2026) — Edgar-Fix: Vermietungs-Status der WE als Lookup in
+  // die Kalk-Stammdaten gespiegelt („Miet-status (ist)"). Single Source of Truth
+  // für leer/vermietet — vorher leitete das Backend den Status aus Vertrag + Kaltmiete>0
+  // ab, was bei leerstehenden Einheiten zu falscher Mietsteigerungs-Logik führte
+  // (alter Vertragsbeginn wurde als „letzte Mieterhöhung" weiterverwendet).
+  WE_VERMIETUNGSSTATUS:  'fld22W6xF260RHuNv', // Lookup aus Wohneinheit: "vermietet" | "leerstehend"
 };
 
 const KALK_STATUS_AKTIV    = 'Aktiv';

@@ -618,7 +618,9 @@ function renderTabKalkulator() {
                 ` : i._vermietungsStatus === 'leer' ? `
                   <span style="background:#fed7d7;color:#742a2a;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">○ leer — B&B vermietet vor Verkauf neu</span>
                 ` : ''}
-                ${i._letzteMietsteigerung ? `
+                ${i._vermietungsStatus === 'leer' ? `
+                  <span title="Iter 41.17: bei Leerstand greift Staffelmiete ab Monat 1, kein alter Vertragsbeginn." style="background:#fefcbf;color:#744210;padding:2px 8px;border-radius:10px;font-size:11px;">Neuvermietung-Modus aktiv (Staffel ${Math.round((i.steigerungProz || 0.03) * 100)} %, ab Monat 1)</span>
+                ` : i._letzteMietsteigerung ? `
                   <span style="background:#e2e8f0;color:#2d3748;padding:2px 8px;border-radius:10px;font-size:11px;">letzte Mietsteig.: ${esc(fmtDate(i._letzteMietsteigerung))}</span>
                 ` : ''}
               </div>
@@ -1214,18 +1216,32 @@ async function loadWeIntoKalk(weId) {
     // Vermietungs-Status + letzte Mietsteigerung
     if (resp && resp.vermietung) {
       state.kalk._vermietungsStatus = resp.vermietung.status;            // 'vermietet' | 'leer'
+      state.kalk._vermietungsStatusQuelle = resp.vermietung.statusQuelle; // 'we-lookup' | 'fallback-...'
       state.kalk._vertragVorhanden  = resp.vermietung.vertragVorhanden;
       state.kalk._letzteMietsteigerung = resp.vermietung.letzteMietsteigerung;  // YYYY-MM-DD oder null
       state.kalk._letzteMietsteigerungQuelle = resp.vermietung.letzteMietsteigerungQuelle;
-      // Iter 41.16 (Audit-Fix #6): Datum als primärer State, monateSeit wird in recalc live abgeleitet.
-      // Wir setzen state.kalk.letzteMietsteigerung — recalc rechnet daraus monateSeit jeweils neu.
-      // state.kalk.monateSeitMieterhoehung wird auch gesetzt als Backward-Compat-Fallback.
-      if (resp.vermietung.letzteMietsteigerung) {
+
+      // Iter 41.17 (18.05.2026, Edgar-Fix): Leerstand sauber behandeln.
+      // Wenn die WE leersteht (laut Lookup „Miet-status (ist)" autoritativ),
+      // darf KEIN alter Vertragsbeginn als „letzte Mieterhöhung" reinrutschen —
+      // sonst sperrt die Kalkulation die Mietsteigerung ~24 Monate (M1=24 statt 1).
+      // Backend liefert in dem Fall letzteMietsteigerung=null. Wir setzen zusätzlich
+      // monateSeitMieterhoehung=36 → M1=1, d.h. Staffel greift sofort ab Monat 1,
+      // passend zum Neuvermietungs-Szenario (B&B vermietet vor Verkauf neu).
+      if (resp.vermietung.status === 'leer') {
+        state.kalk.letzteMietsteigerung = null;
+        state.kalk.monateSeitMieterhoehung = 36;
+      } else if (resp.vermietung.letzteMietsteigerung) {
+        // Iter 41.16 (Audit-Fix #6): Datum als primärer State, monateSeit wird in recalc live abgeleitet.
         state.kalk.letzteMietsteigerung = resp.vermietung.letzteMietsteigerung;
         const lastDate = new Date(resp.vermietung.letzteMietsteigerung);
         const now = new Date();
         const monate = Math.max(0, Math.round((now - lastDate) / (1000 * 60 * 60 * 24 * 30.44)));
         state.kalk.monateSeitMieterhoehung = monate;
+      } else {
+        // Vermietet, aber kein Datum gepflegt → konservativ: ab Monat 1 erhöhen
+        state.kalk.letzteMietsteigerung = null;
+        state.kalk.monateSeitMieterhoehung = 36;
       }
     }
     if (resp && resp.kalkStammdaten && resp.kalkStammdaten.status === 'Aktiv') {
@@ -1270,8 +1286,21 @@ async function loadWeIntoKalk(weId) {
       // Iter 41.11 (18.05.2026) — Edgar-Policy: Neuvermietung = Staffelmiete 3 % p.a. (LINEAR).
       // Altbestand hat keine Indexverträge (Edgar 18.05.: "Altbestand haben wir nie neu vermietet mit Index").
       // sd.indexmiete = Staffelmiete % (Feld in Airtable seit 18.05. umbenannt zu 'Staffelmiete %').
+      //
+      // Iter 41.17 (18.05.2026, Edgar-Fix): WE-Lookup-Status hat Vorrang vor dem
+      // Kalk-Stammdaten-Vermietungsmodus. Wenn die WE tatsächlich leersteht, gilt
+      // immer Neuvermietungs-Logik (Staffel, 3 % default), unabhängig davon,
+      // was im Kalk-Stammdaten-Vermietungsmodus eingetragen ist.
       const modusLower = (sd.vermietungsModus || '').toLowerCase();
-      if (modusLower.includes('neuvermietung')) {
+      if (state.kalk._vermietungsStatus === 'leer') {
+        // Autoritativ aus WE-Lookup „Miet-status (ist)" — Käufer übernimmt
+        // frisch neu vermietete WE, also Staffel ab Monat 1.
+        state.kalk.mietsteigerungsModus = 'staffel';
+        state.kalk.steigerungProz = (sd.indexmiete !== null && sd.indexmiete !== undefined && sd.indexmiete > 0)
+          ? sd.indexmiete
+          : 0.03;
+        state.kalk._leerstand = true;
+      } else if (modusLower.includes('neuvermietung')) {
         state.kalk.mietsteigerungsModus = 'staffel'; // linear: Startmiete × (1 + n × %)
         state.kalk.steigerungProz = (sd.indexmiete !== null && sd.indexmiete !== undefined && sd.indexmiete > 0)
           ? sd.indexmiete
@@ -1284,14 +1313,12 @@ async function loadWeIntoKalk(weId) {
           state.kalk.steigerungProz = 0.15; // Default 15 %
         }
       } else if (modusLower.includes('leer') || modusLower.includes('frei')) {
-        // Iter 41.16 (Audit-Fix #15): Leerstand klar definieren.
-        // Laut Edgar 18.05.2026 vermietet B&B vor Verkauf neu → Leerstand entspricht
-        // de facto einer Neuvermietung, sobald Verkauf stattfindet. App behandelt das
-        // konservativ: keine Mietsteigerung, keine Subvention, Vertrieb soll Käufer
-        // klar informieren.
+        // Iter 41.16 (Audit-Fix #15): Leerstand laut Kalk-Stammdaten-Modus (legacy).
+        // Wird nur erreicht, wenn WE-Lookup oben NICHT 'leer' war (sonst hätte der
+        // erste Zweig schon gegriffen). Reserve für inkonsistente Pflege.
         state.kalk.mietsteigerungsModus = 'staffel';
-        state.kalk.steigerungProz = 0.03; // 3 % Default für Neuvermietung
-        state.kalk._leerstand = true; // Flag für UI-Warnung
+        state.kalk.steigerungProz = 0.03;
+        state.kalk._leerstand = true;
       }
       state.kalk._stammdatenQuelle = 'airtable-aktiv';
       state.kalk._stammdatenId = sd.id;
@@ -1306,6 +1333,15 @@ async function loadWeIntoKalk(weId) {
       // Gar kein Datensatz in Airtable → Defaults
       state.kalk._stammdatenQuelle = 'airtable-fehlt-defaults';
       state.kalk._stammdatenStatus = 'fehlt';
+    }
+
+    // Iter 41.17 (18.05.2026, Edgar-Fix) — Leerstands-Override greift auch dann,
+    // wenn die Kalk-Stammdaten NICHT auf 'Aktiv' stehen. Sonst würde eine WE
+    // mit Entwurf-Stammdaten + Leerstand weiter mit Default-Sprungmodus rechnen.
+    if (state.kalk._vermietungsStatus === 'leer' && !state.kalk._leerstand) {
+      state.kalk.mietsteigerungsModus = 'staffel';
+      state.kalk.steigerungProz = 0.03;
+      state.kalk._leerstand = true;
     }
   } catch (e) {
     // Endpoint nicht erreichbar oder Fehler → wir bleiben beim Excel-Fallback
@@ -1706,12 +1742,46 @@ function drawCharts(r) {
   const cfStVorteil = cf10.map(c => Math.round(c.stVorteilJahr || 0));                      // nur Steuervorteil
   const cfNachSt    = cf10.map(c => Math.round(c.cfJahr || 0));                              // gesamt = operativ + Steuervorteil
 
-  // Iter 41.17: Monats-granulare Cashflow-Daten für die neue Chart-Anzeige (120 Mo).
+  // Iter 43 (19.05.2026): Cashflow-Chart auf Jahresansicht mit Jahr-1-Monatsdetail.
+  // 21 Bars: 12 Monatsbars für Jahr 1 (kurz nach Kauf wichtigste Phase) +
+  // 9 Jahresbalken für Jahr 2-10 (€/Mo-Durchschnitt zur visuellen Vergleichbarkeit).
+  // Tooltip zeigt pro Jahresbar zusätzlich die 12 Monatsdetails.
   const cfMo        = Array.isArray(r.cfMonate) ? r.cfMonate : [];
-  const cfMoLabels  = cfMo.map(p => 'Mo ' + p.m); // wird per ticks-callback auf alle 12 Mo reduziert
-  const cfMoNachSt  = cfMo.map(p => Math.round((p.cfNachStM || 0)));
-  const cfMoOperativ = cfMo.map(p => Math.round((p.cfOperativM || 0)));
-  const cfMoStVorteil = cfMo.map(p => Math.round((p.stVorteilM || 0)));
+  const MONATSKURZ = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+  const cfBarData = []; // 21 Einträge
+  // Jahr 1: 12 Monatsbars
+  for (let mi = 0; mi < 12; mi++) {
+    const p = cfMo[mi] || {};
+    cfBarData.push({
+      label: MONATSKURZ[mi] + ' J1',
+      operativ: Math.round(p.cfOperativM || 0),
+      stVorteil: Math.round(p.stVorteilM || 0),
+      nachSt: Math.round(p.cfNachStM || 0),
+      isMonth: true,
+      monthIdx: mi,
+      monatDetails: p,
+    });
+  }
+  // Jahr 2-10: jeweils 1 Bar mit Ø-Monatswert + 12 Monatsdetails für Tooltip
+  for (let y = 2; y <= 10; y++) {
+    const monatsBlock = cfMo.slice((y - 1) * 12, y * 12);
+    const sumNachSt   = monatsBlock.reduce((s, p) => s + (p.cfNachStM   || 0), 0);
+    const sumOperativ = monatsBlock.reduce((s, p) => s + (p.cfOperativM || 0), 0);
+    const sumStV      = monatsBlock.reduce((s, p) => s + (p.stVorteilM  || 0), 0);
+    cfBarData.push({
+      label: 'J' + y,
+      operativ: Math.round(sumOperativ / 12),
+      stVorteil: Math.round(sumStV / 12),
+      nachSt: Math.round(sumNachSt / 12),
+      isMonth: false,
+      yearIdx: y,
+      jahresSumme: Math.round(sumNachSt),
+      monatsBlock,
+    });
+  }
+  const cfBarLabels    = cfBarData.map(d => d.label);
+  const cfBarOperativ  = cfBarData.map(d => d.operativ);
+  const cfBarStVorteil = cfBarData.map(d => d.stVorteil);
 
   // --- Drei farbige Werte für Jahr 1 (Cashflow-Story-Block) ---
   const werteBlock = document.getElementById('cf-werte-block');
@@ -1887,104 +1957,125 @@ function drawCharts(r) {
   });
 
   // ============================================================
-  // CASHFLOW: 10 Jahre monats-granular (Iter 41.17)
-  // Hauptlinie: CF nach Steuern (dick, prominent).
-  // Hintergrund: Operativ + Steuervorteil (zart, weniger Fokus).
+  // CASHFLOW: Jahresansicht mit Jahr-1-Monatsdetail (Iter 43, 19.05.2026)
+  // 12 Monatsbars für Jahr 1 + 9 Jahresbars (Jahr 2-10).
+  // Stacked: Operativ + Steuervorteil = CF nach Steuern (alle in €/Mo zur visuellen
+  // Vergleichbarkeit). Tooltip pro Jahresbar zeigt zusätzlich die 12 Monatsdetails.
   // ============================================================
+  const fmtEUR = (v) => (v >= 0 ? '+' : '−') + ' ' + Math.abs(Math.round(v)).toLocaleString('de-DE') + ' €';
   if (chartC) chartC.destroy();
   chartC = new Chart(document.getElementById('chart-cashflow'), {
-    type: 'line',
+    type: 'bar',
     data: {
-      labels: cfMoLabels,
+      labels: cfBarLabels,
       datasets: [
-        // [0] Hintergrund: Operativer CF — sehr zart
         {
           label: 'Operativer CF (vor Steuer)',
-          data: cfMoOperativ,
-          borderColor: 'rgba(45,110,71,0.45)',
-          backgroundColor: 'rgba(45,110,71,0.08)',
+          data: cfBarOperativ,
+          backgroundColor: cfBarData.map(d => d.isMonth ? 'rgba(45,110,71,0.55)' : 'rgba(45,110,71,0.85)'),
+          borderColor: '#2D6E47',
           borderWidth: 1,
-          pointRadius: 0,
-          pointHoverRadius: 3,
-          tension: 0.25,
-          fill: false,
-          order: 3,
+          stack: 'cf',
         },
-        // [1] Hintergrund: Steuervorteil — zart
         {
           label: 'Steuervorteil',
-          data: cfMoStVorteil,
-          borderColor: 'rgba(176,138,77,0.5)',
-          backgroundColor: 'rgba(176,138,77,0.08)',
-          borderWidth: 1,
-          borderDash: [3, 3],
-          pointRadius: 0,
-          pointHoverRadius: 3,
-          tension: 0.25,
-          fill: false,
-          order: 2,
-        },
-        // [2] Vordergrund: CF nach Steuern — die Hauptzahl
-        {
-          label: 'CF nach Steuern (Monatswert)',
-          data: cfMoNachSt,
+          data: cfBarStVorteil,
+          backgroundColor: cfBarData.map(d => d.isMonth ? 'rgba(176,138,77,0.55)' : 'rgba(176,138,77,0.85)'),
           borderColor: '#B08A4D',
-          backgroundColor: 'rgba(176,138,77,0.18)',
-          borderWidth: 3,
-          pointRadius: 0,
-          pointHoverRadius: 5,
-          tension: 0.25,
-          fill: true,
-          order: 0,
+          borderWidth: 1,
+          stack: 'cf',
         },
       ],
     },
-    options: Object.assign({}, baseOpts, {
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       scales: {
         x: {
-          ticks: {
-            autoSkip: false,
-            callback: function(val, idx) {
-              // Nur Jahres-Marken zeigen (alle 12 Monate): Mo 1, 12, 24, ..., 120
-              const m = idx + 1;
-              if (m === 1 || m % 12 === 0) {
-                return 'J' + Math.ceil(m / 12);
-              }
-              return '';
-            },
-            font: { size: 11 },
-          },
+          stacked: true,
+          ticks: { font: { size: 10 }, autoSkip: false },
           grid: { display: false },
+          title: { display: true, text: 'Jahr 1 monatlich  ·  Jahr 2-10 Ø/Mo', font: { size: 10 }, color: '#7A7A72' },
         },
-        y: Object.assign({}, baseOpts.scales.y, {
-          ticks: Object.assign({}, baseOpts.scales.y.ticks, {
-            callback: (v) => Math.round(v).toLocaleString('de-DE') + ' €',
-          }),
-        }),
+        y: {
+          stacked: true,
+          ticks: {
+            callback: (v) => (typeof v === 'number' && Math.abs(v) >= 1000)
+              ? Math.round(v / 1000) + 'k €/Mo'
+              : Math.round(v) + ' €/Mo'
+          },
+          title: { display: true, text: 'Cashflow €/Monat', font: { size: 10 }, color: '#7A7A72' },
+        },
       },
-      plugins: Object.assign({}, baseOpts.plugins, {
-        legend: { position: 'top', labels: { boxWidth: 16, padding: 10, font: { size: 11 } } },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            boxWidth: 14, padding: 12, font: { size: 11 },
+            generateLabels: (chart) => {
+              const base = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+              base.push({
+                text: '★ CF nach Steuern = Summe der Stacks',
+                fillStyle: 'transparent',
+                strokeStyle: '#B08A4D',
+                lineWidth: 0,
+                hidden: false,
+                fontColor: '#B08A4D',
+              });
+              return base;
+            }
+          }
+        },
         tooltip: {
           mode: 'index',
           intersect: false,
+          backgroundColor: 'rgba(33,33,28,0.94)',
+          titleFont: { size: 12, weight: '600' },
+          bodyFont: { size: 11 },
+          padding: 12,
           callbacks: {
             title: (items) => {
               if (!items.length) return '';
-              const idx = items[0].dataIndex;
-              const m = idx + 1;
-              const y = Math.ceil(m / 12);
-              const monthInY = ((m - 1) % 12) + 1;
-              return 'Jahr ' + y + ' · Monat ' + monthInY;
+              const d = cfBarData[items[0].dataIndex];
+              if (!d) return '';
+              return d.isMonth
+                ? 'Jahr 1 · ' + MONATSKURZ[d.monthIdx]
+                : 'Jahr ' + d.yearIdx + ' (Ø Monat)';
             },
             label: (ctx) => {
               const v = ctx.parsed.y;
               const lbl = ctx.dataset.label || '';
-              return lbl + ': ' + (typeof v === 'number' ? Math.round(v).toLocaleString('de-DE') + ' €/Mo' : v);
+              return lbl + ': ' + fmtEUR(v) + '/Mo';
+            },
+            afterBody: (items) => {
+              if (!items.length) return [];
+              const d = cfBarData[items[0].dataIndex];
+              if (!d) return [];
+              const lines = [];
+              lines.push('───────────────');
+              lines.push('★ CF nach Steuern: ' + fmtEUR(d.nachSt) + '/Mo');
+              if (d.isMonth) {
+                const md = d.monatDetails || {};
+                lines.push('');
+                lines.push('Miete: ' + fmtEUR(md.mieteM) + '  ·  Subv: ' + fmtEUR(md.subvM));
+                lines.push('Zinsen: ' + fmtEUR(-md.zinsM) + '  ·  Tilgung: ' + fmtEUR(-md.tilgM));
+                lines.push('HG+MV+HV: ' + fmtEUR(-md.hgM));
+              } else {
+                lines.push('Jahres-Summe: ' + fmtEUR(d.jahresSumme));
+                lines.push('');
+                lines.push('Monatsverlauf (CF nach Steuern):');
+                d.monatsBlock.forEach((md, idx) => {
+                  const moLbl = MONATSKURZ[idx].padEnd(4, ' ');
+                  lines.push('  ' + moLbl + ' ' + fmtEUR(md.cfNachStM) + '/Mo');
+                });
+              }
+              return lines;
             },
           }
         }
-      }),
-    })
+      }
+    }
   });
 
   // ============================================================
