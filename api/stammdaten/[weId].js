@@ -278,9 +278,19 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   // Vermietungsmodus checken
   const modus = (kalkApi.vermietungsModus || '').toLowerCase();
   if (modus !== 'bestand') {
+    // Iter 41.16: Quelle-Label klarer differenziert
+    let quelleLabel = 'auto-neuvermietung';
+    let erlText = 'Keine Subvention bei Neuvermietung — Käufer übernimmt neuen Mietvertrag mit aktueller Miete.';
+    if (modus.includes('leer') || modus.includes('frei')) {
+      quelleLabel = 'auto-leerstand';
+      erlText = 'Keine Subvention bei Leerstand — B&B vermietet vor Verkauf neu, Käufer übernimmt frisch vermietete Wohnung.';
+    } else if (!modus) {
+      quelleLabel = 'auto-modus-fehlt';
+      erlText = 'Vermietungs-Modus in Stammdaten nicht gepflegt — keine Subvention berechnet.';
+    }
     return Object.assign({}, empty, {
-      quelle: 'auto-' + (modus || 'leer'),
-      erlaeuterung: 'Keine Subvention bei Modus "' + (kalkApi.vermietungsModus || 'leer') + '" (B&B vermietet bei Leerstand neu, Käufer übernimmt Neuvermietung).'
+      quelle: quelleLabel,
+      erlaeuterung: erlText,
     });
   }
 
@@ -527,6 +537,39 @@ module.exports = async (req, res) => {
 
       // Existierenden Datensatz finden (egal welcher Status)
       const existing = await loadKalkStammdatenForWE(weId);
+
+      // Iter 41.16 (Audit-Fix #14): Pflichtfeld-Validierung beim Aktiv-Setzen.
+      // Eine WE darf nur dann auf Status=Aktiv gesetzt werden, wenn die für den
+      // Vertriebs-Pitch zwingend benötigten Felder gepflegt sind. Sonst rechnet die
+      // App mit Defaults, was zu falschen Kunden-PDFs führt.
+      if (body.status === KALK_STATUS_AKTIV) {
+        const merged = Object.assign({}, existing ? (existing.fields || {}) : {}, fields);
+        const missing = [];
+        const mbv = num(merged[KALK_STAMMDATEN_FIELDS.MIETE_BEI_VERKAUF]);
+        const marktmiete = num(merged[KALK_STAMMDATEN_FIELDS.MARKTMIETE]);
+        const marktIs = num(merged[KALK_STAMMDATEN_FIELDS.MARKTPREIS_IS]);
+        const marktHd = num(merged[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]);
+        const vermObj = merged[KALK_STAMMDATEN_FIELDS.VERMIETUNGS_MODUS];
+        const vermietungsModusName = vermObj && typeof vermObj === 'object' ? vermObj.name : vermObj;
+        const letzteMietsteig = merged[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG];
+
+        if (!mbv || mbv <= 0) missing.push('Miete bei Verkauf');
+        if (!marktmiete || marktmiete <= 0) missing.push('Marktmiete');
+        if ((!marktIs || marktIs <= 0) && (!marktHd || marktHd <= 0))
+          missing.push('Marktpreis (ImmoScout oder Homeday — mindestens einer)');
+        if (!vermietungsModusName) missing.push('Vermietungs-Modus');
+        // Letzte Mietsteigerung ist nur bei Bestand zwingend (für Subv-Restlaufzeit)
+        if (vermietungsModusName === 'Bestand' && !letzteMietsteig)
+          missing.push('Letzte Mietsteigerung (Pflicht bei Modus Bestand)');
+
+        if (missing.length > 0) {
+          return res.status(400).json({
+            error: 'Pflichtfelder fehlen — die WE darf nicht auf Aktiv gesetzt werden',
+            missingFields: missing,
+            hint: 'Bitte fehlende Felder in Airtable pflegen und erneut speichern.',
+          });
+        }
+      }
 
       // Body → Airtable-Field-IDs (nur gesetzte Felder)
       const fields = {};

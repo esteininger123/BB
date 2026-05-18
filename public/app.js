@@ -616,7 +616,7 @@ function renderTabKalkulator() {
                 ${i._vermietungsStatus === 'vermietet' ? `
                   <span style="background:#c6f6d5;color:#22543d;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">● vermietet</span>
                 ` : i._vermietungsStatus === 'leer' ? `
-                  <span style="background:#fed7d7;color:#742a2a;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">○ leer</span>
+                  <span style="background:#fed7d7;color:#742a2a;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">○ leer — B&B vermietet vor Verkauf neu</span>
                 ` : ''}
                 ${i._letzteMietsteigerung ? `
                   <span style="background:#e2e8f0;color:#2d3748;padding:2px 8px;border-radius:10px;font-size:11px;">letzte Mietsteig.: ${esc(fmtDate(i._letzteMietsteigerung))}</span>
@@ -636,11 +636,18 @@ function renderTabKalkulator() {
                   ${i._stellplatzMiete > 0 ? ' · Miete ' + Math.round(i._stellplatzMiete) + ' €/Mo (' + esc(i._stellplatzMieteQuelle || '') + ')' : ''}
                 </div>
               ` : ''}
-              ${i._stammdatenQuelle ? `
-                <div class="text-tertiary text-small mt-4" style="font-style:italic;">
-                  Stammdaten-Quelle: <strong>${esc(i._stammdatenQuelle)}</strong>${i._stammdatenStatus ? ' (' + esc(i._stammdatenStatus) + ')' : ''}
-                </div>
-              ` : ''}
+              ${(() => {
+                // Iter 41.16 (Audit-Fix #11): Stammdaten-Quelle für Vertriebler verständlich
+                if (!i._stammdatenQuelle) return '';
+                const labelMap = {
+                  'airtable-aktiv':              { txt: '✓ Stammdaten aktiv aus Airtable', color: '#2f855a' },
+                  'airtable-entwurf-defaults':   { txt: '⚠ Stammdaten nur als Entwurf — Kalkulation läuft mit Defaults', color: '#c05621' },
+                  'airtable-fehlt-defaults':     { txt: '⚠ Keine Stammdaten gepflegt — Kalkulation läuft mit Defaults', color: '#c05621' },
+                  'airtable-load':               { txt: '… Stammdaten werden geladen', color: '#718096' },
+                };
+                const info = labelMap[i._stammdatenQuelle] || { txt: i._stammdatenQuelle, color: '#718096' };
+                return `<div class="text-tertiary text-small mt-4" style="color:${info.color};">${esc(info.txt)}</div>`;
+              })()}
             ` : ''}
           `}
         </div>
@@ -964,12 +971,37 @@ function kalkInputsThemenHtml(i) {
         ${sliderEur('Mietsubvention', 'subventionMo', 0, 300, 10, '€/Mo')}
         ${sliderEur('Subventions-Laufzeit', 'subventionMonate', 0, 60, 1, 'Monate')}
         ${select('Mietsteigerungs-Modus', 'mietsteigerungsModus', [
-          {v:'sprung', l:'Vergleichsmiete-Sprünge 3J'},
-          {v:'index', l:'Indexmiete jährlich'},
-          {v:'keine', l:'Keine'}
+          {v:'sprung',  l:'Bestand · Vergleichsmiete-Sprünge alle 3 J'},
+          {v:'staffel', l:'Neuvermietung · Staffelmiete linear p.a.'},
+          {v:'index',   l:'Altvertrag · Indexmiete (exponentiell)'},
+          {v:'keine',   l:'Keine'}
         ])}
         ${slider('Steigerung pro Sprung / Jahr', 'steigerungProz', 0, 25, 0.5)}
-        ${sliderEur('Monate seit letzter Mieterhöhung', 'monateSeitMieterhoehung', 0, 36, 1, 'Monate')}
+        ${(() => {
+          // Iter 41.16 (Audit-Fix #6): Datum statt Slider.
+          // Slider „Monate seit letzter Mieterhöhung" durch Datum-Input ersetzt.
+          // Read-only-Anzeige zeigt, wie viele Monate her das ist (live abgeleitet).
+          const datum = i.letzteMietsteigerung || '';
+          let monateAnzeige = '—';
+          if (datum) {
+            const d = new Date(datum);
+            if (!isNaN(d.getTime())) {
+              const now = new Date();
+              const mo = Math.max(0, Math.round((now - d) / (1000 * 60 * 60 * 24 * 30.44)));
+              monateAnzeige = mo + ' Monate her';
+            }
+          }
+          const quelle = state.kalk._letzteMietsteigerungQuelle || '';
+          const quelleLabel = quelle === 'kalk-stammdaten' ? 'aus Stammdaten' :
+                              quelle === 'mietvertrag-vertragsbeginn' ? 'aus Mietvertrag (Vertragsbeginn)' :
+                              quelle === 'mietvertrag' ? 'aus Mietvertrag' : '';
+          return `
+            <div class="slider-row">
+              <label>Letzte Mieterhöhung <span class="slider-val">${esc(monateAnzeige)}${quelleLabel ? ' · ' + esc(quelleLabel) : ''}</span></label>
+              <input data-kalk="letzteMietsteigerung" type="date" value="${esc(datum || '')}" style="padding:6px 10px; font-size:14px;">
+            </div>
+          `;
+        })()}
       </div>
     </details>
 
@@ -1062,6 +1094,8 @@ function bindKalkInputs() {
       const k = inp.dataset.kalk;
       let v = inp.value;
       if (inp.type === 'number') v = parseFloat(v);
+      // Iter 41.16: Date-Inputs als String belassen (z.B. letzteMietsteigerung)
+      if (inp.type === 'date') v = v || null;
       if (v === 'true') v = true;
       if (v === 'false') v = false;
       // NaN → null (für leere Number-Felder)
@@ -1183,8 +1217,11 @@ async function loadWeIntoKalk(weId) {
       state.kalk._vertragVorhanden  = resp.vermietung.vertragVorhanden;
       state.kalk._letzteMietsteigerung = resp.vermietung.letzteMietsteigerung;  // YYYY-MM-DD oder null
       state.kalk._letzteMietsteigerungQuelle = resp.vermietung.letzteMietsteigerungQuelle;
-      // monateSeitMieterhoehung aus Datum berechnen — fließt in recalc() ein.
+      // Iter 41.16 (Audit-Fix #6): Datum als primärer State, monateSeit wird in recalc live abgeleitet.
+      // Wir setzen state.kalk.letzteMietsteigerung — recalc rechnet daraus monateSeit jeweils neu.
+      // state.kalk.monateSeitMieterhoehung wird auch gesetzt als Backward-Compat-Fallback.
       if (resp.vermietung.letzteMietsteigerung) {
+        state.kalk.letzteMietsteigerung = resp.vermietung.letzteMietsteigerung;
         const lastDate = new Date(resp.vermietung.letzteMietsteigerung);
         const now = new Date();
         const monate = Math.max(0, Math.round((now - lastDate) / (1000 * 60 * 60 * 24 * 30.44)));
@@ -1246,7 +1283,16 @@ async function loadWeIntoKalk(weId) {
         } else {
           state.kalk.steigerungProz = 0.15; // Default 15 %
         }
-      } // 'Frei / Leerstand' → bestehender Wert bleibt
+      } else if (modusLower.includes('leer') || modusLower.includes('frei')) {
+        // Iter 41.16 (Audit-Fix #15): Leerstand klar definieren.
+        // Laut Edgar 18.05.2026 vermietet B&B vor Verkauf neu → Leerstand entspricht
+        // de facto einer Neuvermietung, sobald Verkauf stattfindet. App behandelt das
+        // konservativ: keine Mietsteigerung, keine Subvention, Vertrieb soll Käufer
+        // klar informieren.
+        state.kalk.mietsteigerungsModus = 'staffel';
+        state.kalk.steigerungProz = 0.03; // 3 % Default für Neuvermietung
+        state.kalk._leerstand = true; // Flag für UI-Warnung
+      }
       state.kalk._stammdatenQuelle = 'airtable-aktiv';
       state.kalk._stammdatenId = sd.id;
       state.kalk._stammdatenStatus = sd.status;
@@ -1537,7 +1583,19 @@ function renderStories(r) {
             return `<p>Mietsubvention <strong>${fmtEurMo(i.subventionMo)}</strong> über <strong>${i.subventionMonate} Monate</strong> — Summe <strong>${fmt(totalEur)}</strong>. Fängt die Anlaufphase ab.</p>`;
           }
         })()}
-        ${r.ersteErhoehungMonat ? `<p>Erste Mieterhöhung in <strong>Monat ${r.ersteErhoehungMonat}</strong> (${esc(r.ersteErhoehungJahrLabel)}). Mietsteigerung danach: ${fmtPct(i.steigerungProz)}.</p>` : ''}
+        ${(() => {
+          // Iter 41.16 (Audit-Fix #12): Erweiterte Mieterhöhungs-Info inkl. letzter Erhöhung
+          if (!r.ersteErhoehungMonat) return '';
+          const datum = state.kalk.letzteMietsteigerung || state.kalk._letzteMietsteigerung;
+          let datumLabel = '';
+          if (datum) {
+            const d = new Date(datum);
+            if (!isNaN(d.getTime())) {
+              datumLabel = ` (letzte Mieterhöhung: <strong>${('0'+(d.getMonth()+1)).slice(-2)}/${d.getFullYear()}</strong>)`;
+            }
+          }
+          return `<p>Erste Mieterhöhung in <strong>Monat ${r.ersteErhoehungMonat}</strong> (${esc(r.ersteErhoehungJahrLabel)})${datumLabel}. Mietsteigerung danach: <strong>${fmtPct(i.steigerungProz)}</strong>.</p>`;
+        })()}
       </div>
     </div>
   `);

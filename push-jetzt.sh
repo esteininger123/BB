@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 
 echo ""
 echo "==========================================="
-echo "  B&B Kalkulator V2 — Push Iter 41.15"
+echo "  B&B Kalkulator V2 — Push Iter 41.16"
 echo "==========================================="
 echo ""
 
@@ -22,7 +22,68 @@ echo ""
 
 # 2. Add + Commit
 git add -A
-git commit -m "Iter 41.15 — Audit-Fixes vor Vertriebs-Live-Schaltung (5 Bugs)
+git commit -m "Iter 41.16 — Audit-Fixes Teil 2 (alle verbleibenden Bugs außer PDFs)
+
+PDFs bewusst unverändert — Edgar wird sie eh anpassen.
+
+#6 [MITTEL] Datum statt Monate für letzte Mietsteigerung
+- kalkulator.js recalc: monateSeit wird FRISCH aus i.letzteMietsteigerung
+  abgeleitet wenn vorhanden. Altert mit der Zeit korrekt (vorher: beim WE-Load
+  fixiert, veraltete).
+- app.js loadWeIntoKalk: state.kalk.letzteMietsteigerung als primärer State.
+- app.js Eingabe-UI: Slider 'Monate seit letzter Mieterhöhung' durch Date-Input
+  ersetzt. Read-only-Anzeige zeigt 'X Monate her · aus Stammdaten'.
+- bindKalkInputs: Date-Inputs als String belassen (nicht parseFloat).
+
+#11 [UX] Stammdaten-Quelle Wording entkrampfen
+- Statt 'Stammdaten-Quelle: airtable-aktiv (Aktiv)' jetzt klare Sätze:
+  ✓ 'Stammdaten aktiv aus Airtable' (grün)
+  ⚠ 'Stammdaten nur als Entwurf — Kalkulation läuft mit Defaults' (orange)
+  ⚠ 'Keine Stammdaten gepflegt — Kalkulation läuft mit Defaults' (orange)
+
+#12 [UX] Cashflow-Story: Datum der letzten Mieterhöhung
+- Erste Mieterhöhung-Info zeigt jetzt zusätzlich '(letzte Mieterhöhung: MM/YYYY)'
+  wenn Datum bekannt.
+
+#14 [PFLEGE] Pflichtfeld-Validierung beim Aktiv-Setzen
+- api/stammdaten/[weId].js PUT: Wenn body.status === Aktiv, werden Pflichtfelder
+  geprüft: Miete bei Verkauf, Marktmiete, Marktpreis IS oder HD,
+  Vermietungs-Modus. Bei Modus=Bestand zusätzlich: Letzte Mietsteigerung.
+  Bei fehlenden Feldern: HTTP 400 mit missingFields[]-Array.
+- Damit kann Henry/Schenki ab jetzt eine WE nicht mehr versehentlich auf Aktiv
+  setzen ohne Pflichtdaten — kein 'rechnet mit Defaults'-Surprise im Vertrieb.
+
+#15 [PFLEGE] Vermietungsmodus 'Frei / Leerstand' sauber definiert
+- app.js loadWeIntoKalk: Bei Modus 'Leerstand'/'Frei' wird der Mietsteigerungs-
+  Modus auf Staffel 3 % gesetzt (B&B vermietet vor Verkauf neu →
+  Neuvermietung). Flag state.kalk._leerstand für UI-Warnung.
+- api/stammdaten/[weId].js computeAutoSubvention: Quelle-Label differenziert
+  zwischen 'auto-leerstand', 'auto-neuvermietung', 'auto-modus-fehlt' mit
+  jeweils klarer erlaeuterung für die UI.
+- UI: Vermietungsstatus-Badge zeigt 'leer — B&B vermietet vor Verkauf neu'
+  statt nur 'leer'.
+
+#5 (Iter 41.15 erweitert): Mietsteigerungs-Modus-Dropdown korrigiert
+- 'Indexmiete jährlich' umbenannt zu klarer Beschriftung:
+  'Bestand · Vergleichsmiete-Sprünge alle 3 J'
+  'Neuvermietung · Staffelmiete linear p.a.'
+  'Altvertrag · Indexmiete (exponentiell)'
+  'Keine'
+
+Cache-Bust auf v=61.
+
+Audit-Bericht-Fortschritt:
+- ✓ #1-#5, #7, #9 in Iter 41.15
+- ✓ #6, #11, #12, #14, #15 in Iter 41.16
+- Offen: #8 (alte Excel-Werte LEEREN) — bewusst zurückgestellt, weil Henry erst
+  MbV+Marktmiete pflegen muss, sonst entstehen Subv-Null-Werte. Wird nach
+  Henrys Pflege-Pass nachgezogen.
+- Offen: #2, #3 (PDFs) — Edgar passt PDFs eh komplett an, deshalb ausgelassen.
+- ✓ #10 wurde automatisch durch #1 gefixt.
+
+---
+
+Iter 41.15 — Audit-Fixes vor Vertriebs-Live-Schaltung (5 Bugs)
 
 Audit-Bericht: _Cockpit/status/2026-05-18_Kalkulator-Audit-Bericht.md
 15 Inkonsistenzen identifiziert. Diese Iteration fixt die 5 wichtigsten.
@@ -580,5 +641,5 @@ echo "Status:  https://vercel.com/dashboard"
 echo "App:     https://bb-brown-pi.vercel.app"
 echo ""
 echo "Bitte einmal mit Cmd+Shift+R (Hard-Reload) öffnen,"
-echo "damit der Browser die neue v=60-Version lädt."
+echo "damit der Browser die neue v=61-Version lädt."
 echo ""

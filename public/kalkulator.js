@@ -589,7 +589,17 @@ function recalc(i) {
   //     Staffel:         1 + nSprünge(m) × steigerungProz    ← linear (Iter 41.11)
   //
   // Jahresmiete = Summe der Monatsmieten Monate (y-1)*12+1 bis y*12.
-  const monateSeit = i.monateSeitMieterhoehung || 0;
+  // Iter 41.16 (18.05.2026, Audit-Fix #6): Wenn ein Datum letzteMietsteigerung
+  // vorhanden ist, leiten wir monate FRISCH ab — so altert der Wert mit der Zeit
+  // (vorher: beim WE-Load fixiert, veraltete dann).
+  let monateSeit = i.monateSeitMieterhoehung || 0;
+  if (i.letzteMietsteigerung) {
+    const lastDate = new Date(i.letzteMietsteigerung);
+    if (!isNaN(lastDate.getTime())) {
+      const now = new Date();
+      monateSeit = Math.max(0, Math.round((now - lastDate) / (1000 * 60 * 60 * 24 * 30.44)));
+    }
+  }
   const M1 = Math.max(1, 36 - monateSeit);
 
   function nSprungeSprung(m) {
