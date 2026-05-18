@@ -704,15 +704,9 @@ function renderTabKalkulator() {
       <!-- DARUNTER: Cashflow + Sparen-vs-Investieren nebeneinander -->
       <div class="grid-2 mt-16">
         <div class="card">
-          <div class="card-title">Cashflow nach Steuern · 10 Jahre monatlich</div>
-          <div class="text-tertiary text-small">Die wichtigste Zahl: was bleibt monatlich. Operativer CF + Steuervorteil sind als Referenzlinien im Hintergrund.</div>
-          <!-- Drei farbige Werte für Jahr 1 als „Story-Block" über dem Chart -->
+          <div class="card-title">Cashflow · 10 Jahre</div>
           <div id="cf-werte-block" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0;"></div>
           <div class="chart-container"><canvas id="chart-cashflow"></canvas></div>
-          <div class="chart-formula" style="margin-top:12px;padding:10px 14px;background:#f8fafc;border-left:3px solid #B08A4D;border-radius:6px;font-size:12px;">
-            <strong>CF nach Steuern (Hauptlinie)</strong> = Miete − Zinsen − Tilgung − Hausgeld − Verwaltung + Steuervorteil<br>
-            <span style="opacity:0.7;">· Operativer CF (zart) = ohne Steuervorteil. Steuervorteil (gestrichelt) = AfA + Zinsen + MV + HV − Miete) × Steuersatz.</span>
-          </div>
         </div>
         <div class="card">
           <div class="card-title">Sparen vs. Investieren (10 J)</div>
@@ -1742,28 +1736,12 @@ function drawCharts(r) {
   const cfStVorteil = cf10.map(c => Math.round(c.stVorteilJahr || 0));                      // nur Steuervorteil
   const cfNachSt    = cf10.map(c => Math.round(c.cfJahr || 0));                              // gesamt = operativ + Steuervorteil
 
-  // Iter 43 (19.05.2026): Cashflow-Chart auf Jahresansicht mit Jahr-1-Monatsdetail.
-  // 21 Bars: 12 Monatsbars für Jahr 1 (kurz nach Kauf wichtigste Phase) +
-  // 9 Jahresbalken für Jahr 2-10 (€/Mo-Durchschnitt zur visuellen Vergleichbarkeit).
-  // Tooltip zeigt pro Jahresbar zusätzlich die 12 Monatsdetails.
+  // Iter 43 (19.05.2026): 10 Jahresbalken — alle in €/Mo-Ø zur visuellen Vergleichbarkeit.
+  // Tooltip zeigt die 12 Monatsdetails (CF nach Steuern pro Monat im Jahr).
   const cfMo        = Array.isArray(r.cfMonate) ? r.cfMonate : [];
   const MONATSKURZ = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
-  const cfBarData = []; // 21 Einträge
-  // Jahr 1: 12 Monatsbars
-  for (let mi = 0; mi < 12; mi++) {
-    const p = cfMo[mi] || {};
-    cfBarData.push({
-      label: MONATSKURZ[mi] + ' J1',
-      operativ: Math.round(p.cfOperativM || 0),
-      stVorteil: Math.round(p.stVorteilM || 0),
-      nachSt: Math.round(p.cfNachStM || 0),
-      isMonth: true,
-      monthIdx: mi,
-      monatDetails: p,
-    });
-  }
-  // Jahr 2-10: jeweils 1 Bar mit Ø-Monatswert + 12 Monatsdetails für Tooltip
-  for (let y = 2; y <= 10; y++) {
+  const cfBarData = []; // 10 Einträge — je 1 pro Jahr
+  for (let y = 1; y <= 10; y++) {
     const monatsBlock = cfMo.slice((y - 1) * 12, y * 12);
     const sumNachSt   = monatsBlock.reduce((s, p) => s + (p.cfNachStM   || 0), 0);
     const sumOperativ = monatsBlock.reduce((s, p) => s + (p.cfOperativM || 0), 0);
@@ -1773,7 +1751,6 @@ function drawCharts(r) {
       operativ: Math.round(sumOperativ / 12),
       stVorteil: Math.round(sumStV / 12),
       nachSt: Math.round(sumNachSt / 12),
-      isMonth: false,
       yearIdx: y,
       jahresSumme: Math.round(sumNachSt),
       monatsBlock,
@@ -1782,34 +1759,33 @@ function drawCharts(r) {
   const cfBarLabels    = cfBarData.map(d => d.label);
   const cfBarOperativ  = cfBarData.map(d => d.operativ);
   const cfBarStVorteil = cfBarData.map(d => d.stVorteil);
+  const cfBarNachSt    = cfBarData.map(d => d.nachSt);
 
-  // --- Drei farbige Werte für Jahr 1 (Cashflow-Story-Block) ---
+  // --- Drei Karten Monatswerte für Jahr 1 + Jahr 2 (Iter 43) ---
   const werteBlock = document.getElementById('cf-werte-block');
-  if (werteBlock && cf10.length > 0) {
-    const op   = cfOperativ[0];
-    const stV  = cfStVorteil[0];
-    const nach = cfNachSt[0];
-    const fmtMoVal = (v) => (v >= 0 ? '+ ' : '− ') + Math.abs(Math.round(v)).toLocaleString('de-DE') + ' €/Mo';
-    const fmtJrVal = (v) => (v >= 0 ? '+ ' : '− ') + Math.abs(Math.round(v)).toLocaleString('de-DE') + ' €';
-    const farbe = (v) => v >= 0 ? '#2D6E47' : '#9A3E33';
-    const bg    = (v) => v >= 0 ? '#e8f5ee' : '#fdecea';
-    werteBlock.innerHTML = `
-      <div style="padding:10px 14px;background:${bg(op)};border-radius:6px;border-left:3px solid ${farbe(op)};">
-        <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Operativer CF Jahr 1</div>
-        <div style="font-size:18px;font-weight:700;color:${farbe(op)};margin-top:2px;">${fmtJrVal(op)}</div>
-        <div class="text-tertiary text-small">${fmtMoVal(op/12)} · vor Steuer</div>
-      </div>
-      <div style="padding:10px 14px;background:#fef5e7;border-radius:6px;border-left:3px solid #B08A4D;">
-        <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Steuervorteil Jahr 1</div>
-        <div style="font-size:18px;font-weight:700;color:#B08A4D;margin-top:2px;">+ ${Math.round(stV).toLocaleString('de-DE')} €</div>
-        <div class="text-tertiary text-small">+ ${Math.round(stV/12).toLocaleString('de-DE')} €/Mo · AfA × Steuersatz</div>
-      </div>
-      <div style="padding:10px 14px;background:${bg(nach)};border-radius:6px;border-left:3px solid ${farbe(nach)};">
-        <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">CF nach Steuer Jahr 1</div>
-        <div style="font-size:18px;font-weight:700;color:${farbe(nach)};margin-top:2px;">${fmtJrVal(nach)}</div>
-        <div class="text-tertiary text-small">${fmtMoVal(nach/12)} · echter Cashflow</div>
-      </div>
-    `;
+  if (werteBlock && cf10.length > 1) {
+    const opJ1   = cfOperativ[0] / 12;
+    const opJ2   = cfOperativ[1] / 12;
+    const stVJ1  = cfStVorteil[0] / 12;
+    const stVJ2  = cfStVorteil[1] / 12;
+    const nachJ1 = cfNachSt[0] / 12;
+    const nachJ2 = cfNachSt[1] / 12;
+    const fmtMo = (v) => (v >= 0 ? '+' : '−') + ' ' + Math.abs(Math.round(v)).toLocaleString('de-DE') + ' €/Mo';
+    const col   = (v) => v >= 0 ? '#2D6E47' : '#9A3E33';
+    const card = (title, accent, j1, j2, hervorgehoben) => `
+      <div style="padding:10px 14px;background:#fff;border-radius:6px;border:${hervorgehoben?'2px':'1px'} solid ${accent};${hervorgehoben?'box-shadow:0 2px 8px rgba(176,138,77,0.18);':''}">
+        <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;font-weight:600;color:${accent};">${title}</div>
+        <div style="margin-top:6px;display:flex;justify-content:space-between;font-size:14px;">
+          <span class="text-tertiary">J1</span><span style="font-weight:700;color:${col(j1)};">${fmtMo(j1)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:14px;">
+          <span class="text-tertiary">J2</span><span style="font-weight:700;color:${col(j2)};">${fmtMo(j2)}</span>
+        </div>
+      </div>`;
+    werteBlock.innerHTML =
+      card('Operativer CF', '#2D6E47', opJ1, opJ2, false) +
+      card('Steuervorteil', '#B08A4D', stVJ1, stVJ2, false) +
+      card('★ CF nach Steuern', '#B08A4D', nachJ1, nachJ2, true);
   }
 
   // Sparen vs. Investieren: bleibt wie gehabt
@@ -1957,10 +1933,9 @@ function drawCharts(r) {
   });
 
   // ============================================================
-  // CASHFLOW: Jahresansicht mit Jahr-1-Monatsdetail (Iter 43, 19.05.2026)
-  // 12 Monatsbars für Jahr 1 + 9 Jahresbars (Jahr 2-10).
-  // Stacked: Operativ + Steuervorteil = CF nach Steuern (alle in €/Mo zur visuellen
-  // Vergleichbarkeit). Tooltip pro Jahresbar zeigt zusätzlich die 12 Monatsdetails.
+  // CASHFLOW: 10 Jahresbalken Ø €/Mo (Iter 43)
+  // Stacked Bars: Operativer CF + Steuervorteil. CF nach Steuern als
+  // hervorgehobene Linie obendrauf. Tooltip mit Monatsdetails.
   // ============================================================
   const fmtEUR = (v) => (v >= 0 ? '+' : '−') + ' ' + Math.abs(Math.round(v)).toLocaleString('de-DE') + ' €';
   if (chartC) chartC.destroy();
@@ -1970,20 +1945,41 @@ function drawCharts(r) {
       labels: cfBarLabels,
       datasets: [
         {
+          type: 'bar',
           label: 'Operativer CF (vor Steuer)',
           data: cfBarOperativ,
-          backgroundColor: cfBarData.map(d => d.isMonth ? 'rgba(45,110,71,0.55)' : 'rgba(45,110,71,0.85)'),
+          backgroundColor: 'rgba(45,110,71,0.85)',
           borderColor: '#2D6E47',
           borderWidth: 1,
           stack: 'cf',
+          order: 3,
         },
         {
+          type: 'bar',
           label: 'Steuervorteil',
           data: cfBarStVorteil,
-          backgroundColor: cfBarData.map(d => d.isMonth ? 'rgba(176,138,77,0.55)' : 'rgba(176,138,77,0.85)'),
+          backgroundColor: 'rgba(176,138,77,0.85)',
           borderColor: '#B08A4D',
           borderWidth: 1,
           stack: 'cf',
+          order: 2,
+        },
+        {
+          type: 'line',
+          label: '★ CF nach Steuern',
+          data: cfBarNachSt,
+          borderColor: '#22543d',
+          backgroundColor: '#22543d',
+          borderWidth: 3,
+          pointRadius: 6,
+          pointHoverRadius: 9,
+          pointStyle: 'circle',
+          pointBackgroundColor: '#22543d',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          tension: 0.25,
+          fill: false,
+          order: 0,
         },
       ],
     },
@@ -1992,12 +1988,7 @@ function drawCharts(r) {
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       scales: {
-        x: {
-          stacked: true,
-          ticks: { font: { size: 10 }, autoSkip: false },
-          grid: { display: false },
-          title: { display: true, text: 'Jahr 1 monatlich  ·  Jahr 2-10 Ø/Mo', font: { size: 10 }, color: '#7A7A72' },
-        },
+        x: { stacked: true, ticks: { font: { size: 11 } }, grid: { display: false } },
         y: {
           stacked: true,
           ticks: {
@@ -2005,28 +1996,10 @@ function drawCharts(r) {
               ? Math.round(v / 1000) + 'k €/Mo'
               : Math.round(v) + ' €/Mo'
           },
-          title: { display: true, text: 'Cashflow €/Monat', font: { size: 10 }, color: '#7A7A72' },
         },
       },
       plugins: {
-        legend: {
-          position: 'top',
-          labels: {
-            boxWidth: 14, padding: 12, font: { size: 11 },
-            generateLabels: (chart) => {
-              const base = Chart.defaults.plugins.legend.labels.generateLabels(chart);
-              base.push({
-                text: '★ CF nach Steuern = Summe der Stacks',
-                fillStyle: 'transparent',
-                strokeStyle: '#B08A4D',
-                lineWidth: 0,
-                hidden: false,
-                fontColor: '#B08A4D',
-              });
-              return base;
-            }
-          }
-        },
+        legend: { position: 'top', labels: { boxWidth: 14, padding: 12, font: { size: 11 } } },
         tooltip: {
           mode: 'index',
           intersect: false,
@@ -2038,10 +2011,7 @@ function drawCharts(r) {
             title: (items) => {
               if (!items.length) return '';
               const d = cfBarData[items[0].dataIndex];
-              if (!d) return '';
-              return d.isMonth
-                ? 'Jahr 1 · ' + MONATSKURZ[d.monthIdx]
-                : 'Jahr ' + d.yearIdx + ' (Ø Monat)';
+              return d ? 'Jahr ' + d.yearIdx + ' (Ø Monat)' : '';
             },
             label: (ctx) => {
               const v = ctx.parsed.y;
@@ -2052,24 +2022,10 @@ function drawCharts(r) {
               if (!items.length) return [];
               const d = cfBarData[items[0].dataIndex];
               if (!d) return [];
-              const lines = [];
-              lines.push('───────────────');
-              lines.push('★ CF nach Steuern: ' + fmtEUR(d.nachSt) + '/Mo');
-              if (d.isMonth) {
-                const md = d.monatDetails || {};
-                lines.push('');
-                lines.push('Miete: ' + fmtEUR(md.mieteM) + '  ·  Subv: ' + fmtEUR(md.subvM));
-                lines.push('Zinsen: ' + fmtEUR(-md.zinsM) + '  ·  Tilgung: ' + fmtEUR(-md.tilgM));
-                lines.push('HG+MV+HV: ' + fmtEUR(-md.hgM));
-              } else {
-                lines.push('Jahres-Summe: ' + fmtEUR(d.jahresSumme));
-                lines.push('');
-                lines.push('Monatsverlauf (CF nach Steuern):');
-                d.monatsBlock.forEach((md, idx) => {
-                  const moLbl = MONATSKURZ[idx].padEnd(4, ' ');
-                  lines.push('  ' + moLbl + ' ' + fmtEUR(md.cfNachStM) + '/Mo');
-                });
-              }
+              const lines = ['', 'Monatsverlauf CF nach Steuern:'];
+              d.monatsBlock.forEach((md, idx) => {
+                lines.push('  ' + MONATSKURZ[idx] + '  ' + fmtEUR(md.cfNachStM) + '/Mo');
+              });
               return lines;
             },
           }
