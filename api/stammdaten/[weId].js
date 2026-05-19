@@ -323,10 +323,10 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   if (modus !== 'bestand') {
     // Iter 41.16: Quelle-Label klarer differenziert
     let quelleLabel = 'auto-neuvermietung';
-    let erlText = 'Keine Subvention bei Neuvermietung — Käufer übernimmt neuen Mietvertrag mit aktueller Miete.';
+    let erlText = 'Keine Mietsubvention bei Neuvermietung — Du übernimmst einen frischen Mietvertrag zur aktuellen Marktmiete.';
     if (modus.includes('leer') || modus.includes('frei')) {
       quelleLabel = 'auto-leerstand';
-      erlText = 'Keine Subvention bei Leerstand — B&B vermietet vor Verkauf neu, Käufer übernimmt frisch vermietete Wohnung.';
+      erlText = 'Keine Mietsubvention bei Leerstand — wir vermieten die Wohnung für Dich frisch, bevor Du sie übernimmst.';
     } else if (!modus) {
       quelleLabel = 'auto-modus-fehlt';
       erlText = 'Vermietungs-Modus in Stammdaten nicht gepflegt — keine Subvention berechnet.';
@@ -437,15 +437,14 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     });
   }
 
-  // Erläuterung aus Kundensicht ("Sie"-Form, keine internen Begriffe).
+  // Erläuterung an Dich (Du-Form, direkt an Endkunde).
   let erlaeuterung = '';
   const gesamtMonate = p1Monate + (p2Aktiv ? p2Monate : 0);
   const gesamtJahre = Math.round(gesamtMonate / 12 * 10) / 10;
-  const totalRound = Math.round(totalEurRaw);
   if (p2Aktiv && phasen.length === 2) {
-    erlaeuterung = `Ihre Mieteinnahme bleibt ${Math.round(mbv + xFinal)} €/Mo konstant über ${gesamtJahre} Jahre — auch wenn sich die Mietzahlung Ihres Mieters durch die gesetzliche Erhöhung anpasst.`;
+    erlaeuterung = `Deine Mieteinnahme bleibt ${Math.round(mbv + xFinal)} €/Mo konstant über ${gesamtJahre} Jahre — auch wenn sich die Mietzahlung Deines Mieters durch die gesetzliche Erhöhung anpasst.`;
   } else if (phasen.length === 1) {
-    erlaeuterung = `Wir stocken Ihre Mieteinnahme um ${Math.round(p1Mo)} €/Mo auf, über ${p1Monate} Monate.`;
+    erlaeuterung = `Wir stocken Deine Mieteinnahme um ${Math.round(p1Mo)} €/Mo auf, über ${p1Monate} Monate.`;
   }
   if (capDetail) erlaeuterung = capDetail + ' ' + erlaeuterung;
 

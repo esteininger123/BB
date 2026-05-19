@@ -701,8 +701,8 @@ function renderTabKalkulator() {
 
       <!-- HAUPTCHART: Vermögensaufbau (groß, 10 J) — Schere Marktwert ↔ Restschuld -->
       <div class="card mt-16">
-        <div class="card-title">Vermögensaufbau 10 Jahre</div>
-        <div class="text-tertiary text-small">Die Schere zwischen Marktwert und Restschuld öffnet sich Jahr für Jahr — das ist der Vermögensaufbau.</div>
+        <div class="card-title">Dein Vermögensaufbau · 10 Jahre</div>
+        <div class="text-tertiary text-small">Die Schere zwischen Marktwert und Deiner Restschuld öffnet sich Jahr für Jahr — das ist Dein Vermögensaufbau.</div>
         <div class="chart-container" style="height:420px;"><canvas id="chart-vermoegen"></canvas></div>
         <div class="chart-formula" style="margin-top:12px;padding:12px 16px;background:#f8fafc;border-left:3px solid #B08A4D;border-radius:6px;font-size:13px;">
           <strong>Formel:</strong> Gesamtvermögen = (Marktwert × Wertsteigerung<sup>n</sup>) − Restschuld + kum. Cashflows<br>
@@ -714,12 +714,12 @@ function renderTabKalkulator() {
       <!-- DARUNTER: Cashflow + Sparen-vs-Investieren nebeneinander -->
       <div class="grid-2 mt-16">
         <div class="card">
-          <div class="card-title">Cashflow · 10 Jahre</div>
+          <div class="card-title">Dein Cashflow · 10 Jahre</div>
           <div id="cf-werte-block" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0;"></div>
           <div class="chart-container"><canvas id="chart-cashflow"></canvas></div>
         </div>
         <div class="card">
-          <div class="card-title">Eigenkapital · Anlage vs. Immobilie</div>
+          <div class="card-title">Dein Eigenkapital · Anlage vs. Immobilie</div>
           <div id="spar-werte-block" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0;"></div>
           <div class="chart-container"><canvas id="chart-sparen"></canvas></div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12px;color:#7A7A72;">
@@ -977,19 +977,19 @@ function kalkInputsThemenHtml(i) {
           const totalEur = state.kalk._subventionTotalEur || 0;
           const erlaut = state.kalk._subventionErlaeuterung || '';
           if (phasen.length === 0 && !state.kalk.subventionMonate) {
-            return `<div style="padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;font-size:12.5px;color:#7A7A72;">Keine Mietsubvention (${erlaut || 'aus Stammdaten berechnet'})</div>`;
+            return `<div style="padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;font-size:12.5px;color:#7A7A72;">Du erhältst keine Mietsubvention (${erlaut || 'aus Stammdaten berechnet'})</div>`;
           }
           const fmt = (v) => Math.round(v).toLocaleString('de-DE');
           const phasenList = phasen.length > 0 ? phasen : [{ mo: state.kalk.subventionMo, monate: state.kalk.subventionMonate, label: 'Mietsubvention' }];
           const zeilen = phasenList.map((p, idx) => `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:13px;">
-              <span class="text-tertiary">${phasenList.length > 1 ? 'Phase ' + (idx + 1) : 'Aufschlag'}</span>
+              <span class="text-tertiary">${phasenList.length > 1 ? 'Phase ' + (idx + 1) : 'Dein Aufschlag'}</span>
               <span><strong>${fmt(p.mo)} €</strong>/Mo &middot; <strong>${p.monate}</strong> Mo</span>
             </div>`).join('');
           return `
             <div style="padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                <span style="text-transform:uppercase;letter-spacing:0.05em;font-size:11px;font-weight:600;color:#7A7A72;">Mietsubvention</span>
+                <span style="text-transform:uppercase;letter-spacing:0.05em;font-size:11px;font-weight:600;color:#7A7A72;">Deine Mietsubvention</span>
                 <span style="font-weight:700;color:#22543d;font-size:14px;">Gesamt ${fmt(totalEur)} €</span>
               </div>
               ${zeilen}
@@ -1478,29 +1478,27 @@ function recalcAndRender() {
       <div class="kpi-info-box" hidden>${esc(info)}</div>
     </div>`;
   const kpis = [
-    kpiCard('EK-Bedarf', fmt(r.ekBedarf),
+    kpiCard('Dein EK-Bedarf', fmt(r.ekBedarf),
       (() => {
-        // Iter 41.15 (Audit-Fix #7): Info-Text dynamisch aus tatsächlichem GrESt
         const grEstPct = (state.kalk && parseFloat(state.kalk.grEstPct)) || 0.05;
         const totalPct = grEstPct + 0.015 + 0.005;
         const grEstStr = (grEstPct * 100).toFixed(grEstPct === 0.065 ? 1 : 1) + ' %';
         const totalStr = (totalPct * 100).toFixed(1) + ' %';
-        return `Eigenkapital beim Kauf: Kaufnebenkosten (GrESt ${grEstStr} + Notar 1,5 % + Grundbuch 0,5 % = ${totalStr} vom Kaufpreis). Bei „KNK mitfinanziert: Ja" = 0 €.`;
+        return `Dein Eigenkapital beim Kauf: Kaufnebenkosten (GrESt ${grEstStr} + Notar 1,5 % + Grundbuch 0,5 % = ${totalStr} vom Kaufpreis). Wenn Du die KNK mitfinanzierst: 0 €.`;
       })()),
-    kpiCard('Belastung / Monat', fmtEurMo(r.belastungMo),
-      'Was monatlich aus deiner Tasche geht in Jahr 1. Mieten + Subvention − Annuität − Hausgeld − Hausverwaltung − Mietverwaltung + Steuervorteil. Positiv = Cashflow positiv.', cls(r.belastungMo)),
-    kpiCard('EK-Rendite (IRR) 10 J.', fmtPct(r.irr),
-      'Interner Zinsfuß über tatsächliche Cashflow-Reihe inkl. Exit-Erlös. Berücksichtigt: eingesetztes EK, jährliche Cashflows, Verkaufserlös nach §23-EStG-Frist.'),
-    kpiCard('Gesamtvermögen 10 J.', fmt(r.vermoegenBrutto10),
-      'Endstand nach 10 Jahren: Marktwert minus Restschuld plus kumulierte Cashflows. Das was an Vermögen wirklich da ist (vor Abzug des eingesetzten EK).'),
-    kpiCard('Vermögenszuwachs 10 J.', fmt(r.vermoegenNetto10),
-      'Ehrliche Vermögensbilanz: Gesamtvermögen 10 J. minus eingesetztes Eigenkapital. Das ist der echte Zuwachs gegenüber dem Start.', 'positive'),
+    kpiCard('Deine Belastung / Monat', fmtEurMo(r.belastungMo),
+      'Was Dir monatlich in Jahr 1 aus der Tasche geht oder bleibt. Deine Mieten + Subvention − Annuität − Hausgeld − Hausverwaltung − Mietverwaltung + Dein Steuervorteil. Positiv = Cashflow positiv für Dich.', cls(r.belastungMo)),
+    kpiCard('Deine EK-Rendite (IRR) 10 J.', fmtPct(r.irr),
+      'Interner Zinsfuß auf Dein eingesetztes EK über 10 Jahre inkl. Exit-Erlös. Berücksichtigt: Dein eingesetztes EK, Deine jährlichen Cashflows, Dein Verkaufserlös nach §23-EStG-Frist.'),
+    kpiCard('Dein Gesamtvermögen 10 J.', fmt(r.vermoegenBrutto10),
+      'Dein Endstand nach 10 Jahren: Marktwert minus Deine Restschuld plus Deine kumulierten Cashflows. Das, was an Vermögen wirklich da ist (vor Abzug Deines eingesetzten EK).'),
+    kpiCard('Dein Vermögenszuwachs 10 J.', fmt(r.vermoegenNetto10),
+      'Deine ehrliche Vermögensbilanz: Gesamtvermögen 10 J. minus Dein eingesetztes Eigenkapital. Das ist Dein echter Zuwachs gegenüber Deinem Start.', 'positive'),
   ];
-  // Markteinkauf-Vorteil nur wenn marktwertProQm > 0 gesetzt
   const mwQm = (state.kalk && parseFloat(state.kalk.marktwertProQm)) || 0;
   if (mwQm > 0 && r.markteinkaufVorteil) {
-    kpis.push(kpiCard('Markteinkauf-Vorteil', fmt(r.markteinkaufVorteil),
-      'Differenz zwischen Marktpreis pro qm und Kaufpreis pro qm × Wohnfläche. „Geld, das schon im Kaufpreis steckt."',
+    kpis.push(kpiCard('Dein Markteinkauf-Vorteil', fmt(r.markteinkaufVorteil),
+      'Differenz zwischen Marktpreis pro qm und Deinem Kaufpreis pro qm × Wohnfläche. „Geld, das schon in Deinem Kaufpreis steckt."',
       cls(r.markteinkaufVorteil)));
   }
   grid.innerHTML = kpis.join('');
@@ -1575,8 +1573,8 @@ function renderStories(r) {
   const markteinkaufHint = (marktQm <= 0) ? `
     <div class="story-card" style="border:1px dashed var(--border); background: var(--bg-cream-subtle, #fafaf6);">
       <div class="story-tag">01 — Markteinkauf</div>
-      <h3 class="story-h">Verkaufsargument fehlt — Marktpreis setzen</h3>
-      <p class="story-explain">Sobald du in den Stammdaten (bzw. im Paket-Modus oben) einen <strong>Marktpreis €/qm</strong> &gt; 0 einträgst, erscheint hier die „Eingekauft unter Marktpreis"-Story mit Markteinkauf-Vorteil ab Tag 1.</p>
+      <h3 class="story-h">Marktpreis fehlt — Vorteil ist noch nicht sichtbar</h3>
+      <p class="story-explain">Sobald in den Stammdaten ein <strong>Marktpreis €/qm</strong> &gt; 0 hinterlegt ist, erscheint hier Dein „Du kaufst unter Marktpreis"-Vorteil ab Tag 1.</p>
     </div>
   ` : '';
 
@@ -1594,16 +1592,16 @@ function renderStories(r) {
     </div>
   ` : '';
 
-  const markteinkauf = (marktQm > 0) ? story('01 — Markteinkauf', 'Eingekauft unter Marktpreis', `
+  const markteinkauf = (marktQm > 0) ? story('01 — Markteinkauf', 'Du kaufst unter Marktpreis', `
     <div class="story-grid">
       <table class="story-table">
-        <tr><td>Kaufpreis / qm</td><td class="num">${Math.round(kpQm).toLocaleString('de-DE')} €/qm</td></tr>
+        <tr><td>Dein Kaufpreis / qm</td><td class="num">${Math.round(kpQm).toLocaleString('de-DE')} €/qm</td></tr>
         <tr><td>Marktpreis / qm</td><td class="num">${Math.round(marktQm).toLocaleString('de-DE')} €/qm</td></tr>
         <tr><td>Wohnfläche</td><td class="num">${(i.qm || 0).toLocaleString('de-DE')} qm</td></tr>
-        <tr><td><strong>Vorteil Tag 1</strong></td><td class="num pos"><strong>${fmt(r.markteinkaufVorteil)}</strong></td></tr>
+        <tr><td><strong>Dein Vorteil Tag 1</strong></td><td class="num pos"><strong>${fmt(r.markteinkaufVorteil)}</strong></td></tr>
       </table>
       <div class="story-explain">
-        Diese Wohnung wird mit <strong>${Math.round(kpQm).toLocaleString('de-DE')} €/qm</strong> gekauft, der Marktpreis liegt bei <strong>${Math.round(marktQm).toLocaleString('de-DE')} €/qm</strong>. Der Vorteil <strong>steckt im Kaufpreis</strong> und macht den Vermögensaufbau ab Tag 1 belastbar — unabhängig von Wertsteigerung und Mietentwicklung.
+        Du kaufst diese Wohnung für <strong>${Math.round(kpQm).toLocaleString('de-DE')} €/qm</strong>, der Marktpreis liegt bei <strong>${Math.round(marktQm).toLocaleString('de-DE')} €/qm</strong>. Dein Vorteil <strong>steckt im Kaufpreis</strong> und macht Deinen Vermögensaufbau ab Tag 1 belastbar — unabhängig von Wertsteigerung und Mietentwicklung.
         ${marktQuellenHinweis}
       </div>
     </div>
@@ -1616,51 +1614,50 @@ function renderStories(r) {
     ? i.subventionPhasen[0].mo
     : (i.subventionMo || 0);
   const mieteAufschluesselung = `
-    <tr><td>· davon Kaltmiete Wohnung</td><td class="num pos">+ ${fmtEurMo(kaltmieteJ1Mo)}</td></tr>
-    ${stellplatzMieteJ1Mo > 0 ? `<tr><td>· davon Stellplatz-/Garagenmiete</td><td class="num pos">+ ${fmtEurMo(stellplatzMieteJ1Mo)}</td></tr>` : ''}
-    ${subvJ1Mo > 0 ? `<tr><td>· davon Mietsubvention${(Array.isArray(i.subventionPhasen) && i.subventionPhasen.length >= 2) ? ' (Phase 1)' : ''}</td><td class="num pos">+ ${fmtEurMo(subvJ1Mo)}</td></tr>` : ''}
+    <tr><td>· davon Deine Kaltmiete Wohnung</td><td class="num pos">+ ${fmtEurMo(kaltmieteJ1Mo)}</td></tr>
+    ${stellplatzMieteJ1Mo > 0 ? `<tr><td>· davon Deine Stellplatz-/Garagenmiete</td><td class="num pos">+ ${fmtEurMo(stellplatzMieteJ1Mo)}</td></tr>` : ''}
+    ${subvJ1Mo > 0 ? `<tr><td>· davon Deine Mietsubvention${(Array.isArray(i.subventionPhasen) && i.subventionPhasen.length >= 2) ? ' (Phase 1)' : ''}</td><td class="num pos">+ ${fmtEurMo(subvJ1Mo)}</td></tr>` : ''}
   `;
 
-  const cashflowHeute = story('02 — Cashflow heute', 'Was der Kunde Monat für Monat mitbringt', `
+  const cashflowHeute = story('02 — Cashflow heute', 'Was Du Monat für Monat einplanst', `
     <div class="story-grid">
       <table class="story-table">
         <thead><tr><th>Position</th><th class="num">€/Monat</th></tr></thead>
-        <tr><td><strong>Mieteinnahmen gesamt Jahr 1</strong></td><td class="num pos"><strong>+ ${fmtEurMo(r.mieteJ1Mo || 0)}</strong></td></tr>
+        <tr><td><strong>Deine Mieteinnahmen gesamt Jahr 1</strong></td><td class="num pos"><strong>+ ${fmtEurMo(r.mieteJ1Mo || 0)}</strong></td></tr>
         ${mieteAufschluesselung}
-        <tr><td>Annuität Bank</td><td class="num neg">− ${fmtEurMo(r.annuityMo || 0)}</td></tr>
+        <tr><td>Deine Annuität an die Bank</td><td class="num neg">− ${fmtEurMo(r.annuityMo || 0)}</td></tr>
         <tr><td>Hausgeld inkl. Rücklage</td><td class="num neg">− ${fmtEurMo(r.hausgeldNurMo || 0)}</td></tr>
         <tr><td>Mietverwaltung (SEV)</td><td class="num neg">− ${fmtEurMo(r.mietverwaltungMo || 0)}</td></tr>
         <tr><td>Hausverwaltung (WEG)</td><td class="num neg">− ${fmtEurMo(r.hausverwaltungMo || 0)}</td></tr>
-        <tr><td>Steuervorteil (AfA + Zinsen + MV + HV)</td><td class="num pos">+ ${fmtEurMo(r.stVorteilJ1Mo || 0)}</td></tr>
-        <tr class="totalrow"><td><strong>Effektive Belastung Jahr 1</strong></td><td class="num"><strong>${fmtEurMo(r.belastungMo)}</strong></td></tr>
+        <tr><td>Dein Steuervorteil (AfA + Zinsen + MV + HV)</td><td class="num pos">+ ${fmtEurMo(r.stVorteilJ1Mo || 0)}</td></tr>
+        <tr class="totalrow"><td><strong>Deine effektive Belastung Jahr 1</strong></td><td class="num"><strong>${fmtEurMo(r.belastungMo)}</strong></td></tr>
       </table>
       <div class="story-explain">
-        Die <strong>ehrliche monatliche Zahl</strong>, die der Käufer mitbringt (oder die ihm bleibt, wenn positiv).
+        Die <strong>ehrliche monatliche Zahl</strong>, die Du einplanst (oder die Dir bleibt, wenn positiv).
         ${(() => {
-          // Iter 41.10 — Mietsubvention: 2-Phasen-Aufschlüsselung wenn vorhanden
+          // Mietsubvention 2-Phasen — Du-Form
           const phasen = Array.isArray(i.subventionPhasen) ? i.subventionPhasen : [];
           if (phasen.length === 0 && !i.subventionMonate) return '';
           const totalEur = r.mietsubventionGesamt || 0;
-          const capInfo = state.kalk._subventionCapGreift ? ` <span style="color:#c05621;">(Cap greift — max ${fmt(state.kalk._subventionCapEur)})</span>` : '';
+          const capInfo = state.kalk._subventionCapGreift ? ` <span style="color:#c05621;">(Maximal-Subvention erreicht — max ${fmt(state.kalk._subventionCapEur)})</span>` : '';
           if (phasen.length >= 2) {
             const p1 = phasen[0], p2 = phasen[1];
-            return `<p><strong>Mietsubvention gesamt: ${fmt(totalEur)}</strong>${capInfo}<br>
+            return `<p><strong>Deine Mietsubvention gesamt: ${fmt(totalEur)}</strong>${capInfo}<br>
               · Phase 1: <strong>${fmtEurMo(p1.mo)}</strong> × ${p1.monate} Mo = ${fmt(p1.mo * p1.monate)}<br>
               · Phase 2: <strong>${fmtEurMo(p2.mo)}</strong> × ${p2.monate} Mo = ${fmt(p2.mo * p2.monate)}<br>
               ${state.kalk._subventionErlaeuterung ? `<span class="text-tertiary text-small">${esc(state.kalk._subventionErlaeuterung)}</span>` : ''}
             </p>`;
           } else if (phasen.length === 1) {
             const p = phasen[0];
-            return `<p><strong>Mietsubvention gesamt: ${fmt(totalEur)}</strong>${capInfo}<br>
+            return `<p><strong>Deine Mietsubvention gesamt: ${fmt(totalEur)}</strong>${capInfo}<br>
               · ${esc(p.label || 'Phase 1')}: <strong>${fmtEurMo(p.mo)}</strong> × ${p.monate} Mo<br>
               ${state.kalk._subventionErlaeuterung ? `<span class="text-tertiary text-small">${esc(state.kalk._subventionErlaeuterung)}</span>` : ''}
             </p>`;
           } else {
-            return `<p>Mietsubvention <strong>${fmtEurMo(i.subventionMo)}</strong> über <strong>${i.subventionMonate} Monate</strong> — Summe <strong>${fmt(totalEur)}</strong>. Fängt die Anlaufphase ab.</p>`;
+            return `<p>Mietsubvention <strong>${fmtEurMo(i.subventionMo)}</strong> über <strong>${i.subventionMonate} Monate</strong> — Summe <strong>${fmt(totalEur)}</strong>. Wir fangen Deine Anlaufphase ab.</p>`;
           }
         })()}
         ${(() => {
-          // Iter 41.16 (Audit-Fix #12): Erweiterte Mieterhöhungs-Info inkl. letzter Erhöhung
           if (!r.ersteErhoehungMonat) return '';
           const datum = state.kalk.letzteMietsteigerung || state.kalk._letzteMietsteigerung;
           let datumLabel = '';
@@ -1670,90 +1667,90 @@ function renderStories(r) {
               datumLabel = ` (letzte Mieterhöhung: <strong>${('0'+(d.getMonth()+1)).slice(-2)}/${d.getFullYear()}</strong>)`;
             }
           }
-          return `<p>Erste Mieterhöhung in <strong>Monat ${r.ersteErhoehungMonat}</strong> (${esc(r.ersteErhoehungJahrLabel)})${datumLabel}. Mietsteigerung danach: <strong>${fmtPct(i.steigerungProz)}</strong>.</p>`;
+          return `<p>Deine erste Mieterhöhung greift in <strong>Monat ${r.ersteErhoehungMonat}</strong> (${esc(r.ersteErhoehungJahrLabel)})${datumLabel}. Steigerung danach: <strong>${fmtPct(i.steigerungProz)}</strong>.</p>`;
         })()}
       </div>
     </div>
   `);
 
-  const steuervorteil = story('03 — Steuervorteil', 'AfA + Werbungskosten = Cashflow-Hebel', `
+  const steuervorteil = story('03 — Dein Steuervorteil', 'AfA + Werbungskosten = Dein Cashflow-Hebel', `
     <div class="story-grid">
       <table class="story-table">
-        <tr><td>AfA-Basis (Kaufpreis × Gebäude-Anteil ${fmtPct(i.gebaeudeAnteil || 0.8, 0)})</td><td class="num">${fmt(afaBemessung)}</td></tr>
+        <tr><td>Deine AfA-Basis (Kaufpreis × Gebäude-Anteil ${fmtPct(i.gebaeudeAnteil || 0.8, 0)})</td><td class="num">${fmt(afaBemessung)}</td></tr>
         <tr><td>AfA-Satz</td><td class="num">${fmtPct(i.afaSatz, 2)}</td></tr>
-        <tr><td><strong>AfA pro Jahr (konstant)</strong></td><td class="num"><strong>${fmt(afaJahr)}</strong></td></tr>
+        <tr><td><strong>Deine AfA pro Jahr (konstant)</strong></td><td class="num"><strong>${fmt(afaJahr)}</strong></td></tr>
         <tr><td>+ Zinsen Jahr 1</td><td class="num">${fmt(zinsenJ1)}</td></tr>
         <tr><td>+ Mietverwaltung (SEV) Jahr 1</td><td class="num">${fmt(mvJ1)}</td></tr>
         <tr><td>+ Hausverwaltung (WEG) Jahr 1</td><td class="num">${fmt(hvJ1)}</td></tr>
-        <tr><td>Steuersatz</td><td class="num">${fmtPct(i.steuersatz)}</td></tr>
-        <tr class="totalrow"><td><strong>Steuervorteil Jahr 1</strong></td><td class="num pos"><strong>${fmt(stVorteilJ1)}</strong></td></tr>
+        <tr><td>Dein Steuersatz</td><td class="num">${fmtPct(i.steuersatz)}</td></tr>
+        <tr class="totalrow"><td><strong>Dein Steuervorteil Jahr 1</strong></td><td class="num pos"><strong>${fmt(stVorteilJ1)}</strong></td></tr>
       </table>
       <div class="story-explain">
         <strong>AfA-Satz frei wählbar</strong> — Standard 2,0 % (lineare AfA §7 Abs. 4 EStG), mit qualifiziertem Gutachten typisch 3,0–4,5 % möglich. <strong>Bemessungsgrundlage: Kaufpreis × Gebäude-Anteil</strong>.<br><br>
-        <strong>Steuervorteil sinkt über die Jahre</strong>: Zinsen sinken (Annuitäten-Mathematik), Mieten steigen, AfA bleibt konstant. Im Jahr 10: <strong>${fmt(stVorteilJ10)}</strong> (Jahr 1: ${fmt(stVorteilJ1)}).
+        <strong>Dein Steuervorteil sinkt über die Jahre</strong>: Zinsen sinken (Annuitäten-Mathematik), Mieten steigen, AfA bleibt konstant. Im Jahr 10: <strong>${fmt(stVorteilJ10)}</strong> (Jahr 1: ${fmt(stVorteilJ1)}).
       </div>
     </div>
   `);
 
-  const dreiHebel = story('04 — Vermögensaufbau', 'Drei Hebel arbeiten parallel', `
+  const dreiHebel = story('04 — Dein Vermögensaufbau', 'Drei Hebel arbeiten für Dich parallel', `
     <div class="stat-trio">
       <div class="stat-item"><div class="stat-lbl">Hebel 1 · Inflation</div><div class="stat-val">${fmtPct(i.wertsteigerung)} p.a.</div></div>
       <div class="stat-item"><div class="stat-lbl">Hebel 2 · Tilgung Jahr 1</div><div class="stat-val">${fmt(tilgungJ1)}</div></div>
       <div class="stat-item"><div class="stat-lbl">Hebel 3 · Markteinkauf</div><div class="stat-val">${fmt(r.markteinkaufVorteil || 0)}</div></div>
     </div>
-    <p class="story-explain">Nach 10 Jahren: <strong>Gesamtvermögen ${fmt(r.vermoegenBrutto10)}</strong> (= Marktwert ${fmt(wert10)} − Restschuld ${fmt(restschuld10)} + kumulierte Cashflows ${fmt(kumCf10)}). Abzüglich des eingesetzten EK ${fmt(r.ekBedarf)} bleibt als echter <strong>Vermögenszuwachs ${fmt(r.vermoegenNetto10)}</strong>.</p>
+    <p class="story-explain">Nach 10 Jahren hast Du: <strong>Gesamtvermögen ${fmt(r.vermoegenBrutto10)}</strong> (= Marktwert ${fmt(wert10)} − Restschuld ${fmt(restschuld10)} + Deine kumulierten Cashflows ${fmt(kumCf10)}). Abzüglich Deines eingesetzten Eigenkapitals ${fmt(r.ekBedarf)} bleibt Dir als echter <strong>Vermögenszuwachs ${fmt(r.vermoegenNetto10)}</strong>.</p>
   `);
 
-  const exit10 = story('05 — Exit nach 10 Jahren', 'Steuerfrei verkaufen (§23 EStG)', `
+  const exit10 = story('05 — Dein Exit nach 10 Jahren', 'Du verkaufst steuerfrei (§23 EStG)', `
     <div class="story-grid">
       <table class="story-table">
         <tr><td>Geschätzter Marktwert Jahr 10</td><td class="num">${fmt(wert10)}</td></tr>
-        <tr><td>− Restschuld Jahr 10</td><td class="num">− ${fmt(restschuld10)}</td></tr>
-        <tr><td><strong>= Verkaufserlös (steuerfrei nach §23)</strong></td><td class="num"><strong>${fmt(wert10 - restschuld10)}</strong></td></tr>
-        <tr><td>+ Kumulierter Cashflow Jahr 1-10</td><td class="num">${fmt(kumCf10)}</td></tr>
-        <tr><td><strong>= Gesamtvermögen nach 10 J.</strong></td><td class="num pos"><strong>${fmt(r.vermoegenBrutto10)}</strong></td></tr>
-        <tr><td>− Eingesetztes EK</td><td class="num">− ${fmt(r.ekBedarf)}</td></tr>
-        <tr class="totalrow"><td><strong>= Vermögenszuwachs (echter Reinerlös)</strong></td><td class="num pos"><strong>${fmt(r.vermoegenNetto10)}</strong></td></tr>
-        <tr><td>IRR über 10 Jahre</td><td class="num"><strong>${fmtPct(r.irr)}</strong></td></tr>
+        <tr><td>− Deine Restschuld Jahr 10</td><td class="num">− ${fmt(restschuld10)}</td></tr>
+        <tr><td><strong>= Dein Verkaufserlös (steuerfrei nach §23)</strong></td><td class="num"><strong>${fmt(wert10 - restschuld10)}</strong></td></tr>
+        <tr><td>+ Dein kumulierter Cashflow Jahr 1-10</td><td class="num">${fmt(kumCf10)}</td></tr>
+        <tr><td><strong>= Dein Gesamtvermögen nach 10 J.</strong></td><td class="num pos"><strong>${fmt(r.vermoegenBrutto10)}</strong></td></tr>
+        <tr><td>− Dein eingesetztes EK</td><td class="num">− ${fmt(r.ekBedarf)}</td></tr>
+        <tr class="totalrow"><td><strong>= Dein Vermögenszuwachs (echter Reinerlös)</strong></td><td class="num pos"><strong>${fmt(r.vermoegenNetto10)}</strong></td></tr>
+        <tr><td>Deine IRR über 10 Jahre</td><td class="num"><strong>${fmtPct(r.irr)}</strong></td></tr>
       </table>
       <div class="story-explain">
-        Nach Ablauf der <strong>Spekulationsfrist (10 Jahre)</strong> ist der Veräußerungsgewinn steuerfrei — vorausgesetzt, die Drei-Objekt-Grenze wird nicht überschritten. Die <strong>IRR (Eigenkapitalrendite)</strong> zeigt, was das EK über 10 Jahre wirklich gebracht hat.
+        Nach Ablauf der <strong>Spekulationsfrist (10 Jahre)</strong> ist Dein Veräußerungsgewinn steuerfrei — vorausgesetzt, Du überschreitest die Drei-Objekt-Grenze nicht. Deine <strong>IRR (Eigenkapitalrendite)</strong> zeigt, was Dein eingesetztes Kapital über 10 Jahre wirklich gebracht hat.
       </div>
     </div>
   `);
 
-  const bonStory = story('06 — Bonitätseffekt', 'Was die Bank davon hält', `
+  const bonStory = story('06 — Dein Bonitätseffekt', 'Was die Bank von Dir hält', `
     <div class="story-grid">
       <table class="story-table">
-        <tr><td>Einnahmen / Mo</td><td class="num">+ ${fmtEurMo(r.bonEinnahmen || 0)}</td></tr>
-        <tr><td>Ausgaben / Mo</td><td class="num">− ${fmtEurMo(r.bonAusgaben || 0)}</td></tr>
-        <tr><td><strong>Saldo vor Kauf</strong></td><td class="num"><strong>${fmtEurMo(r.bonVor || 0)}</strong></td></tr>
+        <tr><td>Deine Einnahmen / Mo</td><td class="num">+ ${fmtEurMo(r.bonEinnahmen || 0)}</td></tr>
+        <tr><td>Deine Ausgaben / Mo</td><td class="num">− ${fmtEurMo(r.bonAusgaben || 0)}</td></tr>
+        <tr><td><strong>Dein Saldo vor Kauf</strong></td><td class="num"><strong>${fmtEurMo(r.bonVor || 0)}</strong></td></tr>
         <tr><td>+ Anrechenbare Miete (80 %)</td><td class="num pos">+ ${fmtEurMo(r.bonMieteAnr || 0)}</td></tr>
         <tr><td>− Annuität Bank</td><td class="num neg">− ${fmtEurMo(r.bonAnnuMo || 0)}</td></tr>
-        <tr><td><strong>Saldo nach Kauf</strong></td><td class="num"><strong>${fmtEurMo(r.bonNach || 0)}</strong></td></tr>
+        <tr><td><strong>Dein Saldo nach Kauf</strong></td><td class="num"><strong>${fmtEurMo(r.bonNach || 0)}</strong></td></tr>
         <tr><td>Saldo-Delta aus dieser WE</td><td class="num"><strong>${fmtEurMo(r.bonDelta || 0)}</strong></td></tr>
-        <tr><td>Verfügbares Vermögen</td><td class="num">${fmt(r.bonVermoegen || 0)}</td></tr>
-        <tr><td>EK-Bedarf</td><td class="num">${fmt(r.ekBedarf)}</td></tr>
+        <tr><td>Dein verfügbares Vermögen</td><td class="num">${fmt(r.bonVermoegen || 0)}</td></tr>
+        <tr><td>Dein EK-Bedarf</td><td class="num">${fmt(r.ekBedarf)}</td></tr>
       </table>
       <div class="story-explain">
-        Banken rechnen Miete pauschal mit <strong>80 %</strong> an (Leerstands-/Mietausfallreserve). Positiver <strong>Saldo nach Kauf</strong> = Wohnung erhöht die Kreditfähigkeit für die nächste WE. Negativ = Wohnung frisst Bonität.<br><br>
-        <strong>Vermögen aus Bank-Sicht:</strong> Nur <em>liquide oder leicht beleihbare Werte</em> (Sparbuch, Tagesgeld, Aktien, ETFs, Rückkaufwert LV). Nicht: Eigenheim oder Bestandsimmobilien.
+        Banken rechnen Deine Miete pauschal mit <strong>80 %</strong> an (Leerstands-/Mietausfallreserve). Positives <strong>Saldo nach Kauf</strong> = die Wohnung erhöht Deine Kreditfähigkeit für die nächste WE. Negativ = die Wohnung frisst Deine Bonität.<br><br>
+        <strong>Vermögen aus Bank-Sicht:</strong> Nur Deine <em>liquiden oder leicht beleihbaren Werte</em> (Sparbuch, Tagesgeld, Aktien, ETFs, Rückkaufwert LV). Nicht: Dein Eigenheim oder Deine Bestandsimmobilien.
       </div>
     </div>
   `);
 
-  const sparenStory = story('07 — Sparen vs. Investieren', 'Das Vermögen läuft beim Investieren stärker', `
+  const sparenStory = story('07 — Dein Vergleich · Anlage vs. Immobilie', 'Dein Vermögen läuft mit Immobilie stärker', `
     <div class="story-grid">
       <table class="story-table">
-        <tr><td>Startvermögen (verfügbar)</td><td class="num">${fmt(r.bonVermoegen || 0)}</td></tr>
-        <tr><td>− KNK „verbrannt"</td><td class="num">− ${fmt(r.ekBedarf)}</td></tr>
-        <tr><td>Nur EK anlegen (Verzinsung ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a., 10 J.)</td><td class="num">${fmt(sparen10.nurSparen || 0)}</td></tr>
-        <tr><td>Mit Immobilie (Spar-Rest + Vermögen + kum. CF)</td><td class="num pos">${fmt(sparen10.mitImmo || 0)}</td></tr>
-        <tr class="totalrow"><td><strong>Vorteil durch Immobilie</strong></td><td class="num pos"><strong>${fmt(r.sparenVsKaufenDelta)}</strong></td></tr>
+        <tr><td>Dein Startvermögen (verfügbar)</td><td class="num">${fmt(r.bonVermoegen || 0)}</td></tr>
+        <tr><td>− KNK „verbrannt" beim Kauf</td><td class="num">− ${fmt(r.ekBedarf)}</td></tr>
+        <tr><td>Dein EK nur anlegen (Verzinsung ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a., 10 J.)</td><td class="num">${fmt(sparen10.nurSparen || 0)}</td></tr>
+        <tr><td>Dein EK in Immobilie (Spar-Rest + Vermögen + Cashflow)</td><td class="num pos">${fmt(sparen10.mitImmo || 0)}</td></tr>
+        <tr class="totalrow"><td><strong>Dein Vorteil durch die Immobilie</strong></td><td class="num pos"><strong>${fmt(r.sparenVsKaufenDelta)}</strong></td></tr>
       </table>
       <div class="story-explain">
-        Wer sein EK <strong>nur anlegt (${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a.)</strong>, kommt nach 10 J. auf <strong>${fmt(sparen10.nurSparen || 0)}</strong>. Wer denselben Betrag <strong>als EK in diese Immobilie investiert</strong>, hat nach 10 J. <strong>${fmt(sparen10.mitImmo || 0)}</strong> — Vorteil: <strong>${fmt(r.sparenVsKaufenDelta)}</strong>.<br><br>
-        <strong>Wichtig:</strong> Die KNK sind <em>verbranntes Geld</em> (Grunderwerbsteuer, Notar, Grundbuch). Bei KNK mitfinanziert = 0 €, dafür höhere Restschuld.
+        Wenn Du Dein EK <strong>nur anlegst (${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a.)</strong>, kommst Du nach 10 J. auf <strong>${fmt(sparen10.nurSparen || 0)}</strong>. Wenn Du denselben Betrag <strong>als EK in diese Immobilie investierst</strong>, hast Du nach 10 J. <strong>${fmt(sparen10.mitImmo || 0)}</strong> — Dein Vorteil: <strong>${fmt(r.sparenVsKaufenDelta)}</strong>.<br><br>
+        <strong>Wichtig:</strong> Deine KNK sind <em>verbranntes Geld</em> (Grunderwerbsteuer, Notar, Grundbuch). Bei „KNK mitfinanziert" zahlst Du heute 0 € — dafür hast Du eine höhere Restschuld.
       </div>
     </div>
   `);
@@ -1829,9 +1826,9 @@ function drawCharts(r) {
         </div>
       </div>`;
     werteBlock.innerHTML =
-      card('Operativer CF', '#7A7A72', opJ1, opJ2, false) +
-      card('Steuervorteil', '#7A7A72', stVJ1, stVJ2, false) +
-      card('★ CF nach Steuern', '#22543d', nachJ1, nachJ2, true);
+      card('Dein operativer CF', '#7A7A72', opJ1, opJ2, false) +
+      card('Dein Steuervorteil', '#7A7A72', stVJ1, stVJ2, false) +
+      card('★ Dein CF nach Steuern', '#22543d', nachJ1, nachJ2, true);
   }
 
   // Sparen vs. Investieren: bleibt wie gehabt
@@ -2099,9 +2096,9 @@ function drawCharts(r) {
         <div class="text-tertiary text-small" style="margin-top:2px;">${sub}</div>
       </div>`;
     sparWerteBlock.innerHTML =
-      cardS('Eingesetztes EK', '#7A7A72', startEk, 'Start', false) +
-      cardS('Anlage-Pfad nach 10 J', '#7A7A72', anlage10, 'EK × Zinsen p.a.', false) +
-      cardS('★ Immobilie nach 10 J', '#22543d', immobil10, (delta >= 0 ? '+ ' : '− ') + fmtBig(Math.abs(delta)).replace(' €','') + ' € ggü. Anlage', true);
+      cardS('Dein eingesetztes EK', '#7A7A72', startEk, 'Start', false) +
+      cardS('Dein EK nur anlegen · 10 J', '#7A7A72', anlage10, 'EK × Zinsen p.a.', false) +
+      cardS('★ Dein EK in Immobilie · 10 J', '#22543d', immobil10, (delta >= 0 ? '+ ' : '− ') + fmtBig(Math.abs(delta)).replace(' €','') + ' € ggü. Anlage', true);
   }
   if (chartS) chartS.destroy();
   chartS = new Chart(document.getElementById('chart-sparen'), {
