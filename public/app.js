@@ -206,12 +206,22 @@ window.__onGoogleAuth = async function(response) {
 async function loadInitialData() {
   state.loadingData = true;
   try {
-    const [kunden, wes] = await Promise.all([
+    const [kunden, wes, stammAudit] = await Promise.all([
       api.get('/api/kunden').catch(() => []),
       api.get('/api/wohneinheiten').catch(() => []),
+      api.get('/api/stammdaten').catch(() => []),
     ]);
     state.kunden = Array.isArray(kunden) ? kunden : [];
     state.wohneinheiten = Array.isArray(wes) ? wes : [];
+    // Iter 45: Stammdaten-Cache für Paket-Modus (Pro-rata-Stellplatz-Daten).
+    // Sammel-Endpoint liefert pro WE die echte mieteMoSumme + kaufpreisSumme aus
+    // Mietverträgen — sonst wäre der Paket-Modus mit Stellplatz=0 unterwegs.
+    state.stammdatenByWe = {};
+    if (Array.isArray(stammAudit)) {
+      stammAudit.forEach(s => {
+        if (s && s.we && s.we.id) state.stammdatenByWe[s.we.id] = s;
+      });
+    }
   } finally {
     state.loadingData = false;
   }
@@ -709,26 +719,21 @@ function renderTabKalkulator() {
           <div class="chart-container"><canvas id="chart-cashflow"></canvas></div>
         </div>
         <div class="card">
-          <div class="card-title">Sparen vs. Investieren (10 J)</div>
-          <div class="text-tertiary text-small">EK verzinst sich auf Anlage-Konto vs. EK als Immobilien-Investment inkl. CF.</div>
+          <div class="card-title">Eigenkapital · Anlage vs. Immobilie</div>
+          <div id="spar-werte-block" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0;"></div>
           <div class="chart-container"><canvas id="chart-sparen"></canvas></div>
-          <div class="chart-formula" style="margin-top:12px;padding:10px 14px;background:#f8fafc;border-left:3px solid #7A7A72;border-radius:6px;font-size:12px;">
-            <strong>Formel:</strong> Nur Sparen = EK × (1 + Zins)<sup>n</sup><br>
-            <strong>Mit Immobilie</strong> = (Wert − Restschuld) + kum. CF (steigt mit Tilgung + Mieterhöhung)
-          </div>
-          <div class="spar-zins-row" style="display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;">
-            <label for="spar-zins-slider" style="font-weight:600;color:#2c5282;white-space:nowrap;text-transform:none;letter-spacing:0;">Verzinsung des Eigenkapitals p.a.:</label>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12px;color:#7A7A72;">
+            <span>EK-Verzinsung Anlage-Pfad:</span>
             <input type="range" id="spar-zins-slider" min="0" max="12" step="0.05"
                    value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
                    style="flex:1;cursor:pointer;">
-            <span id="spar-zins-val" style="font-weight:700;color:#2c5282;min-width:60px;text-align:right;">
+            <span id="spar-zins-val" style="font-weight:600;color:#22543d;min-width:50px;text-align:right;">
               ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} %
             </span>
             <input type="number" id="spar-zins-num" min="0" max="12" step="0.05"
                    value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
-                   style="width:80px;padding:4px 6px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;">
+                   style="width:60px;padding:3px 5px;border:1px solid #cbd5e0;border-radius:4px;font-size:12px;">
           </div>
-          <p class="text-tertiary text-small" style="margin:6px 14px 0;">Annahme für die EK-Verzinsung im Vergleichs-Szenario (Default 2,5 %, Festgeld z.B. 3,5 %, Wertpapier-Mix z.B. 6–8 %).</p>
         </div>
       </div>
 
@@ -862,7 +867,7 @@ function kalkInputsPaketHtml(i) {
     <details class="kalk-section" ${sec('pmarkt')} data-sec="pmarkt" ontoggle="toggleKalkSection('pmarkt', this)">
       <summary>1 · Marktpreis &amp; Wertentwicklung</summary>
       <div class="grid-1">
-        ${sliderEur('Marktpreis €/qm (0 = aus)', 'marktwertProQm', 0, 8000, 50, '€/qm')}
+        ${sliderEur('Marktpreis €/qm (Ø ImmoScout + Homeday aus Airtable)', 'marktwertProQm', 0, 8000, 50, '€/qm')}
         ${slider('Wertsteigerung p.a.', 'wertsteigerung', 0, 6, 0.25)}
       </div>
       <div style="padding: 4px 14px 14px;">
@@ -954,7 +959,7 @@ function kalkInputsThemenHtml(i) {
         ${sliderEur('Kaufpreis Wohnung', 'kaufpreis', 30000, 500000, 500)}
         ${sliderEur('Stellplatz / Garage KP', 'stellplatzKp', 0, 30000, 500)}
         ${sliderEur('Quadratmeter', 'qm', 20, 200, 0.5, 'm²')}
-        ${sliderEur('Marktwert €/qm (optional, 0 = aus)', 'marktwertProQm', 0, 8000, 50, '€/qm')}
+        ${sliderEur('Marktwert €/qm (Ø ImmoScout + Homeday aus Airtable)', 'marktwertProQm', 0, 8000, 50, '€/qm')}
         ${slider('Inflation / Wertsteigerung p.a.', 'wertsteigerung', 0, 6, 0.25)}
       </div>
     </details>
@@ -964,8 +969,33 @@ function kalkInputsThemenHtml(i) {
       <div class="grid-1">
         ${sliderEur('Aktuelle Kaltmiete', 'kaltmiete', 200, 2000, 10, '€/Mo')}
         ${sliderEur('Stellplatz-Miete', 'stellplatzMiete', 0, 200, 5, '€/Mo')}
-        ${sliderEur('Mietsubvention', 'subventionMo', 0, 300, 10, '€/Mo')}
-        ${sliderEur('Subventions-Laufzeit', 'subventionMonate', 0, 60, 1, 'Monate')}
+        ${(() => {
+          // Iter 46: Subv wird aus Airtable (Kalk-Stammdaten) berechnet, nicht mehr per Slider.
+          // App zeigt nur das Ergebnis. Schliesst Endkunden-Verwirrung aus.
+          const phasen = Array.isArray(state.kalk.subventionPhasen) ? state.kalk.subventionPhasen : [];
+          const totalEur = state.kalk._subventionTotalEur || 0;
+          const erlaut = state.kalk._subventionErlaeuterung || '';
+          if (phasen.length === 0 && !state.kalk.subventionMonate) {
+            return `<div style="padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;font-size:12.5px;color:#7A7A72;">Keine Mietsubvention (${erlaut || 'aus Airtable berechnet'})</div>`;
+          }
+          const fmt = (v) => Math.round(v).toLocaleString('de-DE');
+          const zeile = (p, idx) => `<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;">
+            <span class="text-tertiary">${phasen.length > 1 ? 'Phase ' + (idx+1) : 'Subvention'}</span>
+            <span><strong>${fmt(p.mo)} €</strong>/Mo &middot; <strong>${p.monate}</strong> Mo</span>
+          </div>`;
+          const zeilen = phasen.length > 0
+            ? phasen.map((p, idx) => zeile(p, idx)).join('')
+            : zeile({ mo: state.kalk.subventionMo, monate: state.kalk.subventionMonate }, 0);
+          return `
+            <div style="padding:10px 14px;background:#fef5e7;border-radius:6px;border-left:3px solid #B08A4D;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="text-transform:uppercase;letter-spacing:0.05em;font-size:11px;font-weight:600;color:#B08A4D;">Mietsubvention (aus Airtable)</span>
+                <span style="font-weight:700;color:#B08A4D;">${fmt(totalEur)} € gesamt</span>
+              </div>
+              <div style="margin-top:6px;">${zeilen}</div>
+              ${erlaut ? `<div class="text-tertiary text-small" style="margin-top:6px;font-size:11.5px;">${erlaut}</div>` : ''}
+            </div>`;
+        })()}
         ${select('Mietsteigerungs-Modus', 'mietsteigerungsModus', [
           {v:'sprung',  l:'Bestand · Vergleichsmiete-Sprünge alle 3 J'},
           {v:'staffel', l:'Neuvermietung · Staffelmiete linear p.a.'},
@@ -1005,7 +1035,6 @@ function kalkInputsThemenHtml(i) {
       <summary>3 · Hausgeld &amp; Verwaltung</summary>
       <div class="grid-1">
         ${sliderEur('Hausgeld inkl. Rücklage', 'hausgeld', 0, 500, 5, '€/Mo')}
-        ${slider('Hausgeld-Inflation p.a.', 'hgInflation', 0, 5, 0.25)}
         ${sliderEur('Mietverwaltung (SEV)', 'mietverwaltung', 0, 100, 5, '€/Mo')}
         ${sliderEur('Hausverwaltung (WEG)', 'hausverwaltung', 0, 100, 1, '€/Mo')}
       </div>
@@ -1377,19 +1406,36 @@ function recalcAndRender() {
       const weInputs = state.kalk._paketWeIds.map(wid => {
         const w = state.wohneinheiten.find(x => x.id === wid);
         if (!w) return null;
+        // Iter 45: Pro-rata-Stellplatzdaten + Kalk-Stammdaten aus Cache
+        const stamm = (state.stammdatenByWe || {})[wid];
+        const stellplatzKpFromAirtable = stamm && stamm.stellplaetze ? (stamm.stellplaetze.kaufpreisSumme || 0) : 0;
+        const stellplatzMieteFromAirtable = stamm && stamm.stellplaetze ? (stamm.stellplaetze.mieteMoSumme || 0) : 0;
+        const kalk = stamm && stamm.stammdaten ? stamm.stammdaten : null;
         const preset = (window.WE_PRESETS_BY_RECID || {})[wid];
         const base = preset
           ? JSON.parse(JSON.stringify(preset))
           : {
-              kaufpreis: w.kp || 0, stellplatzKp: 0, qm: w.qm || 0, marktwertProQm: 0,
-              kaltmiete: w.kaltmiete || 0, stellplatzMiete: 0,
-              subventionMo: 0, subventionMonate: 0,
+              kaufpreis: w.kp || 0,
+              stellplatzKp: stellplatzKpFromAirtable,
+              qm: w.qm || 0,
+              marktwertProQm: 0,
+              kaltmiete: w.kaltmiete || 0,
+              stellplatzMiete: stellplatzMieteFromAirtable,
+              subventionMo: kalk && kalk.mietzuschuss ? kalk.mietzuschuss : 0,
+              subventionMonate: kalk && kalk.mietzuschussMonate ? kalk.mietzuschussMonate : 0,
               mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
-              hausgeld: Math.round((w.qm || 0)),
-              hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
-              afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
-              wertsteigerung: 0.03,
+              hausgeld: (kalk && kalk.hausgeldRuecklage) || Math.round((w.qm || 0)),
+              hgInflation: (kalk && kalk.hgInflation) || 0.02,
+              mietverwaltung: (kalk && kalk.mietverwaltungDefault) || 0,
+              hausverwaltung: (kalk && kalk.hausverwaltung) || 30,
+              afaSatz: (kalk && kalk.afaGutachten) || 0.02,
+              gebaeudeAnteil: (kalk && kalk.gebaeudeAnteil) || 0.80,
+              afaBemessung: 'kaufpreis',
+              wertsteigerung: (kalk && kalk.wertsteigerung) || 0.03,
             };
+        // Wenn Preset vorhanden, Stellplatz aus Airtable trotzdem nachziehen (Live-Daten haben Vorrang)
+        if (preset && stellplatzMieteFromAirtable >= 0) base.stellplatzMiete = stellplatzMieteFromAirtable;
+        if (preset && stellplatzKpFromAirtable >= 0)   base.stellplatzKp    = stellplatzKpFromAirtable;
         // Paket-weite Overrides: Marktpreis + Wertsteigerung
         if (paketMarktwert > 0) base.marktwertProQm = paketMarktwert;
         if (paketWertsteigerung !== null) base.wertsteigerung = paketWertsteigerung;
@@ -1785,7 +1831,7 @@ function drawCharts(r) {
     werteBlock.innerHTML =
       card('Operativer CF', '#2D6E47', opJ1, opJ2, false) +
       card('Steuervorteil', '#B08A4D', stVJ1, stVJ2, false) +
-      card('★ CF nach Steuern', '#B08A4D', nachJ1, nachJ2, true);
+      card('★ CF nach Steuern', '#22543d', nachJ1, nachJ2, true);
   }
 
   // Sparen vs. Investieren: bleibt wie gehabt
@@ -2035,16 +2081,75 @@ function drawCharts(r) {
   });
 
   // ============================================================
-  // SPAREN vs. INVESTIEREN
+  // EIGENKAPITAL · ANLAGE vs. IMMOBILIE (Iter 46)
+  // Bündig zu Cashflow: 3 Karten oben (Start-EK, Anlage-Pfad 10J, Immobilie 10J),
+  // Bar-Chart mit 2 Bars pro Jahr (Anlage hellgrau, Immobilie hervorgehoben grün).
   // ============================================================
+  const sparWerteBlock = document.getElementById('spar-werte-block');
+  if (sparWerteBlock) {
+    const startEk    = Math.round(sparenNur[0] || 0);
+    const anlage10   = Math.round(sparenNur[10] || 0);
+    const immobil10  = Math.round(sparenMit[10] || 0);
+    const delta      = immobil10 - anlage10;
+    const fmtBig = (v) => (v >= 0 ? '' : '−') + Math.abs(Math.round(v)).toLocaleString('de-DE') + ' €';
+    const cardS = (title, accent, value, sub, hervorgehoben) => `
+      <div style="padding:10px 14px;background:#fff;border-radius:6px;border:${hervorgehoben?'2px':'1px'} solid ${accent};${hervorgehoben?'box-shadow:0 2px 8px rgba(34,84,61,0.18);':''}">
+        <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;font-weight:600;color:${accent};">${title}</div>
+        <div style="margin-top:4px;font-size:17px;font-weight:700;color:${accent};">${fmtBig(value)}</div>
+        <div class="text-tertiary text-small" style="margin-top:2px;">${sub}</div>
+      </div>`;
+    sparWerteBlock.innerHTML =
+      cardS('Eingesetztes EK', '#7A7A72', startEk, 'Start', false) +
+      cardS('Anlage-Pfad nach 10 J', '#7A7A72', anlage10, 'EK × Zinsen p.a.', false) +
+      cardS('★ Immobilie nach 10 J', '#22543d', immobil10, (delta >= 0 ? '+ ' : '− ') + fmtBig(Math.abs(delta)).replace(' €','') + ' € ggü. Anlage', true);
+  }
   if (chartS) chartS.destroy();
   chartS = new Chart(document.getElementById('chart-sparen'), {
-    type: 'line',
-    data: { labels: sparenLbls, datasets: [
-      { label: 'Nur Sparen', data: sparenNur, borderColor: '#7A7A72', borderWidth: 2, tension: 0.3, pointRadius: 2, pointHoverRadius: 5 },
-      { label: 'Mit Immobilie', data: sparenMit, borderColor: '#B08A4D', borderWidth: 2.5, tension: 0.3, pointRadius: 2, pointHoverRadius: 5 },
-    ] },
-    options: baseOpts
+    type: 'bar',
+    data: {
+      labels: sparenLbls,
+      datasets: [
+        {
+          label: 'EK nur anlegen',
+          data: sparenNur,
+          backgroundColor: 'rgba(122,122,114,0.55)',
+          borderColor: '#7A7A72',
+          borderWidth: 1,
+        },
+        {
+          label: '★ EK in Immobilie',
+          data: sparenMit,
+          backgroundColor: 'rgba(34,84,61,0.85)',
+          borderColor: '#22543d',
+          borderWidth: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { ticks: { font: { size: 11 } }, grid: { display: false } },
+        y: {
+          ticks: {
+            callback: (v) => (typeof v === 'number' && Math.abs(v) >= 1000)
+              ? Math.round(v / 1000) + 'k €'
+              : Math.round(v) + ' €'
+          },
+        },
+      },
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 14, padding: 12, font: { size: 11 } } },
+        tooltip: {
+          mode: 'index', intersect: false,
+          backgroundColor: 'rgba(33,33,28,0.94)',
+          callbacks: {
+            label: (ctx) => ctx.dataset.label + ': ' + Math.round(ctx.parsed.y).toLocaleString('de-DE') + ' €',
+          }
+        }
+      }
+    }
   });
 }
 

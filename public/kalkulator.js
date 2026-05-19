@@ -130,7 +130,7 @@ const PRESETS = {
     kaltmiete: 610, stellplatzMiete: 0, subventionMo: 50, subventionMonate: 24,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.20,
     monateSeitMieterhoehung: 0,
-    hausgeld: 60.65, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 60.65, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.037, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -140,7 +140,7 @@ const PRESETS = {
     kaltmiete: 450, stellplatzMiete: 0, subventionMo: 60.23, subventionMonate: 12,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.137,
     monateSeitMieterhoehung: 0,
-    hausgeld: 60.65, hgInflation: 0.02, mietverwaltung: 30, hausverwaltung: 30,
+    hausgeld: 60.65, hgInflation: 0, mietverwaltung: 30, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 1.0, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -150,7 +150,7 @@ const PRESETS = {
     kaltmiete: 540, stellplatzMiete: 0, subventionMo: 81, subventionMonate: 12,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 60.56, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 25,
+    hausgeld: 60.56, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 25,
     zins: 0.045,
     afaSatz: 0.045, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.02,
@@ -160,7 +160,7 @@ const PRESETS = {
     kaltmiete: 768.13, stellplatzMiete: 50, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'index', steigerungProz: 0.02,
     monateSeitMieterhoehung: 0,
-    hausgeld: 60.56, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 60.56, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.037, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -170,7 +170,7 @@ const PRESETS = {
     kaltmiete: 438, stellplatzMiete: 0, subventionMo: 65.70, subventionMonate: 26,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 60.56, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 60.56, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.0345, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -180,7 +180,7 @@ const PRESETS = {
     kaltmiete: 600, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.10,
     monateSeitMieterhoehung: 0,
-    hausgeld: 60, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 60, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -193,7 +193,7 @@ const PRESETS = {
     kaltmiete: 529, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 84, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 84, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -203,7 +203,7 @@ const PRESETS = {
     kaltmiete: 780, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 71, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 71, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -213,7 +213,7 @@ const PRESETS = {
     kaltmiete: 328, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 41, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 41, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -223,7 +223,7 @@ const PRESETS = {
     kaltmiete: 497, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 70, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 70, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -233,7 +233,7 @@ const PRESETS = {
     kaltmiete: 555, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 86, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 86, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -243,7 +243,7 @@ const PRESETS = {
     kaltmiete: 440, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 54, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 54, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -253,7 +253,7 @@ const PRESETS = {
     kaltmiete: 595, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 70, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 70, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -263,7 +263,7 @@ const PRESETS = {
     kaltmiete: 960, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 86, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 86, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -273,7 +273,7 @@ const PRESETS = {
     kaltmiete: 432, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 54, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 54, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -283,7 +283,7 @@ const PRESETS = {
     kaltmiete: 559, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 84, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 84, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -293,7 +293,7 @@ const PRESETS = {
     kaltmiete: 860, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 86, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 86, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -303,7 +303,7 @@ const PRESETS = {
     kaltmiete: 425, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 40, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 40, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -313,7 +313,7 @@ const PRESETS = {
     kaltmiete: 980, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 83, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 83, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -323,7 +323,7 @@ const PRESETS = {
     kaltmiete: 745, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 86, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 86, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -333,7 +333,7 @@ const PRESETS = {
     kaltmiete: 340, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 41, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 41, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -343,7 +343,7 @@ const PRESETS = {
     kaltmiete: 0, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 55, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 55, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -353,7 +353,7 @@ const PRESETS = {
     kaltmiete: 476, stellplatzMiete: 0, subventionMo: 0, subventionMonate: 0,
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15,
     monateSeitMieterhoehung: 0,
-    hausgeld: 66, hgInflation: 0.02, mietverwaltung: 0, hausverwaltung: 30,
+    hausgeld: 66, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
     afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
@@ -828,7 +828,11 @@ function recalc(i) {
   }
 
   const bonVor = bonEinnahmen - bonAusgaben;
-  const bonMieteAnr = (i.kaltmiete + i.stellplatzMiete + i.subventionMo) * 0.8;
+  // Iter 45: Bank-Bonität nutzt die ECHTE Mieteinnahme in Monat 1 (kaltmiete + sp + Subv-geglättet),
+  // nicht die nominale Initial-Subv. Sonst zeigt der Bank-Bogen eine höhere Mieteinnahme
+  // als tatsächlich fließt (Subv-Glättung greift, wenn Bestandsmiete seit Vertrag gestiegen ist).
+  const subvMo1 = subvForMonth(1);
+  const bonMieteAnr = (i.kaltmiete + i.stellplatzMiete + subvMo1) * 0.8;
   const bonAnnuMo = annuityMo; // Annuität positiv aus Sicht der Belastung
   // Quick-Modus (kompatibel zu Iter 10): nur Miete − Annuität.
   // Detail-Modus (Iter 11): zusätzlich HG + HV bank-konservativ.
@@ -987,6 +991,29 @@ function recalcPaket(weInputsArr, personSettings) {
     });
   }
 
+  // 3b. cfMonate (120 Monate): element-weise summieren (Iter 45-Fix).
+  // Vorher: recalcPaket lieferte kein cfMonate → Cashflow-Chart war im Paket-Modus leer.
+  const cfMonate = [];
+  const moCount = (results[0].cfMonate || []).length;
+  for (let m = 0; m < moCount; m++) {
+    cfMonate.push({
+      m: m + 1,
+      y: Math.ceil((m + 1) / 12),
+      kaltmieteM:   sum(null, r => (r.cfMonate && r.cfMonate[m]) ? (r.cfMonate[m].kaltmieteM || 0) : 0),
+      spMieteM:     sum(null, r => (r.cfMonate && r.cfMonate[m]) ? (r.cfMonate[m].spMieteM   || 0) : 0),
+      subvM:        sum(null, r => (r.cfMonate && r.cfMonate[m]) ? (r.cfMonate[m].subvM      || 0) : 0),
+      mieteM:       sum(null, r => (r.cfMonate && r.cfMonate[m]) ? (r.cfMonate[m].mieteM     || 0) : 0),
+      zinsM:        sum(null, r => (r.cfMonate && r.cfMonate[m]) ? (r.cfMonate[m].zinsM      || 0) : 0),
+      tilgM:        sum(null, r => (r.cfMonate && r.cfMonate[m]) ? (r.cfMonate[m].tilgM      || 0) : 0),
+      hgM:          sum(null, r => (r.cfMonate && r.cfMonate[m]) ? (r.cfMonate[m].hgM        || 0) : 0),
+      mvM:          sum(null, r => (r.cfMonate && r.cfMonate[m]) ? (r.cfMonate[m].mvM        || 0) : 0),
+      hausverwM:    sum(null, r => (r.cfMonate && r.cfMonate[m]) ? (r.cfMonate[m].hausverwM  || 0) : 0),
+      stVorteilM:   sum(null, r => (r.cfMonate && r.cfMonate[m]) ? (r.cfMonate[m].stVorteilM || 0) : 0),
+      cfNachStM:    sum(null, r => (r.cfMonate && r.cfMonate[m]) ? (r.cfMonate[m].cfNachStM  || 0) : 0),
+      cfOperativM:  sum(null, r => (r.cfMonate && r.cfMonate[m]) ? (r.cfMonate[m].cfOperativM|| 0) : 0),
+    });
+  }
+
   // 4. Vermögens-Array (0..10): summieren
   const vermoegen = [];
   for (let y = 0; y <= 10; y++) {
@@ -1056,7 +1083,7 @@ function recalcPaket(weInputsArr, personSettings) {
     perWe: results,
     kpGesamt, knk: 0, investitionGesamt, ekBedarf, darlehen,
     annuityMo,
-    cf, vermoegen, irr: irrValue,
+    cf, cfMonate, vermoegen, irr: irrValue,
     vermoegenBrutto10, vermoegenNetto10, belastungMo,
     mietsubventionGesamt, markteinkaufVorteil,
     bonEinnahmen, bonAusgaben, bonVermoegen,

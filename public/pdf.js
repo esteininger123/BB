@@ -252,20 +252,27 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <tr><td>Mietverwaltung</td><td class="num">${fmt(kalkInputs.mietverwaltung)} / Mo</td></tr>
         ${(() => {
           // Iter 41.15: Mietsubvention 2-Phasen-Modell sauber im PDF ausweisen
+          // Iter 45: Gesamt-Summe nutzt den echten Liquiditätsabfluss aus dem recalc-Result
+          //          (r.mietsubventionGesamt) — konsistent zur Subv-Glättung.
           const phasen = Array.isArray(kalkInputs.subventionPhasen) ? kalkInputs.subventionPhasen : [];
+          const totalGeglättet = (r && typeof r.mietsubventionGesamt === 'number')
+            ? r.mietsubventionGesamt
+            : null;
           if (phasen.length >= 2) {
             const p1 = phasen[0], p2 = phasen[1];
-            const total = (p1.mo * p1.monate) + (p2.mo * p2.monate);
+            const totalNominal = (p1.mo * p1.monate) + (p2.mo * p2.monate);
+            const totalShow = totalGeglättet !== null ? totalGeglättet : totalNominal;
             return `
               <tr><td>Mietsubvention Phase 1</td><td class="num">${fmt(p1.mo)} / Mo × ${p1.monate} Mo</td></tr>
               <tr><td>Mietsubvention Phase 2</td><td class="num">${fmt(p2.mo)} / Mo × ${p2.monate} Mo</td></tr>
-              <tr><td>Mietsubvention gesamt</td><td class="num"><strong>${fmt(total)}</strong></td></tr>
+              <tr><td>Mietsubvention gesamt</td><td class="num"><strong>${fmt(totalShow)}</strong></td></tr>
             `;
           } else if (phasen.length === 1) {
             const p = phasen[0];
             return `<tr><td>Mietsubvention</td><td class="num">${fmt(p.mo)} / Mo × ${p.monate} Mo</td></tr>`;
           }
-          return `<tr><td>Mietsubvention</td><td class="num">${fmt(kalkInputs.subventionMo)} / Mo × ${esc(kalkInputs.subventionMonate)} Mo</td></tr>`;
+          const total1Show = totalGeglättet !== null ? totalGeglättet : ((kalkInputs.subventionMo || 0) * (kalkInputs.subventionMonate || 0));
+          return `<tr><td>Mietsubvention</td><td class="num">${fmt(kalkInputs.subventionMo)} / Mo × ${esc(kalkInputs.subventionMonate)} Mo (gesamt <strong>${fmt(total1Show)}</strong>)</td></tr>`;
         })()}
         <tr><td>Zins</td><td class="num">${fmtPct(kalkInputs.zins)}</td></tr>
         <tr><td>Tilgung</td><td class="num">${fmtPct(kalkInputs.tilgung)}</td></tr>

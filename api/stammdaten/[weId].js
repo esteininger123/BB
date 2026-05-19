@@ -93,7 +93,13 @@ async function loadStellplaetzeForWE(weId) {
 //     Begründung: Stichprobe 18.05.2026 — Vertragsbeginn zu 97,9 % gefüllt,
 //     'Anpassung gültig ab' nur zu 58 %. Bei jeder Erhöhung wird laut SOP-E §3.3
 //     ein neuer Vertragsdatensatz mit entsprechendem Vertragsbeginn angelegt.
-async function loadMietvertragInfoForWE(weId) {
+//
+// Iter 44 (19.05.2026): Stellplatzmiete pro-rata zur Stellplatz-Verknüpfung.
+// Wenn der zweite Parameter `weStpIds` (Array von Stellplatz-Record-IDs der WE)
+// übergeben wird, prüfen wir pro Mietvertrag, wie viele der vertraglich verlinkten
+// Stellplätze noch zur WE gehören. Beispiel Wess 5: Vertrag = 100 € für [stp1, stp2],
+// WE hat nur noch stp1 → Anteil 1/2, effektive Stellplatzmiete = 50 €.
+async function loadMietvertragInfoForWE(weId, weStpIds) {
   try {
     const recs = await listAll(TABLES.MIETVERTRAG, {
       fields: [
@@ -108,10 +114,12 @@ async function loadMietvertragInfoForWE(weId) {
     }, 5000);
 
     let stplMietsumme = 0;
+    let stplMietsummeNominal = 0; // ohne Pro-rata — für Debug/Diff
     let vertraegeMitStellplatz = 0;
     let jungsteMietsteigerung = null; // YYYY-MM-DD
     let jungsterVertragsbeginn = null;
     let vertragVorhanden = false;
+    const useProRata = Array.isArray(weStpIds);
 
     recs.forEach(r => {
       const f = r.fields || {};
@@ -125,7 +133,16 @@ async function loadMietvertragInfoForWE(weId) {
       const stpl = f[MIETVERTRAG_FIELDS.STELLPLATZ_LINK];
       const stplMiete = num(f[MIETVERTRAG_FIELDS.STELLPLATZMIETE]) || 0;
       if (stpl && stplMiete > 0) {
-        stplMietsumme += stplMiete;
+        const stplArr = Array.isArray(stpl) ? stpl : [];
+        const vertragStpIds = stplArr.map(x => (x && typeof x === 'object' && x.id) ? x.id : x);
+        let effektiveMiete = stplMiete;
+        if (useProRata && vertragStpIds.length > 0) {
+          // Pro-rata: nur Stellplätze zählen, die noch zur WE verknüpft sind
+          const gueltigeAnzahl = vertragStpIds.filter(id => weStpIds.includes(id)).length;
+          effektiveMiete = stplMiete * (gueltigeAnzahl / vertragStpIds.length);
+        }
+        stplMietsumme += effektiveMiete;
+        stplMietsummeNominal += stplMiete;
         vertraegeMitStellplatz += 1;
       }
       const gueltig = f[MIETVERTRAG_FIELDS.GUELTIG_AB];
@@ -140,6 +157,8 @@ async function loadMietvertragInfoForWE(weId) {
 
     return {
       stellplatzMietsumme: stplMietsumme,
+      stellplatzMietsummeNominal: stplMietsummeNominal,
+      stellplatzMieteProRata: useProRata && stplMietsummeNominal !== stplMietsumme,
       vertraegeMitStellplatz,
       vertragVorhanden,
       // Iter 41.13: Vertragsbeginn ist verlässlicher gepflegt als 'Anpassung gültig ab'
@@ -150,6 +169,8 @@ async function loadMietvertragInfoForWE(weId) {
     console.error('loadMietvertragInfoForWE failed:', e.message);
     return {
       stellplatzMietsumme: 0,
+      stellplatzMietsummeNominal: 0,
+      stellplatzMieteProRata: false,
       vertraegeMitStellplatz: 0,
       vertragVorhanden: false,
       letzteMietsteigerung: null,
@@ -479,17 +500,26 @@ module.exports = async (req, res) => {
         qmPreis:   num(wf[WE_FIELDS.QM_PREIS]),
       };
 
-      // --- 2) Stellplätze + Mietvertrag-Info parallel ---
-      const [stellplaetze, vertragInfo, kalkRec] = await Promise.all([
-        loadStellplaetzeForWE(weId),
-        loadMietvertragInfoForWE(weId),
+      // --- 2) Stellplätze zuerst (für Pro-rata-Mietberechnung), dann Mietvertrag + Kalk parallel ---
+      // Iter 44: Stellplatz-IDs werden an loadMietvertragInfoForWE übergeben, damit
+      // die Stellplatzmiete proportional zur aktuellen WE-Verknüpfung berechnet wird.
+      const stellplaetze = await loadStellplaetzeForWE(weId);
+      const weStpIds = stellplaetze.map(s => s.id);
+      const [vertragInfo, kalkRec] = await Promise.all([
+        loadMietvertragInfoForWE(weId, weStpIds),
         loadKalkStammdatenForWE(weId),
       ]);
 
-      // Stellplatz-Aggregat: Kaufpreis-Summe + Miete (Mietvertrag hat Vorrang, sonst alte Spalte)
+      // Stellplatz-Aggregat: Kaufpreis-Summe + Miete
+      // Iter 46: Stellplatz-Tabelle hat Vorrang vor Mietvertrag-Pauschale, sobald sie
+      // gepflegt ist (mind. 1 Stellplatz mit Miete > 0). Damit kann Vivien pro Stellplatz
+      // pflegen, und beim Entfernen eines Stellplatzes aus der WE sinkt die Summe
+      // automatisch. Wess 5: 1 Garage à 50 € statt 100 € Vertragspauschale.
       const stpKaufpreisSumme = stellplaetze.reduce((s, x) => s + (x.kaufpreis || 0), 0);
       const stpAlteMieteSumme = stellplaetze.reduce((s, x) => s + (x.mieteMo || 0), 0);
-      const stpMieteEffektiv = vertragInfo.stellplatzMietsumme > 0 ? vertragInfo.stellplatzMietsumme : stpAlteMieteSumme;
+      const stpMieteEffektiv = stpAlteMieteSumme > 0
+        ? stpAlteMieteSumme
+        : vertragInfo.stellplatzMietsumme;
 
       // --- Vermietungs-Status bestimmen (Iter 41.17, 18.05.2026) ---
       // Single Source of Truth: Lookup „Miet-status (ist)" aus WE-Tabelle, gespiegelt
@@ -583,40 +613,8 @@ module.exports = async (req, res) => {
       // Existierenden Datensatz finden (egal welcher Status)
       const existing = await loadKalkStammdatenForWE(weId);
 
-      // Iter 41.16 (Audit-Fix #14): Pflichtfeld-Validierung beim Aktiv-Setzen.
-      // Eine WE darf nur dann auf Status=Aktiv gesetzt werden, wenn die für den
-      // Vertriebs-Pitch zwingend benötigten Felder gepflegt sind. Sonst rechnet die
-      // App mit Defaults, was zu falschen Kunden-PDFs führt.
-      if (body.status === KALK_STATUS_AKTIV) {
-        const merged = Object.assign({}, existing ? (existing.fields || {}) : {}, fields);
-        const missing = [];
-        const mbv = num(merged[KALK_STAMMDATEN_FIELDS.MIETE_BEI_VERKAUF]);
-        const marktmiete = num(merged[KALK_STAMMDATEN_FIELDS.MARKTMIETE]);
-        const marktIs = num(merged[KALK_STAMMDATEN_FIELDS.MARKTPREIS_IS]);
-        const marktHd = num(merged[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]);
-        const vermObj = merged[KALK_STAMMDATEN_FIELDS.VERMIETUNGS_MODUS];
-        const vermietungsModusName = vermObj && typeof vermObj === 'object' ? vermObj.name : vermObj;
-        const letzteMietsteig = merged[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG];
-
-        if (!mbv || mbv <= 0) missing.push('Miete bei Verkauf');
-        if (!marktmiete || marktmiete <= 0) missing.push('Marktmiete');
-        if ((!marktIs || marktIs <= 0) && (!marktHd || marktHd <= 0))
-          missing.push('Marktpreis (ImmoScout oder Homeday — mindestens einer)');
-        if (!vermietungsModusName) missing.push('Vermietungs-Modus');
-        // Letzte Mietsteigerung ist nur bei Bestand zwingend (für Subv-Restlaufzeit)
-        if (vermietungsModusName === 'Bestand' && !letzteMietsteig)
-          missing.push('Letzte Mietsteigerung (Pflicht bei Modus Bestand)');
-
-        if (missing.length > 0) {
-          return res.status(400).json({
-            error: 'Pflichtfelder fehlen — die WE darf nicht auf Aktiv gesetzt werden',
-            missingFields: missing,
-            hint: 'Bitte fehlende Felder in Airtable pflegen und erneut speichern.',
-          });
-        }
-      }
-
       // Body → Airtable-Field-IDs (nur gesetzte Felder)
+      // Iter 45 (19.05.2026): Reihenfolge gefixt — fields VOR Aktiv-Validierung, sonst ReferenceError.
       const fields = {};
       if (body.status !== undefined)                fields[KALK_STAMMDATEN_FIELDS.STATUS]               = body.status;
       if (body.hausverwaltung !== undefined)        fields[KALK_STAMMDATEN_FIELDS.HAUSVERWALTUNG]       = num(body.hausverwaltung);
@@ -640,6 +638,37 @@ module.exports = async (req, res) => {
       if (body.marktpreisHomeday !== undefined)     fields[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]        = num(body.marktpreisHomeday);
       // Iter 41.10
       if (body.marktmiete !== undefined)            fields[KALK_STAMMDATEN_FIELDS.MARKTMIETE]           = num(body.marktmiete);
+
+      // Iter 41.16 (Audit-Fix #14): Pflichtfeld-Validierung beim Aktiv-Setzen.
+      // Eine WE darf nur dann auf Status=Aktiv gesetzt werden, wenn die für den
+      // Vertriebs-Pitch zwingend benötigten Felder gepflegt sind.
+      if (body.status === KALK_STATUS_AKTIV) {
+        const merged = Object.assign({}, existing ? (existing.fields || {}) : {}, fields);
+        const missing = [];
+        const mbv = num(merged[KALK_STAMMDATEN_FIELDS.MIETE_BEI_VERKAUF]);
+        const marktmiete = num(merged[KALK_STAMMDATEN_FIELDS.MARKTMIETE]);
+        const marktIs = num(merged[KALK_STAMMDATEN_FIELDS.MARKTPREIS_IS]);
+        const marktHd = num(merged[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]);
+        const vermObj = merged[KALK_STAMMDATEN_FIELDS.VERMIETUNGS_MODUS];
+        const vermietungsModusName = vermObj && typeof vermObj === 'object' ? vermObj.name : vermObj;
+        const letzteMietsteig = merged[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG];
+
+        if (!mbv || mbv <= 0) missing.push('Miete bei Verkauf');
+        if (!marktmiete || marktmiete <= 0) missing.push('Marktmiete');
+        if ((!marktIs || marktIs <= 0) && (!marktHd || marktHd <= 0))
+          missing.push('Marktpreis (ImmoScout oder Homeday — mindestens einer)');
+        if (!vermietungsModusName) missing.push('Vermietungs-Modus');
+        if (vermietungsModusName === 'Bestand' && !letzteMietsteig)
+          missing.push('Letzte Mietsteigerung (Pflicht bei Modus Bestand)');
+
+        if (missing.length > 0) {
+          return res.status(400).json({
+            error: 'Pflichtfelder fehlen — die WE darf nicht auf Aktiv gesetzt werden',
+            missingFields: missing,
+            hint: 'Bitte fehlende Felder in Airtable pflegen und erneut speichern.',
+          });
+        }
+      }
 
       // Quelle automatisch setzen: "App-Edit {VertrieblerName} {YYYY-MM-DD}"
       const datum = new Date().toISOString().slice(0, 10);

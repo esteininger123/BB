@@ -31,7 +31,9 @@ module.exports = async (req, res) => {
 
   const session = verifySession(req);
   if (!session) return res.status(401).json({ error: 'Nicht eingeloggt' });
-  if (session.rolle !== 'Admin') return res.status(403).json({ error: 'Nur Admins' });
+  // Iter 45: Auch Vertriebler dürfen die Sammel-Ansicht lesen — sie ist die
+  // Datenquelle für den Paket-Modus (Pro-rata-Stellplatzmiete). Die Felder hier
+  // sind dieselben, die über /api/stammdaten/[weId] einzeln lesbar sind.
 
   try {
     // 1) Alle WEs in Vermarktung (B&B Immo) parallel laden
@@ -124,10 +126,11 @@ module.exports = async (req, res) => {
 
       // Stellplatz
       const stpl = stplByWe[weRec.id] || [];
+      const weStpIds = stpl.map(r => r.id);
       const stpKp    = stpl.reduce((s, r) => s + (num((r.fields || {})[STELLPLATZ_FIELDS.KAUFPREIS]) || 0), 0);
       const stpMiete = stpl.reduce((s, r) => s + (num((r.fields || {})[STELLPLATZ_FIELDS.MIETKOSTEN]) || 0), 0);
 
-      // Mietvertrag
+      // Mietvertrag (Iter 44: Stellplatzmiete pro-rata zur Stellplatz-WE-Verknüpfung)
       const vertraege = vertragsByWe[weRec.id] || [];
       let vertragVorhanden = false;
       let stpVertragMiete = 0;
@@ -138,13 +141,23 @@ module.exports = async (req, res) => {
         vertragVorhanden = true;
         const stplLink = f[MIETVERTRAG_FIELDS.STELLPLATZ_LINK];
         const stplMiete = num(f[MIETVERTRAG_FIELDS.STELLPLATZMIETE]) || 0;
-        if (stplLink && stplMiete > 0) stpVertragMiete += stplMiete;
+        if (stplLink && stplMiete > 0) {
+          const stplArr = Array.isArray(stplLink) ? stplLink : [];
+          const vertragStpIds = stplArr.map(x => (x && typeof x === 'object' && x.id) ? x.id : x);
+          let effektiveMiete = stplMiete;
+          if (vertragStpIds.length > 0) {
+            const gueltigeAnzahl = vertragStpIds.filter(id => weStpIds.includes(id)).length;
+            effektiveMiete = stplMiete * (gueltigeAnzahl / vertragStpIds.length);
+          }
+          stpVertragMiete += effektiveMiete;
+        }
         const gueltig = f[MIETVERTRAG_FIELDS.GUELTIG_AB];
         const beginn = f[MIETVERTRAG_FIELDS.VERTRAGSBEGINN];
         if (gueltig && (!jungsteMietsteig || gueltig > jungsteMietsteig)) jungsteMietsteig = gueltig;
         if (beginn && (!jungsterVertragsbeginn || beginn > jungsterVertragsbeginn)) jungsterVertragsbeginn = beginn;
       });
-      const stpMieteEffektiv = stpVertragMiete > 0 ? stpVertragMiete : stpMiete;
+      // Iter 46: Stellplatz-Tabelle hat Vorrang vor Mietvertrag, wenn gepflegt
+      const stpMieteEffektiv = stpMiete > 0 ? stpMiete : stpVertragMiete;
 
       const stammLetzte = sf[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG] || null;
       const letzteMietsteigerung = stammLetzte || jungsteMietsteig || jungsterVertragsbeginn || null;
