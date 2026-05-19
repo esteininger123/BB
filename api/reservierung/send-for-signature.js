@@ -122,6 +122,9 @@ module.exports = async (req, res) => {
     const ablaufDate = new Date(Date.now() + fristTage * 24 * 3600 * 1000);
     const ablaufStr  = ablaufDate.toLocaleDateString('de-DE');
 
+    // Vertriebler-Name (Verkäufer) für Custom-Variable im Doc-Body
+    const verkaeuferDisplay = (vertriebler[VERTRIEBLER_FIELDS.NAME] || 'Edgar Steininger').trim();
+
     const tokens = [
       { name: 'Ablauffrist.Reservierung',         value: ablaufStr },
       { name: 'Kaufpreis',                        value: formatEUR(kaufpreis) },
@@ -129,6 +132,14 @@ module.exports = async (req, res) => {
       { name: 'Straße.Hausnummer.PLZ.Ort',        value: objektAdresse || 'Adresse beim Notar nachzutragen' },
       { name: 'Kaufinteressent.Vorname.Nachname', value: `${vorname} ${nachname}`.trim() },
       { name: 'Kaufinteressent.Ort',              value: kundeOrt || '' },
+      // Verkäufer-Custom-Variable (vom Template-Edit, ersetzt das alte hardcoded "Laurin Zimmerer")
+      { name: 'Verkäufer.Vorname.Nachname',       value: verkaeuferDisplay },
+      // Käufer-Adresse zusätzlich auch als Custom-Tokens, damit sie schon im Draft sichtbar ist
+      // (nicht erst nach Send). Falls die Standard-Recipient-Vars trotzdem getrennt sind, werden
+      // sie beim Render zusätzlich durch die Recipient-Daten gefüllt — Doppelung schadet nicht.
+      { name: 'Kaufinteressent.StreetAddress',    value: kundeStrasse || '' },
+      { name: 'Kaufinteressent.PostalCode',       value: kundePlz || '' },
+      { name: 'Kaufinteressent.State',            value: kundeOrt || '' },
     ];
 
     // --- 6. Recipients (sequenziell: Käufer zuerst, Vertriebler danach)
