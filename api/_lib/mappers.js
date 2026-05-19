@@ -18,7 +18,9 @@ function kundeRecordToBasic(rec, ownerNameById = {}) {
     phase:    f[KUNDEN_FIELDS.PHASE]    || '',
     ownerId:   ownerId || null,
     ownerName: ownerId ? (ownerNameById[ownerId] || '') : '',
-    lastActivity: f[KUNDEN_FIELDS.LAST_ACTIVITY] || null
+    lastActivity: f[KUNDEN_FIELDS.LAST_ACTIVITY] || null,
+    // Iter 52: archiviert-Flag durchreichen (für Vertrieb-Filter und Admin-Ansicht)
+    archiviert: !!f[KUNDEN_FIELDS.ARCHIVIERT]
   };
 }
 
@@ -47,6 +49,7 @@ function kundeBodyToFields(body, opts = {}) {
   if (body.notizen  !== undefined) out[KUNDEN_FIELDS.NOTIZEN]  = body.notizen  || '';
   if (body.quickBonJson !== undefined) out[KUNDEN_FIELDS.QUICK_BON_JSON] = stringifyJson(body.quickBonJson);
   if (body.saJson       !== undefined) out[KUNDEN_FIELDS.SA_JSON]       = stringifyJson(body.saJson);
+  if (body.archiviert   !== undefined) out[KUNDEN_FIELDS.ARCHIVIERT]    = !!body.archiviert;
 
   // Name = "Vorname Nachname" (Primary)
   if (body.vorname !== undefined || body.nachname !== undefined) {
@@ -127,6 +130,8 @@ function weRecordToApi(rec, projektNameById = {}) {
     qm:         toNumber(f[WE_FIELDS.QM]),
     kaltmiete:  toNumber(f[WE_FIELDS.KALTMIETE]),
     qmPreis:    toNumber(f[WE_FIELDS.QM_PREIS]),
+    // Iter 51: Link zur Objektvorstellung (Domi pflegt). Wenn leer → kein Anzeige.
+    objektvorstellungLink: f[WE_FIELDS.OBJEKTVORSTELLUNG] || '',
     projektId,
     projektName: projektId ? (projektNameById[projektId] || '') : ''
   };

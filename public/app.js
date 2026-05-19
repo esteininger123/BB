@@ -420,6 +420,8 @@ async function renderKunde() {
   }
   const displayName = k.name || ((k.vorname || '') + ' ' + (k.nachname || '')).trim() || 'Kunde';
   const isOwner = (k.ownerId === state.user.id) || state.user.rolle === 'Admin';
+  const isAdmin = state.user.rolle === 'Admin';
+  const isArchived = !!k.archiviert;
 
   app.innerHTML = `
     <div class="main">
@@ -427,7 +429,7 @@ async function renderKunde() {
 
       <div class="toolbar">
         <div>
-          <h1 class="page-title">${esc(displayName)}</h1>
+          <h1 class="page-title">${esc(displayName)}${isArchived ? ' <span class="badge archived" style="background:#7A7A72;color:#fff;font-size:12px;font-weight:600;padding:2px 8px;border-radius:3px;vertical-align:middle;">archiviert</span>' : ''}</h1>
           <div class="flex gap-12 mt-8">
             <select id="phase-select" style="max-width:220px">
               ${PHASEN.map(p => `<option value="${esc(p)}" ${p === k.phase ? 'selected' : ''}>${esc(p)}</option>`).join('')}
@@ -435,7 +437,11 @@ async function renderKunde() {
             <span class="badge ${phaseBadgeClass(k.phase)}">${esc(k.phase || 'Lead')}</span>
           </div>
         </div>
-        ${isOwner ? `<button class="danger" onclick="deleteKunde()">Löschen</button>` : ''}
+        <div style="display:flex;gap:8px;">
+          ${isOwner && !isArchived ? `<button class="secondary" onclick="archiveKunde()" title="Kunde archivieren — verschwindet aus Deiner Liste, bleibt aber für Admin zugänglich.">Archivieren</button>` : ''}
+          ${isOwner && isArchived ? `<button class="secondary" onclick="unarchiveKunde()" title="Archivierung aufheben — Kunde wird wieder in der normalen Liste angezeigt.">Wiederherstellen</button>` : ''}
+          ${isAdmin ? `<button class="danger" onclick="deleteKunde()" title="Endgültiges Löschen — nur Admin.">Endgültig löschen</button>` : ''}
+        </div>
       </div>
 
       <div class="tabs">
@@ -475,16 +481,39 @@ function setTab(t) {
 window.setTab = setTab;
 
 async function deleteKunde() {
-  if (!confirm('Kunde wirklich löschen?')) return;
+  if (!confirm('Kunde ENDGÜLTIG löschen? Dies kann nicht rückgängig gemacht werden.')) return;
   try {
     await api.delete('/api/kunden/' + state.kundeId);
     state.kunden = state.kunden.filter(x => x.id !== state.kundeId);
     state.kunde = null;
-    toast('Kunde gelöscht', 'success');
+    toast('Kunde endgültig gelöscht', 'success');
     go('/dashboard');
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
 window.deleteKunde = deleteKunde;
+
+// Iter 52: Archivieren — Kunde verschwindet aus Vertriebs-Liste, bleibt für Admin sichtbar.
+async function archiveKunde() {
+  if (!confirm('Kunde archivieren? Er verschwindet aus Deiner Kundenliste — der Admin kann ihn weiterhin einsehen.')) return;
+  try {
+    await api.put('/api/kunden/' + state.kundeId, { archiviert: true });
+    state.kunden = state.kunden.filter(x => x.id !== state.kundeId);
+    state.kunde = null;
+    toast('Kunde archiviert', 'success');
+    go('/dashboard');
+  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+window.archiveKunde = archiveKunde;
+
+async function unarchiveKunde() {
+  try {
+    await api.put('/api/kunden/' + state.kundeId, { archiviert: false });
+    if (state.kunde) state.kunde.archiviert = false;
+    toast('Kunde wiederhergestellt', 'success');
+    renderKunde();
+  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+window.unarchiveKunde = unarchiveKunde;
 
 function renderTab() {
   if (state.tab === 'uebersicht') renderTabUebersicht();
@@ -667,21 +696,26 @@ function renderTabKalkulator() {
               `).join('')}
             </select>
             ${i._weId ? `
-              <div class="text-tertiary text-small mt-4" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <div class="we-meta-row text-small text-tertiary">
                 <span>Aktiv: ${esc(i._weNr ? 'WE ' + i._weNr + ' · ' : '')}${esc(i._weLage || '')}</span>
                 ${i._vermietungsStatus === 'vermietet' ? `
-                  <span style="background:#c6f6d5;color:#22543d;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">● vermietet</span>
+                  <span class="we-status-pill vermietet">● vermietet</span>
                 ` : i._vermietungsStatus === 'leer' ? `
-                  <span style="background:#fed7d7;color:#742a2a;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">○ leer — B&B vermietet vor Verkauf neu</span>
+                  <span class="we-status-pill leer">○ leer — B&amp;B vermietet vor Verkauf neu</span>
                 ` : ''}
                 ${i._vermietungsStatus === 'leer' ? `
-                  <span title="Iter 41.17: bei Leerstand greift Staffelmiete ab Monat 1, kein alter Vertragsbeginn." style="background:#fefcbf;color:#744210;padding:2px 8px;border-radius:10px;font-size:11px;">Neuvermietung-Modus aktiv (Staffel ${Math.round((i.steigerungProz || 0.03) * 100)} %, ab Monat 1)</span>
+                  <span class="we-status-pill hint" title="Iter 41.17: bei Leerstand greift Staffelmiete ab Monat 1, kein alter Vertragsbeginn.">Neuvermietung-Modus aktiv (Staffel ${Math.round((i.steigerungProz || 0.03) * 100)} %, ab Monat 1)</span>
                 ` : i._letzteMietsteigerung ? `
-                  <span style="background:#e2e8f0;color:#2d3748;padding:2px 8px;border-radius:10px;font-size:11px;">letzte Mietsteig.: ${esc(fmtDate(i._letzteMietsteigerung))}</span>
+                  <span class="we-status-pill neutral">letzte Mietsteig.: ${esc(fmtDate(i._letzteMietsteigerung))}</span>
+                ` : ''}
+                ${i._objektvorstellungLink ? `
+                  <a href="${esc(i._objektvorstellungLink)}" target="_blank" rel="noopener" class="we-status-pill" style="background:#22543d;color:#fff;text-decoration:none;font-weight:600;">
+                    ↗ Objektvorstellung öffnen
+                  </a>
                 ` : ''}
               </div>
               ${i._stellplatzAnzahl > 0 ? `
-                <div class="text-tertiary text-small mt-4" style="background:#f8fafc;padding:8px 12px;border-radius:6px;border-left:3px solid #2c5282;">
+                <div class="we-stellplatz-info">
                   <strong>${(() => {
                     const g = i._stellplatzGarageCount || 0;
                     const f = i._stellplatzFlaecheCount || 0;
@@ -695,16 +729,16 @@ function renderTabKalkulator() {
                 </div>
               ` : ''}
               ${(() => {
-                // Iter 41.16 (Audit-Fix #11): Stammdaten-Quelle für Vertriebler verständlich
+                // Iter 50 Polish: Stammdaten-Quelle-Hinweis via CSS-Klassen (ok/warn/loading/error)
                 if (!i._stammdatenQuelle) return '';
                 const labelMap = {
-                  'airtable-aktiv':              { txt: '✓ Stammdaten aktiv aus Airtable', color: '#2f855a' },
-                  'airtable-entwurf-defaults':   { txt: '⚠ Stammdaten nur als Entwurf — Kalkulation läuft mit Defaults', color: '#c05621' },
-                  'airtable-fehlt-defaults':     { txt: '⚠ Keine Stammdaten gepflegt — Kalkulation läuft mit Defaults', color: '#c05621' },
-                  'airtable-load':               { txt: '… Stammdaten werden geladen', color: '#718096' },
+                  'airtable-aktiv':            { txt: '✓ Stammdaten aktiv aus Airtable',              cls: 'ok' },
+                  'airtable-entwurf-defaults': { txt: '⚠ Stammdaten nur als Entwurf — Kalkulation läuft mit Defaults', cls: 'warn' },
+                  'airtable-fehlt-defaults':   { txt: '⚠ Keine Stammdaten gepflegt — Kalkulation läuft mit Defaults', cls: 'warn' },
+                  'airtable-load':             { txt: '… Stammdaten werden geladen',                   cls: 'loading' },
                 };
-                const info = labelMap[i._stammdatenQuelle] || { txt: i._stammdatenQuelle, color: '#718096' };
-                return `<div class="text-tertiary text-small mt-4" style="color:${info.color};">${esc(info.txt)}</div>`;
+                const info = labelMap[i._stammdatenQuelle] || { txt: i._stammdatenQuelle, cls: 'loading' };
+                return `<div class="stammdaten-hint ${info.cls}">${esc(info.txt)}</div>`;
               })()}
             ` : ''}
           `}
@@ -750,9 +784,9 @@ function renderTabKalkulator() {
         <div class="card-title">Dein Vermögensaufbau · 10 Jahre</div>
         <div class="text-tertiary text-small">Die Schere zwischen Marktwert und Deiner Restschuld öffnet sich Jahr für Jahr — das ist Dein Vermögensaufbau.</div>
         <div class="chart-container" style="height:420px;"><canvas id="chart-vermoegen"></canvas></div>
-        <div class="chart-formula" style="margin-top:12px;padding:12px 16px;background:#f8fafc;border-left:3px solid #B08A4D;border-radius:6px;font-size:13px;">
+        <div class="chart-formula">
           <strong>Formel:</strong> Gesamtvermögen = (Marktwert × Wertsteigerung<sup>n</sup>) − Restschuld + kum. Cashflows<br>
-          <strong>Vermögenszuwachs</strong> = Gesamtvermögen − eingesetztes EK (blaue Linie unten zeigt, was zum Start reingesteckt wurde — bleibt konstant)<br>
+          <strong>Vermögenszuwachs</strong> = Gesamtvermögen − eingesetztes EK (die Linie unten zeigt, was zum Start reingesteckt wurde — bleibt konstant)<br>
           <span class="text-tertiary text-small">Marktwert steigt mit Wertsteigerung. Restschuld sinkt mit Tilgung. Die Schere zwischen beiden plus die kumulierten Cashflows ist das Gesamtvermögen.</span>
         </div>
       </div>
@@ -761,25 +795,24 @@ function renderTabKalkulator() {
       <div class="grid-2 mt-16">
         <div class="card">
           <div class="card-title">Dein Cashflow · 10 Jahre</div>
-          <div id="cf-werte-block" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0;"></div>
+          <div id="cf-werte-block" class="kalk-werte-block"></div>
           <div class="chart-container"><canvas id="chart-cashflow"></canvas></div>
         </div>
         <div class="card">
           <div class="card-title">Dein Eigenkapital · Anlage vs. Immobilie</div>
-          <div id="spar-werte-block" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0;"></div>
+          <div id="spar-werte-block" class="kalk-werte-block"></div>
           <div class="chart-container"><canvas id="chart-sparen"></canvas></div>
-          <div style="display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12px;color:#7A7A72;">
-            <span style="white-space:nowrap;">EK-Verzinsung:</span>
+          <div class="spar-zins-row">
+            <span class="spar-zins-label">EK-Verzinsung:</span>
             <input type="range" id="spar-zins-slider" min="0" max="12" step="0.05"
                    value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
-                   class="spar-zins-range"
-                   style="flex:1;cursor:pointer;accent-color:#7A7A72;">
-            <span id="spar-zins-val" style="font-weight:600;color:#22543d;min-width:50px;text-align:right;">
+                   class="spar-zins-range">
+            <span id="spar-zins-val" class="spar-zins-val">
               ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} %
             </span>
             <input type="number" id="spar-zins-num" min="0" max="12" step="0.05"
                    value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
-                   style="width:54px;padding:3px 5px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;background:#fafafa;">
+                   class="spar-zins-num">
           </div>
         </div>
       </div>
@@ -1028,7 +1061,10 @@ function kalkInputsThemenHtml(i) {
           const fmt = (v) => Math.round(v).toLocaleString('de-DE');
 
           // Pflege-Lücken-Quellen: explizit warnen.
-          const istLuecke = quelle.startsWith('auto-') && quelle.endsWith('-fehlt');
+          // Iter 50 (Audit-Fix B-50.1, 19.05.2026): vorher griff `endsWith('-fehlt')`
+          // nicht bei `auto-kein-spielraum` — obwohl der Fall in der pflegeMap drin ist.
+          // Jetzt explizit alle gepflegt-Pflege-Quellen prüfen.
+          const istLuecke = ['auto-mbv-fehlt','auto-kappung-fehlt','auto-modus-fehlt','auto-kein-spielraum'].includes(quelle);
           if (istLuecke) {
             const pflegeMap = {
               'auto-mbv-fehlt':       'Miete bei Verkauf',
@@ -1266,11 +1302,12 @@ async function loadWeIntoKalk(weId) {
   const w = state.wohneinheiten.find(x => x.id === weId);
   if (!w) return;
 
-  // 1) WE-Metadata immer aus Airtable (Lage-Text, Projekt-Name)
+  // 1) WE-Metadata immer aus Airtable (Lage-Text, Projekt-Name, Objektvorstellungs-Link)
   state.kalk._weId = weId;
   state.kalk._weLage = w.lageText || w.lage || w.weNr || '';
   state.kalk._weNr = w.weNr || '';
   state.kalk._projektName = w.projektName || '';
+  state.kalk._objektvorstellungLink = w.objektvorstellungLink || '';
 
   // 2) Defaults zurücksetzen aus getDefaults() — falls Airtable Lücken hat,
   //    haben wir wenigstens vernünftige Standardwerte (Wertsteigerung 3 % etc.).
@@ -1536,7 +1573,16 @@ function recalcAndRender() {
       r = window.Kalk.recalc(state.kalk);
     }
   }
-  catch (e) { console.error('recalc', e); return; }
+  catch (e) {
+    // Iter 50 (Audit-Fix B-50.3, 19.05.2026): vorher stiller catch — Edgar bekam
+    // gar nichts mit, KPI-Grid blieb mit alten Werten stehen. Jetzt: User-Toast
+    // + leeres KPI-Grid mit Fehler-Hinweis, damit der Zustand klar wird.
+    console.error('recalc', e);
+    toast('Berechnung fehlgeschlagen: ' + (e.message || 'unbekannter Fehler'), 'error');
+    const errGrid = document.getElementById('kpi-grid');
+    if (errGrid) errGrid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;color:var(--negative);"><strong>Berechnung fehlgeschlagen.</strong> Prüf die Eingabewerte oder lade die Seite neu.</div>`;
+    return;
+  }
   state.kalkResult = r;
 
   // KPIs
@@ -1715,7 +1761,7 @@ function renderStories(r) {
           const phasen = Array.isArray(i.subventionPhasen) ? i.subventionPhasen : [];
           if (phasen.length === 0 && !i.subventionMonate) return '';
           const totalEur = r.mietsubventionGesamt || 0;
-          const capInfo = state.kalk._subventionCapGreift ? ` <span style="color:#c05621;">(Maximal-Subvention erreicht — max ${fmt(state.kalk._subventionCapEur)})</span>` : '';
+          const capInfo = state.kalk._subventionCapGreift ? ` <span style="color:var(--badge-mittelphase-fg);">(Maximal-Subvention erreicht — max ${fmt(state.kalk._subventionCapEur)})</span>` : '';
           if (phasen.length >= 2) {
             const p1 = phasen[0], p2 = phasen[1];
             return `<p><strong>Deine Mietsubvention gesamt: ${fmt(totalEur)}</strong>${capInfo}<br>
@@ -1880,31 +1926,34 @@ function drawCharts(r) {
   const cfBarStVorteil = cfBarData.map(d => d.stVorteil);
   const cfBarNachSt    = cfBarData.map(d => d.nachSt);
 
-  // --- Drei Karten Monatswerte für Jahr 1 + Jahr 2 (Iter 43) ---
+  // --- Drei Karten Monatswerte für Jahr 1 + Jahr 10 ---
+  // Iter 51 (19.05.2026, Edgar-Wunsch): vorher Jahr 1 vs. Jahr 2 — der Diff war
+  // wegen Mietsteigerungs-Sprung-Logik fast 0. Jahr 1 vs. Jahr 10 zeigt den vollen
+  // Cashflow-Sprung über die Haltedauer und ist deutlich vertriebsstärker.
   const werteBlock = document.getElementById('cf-werte-block');
   if (werteBlock && cf10.length > 1) {
-    const opJ1   = cfOperativ[0] / 12;
-    const opJ2   = cfOperativ[1] / 12;
-    const stVJ1  = cfStVorteil[0] / 12;
-    const stVJ2  = cfStVorteil[1] / 12;
-    const nachJ1 = cfNachSt[0] / 12;
-    const nachJ2 = cfNachSt[1] / 12;
+    const opJ1    = cfOperativ[0] / 12;
+    const opJ10   = cfOperativ[9] / 12;
+    const stVJ1   = cfStVorteil[0] / 12;
+    const stVJ10  = cfStVorteil[9] / 12;
+    const nachJ1  = cfNachSt[0] / 12;
+    const nachJ10 = cfNachSt[9] / 12;
     const fmtMo = (v) => (v >= 0 ? '+' : '−') + ' ' + Math.abs(Math.round(v)).toLocaleString('de-DE') + ' €/Mo';
-    const col   = (v) => v >= 0 ? '#2D6E47' : '#9A3E33';
-    const card = (title, accent, j1, j2, hervorgehoben) => `
-      <div style="padding:10px 14px;background:#fff;border-radius:6px;border:${hervorgehoben?'2px':'1px'} solid ${accent};${hervorgehoben?'box-shadow:0 2px 8px rgba(176,138,77,0.18);':''}">
-        <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;font-weight:600;color:${accent};">${title}</div>
-        <div style="margin-top:6px;display:flex;justify-content:space-between;font-size:14px;">
-          <span class="text-tertiary">J1</span><span style="font-weight:700;color:${col(j1)};">${fmtMo(j1)}</span>
+    const cls   = (v) => v >= 0 ? 'positive' : 'negative';
+    const card = (title, j1, j10, hervorgehoben) => `
+      <div class="cf-detail-card${hervorgehoben ? ' primary' : ''}">
+        <div class="cf-detail-title">${esc(title)}</div>
+        <div class="cf-detail-row">
+          <span class="text-tertiary">Jahr 1</span><span class="${cls(j1)}">${fmtMo(j1)}</span>
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:14px;">
-          <span class="text-tertiary">J2</span><span style="font-weight:700;color:${col(j2)};">${fmtMo(j2)}</span>
+        <div class="cf-detail-row">
+          <span class="text-tertiary">Jahr 10</span><span class="${cls(j10)}">${fmtMo(j10)}</span>
         </div>
       </div>`;
     werteBlock.innerHTML =
-      card('Dein operativer CF', '#7A7A72', opJ1, opJ2, false) +
-      card('Dein Steuervorteil', '#7A7A72', stVJ1, stVJ2, false) +
-      card('★ Dein CF nach Steuern', '#22543d', nachJ1, nachJ2, true);
+      card('Dein operativer CF',     opJ1,   opJ10,   false) +
+      card('Dein Steuervorteil',     stVJ1,  stVJ10,  false) +
+      card('★ Dein CF nach Steuern', nachJ1, nachJ10, true);
   }
 
   // Sparen vs. Investieren: bleibt wie gehabt
@@ -2004,11 +2053,14 @@ function drawCharts(r) {
           order: 4,
         },
         // [4] Eingesetztes Eigenkapital — konstante horizontale Linie (Boden für Gewinn-Zone)
+        // Iter 50 Polish: war Material-Blau (#2c5282) — einziges Nicht-B&B-Hex im Chart.
+        // Auf text-secondary (#3A3A35) umgestellt: neutrale dunkle Linie, klar abgesetzt
+        // von den drei Werte-Linien (Marktwert/Restschuld/Vermögen) ohne Brand-Bruch.
         {
           label: 'Eingesetztes EK (KNK)',
           data: ekLinie,
-          borderColor: '#2c5282',
-          backgroundColor: 'rgba(44,82,130,0)',
+          borderColor: '#3A3A35',
+          backgroundColor: 'rgba(58,58,53,0)',
           borderWidth: 2,
           borderDash: [4, 4],
           tension: 0,
@@ -2022,7 +2074,7 @@ function drawCharts(r) {
         {
           label: '★ Vermögenszuwachs (= Gewinn)',
           data: r.vermoegen.map(v => Math.round(v.vermoegenNetto || 0)),
-          borderColor: '#22543d',
+          borderColor: '#2D6E47',
           backgroundColor: 'rgba(34,84,61,0)',
           borderWidth: 2,
           borderDash: [],
@@ -2087,13 +2139,13 @@ function drawCharts(r) {
           type: 'line',
           label: '★ CF nach Steuern',
           data: cfBarNachSt,
-          borderColor: '#22543d',
-          backgroundColor: '#22543d',
+          borderColor: '#2D6E47',
+          backgroundColor: '#2D6E47',
           borderWidth: 3,
           pointRadius: 6,
           pointHoverRadius: 9,
           pointStyle: 'circle',
-          pointBackgroundColor: '#22543d',
+          pointBackgroundColor: '#2D6E47',
           pointBorderColor: '#fff',
           pointBorderWidth: 2,
           tension: 0.25,
@@ -2165,16 +2217,17 @@ function drawCharts(r) {
     const immobil10  = Math.round(sparenMit[10] || 0);
     const delta      = immobil10 - anlage10;
     const fmtBig = (v) => (v >= 0 ? '' : '−') + Math.abs(Math.round(v)).toLocaleString('de-DE') + ' €';
-    const cardS = (title, accent, value, sub, hervorgehoben) => `
-      <div style="padding:10px 14px;background:#fff;border-radius:6px;border:${hervorgehoben?'2px':'1px'} solid ${accent};${hervorgehoben?'box-shadow:0 2px 8px rgba(34,84,61,0.18);':''}">
-        <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;font-weight:600;color:${accent};">${title}</div>
-        <div style="margin-top:4px;font-size:17px;font-weight:700;color:${accent};">${fmtBig(value)}</div>
-        <div class="text-tertiary text-small" style="margin-top:2px;">${sub}</div>
+    // Iter 50 Polish: Hex → CSS-Vars über `.spar-card`-Klasse (analog cf-detail-card).
+    const cardS = (title, value, sub, hervorgehoben) => `
+      <div class="spar-card${hervorgehoben ? ' primary' : ''}">
+        <div class="spar-card-title">${esc(title)}</div>
+        <div class="spar-card-value">${fmtBig(value)}</div>
+        <div class="spar-card-sub">${esc(sub)}</div>
       </div>`;
     sparWerteBlock.innerHTML =
-      cardS('Dein eingesetztes EK', '#7A7A72', startEk, 'Start', false) +
-      cardS('Dein EK nur anlegen · 10 J', '#7A7A72', anlage10, 'EK × Zinsen p.a.', false) +
-      cardS('★ Dein EK in Immobilie · 10 J', '#22543d', immobil10, (delta >= 0 ? '+ ' : '− ') + fmtBig(Math.abs(delta)).replace(' €','') + ' € ggü. Anlage', true);
+      cardS('Dein eingesetztes EK',         startEk,  'Start', false) +
+      cardS('Dein EK nur anlegen · 10 J',   anlage10, 'EK × Zinsen p.a.', false) +
+      cardS('★ Dein EK in Immobilie · 10 J', immobil10, (delta >= 0 ? '+ ' : '− ') + fmtBig(Math.abs(delta)).replace(' €','') + ' € ggü. Anlage', true);
   }
   if (chartS) chartS.destroy();
   chartS = new Chart(document.getElementById('chart-sparen'), {
@@ -2197,13 +2250,13 @@ function drawCharts(r) {
         {
           label: '★ EK in Immobilie',
           data: sparenMit,
-          borderColor: '#22543d',
+          borderColor: '#2D6E47',
           backgroundColor: 'rgba(34,84,61,0.18)',
           borderWidth: 3,
           tension: 0.3,
           pointRadius: 3,
           pointHoverRadius: 6,
-          pointBackgroundColor: '#22543d',
+          pointBackgroundColor: '#2D6E47',
           pointBorderColor: '#fff',
           pointBorderWidth: 2,
           fill: 'origin',
@@ -2366,23 +2419,39 @@ function saCoverageHtml() {
   const sa = state._sa || {};
   const cov = saCoverage(sa, sa.gemeinsam === true);
   const ampelKlasse = cov.pct >= 90 ? 'kpi-positive' : cov.pct >= 60 ? 'kpi-primary' : 'kpi-negative';
+  const barKlasse   = cov.pct >= 90 ? 'good' : cov.pct >= 60 ? 'mid' : 'low';
+
   // Gruppieren nach Rolle, dann Sektion
   const byRolle = {};
   cov.sektionen.forEach(s => {
     if (!byRolle[s.rolle]) byRolle[s.rolle] = [];
     byRolle[s.rolle].push(s);
   });
+
+  // Iter 50 Polish: erweiterte Label-Map für alle Pflichtfeld-Pfade,
+  // damit „fehlt:"-Liste keine raw Property-Pfade mehr zeigt.
   const labelMap = {
-    'gwg.ausweisArt': 'Ausweisart',
-    'gwg.ausweisNr':  'Ausweis-Nr',
-    'gwg.ausweisGueltig': 'Ausweis gültig bis',
-    'ausweisArt': 'Ausweisart', 'ausweisNr': 'Ausweis-Nr', 'ausweisGueltig': 'gültig bis',
+    'vorname': 'Vorname', 'name': 'Nachname', 'geburtsdatum': 'Geburtsdatum',
+    'strasse': 'Straße', 'plz': 'PLZ', 'ort': 'Ort',
+    'staatsangehoerigkeit': 'Staatsangehörigkeit',
+    'telefonPrivat': 'Telefon privat', 'email': 'E-Mail',
+    'steuerId': 'Steuer-ID', 'familienstand': 'Familienstand',
+    'beruf': 'Beruf', 'firma': 'Arbeitgeber',
+    'beschaeftigtSeit': 'Beschäftigt seit', 'befristung': 'Befristung',
     'nettoMo': 'Netto/Mo', 'anzahlGehaelter': 'Anzahl Gehälter',
-    'mieteMo': 'Miete Whg', 'pkvMo': 'PKV',
-    'mindestens-1-quelle': 'Quelle ankreuzen',
+    'mieteMo': 'Miete eig. Whg', 'pkvMo': 'PKV-Beitrag',
+    'bankguthaben': 'Bankguthaben',
+    'ausweisArt': 'Ausweisart', 'ausweisNr': 'Ausweis-Nr',
+    'ausweisGueltig': 'Ausweis gültig bis',
+    'pep': 'PEP-Erklärung',
+    'mindestens-1-quelle': 'mindestens eine Quelle ankreuzen',
   };
   const lbl = (f) => labelMap[f] || f;
+
   const rollenHtml = Object.entries(byRolle).map(([rolle, sekt]) => {
+    const rolleGesetzt = sekt.reduce((s, x) => s + x.gesetzt, 0);
+    const rolleGesamt  = sekt.reduce((s, x) => s + x.gesamt, 0);
+    const istLeer = rolleGesetzt === 0 && rolle !== 'Gemeinsam';
     const items = sekt.map(s => {
       const ok = s.fehlt.length === 0;
       return `<li>
@@ -2393,14 +2462,28 @@ function saCoverageHtml() {
              <span class="text-tertiary text-small"> — fehlt: ${s.fehlt.map(f => esc(lbl(f))).join(', ')}</span>`}
       </li>`;
     }).join('');
-    return `<div style="margin-top:6px;"><div style="font-weight:600;">${esc(rolle)}</div><ul style="margin:4px 0 0 18px;padding:0;font-size:13px;">${items}</ul></div>`;
+    const statCls = (rolleGesetzt < rolleGesamt) ? 'rolle-stat warn' : 'rolle-stat';
+    return `
+      <div class="sa-coverage-rolle${istLeer ? ' leer-hint' : ''}">
+        <div class="sa-coverage-rolle-head">
+          <span>${esc(rolle)}${istLeer ? ' — komplett leer' : ''}</span>
+          <span class="${statCls}">${rolleGesetzt}/${rolleGesamt} Pflichtfelder</span>
+        </div>
+        ${istLeer
+          ? `<div class="text-small">„Gemeinsamer Antrag" ist aktiv, aber dieser Antragsteller hat keine Eingaben. Häkchen oben entfernen oder Daten erfassen.</div>`
+          : `<ul class="sa-coverage-list">${items}</ul>`}
+      </div>`;
   }).join('');
+
   return `
     <div class="card sa-auswertung-card mb-16">
       <div class="card-title">SA-Vollständigkeit <span class="text-tertiary text-small" style="font-weight:normal;">(${cov.totalGesetzt} / ${cov.totalPflicht} Pflichtfelder)</span></div>
       <div class="kpi-box ${ampelKlasse}" style="margin-top:8px;">
         <div class="kpi-label">Bank-tauglich</div>
         <div class="kpi-value">${cov.pct} %</div>
+        <div class="sa-coverage-progress">
+          <div class="sa-coverage-progress-fill ${barKlasse}" style="width:${Math.max(2, cov.pct)}%;"></div>
+        </div>
         <div class="kpi-hint">Vollständigkeit der Pflichtangaben über alle Antragsteller. Ziel: 100 % vor Einreichung.</div>
       </div>
       <details class="sa-aufschluss" ${cov.pct < 100 ? 'open' : ''}>
@@ -2432,8 +2515,8 @@ function renderTabSelbstauskunft() {
     <div class="card">
       <div class="card-title">Selbstauskunft <span class="text-tertiary text-small" style="font-weight:normal;">(Auto-Save aktiv)</span></div>
       <div class="flex gap-12 mb-16">
-        <label for="sa-gemeinsam" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;cursor:pointer;user-select:none;">
-          <input type="checkbox" id="sa-gemeinsam" ${istGemeinsam ? 'checked' : ''} style="width:auto;height:18px;width:18px;cursor:pointer;">
+        <label for="sa-gemeinsam" class="sa-gemeinsam-toggle">
+          <input type="checkbox" id="sa-gemeinsam" ${istGemeinsam ? 'checked' : ''}>
           <span>Gemeinsamer Antrag mit Mit-Antragsteller</span>
         </label>
       </div>
@@ -3014,10 +3097,11 @@ async function renderAdmin() {
   const app = document.getElementById('app');
   app.innerHTML = `<div class="main"><h1 class="page-title">Admin</h1><div class="empty-state">Lade…</div></div>`;
   try {
-    // Stats + Wohneinheiten + Stammdaten-Audit parallel laden
+    // Stats + Wohneinheiten (alle Vermarktung, auch nicht-aktiv) + Stammdaten-Audit parallel
+    // Iter 53: Admin sieht mit ?all=1 auch potenziell aktivierbare WEs
     const [stats, wohneinheiten, audit] = await Promise.all([
       api.get('/api/admin/stats'),
-      api.get('/api/wohneinheiten'),
+      api.get('/api/wohneinheiten?all=1'),
       api.get('/api/stammdaten').catch(() => []),
     ]);
     state.adminStats = stats;
@@ -3030,13 +3114,21 @@ async function renderAdmin() {
   const s = state.adminStats || {};
   const wes = state.adminWohneinheiten || [];
 
-  // Wohneinheiten nach Projekt gruppieren (für übersichtliche Darstellung).
-  const wesByProjekt = {};
-  wes.forEach(we => {
-    const pn = we.projektName || '— ohne Projekt —';
-    if (!wesByProjekt[pn]) wesByProjekt[pn] = [];
-    wesByProjekt[pn].push(we);
-  });
+  // Wohneinheiten nach Projekt gruppieren — getrennt nach Aktiv-Status (Iter 53)
+  const wesAktiv = wes.filter(w => w.inStammdatenAktiv);
+  const wesPotenziell = wes.filter(w => !w.inStammdatenAktiv);
+  function groupByProjekt(list) {
+    const map = {};
+    list.forEach(we => {
+      const pn = we.projektName || '— ohne Projekt —';
+      if (!map[pn]) map[pn] = [];
+      map[pn].push(we);
+    });
+    return map;
+  }
+  const wesAktivByProjekt = groupByProjekt(wesAktiv);
+  const wesPotenziellByProjekt = groupByProjekt(wesPotenziell);
+  const wesByProjekt = groupByProjekt(wes); // kombiniert für Stammdaten-Audit
   const projektKeys = Object.keys(wesByProjekt).sort();
 
   // Summen pro Projekt (für Header-Info)
@@ -3054,12 +3146,17 @@ async function renderAdmin() {
       <h1 class="page-title">Admin</h1>
       <p class="page-subtitle">Statistik, Kunden &amp; WE-Stammdaten</p>
 
-      <div class="kpi-grid">
-        <div class="kpi"><div class="label">Gesamt Kunden</div><div class="value">${s.totalKunden || 0}</div></div>
-        <div class="kpi"><div class="label">Vertriebler</div><div class="value">${(s.vertriebler || []).length}</div></div>
-        <div class="kpi positive"><div class="label">Beurkundet</div><div class="value">${(s.byPhase && s.byPhase['Beurkundet']) || 0}</div></div>
-        <div class="kpi"><div class="label">Aktive WEs im Pool</div><div class="value">${wes.length}</div></div>
-      </div>
+      ${(() => {
+        const aktivWes = wes.filter(w => w.inStammdatenAktiv);
+        const potenzielleWes = wes.filter(w => !w.inStammdatenAktiv);
+        return `
+          <div class="kpi-grid">
+            <div class="kpi"><div class="label">Gesamt Kunden</div><div class="value">${s.totalKunden || 0}</div></div>
+            <div class="kpi"><div class="label">Vertriebler</div><div class="value">${(s.vertriebler || []).length}</div></div>
+            <div class="kpi positive"><div class="label">Beurkundet</div><div class="value">${(s.byPhase && s.byPhase['Beurkundet']) || 0}</div></div>
+            <div class="kpi"><div class="label">Aktive WEs im Vertrieb</div><div class="value">${aktivWes.length}<span style="font-size:12px;color:#7A7A72;font-weight:normal;"> &nbsp;+ ${potenzielleWes.length} potenziell</span></div></div>
+          </div>`;
+      })()}
 
       <div class="card">
         <div class="card-title">Vertriebler <span class="text-tertiary text-small" style="font-weight:normal;">(Pipeline pro Person)</span></div>
@@ -3101,34 +3198,76 @@ async function renderAdmin() {
         </table>
       </div>
 
-      <div class="card mt-16">
-        <div class="card-title">Alle Kunden</div>
-        ${!s.alleKunden || s.alleKunden.length === 0 ? `
-          <div class="empty-state">Keine Kunden im System.</div>
-        ` : `
+      ${(() => {
+        // Iter 52: Aktive Kunden + Archivierte separat darstellen (Admin-only)
+        const alle = s.alleKunden || [];
+        const aktiv = alle.filter(k => !k.archiviert);
+        const archiv = alle.filter(k => !!k.archiviert);
+        const kundenRow = (k) => {
+          const displayName = k.name
+            || ((k.vorname || '') + ' ' + (k.nachname || '')).trim()
+            || k.email
+            || ('Kunde ' + (k.id || '').slice(-6));
+          return `
+            <tr onclick="go('/kunde/${esc(k.id)}')" style="cursor:pointer;">
+              <td><strong>${esc(displayName)}</strong></td>
+              <td class="text-tertiary">${esc(k.email || '—')}</td>
+              <td class="text-tertiary">${esc(k.ownerName || '—')}</td>
+              <td><span class="badge ${phaseBadgeClass(k.phase)}">${esc(k.phase || '—')}</span></td>
+              <td class="text-tertiary">${esc(fmtDate(k.lastActivity))}</td>
+            </tr>
+          `;
+        };
+        return `
+          <div class="card mt-16">
+            <div class="card-title">Aktive Kunden <span class="text-tertiary text-small" style="font-weight:normal;">(${aktiv.length})</span></div>
+            ${aktiv.length === 0 ? `
+              <div class="empty-state">Keine aktiven Kunden.</div>
+            ` : `
+              <table class="table">
+                <thead><tr><th>Name</th><th>E-Mail</th><th>Owner</th><th>Phase</th><th>Letzte Aktivität</th></tr></thead>
+                <tbody>${aktiv.map(kundenRow).join('')}</tbody>
+              </table>
+            `}
+          </div>
+          ${archiv.length > 0 ? `
+            <details class="card mt-16" style="background:#f7f7f4;">
+              <summary style="cursor:pointer;font-weight:600;color:#7A7A72;padding:6px 0;list-style:none;">
+                <span style="font-size:14px;">📦 Archivierte Kunden (${archiv.length}) — vom Vertrieb ausgeblendet</span>
+              </summary>
+              <div style="margin-top:12px;">
+                <table class="table">
+                  <thead><tr><th>Name</th><th>E-Mail</th><th>Owner</th><th>Phase</th><th>Letzte Aktivität</th></tr></thead>
+                  <tbody>${archiv.map(kundenRow).join('')}</tbody>
+                </table>
+              </div>
+            </details>
+          ` : ''}
+        `;
+      })()}
+
+      ${wesPotenziell.length > 0 ? `
+        <div class="card mt-16" style="border-left:3px solid #B08A4D;">
+          <div class="card-title">⚙ Potenziell aktivierbare Wohneinheiten <span class="text-tertiary text-small" style="font-weight:normal;">(${wesPotenziell.length} in Vermarktung, ohne Aktiv-Stammdaten)</span></div>
+          <p class="text-tertiary text-small" style="margin:0 0 12px;">Diese WEs sind aktuell in Vermarktung bei B&amp;B Immo, haben aber noch keine Kalk-Stammdaten auf „Aktiv". Domi/Henry können diese aktivieren, sobald MbV + Marktmiete + Marktpreis IS/HD + Vermietungs-Modus gepflegt sind.</p>
           <table class="table">
-            <thead><tr><th>Name</th><th>E-Mail</th><th>Owner</th><th>Phase</th><th>Letzte Aktivität</th></tr></thead>
+            <thead><tr><th>Projekt</th><th>WE</th><th class="num">Kaufpreis</th><th class="num">qm</th><th class="num">Kaltmiete</th></tr></thead>
             <tbody>
-              ${s.alleKunden.map(k => {
-                // Fallback: name (Primary aus Airtable) ODER Vorname+Nachname ODER E-Mail ODER ID.
-                const displayName = k.name
-                  || ((k.vorname || '') + ' ' + (k.nachname || '')).trim()
-                  || k.email
-                  || ('Kunde ' + (k.id || '').slice(-6));
-                return `
-                  <tr onclick="go('/kunde/${esc(k.id)}')" style="cursor:pointer;">
-                    <td><strong>${esc(displayName)}</strong></td>
-                    <td class="text-tertiary">${esc(k.email || '—')}</td>
-                    <td class="text-tertiary">${esc(k.ownerName || '—')}</td>
-                    <td><span class="badge ${phaseBadgeClass(k.phase)}">${esc(k.phase || '—')}</span></td>
-                    <td class="text-tertiary">${esc(fmtDate(k.lastActivity))}</td>
+              ${Object.keys(wesPotenziellByProjekt).sort().flatMap(pn =>
+                wesPotenziellByProjekt[pn].map(we => `
+                  <tr>
+                    <td class="text-tertiary text-small">${esc(pn)}</td>
+                    <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '')}</strong> ${esc(we.lageText || we.lage || '')}</td>
+                    <td class="num">${eur(we.kp)}</td>
+                    <td class="num">${num(we.qm, 2)}</td>
+                    <td class="num">${eur(we.kaltmiete)}</td>
                   </tr>
-                `;
-              }).join('')}
+                `)
+              ).join('')}
             </tbody>
           </table>
-        `}
-      </div>
+        </div>
+      ` : ''}
 
       ${renderAdminStammdatenAudit(state.adminStammAudit || [])}
     </div>

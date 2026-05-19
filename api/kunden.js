@@ -30,21 +30,26 @@ module.exports = async (req, res) => {
     if (req.method === 'GET') {
       const isAdmin = session.rolle === 'Admin';
 
-      // Vertriebler sieht nur eigene (Owner-Link enthält seine Record-ID).
-      // Airtable: FIND('rec...', ARRAYJOIN({Owner})) > 0
-      // Sort braucht Field-NAMEN, nicht ID — Field heißt 'Letzte-Aktivität' (mit Bindestrich).
+      // Iter 52: archivierte Kunden werden für Vertriebler standardmäßig ausgeblendet.
+      // Admin sieht alle (das archiviert-Flag bleibt im Response, damit die Admin-UI
+      // sie separat in der Archiv-Sektion darstellen kann). Mit ?withArchived=1 kann
+      // der Vertriebler bewusst auch archivierte sehen (für Such-Use-Cases später).
+      const withArchived = req.query && (req.query.withArchived === '1' || req.query.withArchived === 'true');
       const listParams = {
         'sort[0][field]': 'Letzte-Aktivität',
         'sort[0][direction]': 'desc'
       };
+      const filters = [];
       if (!isAdmin) {
-        listParams.filterByFormula = `FIND('${session.vertrieblerId}', ARRAYJOIN({Owner}))>0`;
+        filters.push(`FIND('${session.vertrieblerId}', ARRAYJOIN({Owner}))>0`);
+        if (!withArchived) filters.push(`NOT({Archiviert})`);
       }
+      if (filters.length === 1) listParams.filterByFormula = filters[0];
+      else if (filters.length > 1) listParams.filterByFormula = 'AND(' + filters.join(', ') + ')';
 
       const records = await listAll(TABLES.KUNDEN, listParams, 1000);
       const ownerMap = await getOwnerNameMap();
       const out = records.map(r => kundeRecordToBasic(r, ownerMap));
-      // Frontend erwartet direktes Array.
       return res.status(200).json(out);
     }
 

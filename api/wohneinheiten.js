@@ -186,6 +186,9 @@ module.exports = async (req, res) => {
     // Step 2: WE-Tabelle abfragen mit Vermarktung + Firma=B&B Immo + WE-ID in der Aktiv-Liste.
 
     // --- Step 1: aktive Stammdaten holen ---
+    // Iter 53: Admin kann mit ?all=1 alle Vermarktungs-WEs sehen (auch ohne Aktiv-Stammdaten).
+    // Pro WE wird ein Flag `inStammdatenAktiv` mitgeliefert.
+    const showAll = (req.query && (req.query.all === '1' || req.query.all === 'true')) && session.rolle === 'Admin';
     const stammdatenRecords = await listAll(TABLES.KALK_STAMMDATEN, {
       filterByFormula: `{${KALK_STAMMDATEN_FIELDS.STATUS}}='${KALK_STATUS_AKTIV}'`,
       fields: [KALK_STAMMDATEN_FIELDS.WOHNEINHEIT],
@@ -202,8 +205,8 @@ module.exports = async (req, res) => {
       });
     });
 
-    // Wenn keine WE auf Aktiv → leeres Array zurückgeben (statt unfiltered alles laden).
-    if (aktiveWeIds.size === 0) {
+    // Wenn keine WE auf Aktiv UND nicht showAll → leeres Array zurückgeben
+    if (aktiveWeIds.size === 0 && !showAll) {
       return res.status(200).json([]);
     }
 
@@ -222,11 +225,16 @@ module.exports = async (req, res) => {
         ? 'OR(' + objektTokens.map(t => `FIND('${t}', {Titel})>0`).join(', ') + ')'
         : 'TRUE()';
 
-    // WE-ID-Filter aus aktiven Stammdaten
+    // WE-ID-Filter aus aktiven Stammdaten (nur wenn nicht showAll)
+    // Iter 53: showAll Admin-Modus → keinen WE-ID-Filter, dafür alle Vermarktungs-WEs
     const weIdArr = Array.from(aktiveWeIds);
-    const weIdFormula = 'OR(' + weIdArr.map(id => `RECORD_ID()='${id}'`).join(', ') + ')';
-
-    const formula = `AND({Status}='${WE_STATUS_VERMARKTUNG}', FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0, ${objektFormula}, ${weIdFormula})`;
+    let formula;
+    if (showAll) {
+      formula = `AND({Status}='${WE_STATUS_VERMARKTUNG}', FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0, ${objektFormula})`;
+    } else {
+      const weIdFormula = 'OR(' + weIdArr.map(id => `RECORD_ID()='${id}'`).join(', ') + ')';
+      formula = `AND({Status}='${WE_STATUS_VERMARKTUNG}', FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0, ${objektFormula}, ${weIdFormula})`;
+    }
 
     const fields = [
       WE_FIELDS.LAGE_BEZ,
@@ -236,7 +244,8 @@ module.exports = async (req, res) => {
       WE_FIELDS.QM,
       WE_FIELDS.KALTMIETE,
       WE_FIELDS.QM_PREIS,
-      WE_FIELDS.PROJEKT
+      WE_FIELDS.PROJEKT,
+      WE_FIELDS.OBJEKTVORSTELLUNG, // Iter 51 — Link für Vertriebler
     ];
 
     const records = await listAll(TABLES.WOHNEINHEIT, {
@@ -253,8 +262,12 @@ module.exports = async (req, res) => {
     });
     const projektMap = await loadProjektNames(projektIds);
 
-    const out = records.map(r => weRecordToApi(r, projektMap));
-    // Frontend erwartet direktes Array.
+    // Iter 53: pro WE Flag inStammdatenAktiv für die Admin-Trennung in 2 Tabellen
+    const out = records.map(r => {
+      const mapped = weRecordToApi(r, projektMap);
+      mapped.inStammdatenAktiv = aktiveWeIds.has(r.id);
+      return mapped;
+    });
     return res.status(200).json(out);
   } catch (e) {
     return sendError(res, e);

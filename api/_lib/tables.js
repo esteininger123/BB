@@ -62,7 +62,9 @@ const KUNDEN_FIELDS = {
   QUICK_BON_JSON: 'fldwL7VkWLQwz1at8',
   SA_JSON:        'fldl94zd1Oeakj6pN',
   CREATED:        'fld9s7XunLXCfx6pa',
-  LAST_ACTIVITY:  'fldRghZ5CtIBw2rWn'
+  LAST_ACTIVITY:  'fldRghZ5CtIBw2rWn',
+  // Iter 52 — Archivierung (Checkbox). Vertrieb archiviert, Admin löscht.
+  ARCHIVIERT:     'fldHIc3gclVok2ggj'
 };
 
 const SNAPSHOT_FIELDS = {
@@ -90,6 +92,9 @@ const WE_FIELDS = {
   // Iter 41.9 — zusätzlicher Vertriebsfilter (Team B&B):
   ZUSTAENDIGER_MAKLER: 'fldNWc3458mHkH01m', // Link-Feld auf Makler-Tabelle
   MAKLER_LOOKUP:       'fldVgHqxy7zVKynsg', // Lookup spiegelt den Makler-Namen
+  // Iter 51 (19.05.2026) — Link zur Objektvorstellung. Domi pflegt pro WE/Projekt.
+  // Vertriebler nutzt den Link parallel zur Kalkulation im Kundengespräch.
+  OBJEKTVORSTELLUNG: 'fldITEQwhu9tDi7Iy',
 };
 
 const WE_STATUS_VERMARKTUNG = 'Vermarktung / Im Verkauf';

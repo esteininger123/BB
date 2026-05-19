@@ -72,16 +72,20 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'DELETE') {
+      // Iter 52: NUR Admin darf endgültig löschen. Vertriebler bekommt 403 mit Hinweis
+      // auf Archivieren (Endpoint: PUT mit archiviert=true).
+      if (session.rolle !== 'Admin') {
+        return res.status(403).json({
+          error: 'Vertrieb darf nicht löschen — bitte archivieren statt löschen.',
+          hint: 'Nutze den Archivieren-Button. Admin kann den Kunden später endgültig löschen.'
+        });
+      }
       let rec;
       try { rec = await airtable('get', TABLES.KUNDEN, { recordId: id }); }
       catch (e) {
         if (e.status === 404) return res.status(404).json({ error: 'Kunde nicht gefunden' });
         throw e;
       }
-      if (!canAccess(session, rec)) return res.status(403).json({ error: 'Kein Zugriff auf diesen Kunden' });
-
-      // Echtes Delete für alle (Admin + Vertriebler). Edgar will den Kunden weg, nicht
-      // nur auf "Abgebrochen" parken. Wer Anhaltspunkte braucht: Airtable-Backup.
       await airtable('delete', TABLES.KUNDEN, { recordId: id });
       return res.status(200).json({ ok: true, action: 'deleted' });
     }
