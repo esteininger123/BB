@@ -819,6 +819,7 @@ function renderTabKalkulator() {
         <button onclick="saveSnapshot()">Snapshot speichern</button>
         <button class="secondary" onclick="exportInvestPdf()">PDF Investitionsrechnung</button>
         <button class="secondary" onclick="exportReservPdf()">PDF Reservierung</button>
+        <button onclick="sendReservierungForSignature()">Reservierung digital senden</button>
       </div>
     `}
   `;
@@ -2355,6 +2356,67 @@ function exportSaPdf() {
 window.exportInvestPdf = exportInvestPdf;
 window.exportReservPdf = exportReservPdf;
 window.exportSaPdf = exportSaPdf;
+
+async function sendReservierungForSignature() {
+  // Voraussetzungen prüfen (klare Fehlermeldungen statt stiller Disabled-Button)
+  if (!state.kundeId) {
+    toast('Erst Kunde auswählen', 'error');
+    return;
+  }
+  const weId = state.kalk && state.kalk._weId;
+  if (!weId) {
+    toast('Erst eine Einzel-Wohnung auswählen (Pakete werden noch nicht unterstützt)', 'error');
+    return;
+  }
+  if (state.kalk._isPaket) {
+    toast('Pakete werden bei der digitalen Reservierung noch nicht unterstützt — bitte einzelne WE auswählen', 'error');
+    return;
+  }
+  const kundeEmail = state.kunde && state.kunde.email;
+  if (!kundeEmail) {
+    toast('Kunde hat keine E-Mail-Adresse in Airtable — bitte ergänzen', 'error');
+    return;
+  }
+
+  // Bestätigungs-Dialog mit Klartext, was passiert
+  const w = (state.wohneinheiten || []).find(x => x.id === weId);
+  const weLabel = (w && (w.projektName ? w.projektName + ' — ' : '') + (w.lageText || w.lage || ('WE ' + w.weNr))) || 'die ausgewählte WE';
+  const kundeName = ((state.kunde && state.kunde.vorname) || '') + ' ' + ((state.kunde && state.kunde.nachname) || '');
+  const msg =
+    'Reservierung an ' + kundeName.trim() + ' senden?\n\n' +
+    'Wohnung: ' + weLabel + '\n' +
+    'E-Mail-Adresse Käufer: ' + kundeEmail + '\n\n' +
+    'Du bekommst das Doc nach der Käufer-Unterschrift zur Gegenzeichnung.';
+  if (!confirm(msg)) return;
+
+  // Falls ein Snapshot für diese WE existiert, den jüngsten als Quelle für den Kaufpreis mitschicken.
+  let snapshotId = null;
+  if (Array.isArray(state.snapshots)) {
+    const fitting = state.snapshots
+      .filter(s => s && s.weRecId === weId)
+      .sort((a, b) => new Date(b.created || 0) - new Date(a.created || 0));
+    if (fitting[0]) snapshotId = fitting[0].id;
+  }
+
+  toast('Sende an PandaDoc…', 'info');
+  try {
+    const resp = await api.post('/api/reservierung/send-for-signature', {
+      kundeId: state.kundeId,
+      weId: weId,
+      snapshotId: snapshotId
+    });
+    if (resp && resp.ok) {
+      toast('Reservierung versandt an ' + (resp.recipients && resp.recipients[0] ? resp.recipients[0] : kundeEmail) + ' (Frist: ' + (resp.ablauffrist || '') + ')', 'success');
+    } else if (resp && resp.message) {
+      toast(resp.message, 'info');
+    }
+  } catch (e) {
+    const hint = e.body && e.body.hint ? ' — ' + e.body.hint : '';
+    const detail = e.body && e.body.detail ? ' (' + String(e.body.detail).substring(0, 120) + ')' : '';
+    toast('Fehler: ' + (e.message || 'unbekannt') + hint + detail, 'error');
+  }
+}
+window.sendReservierungForSignature = sendReservierungForSignature;
 
 // ===== MODUL: views/selbstauskunft-tab (SA-Form + Auswertung + Auto-Save) =====
 /* ============================== SELBSTAUSKUNFT-TAB ============================== */

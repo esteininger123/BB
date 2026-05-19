@@ -7,5 +7,6 @@ node_modules/
 .jwt-secret.txt
 .DS_Store
 *.log
+*.bak
 public/test.txt
 zzz_test_*.txt
