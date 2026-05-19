@@ -95,16 +95,21 @@ module.exports = async (req, res) => {
     const email    = kunde[KUNDEN_FIELDS.EMAIL];
     if (!email) return res.status(400).json({ error: 'Kunde hat keine E-Mail in Airtable' });
 
-    // Kunde-Adresse aus Selbstauskunft-JSON
+    // Kunde-Adresse aus Selbstauskunft-JSON (für Recipient-Daten + Custom-Tokens)
     let kundeAdresse = '';
+    let kundeStrasse = '';
+    let kundePlz = '';
+    let kundeOrt = '';
     try {
       const sa = kunde[KUNDEN_FIELDS.SA_JSON];
       const saObj = typeof sa === 'string' ? JSON.parse(sa) : sa;
       const a = saObj && saObj.antragsteller;
       if (a) {
-        const str = a.strasse || '';
-        const plzort = [a.plz || '', a.ort || ''].filter(Boolean).join(' ');
-        kundeAdresse = [str, plzort].filter(Boolean).join(', ');
+        kundeStrasse = a.strasse || '';
+        kundePlz     = a.plz || '';
+        kundeOrt     = a.ort || '';
+        const plzort = [kundePlz, kundeOrt].filter(Boolean).join(' ');
+        kundeAdresse = [kundeStrasse, plzort].filter(Boolean).join(', ');
       }
     } catch (e) {}
 
@@ -123,9 +128,12 @@ module.exports = async (req, res) => {
       { name: 'QmAnzahl.Wohnungsnummer',          value: composeQmWeNr(qm, weNr) },
       { name: 'Straße.Hausnummer.PLZ.Ort',        value: objektAdresse || 'Adresse beim Notar nachzutragen' },
       { name: 'Kaufinteressent.Vorname.Nachname', value: `${vorname} ${nachname}`.trim() },
+      { name: 'Kaufinteressent.Ort',              value: kundeOrt || '' },
     ];
 
     // --- 6. Recipients (sequenziell: Käufer zuerst, Vertriebler danach)
+    // Adressfelder in den Recipient-Daten füllen automatisch die [Kaufinteressent.StreetAddress],
+    // [Kaufinteressent.PostalCode], [Kaufinteressent.State]-Tokens im Template.
     const verkaeuferEmail = vertriebler[VERTRIEBLER_FIELDS.EMAIL] || 'e.steininger@immo-stein.de';
     const verkaeuferName  = vertriebler[VERTRIEBLER_FIELDS.NAME]  || 'Edgar Steininger';
     const [vkFirst, ...vkRest] = String(verkaeuferName).trim().split(/\s+/);
@@ -136,14 +144,25 @@ module.exports = async (req, res) => {
         first_name: vorname,
         last_name:  nachname,
         role:       'Kaufinteressent',
-        signing_order: 1
+        signing_order: 1,
+        // PandaDoc-Standard-Adressfelder (Recipient-Variables im Template):
+        street_address: kundeStrasse || undefined,
+        city:           kundeOrt || undefined,
+        postal_code:    kundePlz || undefined,
+        state:          kundeOrt || undefined, // PandaDoc 'State' = Bundesland; mangels Feld nutzen wir Ort als Fallback
+        country:        'Deutschland'
       },
       {
         email: verkaeuferEmail,
         first_name: vkFirst || 'Edgar',
         last_name:  vkRest.join(' ') || 'Steininger',
         role:       'Verkäufer',
-        signing_order: 2
+        signing_order: 2,
+        company:    'B&B Immo GmbH',
+        street_address: 'Burdastraße 23',
+        city:           'Schutterwald',
+        postal_code:    '77746',
+        country:        'Deutschland'
       }
     ];
 
