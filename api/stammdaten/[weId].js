@@ -387,27 +387,27 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     xFinal = xEinStufe;
   }
 
-  // Roh-Subv-Beträge
-  // P1: B&B zahlt X jeden Monat (Mieter zahlt MbV).
-  // P2 (falls aktiv): Mieter erhöht legal um MbV × Kapp; B&B zahlt X − MbV × Kapp.
+  // Iter 47/48: Effektivmiete bleibt für den Käufer über alle Phasen konstant.
+  // Phase 1: B&B legt vollen Aufschlag (xFinal) drauf — Mieter zahlt noch MbV.
+  // Phase 2: Mieter wird legal erhöht auf MbV×(1+kapp). B&B legt nur noch (xFinal − MbV×kapp)
+  //          drauf — Summe für den Käufer bleibt MbV+xFinal. Beide Phasen → gleiche Mieteinnahme.
+  // phasen[] zeigt die ECHTEN monatlichen Subv-Werte, die der Käufer in jeder Phase erhält.
   let p1Mo = xFinal;
   let p2Mo = p2Aktiv ? Math.max(0, xFinal - mbv * kappPct) : 0;
 
   let p1Eur = p1Mo * p1Monate;
-  let p2Eur = p2Aktiv ? (p2Mo * p2Monate) : 0;
-  let totalRoh = p1Eur + p2Eur;
+  let p2Eur = p2Aktiv ? p2Mo * p2Monate : 0;
+  let totalEurRaw = p1Eur + p2Eur;
 
-  // Cap
+  // Cap auf den echten Subv-Abfluss
   const cap = Math.max(5000, (weQm || 0) * 150);
   let capGreift = false;
   let capDetail = '';
 
-  if (totalRoh > cap && cap > 0) {
+  if (totalEurRaw > cap && cap > 0) {
     capGreift = true;
-    // X so kürzen, dass Total = Cap. Beide Phasen laufen weiter (Laufzeit bleibt).
-    // Total = (p1Monate × X) + p2Aktiv × (p2Monate × (X − MbV × Kapp))
-    //       = X × (p1Monate + p2Aktiv × p2Monate) − p2Aktiv × p2Monate × MbV × Kapp
-    // → X = (Cap + p2Aktiv × p2Monate × MbV × Kapp) / (p1Monate + p2Aktiv × p2Monate)
+    // Cap: X so kürzen, dass X×p1 + (X−MbV×kapp)×p2 = Cap
+    // → X = (Cap + p2Monate×MbV×kapp) / (p1Monate + p2Monate)
     const denom = p1Monate + (p2Aktiv ? p2Monate : 0);
     if (denom > 0) {
       const xNew = (cap + (p2Aktiv ? p2Monate * mbv * kappPct : 0)) / denom;
@@ -415,9 +415,9 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
       p1Mo = xFinal;
       p2Mo = p2Aktiv ? Math.max(0, xFinal - mbv * kappPct) : 0;
       p1Eur = p1Mo * p1Monate;
-      p2Eur = p2Aktiv ? (p2Mo * p2Monate) : 0;
-      totalRoh = p1Eur + p2Eur;
-      capDetail = `Cap ${Math.round(cap).toLocaleString('de-DE')} € greift (qm ${weQm || '?'} × 150 €/qm, min 5.000). Käufer-Aufschlag auf ${Math.round(xFinal)} €/Mo reduziert.`;
+      p2Eur = p2Aktiv ? p2Mo * p2Monate : 0;
+      totalEurRaw = p1Eur + p2Eur;
+      capDetail = `Maximal-Subvention ${Math.round(cap).toLocaleString('de-DE')} € erreicht. Monatlicher Aufschlag auf ${Math.round(xFinal)} €/Mo angepasst.`;
     }
   }
 
@@ -426,29 +426,32 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     phasen.push({
       mo: Math.round(p1Mo * 100) / 100,
       monate: p1Monate,
-      label: 'Phase 1 (bis 1. legale Mieterhöhung)'
+      label: 'Phase 1 (bis zur 1. Mieterhöhung)'
     });
   }
   if (p2Aktiv && p2Monate > 0 && p2Mo > 0) {
     phasen.push({
       mo: Math.round(p2Mo * 100) / 100,
       monate: p2Monate,
-      label: 'Phase 2 (Jahr 4–6)'
+      label: 'Phase 2 (nach 1. Mieterhöhung)'
     });
   }
 
+  // Erläuterung aus Kundensicht ("Sie"-Form, keine internen Begriffe).
   let erlaeuterung = '';
+  const gesamtMonate = p1Monate + (p2Aktiv ? p2Monate : 0);
+  const gesamtJahre = Math.round(gesamtMonate / 12 * 10) / 10;
+  const totalRound = Math.round(totalEurRaw);
   if (p2Aktiv && phasen.length === 2) {
-    erlaeuterung = `Käufer sieht ${Math.round(mbv + xFinal)} €/Mo über 6 Jahre konstant. Mieter zahlt P1 ${Math.round(mbv)} €, P2 ${Math.round(mbv * (1 + kappPct))} € (1. Erhöhung). B&B zahlt P1 ${Math.round(p1Mo)} €/Mo, P2 ${Math.round(p2Mo)} €/Mo.`;
+    erlaeuterung = `Ihre Mieteinnahme bleibt ${Math.round(mbv + xFinal)} €/Mo konstant über ${gesamtJahre} Jahre — auch wenn sich die Mietzahlung Ihres Mieters durch die gesetzliche Erhöhung anpasst.`;
   } else if (phasen.length === 1) {
-    erlaeuterung = `Nur 1 Stufe sinnvoll (Käufer-Miete schon nahe an Marktmiete oder Markt deckelt). B&B zahlt ${Math.round(p1Mo)} €/Mo über ${p1Monate} Mo.`;
+    erlaeuterung = `Wir stocken Ihre Mieteinnahme um ${Math.round(p1Mo)} €/Mo auf, über ${p1Monate} Monate.`;
   }
   if (capDetail) erlaeuterung = capDetail + ' ' + erlaeuterung;
 
-  // Für Backward-Compat: mo + monate als "gewichteter Durchschnitt"-Wert ausweisen,
-  // damit alte Frontend-Pfade weiterhin sinnvolle Werte sehen. Neuer Pfad nutzt phasen[].
+  // Für Backward-Compat: mo + monate als Durchschnitt aus beiden Phasen.
   const totalMo = (phasen.reduce((s, p) => s + p.monate, 0)) || 0;
-  const totalEur = Math.round(p1Eur + p2Eur);
+  const totalEur = Math.round(totalEurRaw);
   const moDurchschnitt = totalMo > 0 ? Math.round(totalEur / totalMo * 100) / 100 : 0;
 
   return {

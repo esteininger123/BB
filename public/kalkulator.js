@@ -626,22 +626,22 @@ function recalc(i) {
     return Math.pow(1 + i.steigerungProz, n);
   }
 
-  // Iter 43 (19.05.2026): Subv-Glättungs-System.
-  // Pro Phase wird eine garantierte Effektivmiete = i.kaltmiete + ph.mo definiert.
-  // Während die Phase läuft, schmilzt die Subv automatisch, wenn die Bestandsmiete
-  // durch Mietsteigerung anwächst. Damit bleibt die Effektivmiete (Käufer-Sicht)
-  // in jeder Phase konstant — kein „Doppel-Spike" zwischen Subv-Auslauf + Mieterhöhung.
-  // Nach Subv-Auslauf fällt die Effektivmiete sauber auf die echte Bestandsmiete.
+  // Iter 47/48: Globale Effektivmiete über alle Subv-Phasen konstant.
+  // Ziel-Effektivmiete = MbV + Phase-1-Subv (die höchste). Solange wir in irgendeiner
+  // Subv-Phase sind, gleichen wir die Subv so an, dass Effektivmiete = Ziel.
+  // Damit gibt es kein Tal mehr zwischen Phase 1 und Phase 2 — Käufer sieht konstanten
+  // Cashflow, bis alle Subv-Phasen durch sind UND die Bestandsmiete das Niveau erreicht hat.
   function subvForMonth(m) {
     const kaltmieteM = i.kaltmiete * faktorFor(m);
     if (Array.isArray(i.subventionPhasen) && i.subventionPhasen.length > 0) {
+      const phase1Mo = (i.subventionPhasen[0] && i.subventionPhasen[0].mo) || 0;
+      const effektivZielGlobal = i.kaltmiete + phase1Mo;
       let monateBisher = 0;
       for (const ph of i.subventionPhasen) {
         const phaseStartMo = monateBisher;
         const phaseEndMo   = monateBisher + (ph && ph.monate ? ph.monate : 0);
         if (ph && ph.mo && m > phaseStartMo && m <= phaseEndMo) {
-          const effektivZiel = i.kaltmiete + ph.mo;
-          return Math.max(0, effektivZiel - kaltmieteM);
+          return Math.max(0, effektivZielGlobal - kaltmieteM);
         }
         monateBisher = phaseEndMo;
       }

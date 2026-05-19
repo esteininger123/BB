@@ -327,8 +327,24 @@ label {
 /* ============================== CHARTS ============================== */
 .chart-container {
   position: relative;
-  height: 280px;
+  height: 320px;
   margin-top: 12px;
+}
+
+/* Iter 47: Range-Slider dezent — gleicher Stil überall, kein auffälliges System-Blau */
+input[type="range"].spar-zins-range,
+input[type="range"].spar-zins-range::-webkit-slider-thumb {
+  accent-color: #7A7A72;
+}
+input[type="range"].spar-zins-range::-webkit-slider-runnable-track {
+  background: #e2e8f0;
+  height: 4px;
+  border-radius: 2px;
+}
+input[type="range"].spar-zins-range::-moz-range-track {
+  background: #e2e8f0;
+  height: 4px;
+  border-radius: 2px;
 }
 
 /* ============================== UTILS ============================== */

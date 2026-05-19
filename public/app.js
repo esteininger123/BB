@@ -723,16 +723,17 @@ function renderTabKalkulator() {
           <div id="spar-werte-block" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0;"></div>
           <div class="chart-container"><canvas id="chart-sparen"></canvas></div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12px;color:#7A7A72;">
-            <span>EK-Verzinsung Anlage-Pfad:</span>
+            <span style="white-space:nowrap;">EK-Verzinsung:</span>
             <input type="range" id="spar-zins-slider" min="0" max="12" step="0.05"
                    value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
-                   style="flex:1;cursor:pointer;">
+                   class="spar-zins-range"
+                   style="flex:1;cursor:pointer;accent-color:#7A7A72;">
             <span id="spar-zins-val" style="font-weight:600;color:#22543d;min-width:50px;text-align:right;">
               ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} %
             </span>
             <input type="number" id="spar-zins-num" min="0" max="12" step="0.05"
                    value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
-                   style="width:60px;padding:3px 5px;border:1px solid #cbd5e0;border-radius:4px;font-size:12px;">
+                   style="width:54px;padding:3px 5px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;background:#fafafa;">
           </div>
         </div>
       </div>
@@ -970,30 +971,29 @@ function kalkInputsThemenHtml(i) {
         ${sliderEur('Aktuelle Kaltmiete', 'kaltmiete', 200, 2000, 10, '€/Mo')}
         ${sliderEur('Stellplatz-Miete', 'stellplatzMiete', 0, 200, 5, '€/Mo')}
         ${(() => {
-          // Iter 46: Subv wird aus Airtable (Kalk-Stammdaten) berechnet, nicht mehr per Slider.
-          // App zeigt nur das Ergebnis. Schliesst Endkunden-Verwirrung aus.
+          // Iter 48: Mietsubvention als Kunden-Story.
+          // Beide Phasen explizit mit echten Subv-Werten + Gesamtsumme. „Sie"-Form.
           const phasen = Array.isArray(state.kalk.subventionPhasen) ? state.kalk.subventionPhasen : [];
           const totalEur = state.kalk._subventionTotalEur || 0;
           const erlaut = state.kalk._subventionErlaeuterung || '';
           if (phasen.length === 0 && !state.kalk.subventionMonate) {
-            return `<div style="padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;font-size:12.5px;color:#7A7A72;">Keine Mietsubvention (${erlaut || 'aus Airtable berechnet'})</div>`;
+            return `<div style="padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;font-size:12.5px;color:#7A7A72;">Keine Mietsubvention (${erlaut || 'aus Stammdaten berechnet'})</div>`;
           }
           const fmt = (v) => Math.round(v).toLocaleString('de-DE');
-          const zeile = (p, idx) => `<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;">
-            <span class="text-tertiary">${phasen.length > 1 ? 'Phase ' + (idx+1) : 'Subvention'}</span>
-            <span><strong>${fmt(p.mo)} €</strong>/Mo &middot; <strong>${p.monate}</strong> Mo</span>
-          </div>`;
-          const zeilen = phasen.length > 0
-            ? phasen.map((p, idx) => zeile(p, idx)).join('')
-            : zeile({ mo: state.kalk.subventionMo, monate: state.kalk.subventionMonate }, 0);
+          const phasenList = phasen.length > 0 ? phasen : [{ mo: state.kalk.subventionMo, monate: state.kalk.subventionMonate, label: 'Mietsubvention' }];
+          const zeilen = phasenList.map((p, idx) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:13px;">
+              <span class="text-tertiary">${phasenList.length > 1 ? 'Phase ' + (idx + 1) : 'Aufschlag'}</span>
+              <span><strong>${fmt(p.mo)} €</strong>/Mo &middot; <strong>${p.monate}</strong> Mo</span>
+            </div>`).join('');
           return `
-            <div style="padding:10px 14px;background:#fef5e7;border-radius:6px;border-left:3px solid #B08A4D;">
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <span style="text-transform:uppercase;letter-spacing:0.05em;font-size:11px;font-weight:600;color:#B08A4D;">Mietsubvention (aus Airtable)</span>
-                <span style="font-weight:700;color:#B08A4D;">${fmt(totalEur)} € gesamt</span>
+            <div style="padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <span style="text-transform:uppercase;letter-spacing:0.05em;font-size:11px;font-weight:600;color:#7A7A72;">Mietsubvention</span>
+                <span style="font-weight:700;color:#22543d;font-size:14px;">Gesamt ${fmt(totalEur)} €</span>
               </div>
-              <div style="margin-top:6px;">${zeilen}</div>
-              ${erlaut ? `<div class="text-tertiary text-small" style="margin-top:6px;font-size:11.5px;">${erlaut}</div>` : ''}
+              ${zeilen}
+              ${erlaut ? `<div class="text-tertiary text-small" style="margin-top:4px;font-size:11.5px;line-height:1.4;">${erlaut}</div>` : ''}
             </div>`;
         })()}
         ${select('Mietsteigerungs-Modus', 'mietsteigerungsModus', [
