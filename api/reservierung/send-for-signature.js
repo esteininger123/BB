@@ -134,7 +134,13 @@ module.exports = async (req, res) => {
     // --- 6. Recipients (sequenziell: Käufer zuerst, Vertriebler danach)
     // Adressfelder in den Recipient-Daten füllen automatisch die [Kaufinteressent.StreetAddress],
     // [Kaufinteressent.PostalCode], [Kaufinteressent.State]-Tokens im Template.
-    const verkaeuferEmail = vertriebler[VERTRIEBLER_FIELDS.EMAIL] || 'e.steininger@immo-stein.de';
+    //
+    // Verkäufer-Mail ist BEWUSST hartkodiert: alle Reservierungen laufen über die zentrale
+    // B&B-Mailbox info@bub-immo.de. Der ANZEIGENAME im Doc bleibt dynamisch aus dem
+    // Airtable-Vertrieblerprofil (z.B. "Edgar Steininger" oder "Laurin Zimmerer") — so
+    // sieht der Käufer wer der konkrete Ansprechpartner ist, aber alle Verkäufer-Mails
+    // landen zentral. Spart pro-Vertriebler-PandaDoc-Accounts.
+    const verkaeuferEmail = 'info@bub-immo.de';
     const verkaeuferName  = vertriebler[VERTRIEBLER_FIELDS.NAME]  || 'Edgar Steininger';
     const [vkFirst, ...vkRest] = String(verkaeuferName).trim().split(/\s+/);
 
