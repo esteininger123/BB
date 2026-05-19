@@ -697,16 +697,10 @@ function renderTabKalkulator() {
             </select>
             ${i._weId ? `
               <div class="we-meta-row text-small text-tertiary">
-                <span>Aktiv: ${esc(i._weNr ? 'WE ' + i._weNr + ' · ' : '')}${esc(i._weLage || '')}</span>
                 ${i._vermietungsStatus === 'vermietet' ? `
                   <span class="we-status-pill vermietet">● vermietet</span>
                 ` : i._vermietungsStatus === 'leer' ? `
-                  <span class="we-status-pill leer">○ leer — B&amp;B vermietet vor Verkauf neu</span>
-                ` : ''}
-                ${i._vermietungsStatus === 'leer' ? `
-                  <span class="we-status-pill hint" title="Iter 41.17: bei Leerstand greift Staffelmiete ab Monat 1, kein alter Vertragsbeginn.">Neuvermietung-Modus aktiv (Staffel ${Math.round((i.steigerungProz || 0.03) * 100)} %, ab Monat 1)</span>
-                ` : i._letzteMietsteigerung ? `
-                  <span class="we-status-pill neutral">letzte Mietsteig.: ${esc(fmtDate(i._letzteMietsteigerung))}</span>
+                  <span class="we-status-pill leer">○ leer — neu vermietet vor Verkauf</span>
                 ` : ''}
                 ${i._objektvorstellungLink ? `
                   <a href="${esc(i._objektvorstellungLink)}" target="_blank" rel="noopener" class="we-meta-link">
@@ -729,15 +723,16 @@ function renderTabKalkulator() {
                 </div>
               ` : ''}
               ${(() => {
-                // Iter 50 Polish: Stammdaten-Quelle-Hinweis via CSS-Klassen (ok/warn/loading/error)
-                if (!i._stammdatenQuelle) return '';
+                // Iter 54: Nur noch Warnungen anzeigen — der „aktiv"-Fall ist der Normalfall
+                // und braucht keine Pille. Tech-Hinweis „aus Airtable" raus aus Endkunden-Sicht.
+                if (!i._stammdatenQuelle || i._stammdatenQuelle === 'airtable-aktiv') return '';
                 const labelMap = {
-                  'airtable-aktiv':            { txt: '✓ Stammdaten aktiv aus Airtable',              cls: 'ok' },
                   'airtable-entwurf-defaults': { txt: '⚠ Stammdaten nur als Entwurf — Kalkulation läuft mit Defaults', cls: 'warn' },
                   'airtable-fehlt-defaults':   { txt: '⚠ Keine Stammdaten gepflegt — Kalkulation läuft mit Defaults', cls: 'warn' },
                   'airtable-load':             { txt: '… Stammdaten werden geladen',                   cls: 'loading' },
                 };
-                const info = labelMap[i._stammdatenQuelle] || { txt: i._stammdatenQuelle, cls: 'loading' };
+                const info = labelMap[i._stammdatenQuelle];
+                if (!info) return '';
                 return `<div class="stammdaten-hint ${info.cls}">${esc(info.txt)}</div>`;
               })()}
             ` : ''}
