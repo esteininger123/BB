@@ -709,8 +709,8 @@ function renderTabKalkulator() {
                   <span class="we-status-pill neutral">letzte Mietsteig.: ${esc(fmtDate(i._letzteMietsteigerung))}</span>
                 ` : ''}
                 ${i._objektvorstellungLink ? `
-                  <a href="${esc(i._objektvorstellungLink)}" target="_blank" rel="noopener" class="we-status-pill" style="background:#22543d;color:#fff;text-decoration:none;font-weight:600;">
-                    ↗ Objektvorstellung öffnen
+                  <a href="${esc(i._objektvorstellungLink)}" target="_blank" rel="noopener" class="we-meta-link">
+                    Objektvorstellung <span aria-hidden="true">↗</span>
                   </a>
                 ` : ''}
               </div>

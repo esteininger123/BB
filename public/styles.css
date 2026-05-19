@@ -1,11 +1,12 @@
 /* styles.css — B&B Branding (Cream/Bronze, identisch zu V1) */
 
 :root {
-  --bg-primary:    #FBFAF7;
-  --bg-card:       #FFFFFF;
-  --bg-section:    #F4F3EE;
-  --bg-cream:      #E8E6DD;
-  --bg-input:      #EDE4D0;
+  --bg-primary:      #FBFAF7;
+  --bg-card:         #FFFFFF;
+  --bg-section:      #F4F3EE;
+  --bg-cream:        #E8E6DD;
+  --bg-cream-subtle: #FAFAF6;  /* SA-Sektionen, Subv-Inline-Box — sehr dezent */
+  --bg-input:        #EDE4D0;
 
   --text-primary:  #1A1A17;
   --text-secondary:#3A3A35;
@@ -1447,6 +1448,265 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .subv-status-card .hint  { font-size: 13px; color: var(--text-secondary); }
 .subv-status-card ul     { margin: 8px 0 0 18px; padding: 0; font-size: 13px; }
 .subv-status-card ul li  { margin-bottom: 4px; }
+
+/* --- Kalkulator-Tab Polish (Iter 50, 19.05.2026) ---
+   Vorher in renderTabKalkulator() inline mit Material-Hex-Codes
+   (#c6f6d5/#fed7d7/#fefcbf/#f8fafc/#2c5282). Jetzt B&B-konsistent. */
+.we-meta-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 6px;
+}
+.we-status-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.we-status-pill.vermietet { background: var(--positive-bg);          color: var(--positive); }
+.we-status-pill.leer      { background: var(--negative-bg);          color: var(--negative); }
+.we-status-pill.hint      { background: var(--badge-mittelphase-bg); color: var(--badge-mittelphase-fg); }
+.we-status-pill.neutral   { background: var(--bg-cream);             color: var(--text-secondary); }
+
+/* Iter 53: dezenter Inline-Link für Objektvorstellung — Akzentfarbe, klein, unterstrichen */
+.we-meta-link {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent, #B08A4D);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  margin-left: auto; /* drückt den Link nach rechts */
+}
+.we-meta-link:hover { color: var(--text-primary); text-decoration-thickness: 2px; }
+.we-meta-link span { font-size: 10px; opacity: 0.7; }
+
+.we-stellplatz-info {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-section);
+  border-left: 3px solid var(--accent);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.we-stellplatz-info strong { color: var(--text-primary); }
+
+.stammdaten-hint {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.stammdaten-hint.ok       { color: var(--positive); }
+.stammdaten-hint.warn     { color: var(--badge-mittelphase-fg); }
+.stammdaten-hint.loading  { color: var(--text-tertiary); }
+.stammdaten-hint.error    { color: var(--negative); }
+
+.chart-formula {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: var(--bg-section);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.chart-formula strong { color: var(--text-primary); }
+
+/* Spar-Zins-Slider-Row (unter dem Sparen-vs-Investieren-Chart) */
+.spar-zins-row {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.spar-zins-row .spar-zins-label { white-space: nowrap; }
+.spar-zins-row input[type="range"].spar-zins-range { flex: 1; cursor: pointer; }
+.spar-zins-row .spar-zins-val {
+  font-weight: 600;
+  color: var(--positive);
+  min-width: 50px;
+  text-align: right;
+}
+.spar-zins-row input[type="number"].spar-zins-num {
+  width: 60px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 12px;
+  background: var(--bg-input);
+}
+
+/* Kalkulator-Werte-Block (CF + Sparen-Übersicht) */
+.kalk-werte-block {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 12px 0;
+}
+.kalk-werte-block .wert {
+  background: var(--bg-section);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+.kalk-werte-block .wert .label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+  margin: 0 0 2px;
+}
+.kalk-werte-block .wert .value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.kalk-werte-block .wert.positive .value { color: var(--positive); }
+.kalk-werte-block .wert.negative .value { color: var(--negative); }
+
+/* Cashflow-Detail-Cards (J1/J2 unter dem Cashflow-Chart) */
+.cf-detail-card {
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.cf-detail-card.primary {
+  border: 2px solid var(--accent);
+  box-shadow: 0 2px 8px rgba(176, 138, 77, 0.18);
+}
+.cf-detail-title {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+.cf-detail-card.primary .cf-detail-title { color: var(--accent-dark); }
+.cf-detail-row {
+  display: flex; justify-content: space-between;
+  font-size: 14px;
+  margin-top: 2px;
+}
+.cf-detail-row .positive { color: var(--positive); font-weight: 700; }
+.cf-detail-row .negative { color: var(--negative); font-weight: 700; }
+
+/* Sparen-vs-Investieren-Karten (analog cf-detail-card) */
+.spar-card {
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.spar-card.primary {
+  border: 2px solid var(--positive);
+  box-shadow: 0 2px 8px rgba(45, 110, 71, 0.18);
+}
+.spar-card-title {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+.spar-card.primary .spar-card-title { color: var(--positive); }
+.spar-card-value {
+  margin-top: 4px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+}
+.spar-card.primary .spar-card-value { color: var(--positive); }
+.spar-card-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* --- SA-Coverage-Card (Feature F-2 Polish, Iter 50) --- */
+.sa-coverage-progress {
+  height: 10px;
+  background: var(--bg-section);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+}
+.sa-coverage-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+.sa-coverage-progress-fill.good { background: var(--positive); }
+.sa-coverage-progress-fill.mid  { background: var(--accent); }
+.sa-coverage-progress-fill.low  { background: var(--negative); }
+
+.sa-coverage-rolle {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+.sa-coverage-rolle:first-child {
+  margin-top: 6px;
+  padding-top: 0;
+  border-top: none;
+}
+.sa-coverage-rolle-head {
+  display: flex; justify-content: space-between; align-items: center;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+.sa-coverage-rolle-head .rolle-stat {
+  font-weight: 400;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+.sa-coverage-rolle-head .rolle-stat.warn {
+  color: var(--negative);
+  font-weight: 600;
+}
+.sa-coverage-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  list-style: disc;
+}
+.sa-coverage-list li {
+  margin-bottom: 4px;
+  line-height: 1.5;
+}
+.sa-coverage-list li strong { color: var(--text-primary); }
+.sa-coverage-rolle.leer-hint {
+  background: var(--negative-bg);
+  border-left: 3px solid var(--negative);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--negative);
+  margin-top: 12px;
+}
+
+/* SA „Gemeinsamer Antrag"-Toggle — vorher mit doppeltem width-Attr (Markup-Bug) */
+.sa-gemeinsam-toggle {
+  display: flex; align-items: center; gap: 8px;
+  text-transform: none; letter-spacing: 0;
+  cursor: pointer; user-select: none;
+  margin: 0;
+}
+.sa-gemeinsam-toggle input[type="checkbox"] {
+  width: 18px; height: 18px;
+  cursor: pointer;
+}
+
+/* Toast bei recalc-Fehler */
+.toast.recalc-error {
+  background: var(--negative);
+  color: var(--on-accent);
+}
 
 @media print {
   .pdf-template input.sa-fld {
