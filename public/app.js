@@ -1829,8 +1829,8 @@ function drawCharts(r) {
         </div>
       </div>`;
     werteBlock.innerHTML =
-      card('Operativer CF', '#2D6E47', opJ1, opJ2, false) +
-      card('Steuervorteil', '#B08A4D', stVJ1, stVJ2, false) +
+      card('Operativer CF', '#7A7A72', opJ1, opJ2, false) +
+      card('Steuervorteil', '#7A7A72', stVJ1, stVJ2, false) +
       card('★ CF nach Steuern', '#22543d', nachJ1, nachJ2, true);
   }
 
@@ -1994,8 +1994,8 @@ function drawCharts(r) {
           type: 'bar',
           label: 'Operativer CF (vor Steuer)',
           data: cfBarOperativ,
-          backgroundColor: 'rgba(45,110,71,0.85)',
-          borderColor: '#2D6E47',
+          backgroundColor: 'rgba(122,122,114,0.55)',
+          borderColor: 'rgba(122,122,114,0.7)',
           borderWidth: 1,
           stack: 'cf',
           order: 3,
@@ -2004,8 +2004,8 @@ function drawCharts(r) {
           type: 'bar',
           label: 'Steuervorteil',
           data: cfBarStVorteil,
-          backgroundColor: 'rgba(176,138,77,0.85)',
-          borderColor: '#B08A4D',
+          backgroundColor: 'rgba(122,122,114,0.25)',
+          borderColor: 'rgba(122,122,114,0.4)',
           borderWidth: 1,
           stack: 'cf',
           order: 2,
@@ -2105,23 +2105,36 @@ function drawCharts(r) {
   }
   if (chartS) chartS.destroy();
   chartS = new Chart(document.getElementById('chart-sparen'), {
-    type: 'bar',
+    type: 'line',
     data: {
       labels: sparenLbls,
       datasets: [
         {
           label: 'EK nur anlegen',
           data: sparenNur,
-          backgroundColor: 'rgba(122,122,114,0.55)',
-          borderColor: '#7A7A72',
-          borderWidth: 1,
+          borderColor: 'rgba(122,122,114,0.6)',
+          backgroundColor: 'rgba(122,122,114,0.08)',
+          borderWidth: 1.5,
+          tension: 0.3,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+          fill: 'origin',
+          order: 2,
         },
         {
           label: '★ EK in Immobilie',
           data: sparenMit,
-          backgroundColor: 'rgba(34,84,61,0.85)',
           borderColor: '#22543d',
-          borderWidth: 1,
+          backgroundColor: 'rgba(34,84,61,0.18)',
+          borderWidth: 3,
+          tension: 0.3,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#22543d',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          fill: 'origin',
+          order: 1,
         },
       ],
     },
