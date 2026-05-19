@@ -1,7 +1,39 @@
 /* app.js — SPA-Hauptlogik, hash-basiertes Routing.
    State + Render-Funktionen für: Login, Dashboard, Kunde-Detail (4 Tabs), Admin.
-   Setzt globales window.__onGoogleAuth für Google-Sign-In. */
+   Setzt globales window.__onGoogleAuth für Google-Sign-In.
 
+   ─────────────────────────────────────────────────────────────────────────
+   MODUL-MAP (Stand 19.05.2026 — physisches Zerschneiden für Iter 2 geplant)
+
+   Aktuelle Datei: ~3120 LoC. Pragmatiker-Veto in diesem Lauf:
+   Refactor-Aufwand parallel zu Audit-Fixes erhöht Bug-Risiko. Stattdessen
+   dokumentierte Boundaries via `// ===== MODUL: <name> =====` (siehe unten).
+   Iter 2 zieht die Module in eigene Files, index.html lädt sie in der
+   gleichen Reihenfolge wie aktuell deklariert.
+
+   Geplante physische Module:
+     1. lib/state.js          — globaler State + PHASEN + AIRTABLE_LINKS
+     2. lib/helpers.js        — esc/initialen/fmtDate/toast/route/go
+     3. lib/render-helpers.js — kpiCard, sliderEur, slider, select
+     4. views/auth.js         — renderLogin + initGoogleButton + __onGoogleAuth
+     5. views/dashboard.js    — renderDashboard + createNewKunde + sync
+     6. views/kunde.js        — renderKunde + renderTab + setTab + deleteKunde
+     7. views/kalkulator-tab.js — alles ab `function renderTabKalkulator` bis
+                                  inkl. Charts + Stories (~1200 LoC der größte
+                                  Brocken — eigenes File rechtfertigt sich)
+     8. views/selbstauskunft-tab.js — saAuswertungHtml + saPersonHtml + collect
+     9. views/snapshots-tab.js — renderTabSnapshots + loadSnapshot
+    10. views/admin.js        — renderAdmin + renderAdminStammdatenAudit
+    11. bootstrap.js          — render() + window.addEventListener('load')
+
+   Dependencies fließen einseitig: state → helpers → render-helpers → views.
+   Kein Modul lädt umgekehrt — sonst Zirkular-Risiko ohne Build-Tool.
+
+   Wenn du zwischen Sektionen springst, halte dich an die Header — sie sind
+   die Modul-Grenze für Iter 2.
+   ───────────────────────────────────────────────────────────────────────── */
+
+// ===== MODUL: lib/state =====
 const state = {
   user: null,                // {id, name, email, telefon, rolle, fotoUrl}
   view: 'login',             // 'login' | 'dashboard' | 'kunde' | 'admin'
@@ -20,6 +52,15 @@ const state = {
 
 const PHASEN = ['Lead','Kalkulation läuft','Reservierung','Selbstauskunft','Bank-Einreichung','Notar-Termin','Beurkundet','Abgebrochen'];
 
+// Audit-Fix Iter 49 (19.05.2026): Airtable-Direktlinks zentralisiert. Wenn die Base
+// umzieht oder eine Tabelle verschoben wird, nur hier anpassen.
+const AIRTABLE_BASE_ID = 'appikHUetNyeonXBX';
+const AIRTABLE_LINKS = {
+  KALK_STAMMDATEN: `https://airtable.com/${AIRTABLE_BASE_ID}/tblz5KNtzkLSLHHFo`,
+  WOHNEINHEIT:     `https://airtable.com/${AIRTABLE_BASE_ID}/tblAV81mX1MaxqVQi`,
+};
+
+// ===== MODUL: lib/helpers (Routing + Toast + esc/initialen/fmtDate) =====
 /* ============================== ROUTING ============================== */
 
 function route() {
@@ -86,6 +127,7 @@ function fmtDate(d) {
   try { return new Date(d).toLocaleDateString('de-DE'); } catch(e) { return d; }
 }
 
+// ===== MODUL: views/auth (renderHeader + Login + Logout + Google-Sign-In) =====
 /* ============================== HEADER ============================== */
 
 function renderHeader() {
@@ -201,6 +243,7 @@ window.__onGoogleAuth = async function(response) {
   }
 };
 
+// ===== MODUL: lib/data-loading (loadInitialData + loadKunde + makeDefaultKalkInput) =====
 /* ============================== DATA LOADING ============================== */
 
 async function loadInitialData() {
@@ -246,6 +289,7 @@ function makeDefaultKalkInput() {
   return {};
 }
 
+// ===== MODUL: views/dashboard (renderDashboard + createNewKunde + syncStammdatenInSa) =====
 /* ============================== DASHBOARD ============================== */
 
 function renderDashboard() {
@@ -360,6 +404,7 @@ function syncStammdatenInSa() {
 }
 window.go = go;
 
+// ===== MODUL: views/kunde (renderKunde + Tab-Routing + renderTabUebersicht) =====
 /* ============================== KUNDE-DETAIL ============================== */
 
 async function renderKunde() {
@@ -532,6 +577,7 @@ async function saveNotizen() {
 }
 window.saveNotizen = saveNotizen;
 
+// ===== MODUL: views/kalkulator-tab (~1700 LoC bis Z. 2310 — größter Brocken) =====
 /* ============================== KALKULATOR-TAB ============================== */
 
 function renderTabKalkulator() {
@@ -971,15 +1017,45 @@ function kalkInputsThemenHtml(i) {
         ${sliderEur('Aktuelle Kaltmiete', 'kaltmiete', 200, 2000, 10, '€/Mo')}
         ${sliderEur('Stellplatz-Miete', 'stellplatzMiete', 0, 200, 5, '€/Mo')}
         ${(() => {
-          // Iter 48: Mietsubvention als Kunden-Story.
-          // Beide Phasen explizit mit echten Subv-Werten + Gesamtsumme. „Sie"-Form.
+          // Iter 49 (Audit-Fix H4, 19.05.2026): Subventions-Status-Card —
+          // bei fehlenden Stammdaten (Marktmiete, MbV, Kappung etc.) zeigt der
+          // Vertriebler jetzt eine deutliche „warum greift das 2-Phasen-Modell nicht"-
+          // Erklärung. Vorher: stiller Inline-Block, der CC2-Story-Lücken kaschiert hat.
           const phasen = Array.isArray(state.kalk.subventionPhasen) ? state.kalk.subventionPhasen : [];
           const totalEur = state.kalk._subventionTotalEur || 0;
           const erlaut = state.kalk._subventionErlaeuterung || '';
-          if (phasen.length === 0 && !state.kalk.subventionMonate) {
-            return `<div style="padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;font-size:12.5px;color:#7A7A72;">Du erhältst keine Mietsubvention (${erlaut || 'aus Stammdaten berechnet'})</div>`;
-          }
+          const quelle = state.kalk._subventionQuelle || '';
           const fmt = (v) => Math.round(v).toLocaleString('de-DE');
+
+          // Pflege-Lücken-Quellen: explizit warnen.
+          const istLuecke = quelle.startsWith('auto-') && quelle.endsWith('-fehlt');
+          if (istLuecke) {
+            const pflegeMap = {
+              'auto-mbv-fehlt':       'Miete bei Verkauf',
+              'auto-kappung-fehlt':   'Kappungsgrenze',
+              'auto-modus-fehlt':     'Vermietungs-Modus',
+              'auto-kein-spielraum':  'Marktmiete (liegt aktuell ≤ Miete bei Verkauf)',
+            };
+            const fehlend = pflegeMap[quelle] || quelle;
+            return `
+              <div class="subv-status-card warn">
+                <div class="title">Mietsubventions-Story aktuell nicht aktiv</div>
+                <div class="hint">${esc(erlaut || 'Stammdaten unvollständig.')}</div>
+                <ul>
+                  <li>Fehlt: <strong>${esc(fehlend)}</strong> (Kalk-Stammdaten)</li>
+                  <li>Wirkung: Käufer sieht reine Bestandsmiete ohne B&amp;B-Aufschlag — kein konstanter Cashflow über 6 Jahre.</li>
+                  <li>Fix in Airtable: <a href="${AIRTABLE_LINKS.KALK_STAMMDATEN}" target="_blank" rel="noopener">Stammdaten-Tabelle öffnen</a></li>
+                </ul>
+              </div>`;
+          }
+
+          if (phasen.length === 0 && !state.kalk.subventionMonate) {
+            // Kein Bestandsmodus (z.B. Neuvermietung/Leerstand) → das ist legitim, nicht alarmieren.
+            return `<div class="subv-status-card">
+              <div class="title">Keine Mietsubvention</div>
+              <div class="hint">${esc(erlaut || 'aus Stammdaten berechnet')}</div>
+            </div>`;
+          }
           const phasenList = phasen.length > 0 ? phasen : [{ mo: state.kalk.subventionMo, monate: state.kalk.subventionMonate, label: 'Mietsubvention' }];
           const zeilen = phasenList.map((p, idx) => `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:13px;">
@@ -987,13 +1063,13 @@ function kalkInputsThemenHtml(i) {
               <span><strong>${fmt(p.mo)} €</strong>/Mo &middot; <strong>${p.monate}</strong> Mo</span>
             </div>`).join('');
           return `
-            <div style="padding:10px 14px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;">
+            <div class="subv-status-card">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                <span style="text-transform:uppercase;letter-spacing:0.05em;font-size:11px;font-weight:600;color:#7A7A72;">Deine Mietsubvention</span>
-                <span style="font-weight:700;color:#22543d;font-size:14px;">Gesamt ${fmt(totalEur)} €</span>
+                <span style="text-transform:uppercase;letter-spacing:0.05em;font-size:11px;font-weight:600;color:var(--text-tertiary);">Deine Mietsubvention</span>
+                <span style="font-weight:700;color:var(--positive);font-size:14px;">Gesamt ${fmt(totalEur)} €</span>
               </div>
               ${zeilen}
-              ${erlaut ? `<div class="text-tertiary text-small" style="margin-top:4px;font-size:11.5px;line-height:1.4;">${erlaut}</div>` : ''}
+              ${erlaut ? `<div class="text-tertiary text-small" style="margin-top:4px;font-size:11.5px;line-height:1.4;">${esc(erlaut)}</div>` : ''}
             </div>`;
         })()}
         ${select('Mietsteigerungs-Modus', 'mietsteigerungsModus', [
@@ -2232,7 +2308,108 @@ window.exportInvestPdf = exportInvestPdf;
 window.exportReservPdf = exportReservPdf;
 window.exportSaPdf = exportSaPdf;
 
+// ===== MODUL: views/selbstauskunft-tab (SA-Form + Auswertung + Auto-Save) =====
 /* ============================== SELBSTAUSKUNFT-TAB ============================== */
+
+// Feature F-2 (Audit-Iter 49, 19.05.2026): SA-Pflichtfelder-Coverage für Bank-Bonität.
+// Vertriebs-Win — Edgar / Henry sehen pro Antragsteller, was die Bank noch braucht,
+// bevor sie den Bogen einreichen. Sortiert nach Sektion.
+function saCoverage(sa, gemeinsam) {
+  if (!sa) return { pct: 0, sektionen: [] };
+  // Pflichtfelder pro Person — daraus baut sich die Coverage. Auswahl basiert auf
+  // dem typischen Hypovision-Bogen + GwG-Pflicht + Banken-Erfahrungswerten.
+  const pflichtPro = [
+    { sek: 'Person',          felder: ['vorname','name','geburtsdatum','strasse','plz','ort','staatsangehoerigkeit','telefonPrivat','email','steuerId','familienstand'] },
+    { sek: 'Beruf',           felder: ['beruf','firma','beschaeftigtSeit','befristung'] },
+    { sek: 'Einkommen',       felder: ['nettoMo','anzahlGehaelter'] },
+    { sek: 'Fixkosten',       felder: ['mieteMo','pkvMo'] },
+    { sek: 'Vermögen',        felder: ['bankguthaben'] },
+    { sek: 'GwG-Identität',   felder: ['gwg.ausweisArt','gwg.ausweisNr','gwg.ausweisGueltig'] },
+    { sek: 'PEP-Status',      felder: ['pep'] },
+  ];
+  const personen = gemeinsam ? [['Antragsteller 1', sa.antragsteller || {}], ['Antragsteller 2', sa.mitantragsteller || {}]]
+                              : [['Antragsteller',  sa.antragsteller || {}]];
+  function read(obj, path) {
+    const parts = path.split('.');
+    let v = obj;
+    for (const p of parts) { if (v == null) return null; v = v[p]; }
+    if (v === '' || v === undefined) return null;
+    return v;
+  }
+  const sektionen = [];
+  let totalGesetzt = 0, totalPflicht = 0;
+  personen.forEach(([rolle, p]) => {
+    pflichtPro.forEach(({ sek, felder }) => {
+      const fehlt = [];
+      let gesetzt = 0;
+      felder.forEach(f => {
+        const v = read(p, f);
+        if (v == null) fehlt.push(f.split('.').pop()); else gesetzt++;
+      });
+      sektionen.push({ rolle, sek, gesetzt, gesamt: felder.length, fehlt });
+      totalGesetzt += gesetzt;
+      totalPflicht += felder.length;
+    });
+  });
+  // sa-weite Pflicht: Herkunft EK mindestens einer markiert
+  const ekKeys = ['ersparnisse','wertpapier','erbe','schenkung','immobilien','sonstiges'];
+  const ekObj = sa.herkunftEk || {};
+  const ekGesetzt = ekKeys.some(k => ekObj[k]) ? 1 : 0;
+  sektionen.push({ rolle: 'Gemeinsam', sek: 'Herkunft EK', gesetzt: ekGesetzt, gesamt: 1, fehlt: ekGesetzt ? [] : ['mindestens-1-quelle'] });
+  totalGesetzt += ekGesetzt;
+  totalPflicht += 1;
+  const pct = totalPflicht > 0 ? Math.round((totalGesetzt / totalPflicht) * 100) : 0;
+  return { pct, sektionen, totalGesetzt, totalPflicht };
+}
+
+function saCoverageHtml() {
+  const sa = state._sa || {};
+  const cov = saCoverage(sa, sa.gemeinsam === true);
+  const ampelKlasse = cov.pct >= 90 ? 'kpi-positive' : cov.pct >= 60 ? 'kpi-primary' : 'kpi-negative';
+  // Gruppieren nach Rolle, dann Sektion
+  const byRolle = {};
+  cov.sektionen.forEach(s => {
+    if (!byRolle[s.rolle]) byRolle[s.rolle] = [];
+    byRolle[s.rolle].push(s);
+  });
+  const labelMap = {
+    'gwg.ausweisArt': 'Ausweisart',
+    'gwg.ausweisNr':  'Ausweis-Nr',
+    'gwg.ausweisGueltig': 'Ausweis gültig bis',
+    'ausweisArt': 'Ausweisart', 'ausweisNr': 'Ausweis-Nr', 'ausweisGueltig': 'gültig bis',
+    'nettoMo': 'Netto/Mo', 'anzahlGehaelter': 'Anzahl Gehälter',
+    'mieteMo': 'Miete Whg', 'pkvMo': 'PKV',
+    'mindestens-1-quelle': 'Quelle ankreuzen',
+  };
+  const lbl = (f) => labelMap[f] || f;
+  const rollenHtml = Object.entries(byRolle).map(([rolle, sekt]) => {
+    const items = sekt.map(s => {
+      const ok = s.fehlt.length === 0;
+      return `<li>
+        <strong>${esc(s.sek)}:</strong>
+        ${ok
+          ? `<span class="audit-pill aktiv size-sm">vollständig</span>`
+          : `<span class="audit-pill fehlt size-sm">${s.gesetzt}/${s.gesamt}</span>
+             <span class="text-tertiary text-small"> — fehlt: ${s.fehlt.map(f => esc(lbl(f))).join(', ')}</span>`}
+      </li>`;
+    }).join('');
+    return `<div style="margin-top:6px;"><div style="font-weight:600;">${esc(rolle)}</div><ul style="margin:4px 0 0 18px;padding:0;font-size:13px;">${items}</ul></div>`;
+  }).join('');
+  return `
+    <div class="card sa-auswertung-card mb-16">
+      <div class="card-title">SA-Vollständigkeit <span class="text-tertiary text-small" style="font-weight:normal;">(${cov.totalGesetzt} / ${cov.totalPflicht} Pflichtfelder)</span></div>
+      <div class="kpi-box ${ampelKlasse}" style="margin-top:8px;">
+        <div class="kpi-label">Bank-tauglich</div>
+        <div class="kpi-value">${cov.pct} %</div>
+        <div class="kpi-hint">Vollständigkeit der Pflichtangaben über alle Antragsteller. Ziel: 100 % vor Einreichung.</div>
+      </div>
+      <details class="sa-aufschluss" ${cov.pct < 100 ? 'open' : ''}>
+        <summary>${cov.pct < 100 ? 'Was fehlt der Bank noch?' : 'Detail-Coverage anzeigen'}</summary>
+        ${rollenHtml}
+      </details>
+    </div>
+  `;
+}
 
 function renderTabSelbstauskunft() {
   const el = document.getElementById('tab-content');
@@ -2271,6 +2448,7 @@ function renderTabSelbstauskunft() {
         </div>
       </div>
       <div class="mt-16">${saHerkunftEkHtml(sa.herkunftEk || {})}</div>
+      <div id="sa-coverage-wrap" class="mt-16">${saCoverageHtml()}</div>
       <div id="sa-auswertung-wrap" class="mt-16">${saAuswertungHtml()}</div>
       <div class="toolbar mt-16">
         <button onclick="saveSelbstauskunft()">Speichern</button>
@@ -2327,58 +2505,58 @@ function saAuswertungHtml() {
   const ueberschussCls = (ueberschuss !== null && ueberschuss < 0) ? 'kpi-negative' : 'kpi-positive';
 
   return `
-    <div class="card sa-auswertung-card" style="background:linear-gradient(135deg,#f8f9fb 0%,#eef2f7 100%);border:2px solid #2c5282;">
-      <div class="card-title" style="color:#2c5282;">Auswertung Selbstauskunft <span class="text-tertiary text-small" style="font-weight:normal;">(Bank-Sicht, live)</span></div>
+    <div class="card sa-auswertung-card">
+      <div class="card-title">Auswertung Selbstauskunft <span class="text-tertiary text-small" style="font-weight:normal;">(Bank-Sicht, live)</span></div>
 
       <div class="grid-3 mt-16">
-        <div class="kpi-box ${ueberschussCls}" style="background:#fff;padding:16px;border-radius:6px;border-left:4px solid ${ueberschuss !== null && ueberschuss < 0 ? '#c53030' : '#38a169'};">
-          <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;">Anrechenbarer Überschuss</div>
-          <div style="font-size:22px;font-weight:700;color:${ueberschuss !== null && ueberschuss < 0 ? '#c53030' : '#1a202c'};">${eur(ueberschuss)} <span style="font-size:13px;font-weight:400;color:#718096;">/ Monat</span></div>
-          <div class="text-tertiary text-small mt-4">Einkommen anrechenbar (80% Miete) minus Haushaltspauschale, Fixkosten und Verbindlichkeiten</div>
+        <div class="kpi-box ${ueberschussCls}">
+          <div class="kpi-label">Anrechenbarer Überschuss</div>
+          <div class="kpi-value">${eur(ueberschuss)} <span style="font-size:13px;font-weight:400;color:var(--text-tertiary);">/ Monat</span></div>
+          <div class="kpi-hint">Einkommen anrechenbar (80% Miete) minus Haushaltspauschale, Fixkosten und Verbindlichkeiten</div>
         </div>
-        <div class="kpi-box" style="background:#fff;padding:16px;border-radius:6px;border-left:4px solid #4a5568;">
-          <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;">Gesamtvermögen</div>
-          <div style="font-size:22px;font-weight:700;color:#1a202c;">${eur(gesamtVerm)}</div>
-          <div class="text-tertiary text-small mt-4">Liquide + Immobilien-Netto (Verkehrswert minus Hypotheken)</div>
+        <div class="kpi-box">
+          <div class="kpi-label">Gesamtvermögen</div>
+          <div class="kpi-value">${eur(gesamtVerm)}</div>
+          <div class="kpi-hint">Liquide + Immobilien-Netto (Verkehrswert minus Hypotheken)</div>
         </div>
-        <div class="kpi-box" style="background:#fff;padding:16px;border-radius:6px;border-left:4px solid #2c5282;box-shadow:0 2px 8px rgba(44,82,130,0.15);">
-          <div class="text-tertiary text-small" style="text-transform:uppercase;letter-spacing:0.05em;color:#2c5282;font-weight:600;">Einsetzbar für Immobilie</div>
-          <div style="font-size:22px;font-weight:700;color:#2c5282;">${eur(liquide)}</div>
-          <div class="text-tertiary text-small mt-4"><strong>Nur liquide Assets</strong> — Bestandsimmobilien zählen nicht (Beleihungsauslauf gebunden)</div>
+        <div class="kpi-box kpi-primary">
+          <div class="kpi-label">Einsetzbar für Immobilie</div>
+          <div class="kpi-value">${eur(liquide)}</div>
+          <div class="kpi-hint"><strong>Nur liquide Assets</strong> — Bestandsimmobilien zählen nicht (Beleihungsauslauf gebunden)</div>
         </div>
       </div>
 
-      <details class="mt-16" style="background:#fff;padding:12px 16px;border-radius:6px;">
-        <summary style="cursor:pointer;font-weight:600;color:#2c5282;">Aufschlüsselung anzeigen</summary>
+      <details class="sa-aufschluss">
+        <summary>Aufschlüsselung anzeigen</summary>
         <div class="grid-2 mt-12" style="gap:24px;">
           <div>
-            <div style="font-weight:600;margin-bottom:8px;color:#1a202c;">Einnahmen-Seite</div>
-            <table class="sa-aufschluss-table" style="width:100%;font-size:13px;">
-              <tr><td>Einkommen anrechenbar (Mo)</td><td style="text-align:right;font-weight:600;">${eur(einkAnr)}</td></tr>
+            <div style="font-weight:600;margin-bottom:8px;">Einnahmen-Seite</div>
+            <table class="sa-aufschluss-table">
+              <tr><td>Einkommen anrechenbar (Mo)</td><td class="num" style="font-weight:600;">${eur(einkAnr)}</td></tr>
             </table>
-            <div style="font-weight:600;margin:16px 0 8px;color:#1a202c;">Ausgaben-Seite (Bank-Sicht)</div>
-            <table class="sa-aufschluss-table" style="width:100%;font-size:13px;">
-              <tr><td>Haushaltspauschale</td><td style="text-align:right;">${eur(haushalt)}</td></tr>
-              <tr><td>Fixkosten (Miete/Unterhalt/PKV)</td><td style="text-align:right;">${eur(fix)}</td></tr>
-              <tr><td>Verbindlichkeiten (mtl.)</td><td style="text-align:right;">${eur(verbMo)}</td></tr>
-              <tr style="border-top:1px solid #e2e8f0;"><td style="font-weight:600;padding-top:6px;">Summe Ausgaben</td><td style="text-align:right;font-weight:600;padding-top:6px;">${eur(ausg)}</td></tr>
+            <div style="font-weight:600;margin:16px 0 8px;">Ausgaben-Seite (Bank-Sicht)</div>
+            <table class="sa-aufschluss-table">
+              <tr><td>Haushaltspauschale</td><td class="num">${eur(haushalt)}</td></tr>
+              <tr><td>Fixkosten (Miete/Unterhalt/PKV)</td><td class="num">${eur(fix)}</td></tr>
+              <tr><td>Verbindlichkeiten (mtl.)</td><td class="num">${eur(verbMo)}</td></tr>
+              <tr class="row-sum"><td>Summe Ausgaben</td><td class="num">${eur(ausg)}</td></tr>
             </table>
           </div>
           <div>
-            <div style="font-weight:600;margin-bottom:8px;color:#1a202c;">Vermögens-Seite</div>
-            <table class="sa-aufschluss-table" style="width:100%;font-size:13px;">
-              <tr><td>Liquides Vermögen (Bank/WP/Sparen/RKW)</td><td style="text-align:right;font-weight:600;color:#2c5282;">${eur(liquide)}</td></tr>
-              <tr><td>Immobilien netto (VK − Hypotheken)</td><td style="text-align:right;">${eur(immo)}</td></tr>
-              <tr style="border-top:1px solid #e2e8f0;"><td style="font-weight:600;padding-top:6px;">Gesamtvermögen</td><td style="text-align:right;font-weight:600;padding-top:6px;">${eur(gesamtVerm)}</td></tr>
+            <div style="font-weight:600;margin-bottom:8px;">Vermögens-Seite</div>
+            <table class="sa-aufschluss-table">
+              <tr><td>Liquides Vermögen (Bank/WP/Sparen/RKW)</td><td class="num primary">${eur(liquide)}</td></tr>
+              <tr><td>Immobilien netto (VK − Hypotheken)</td><td class="num">${eur(immo)}</td></tr>
+              <tr class="row-sum"><td>Gesamtvermögen</td><td class="num">${eur(gesamtVerm)}</td></tr>
             </table>
-            <div style="font-weight:600;margin:16px 0 8px;color:#1a202c;">Verbindlichkeiten</div>
-            <table class="sa-aufschluss-table" style="width:100%;font-size:13px;">
-              <tr><td>Restsaldo gesamt</td><td style="text-align:right;">${eur(verbGes)}</td></tr>
-              <tr><td>Mtl. Belastung</td><td style="text-align:right;">${eur(verbMo)}</td></tr>
+            <div style="font-weight:600;margin:16px 0 8px;">Verbindlichkeiten</div>
+            <table class="sa-aufschluss-table">
+              <tr><td>Restsaldo gesamt</td><td class="num">${eur(verbGes)}</td></tr>
+              <tr><td>Mtl. Belastung</td><td class="num">${eur(verbMo)}</td></tr>
             </table>
           </div>
         </div>
-        <div class="text-tertiary text-small mt-12" style="font-style:italic;">
+        <div class="footer-note">
           Hinweis: "Einsetzbar für neue Immobilie" rechnet bewusst nur mit liquidem Vermögen.
           Eigenkapital aus Bestandsimmobilien gilt in der Bankenbewertung als gebunden und
           fließt nicht in den EK-Einsatz für eine neue Finanzierung ein.
@@ -2392,6 +2570,9 @@ function recalcSaAuswertung() {
   collectSaFromDOM();
   const wrap = document.getElementById('sa-auswertung-wrap');
   if (wrap) wrap.innerHTML = saAuswertungHtml();
+  // F-2: Coverage parallel zum Auswertungsblock aktualisieren
+  const cov = document.getElementById('sa-coverage-wrap');
+  if (cov) cov.innerHTML = saCoverageHtml();
 }
 
 // Liest alle SA-Felder aus dem DOM und schreibt sie in state._sa.
@@ -2587,7 +2768,7 @@ function saPersonHtml(prefix, p) {
         ${sub('gwg', 'ausweisAusgestellt', 'date', 'Ausgestellt am')}
         ${sub('gwg', 'ausweisGueltig', 'date', 'Gültig bis')}
       </div>
-      <div class="mt-16" style="padding:12px;border:1px solid var(--border);border-radius:6px;background:#fdfbf6;">
+      <div class="sa-pep-warning">
         <div style="font-weight:600;margin-bottom:8px;">PEP-Erklärung (politisch exponierte Person)</div>
         <div class="text-tertiary text-small mb-8">
           PEP = Person mit hochrangigem öffentlichem Amt oder Familienangehörige/nahestehende Personen einer solchen
@@ -2755,12 +2936,12 @@ async function saveSelbstauskunft() {
 }
 window.saveSelbstauskunft = saveSelbstauskunft;
 
+// ===== MODUL: views/snapshots-tab (renderTabSnapshots + loadSnapshot) =====
 /* ============================== SNAPSHOTS-TAB ============================== */
 
 function renderTabSnapshots() {
   const el = document.getElementById('tab-content');
   const ss = state.snapshots || [];
-  console.log('[snapshots] state.snapshots:', ss);
   el.innerHTML = `
     <div class="card">
       <div class="card-title">Gespeicherte Snapshots <span class="text-tertiary text-small">(${ss.length})</span></div>
@@ -2811,7 +2992,6 @@ function loadSnapshot(id) {
       try { kalk = JSON.parse(kalk); } catch(e) { break; }
       attempts++;
     }
-    console.log('[loadSnapshot]', s.bezeichnung, 'kalk:', kalk);
     if (!kalk || typeof kalk !== 'object' || Object.keys(kalk).length === 0) {
       toast('Snapshot "' + (s.bezeichnung || '—') + '" enthält keine Kalkulations-Daten. Bitte neuen Snapshot speichern.', 'error');
       return;
@@ -2827,6 +3007,7 @@ function loadSnapshot(id) {
 }
 window.loadSnapshot = loadSnapshot;
 
+// ===== MODUL: views/admin (renderAdmin + renderAdminStammdatenAudit) =====
 /* ============================== ADMIN ============================== */
 
 async function renderAdmin() {
@@ -2901,13 +3082,13 @@ async function renderAdmin() {
                 <td>${esc(v.rolle)}</td>
                 <td class="num">${v.kundenGesamt || 0}</td>
                 <td class="num">${v.inBearbeitung || 0}</td>
-                <td class="num" style="${(v.reserviert||0)>0?'color:#b7791f;font-weight:700;':''}">${v.reserviert || 0}</td>
-                <td class="num" style="${(v.notarTermin||0)>0?'color:#2c5282;font-weight:700;':''}">${v.notarTermin || 0}</td>
+                <td class="num ${(v.reserviert||0)>0 ? 'stats-cell warn' : ''}">${v.reserviert || 0}</td>
+                <td class="num ${(v.notarTermin||0)>0 ? 'stats-cell notar' : ''}">${v.notarTermin || 0}</td>
                 <td class="num pos">${v.beurkundet || 0}</td>
               </tr>
             `).join('')}
             ${(s.vertriebler || []).length > 1 ? `
-              <tr style="background:#f7fafc;font-weight:700;border-top:2px solid #e2e8f0;">
+              <tr class="stats-row-summary">
                 <td>Summe</td><td></td>
                 <td class="num">${(s.vertriebler || []).reduce((a,v) => a + (v.kundenGesamt||0), 0)}</td>
                 <td class="num">${(s.vertriebler || []).reduce((a,v) => a + (v.inBearbeitung||0), 0)}</td>
@@ -2971,19 +3152,21 @@ window.reloadAdminWohneinheiten = reloadAdminWohneinheiten;
 // Stammdaten-Audit-Tabelle: zeigt pro WE alle kalkulationsrelevanten Felder + Status
 // Sortiert nach Projekt (aus WE-Titel abgeleitet). Markiert fehlende Werte rot.
 function renderAdminStammdatenAudit(audit) {
-  const eurN = (v) => (v === null || v === undefined || !isFinite(v)) ? '<span style="color:#c53030;">–</span>' : Math.round(v).toLocaleString('de-DE') + ' €';
-  const pctN = (v) => (v === null || v === undefined || !isFinite(v)) ? '<span style="color:#c53030;">–</span>' : (v * 100).toFixed(2).replace('.', ',') + ' %';
-  const numN = (v) => (v === null || v === undefined || !isFinite(v)) ? '<span style="color:#c53030;">–</span>' : Math.round(v).toLocaleString('de-DE');
-  const dateN = (v) => v ? new Date(v).toLocaleDateString('de-DE') : '<span style="color:#c53030;">–</span>';
+  // Audit-Fix Iter 49 (19.05.2026): Inline-Hex-Farben → CSS-Klassen (siehe styles.css `.audit-pill`).
+  const missing = '<span class="audit-cell-missing">–</span>';
+  const eurN  = (v) => (v === null || v === undefined || !isFinite(v)) ? missing : Math.round(v).toLocaleString('de-DE') + ' €';
+  const pctN  = (v) => (v === null || v === undefined || !isFinite(v)) ? missing : (v * 100).toFixed(2).replace('.', ',') + ' %';
+  const numN  = (v) => (v === null || v === undefined || !isFinite(v)) ? missing : Math.round(v).toLocaleString('de-DE');
+  const dateN = (v) => v ? new Date(v).toLocaleDateString('de-DE') : missing;
   const statusBadge = (s) => {
-    if (s === 'Aktiv') return '<span style="background:#c6f6d5;color:#22543d;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">Aktiv</span>';
-    if (s === 'Entwurf') return '<span style="background:#fefcbf;color:#744210;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">Entwurf</span>';
-    if (s === 'Archiviert') return '<span style="background:#e2e8f0;color:#4a5568;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">Archiv</span>';
-    return '<span style="background:#fed7d7;color:#742a2a;padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;">fehlt</span>';
+    if (s === 'Aktiv')      return '<span class="audit-pill aktiv">Aktiv</span>';
+    if (s === 'Entwurf')    return '<span class="audit-pill entwurf">Entwurf</span>';
+    if (s === 'Archiviert') return '<span class="audit-pill archiv">Archiv</span>';
+    return '<span class="audit-pill fehlt">fehlt</span>';
   };
   const vermBadge = (s) => {
-    if (s === 'vermietet') return '<span style="background:#c6f6d5;color:#22543d;padding:1px 6px;border-radius:8px;font-weight:600;font-size:10px;">vermietet</span>';
-    if (s === 'leer') return '<span style="background:#fed7d7;color:#742a2a;padding:1px 6px;border-radius:8px;font-weight:600;font-size:10px;">leer</span>';
+    if (s === 'vermietet') return '<span class="audit-pill size-sm vermietet">vermietet</span>';
+    if (s === 'leer')      return '<span class="audit-pill size-sm leer">leer</span>';
     return '';
   };
 
@@ -3029,13 +3212,13 @@ function renderAdminStammdatenAudit(audit) {
         const aktiv = arr.filter(r => r.stammdaten && r.stammdaten.status === 'Aktiv').length;
         return `
           <details open style="margin-top:12px;">
-            <summary style="cursor:pointer;font-weight:600;padding:8px 0;border-bottom:1px solid #e2e8f0;">
+            <summary class="admin-audit-summary-bar">
               ${esc(pn)} <span class="text-tertiary text-small" style="font-weight:normal;margin-left:8px;">${arr.length} WEs · ${aktiv} Aktiv</span>
             </summary>
             <div style="overflow-x:auto;">
-              <table class="table mt-8" style="font-size:12px;min-width:1400px;">
+              <table class="table mt-8 admin-audit-table">
                 <thead>
-                  <tr style="background:#f7fafc;">
+                  <tr>
                     <th>WE</th>
                     <th>Status</th>
                     <th>Vermietung</th>
@@ -3062,7 +3245,7 @@ function renderAdminStammdatenAudit(audit) {
                     const we = r.we;
                     const lageText = (we.titel || '').split(',').slice(1, 2).join(',').trim();
                     return `
-                      <tr style="${sd && sd.status === 'Aktiv' ? '' : 'background:#fffaf0;'}">
+                      <tr class="${sd && sd.status === 'Aktiv' ? '' : 'row-inactive'}">
                         <td><strong>WE ${esc(we.weNr || '?')}</strong><br><span class="text-tertiary text-small">${esc(lageText)}</span></td>
                         <td>${statusBadge(sd && sd.status)}</td>
                         <td>${vermBadge(r.vermietung && r.vermietung.status)}</td>
@@ -3091,12 +3274,13 @@ function renderAdminStammdatenAudit(audit) {
         `;
       }).join('')}
       <div class="text-tertiary text-small mt-12" style="font-style:italic;">
-        Bearbeitung läuft in Airtable. Direktlink: <a href="https://airtable.com/appikHUetNyeonXBX/tblz5KNtzkLSLHHFo" target="_blank">Kalkulations-Stammdaten-Tabelle</a> bzw. <a href="https://airtable.com/appikHUetNyeonXBX/tblAV81mX1MaxqVQi" target="_blank">Wohneinheit-Tabelle</a>.
+        Bearbeitung läuft in Airtable. Direktlink: <a href="${AIRTABLE_LINKS.KALK_STAMMDATEN}" target="_blank" rel="noopener">Kalkulations-Stammdaten-Tabelle</a> bzw. <a href="${AIRTABLE_LINKS.WOHNEINHEIT}" target="_blank" rel="noopener">Wohneinheit-Tabelle</a>.
       </div>
     </div>
   `;
 }
 
+// ===== MODUL: bootstrap (render-Dispatch + Boot-Handler) =====
 /* ============================== RENDER DISPATCH ============================== */
 
 function render() {

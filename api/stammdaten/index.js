@@ -26,6 +26,22 @@ function unwrap(v) {
   return v;
 }
 
+// Audit-Fix Iter 49 (19.05.2026): gleiche Lookup-Auflösung wie in [weId].js.
+// Sonst zeigt der Admin-Audit einen anderen Vermietungsstatus als die Einzel-Ansicht
+// (Lookup „Miet-status (ist)" autoritativ seit Iter 41.17, hier zuvor ignoriert).
+function resolveVermietungsstatusFromLookup(rawVal) {
+  if (rawVal == null) return null;
+  let v = rawVal;
+  if (Array.isArray(v)) v = v.find(x => x != null && x !== '') || null;
+  if (v == null) return null;
+  if (typeof v === 'object' && v.name) v = v.name;
+  const s = String(v).toLowerCase().trim();
+  if (!s) return null;
+  if (s.startsWith('vermiet')) return 'vermietet';
+  if (s.startsWith('leer') || s.startsWith('frei') || s.includes('leerstehend')) return 'leer';
+  return null;
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
 
@@ -172,12 +188,27 @@ module.exports = async (req, res) => {
           mieteMoSumme: stpMieteEffektiv,
           mieteMoQuelle: stpVertragMiete > 0 ? 'mietvertrag' : (stpMiete > 0 ? 'stellplatz-alt' : 'keine'),
         },
-        vermietung: {
-          status: (vertragVorhanden || (we.kaltmiete > 0)) ? 'vermietet' : 'leer',
-          vertragVorhanden,
-          letzteMietsteigerung,
-          letzteMietsteigerungQuelle,
-        },
+        vermietung: (() => {
+          // Audit-Fix Iter 49 (19.05.2026): Lookup-Vorrang analog [weId].js (Iter 41.17).
+          // Heuristik-Fallback nur noch über `vertragVorhanden` — `kaltmiete > 0` als Indiz
+          // ist unzuverlässig, weil leerstehende WEs den alten Bestandsmieten-Wert behalten.
+          const lookupStatus = resolveVermietungsstatusFromLookup(sf[KALK_STAMMDATEN_FIELDS.WE_VERMIETUNGSSTATUS]);
+          let statusFinal, statusQuelle;
+          if (lookupStatus) {
+            statusFinal = lookupStatus;
+            statusQuelle = 'we-lookup';
+          } else {
+            statusFinal = vertragVorhanden ? 'vermietet' : 'leer';
+            statusQuelle = vertragVorhanden ? 'fallback-mietvertrag' : 'fallback-keine-daten';
+          }
+          return {
+            status: statusFinal,
+            statusQuelle,
+            vertragVorhanden,
+            letzteMietsteigerung: statusFinal === 'leer' ? null : letzteMietsteigerung,
+            letzteMietsteigerungQuelle: statusFinal === 'leer' ? 'leerstand-keine' : letzteMietsteigerungQuelle,
+          };
+        })(),
         stammdaten: stamm ? {
           id: stamm.id,
           status: unwrap(sf[KALK_STAMMDATEN_FIELDS.STATUS]) || null,

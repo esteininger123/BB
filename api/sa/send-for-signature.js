@@ -22,6 +22,12 @@ const { TABLES, KUNDEN_FIELDS } = require('../_lib/tables');
 
 const PANDADOC_API = 'https://api.pandadoc.com/public/v1';
 
+// B&B-Kontaktdaten zentral. Wenn sich Nummer/E-Mail ändert, hier anpassen.
+const BB_KONTAKT = {
+  telefon: '07805 / 919 16 41',
+  email:   'info@bub-immo.de',
+};
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
 
@@ -160,7 +166,7 @@ module.exports = async (req, res) => {
         message: `Sehr geehrte/r ${a.vorname || ''} ${a.name || ''},\n\n` +
           `anbei Ihre persönliche Selbstauskunft zur digitalen Unterschrift. ` +
           `Bitte prüfen Sie die Angaben sorgfältig und unterzeichnen Sie das Dokument direkt online.\n\n` +
-          `Bei Rückfragen erreichen Sie uns unter info@bub-immo.de oder 07805/XXXXX.\n\n` +
+          `Bei Rückfragen erreichen Sie uns unter ${BB_KONTAKT.email} oder ${BB_KONTAKT.telefon}.\n\n` +
           `Mit freundlichen Grüßen\nB&B Immo GmbH`,
         subject: 'Ihre Selbstauskunft – Bitte digital unterzeichnen',
         silent: false

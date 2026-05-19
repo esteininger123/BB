@@ -23,6 +23,14 @@
   --border:        #E8E6DD;
   --border-strong: #B08A4D;
 
+  /* Audit-Fix Iter 49: vorher hartkodiert in Buttons + Badge-Klassen. */
+  --on-accent:     #FFFFFF;            /* Text auf Akzent-Buttons */
+  --negative-dark: #7D3025;            /* Button.danger:hover */
+  /* Phase-Badge-Töne (Vertriebs-Pipeline) — abgestimmt aufs Cream/Bronze-System */
+  --badge-lead-bg:           #EDE4D0;  --badge-lead-fg:           #6B5B30;
+  --badge-kalkulation-bg:    #DCE2D6;  --badge-kalkulation-fg:    #3D5238;
+  --badge-mittelphase-bg:    #E8D8B5;  --badge-mittelphase-fg:    #6F4E1E;
+
   --radius: 8px;
   --radius-sm: 4px;
   --shadow-card: 0 1px 3px rgba(26,26,23,0.06), 0 1px 2px rgba(26,26,23,0.04);
@@ -48,7 +56,7 @@ button {
   cursor: pointer;
   border: none;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   padding: 10px 18px;
   border-radius: var(--radius-sm);
   font-size: 14px;
@@ -62,7 +70,7 @@ button.secondary {
 }
 button.secondary:hover { background: var(--bg-input); }
 button.danger { background: var(--negative); }
-button.danger:hover { background: #7d3025; }
+button.danger:hover { background: var(--negative-dark); }
 
 input, select, textarea {
   font-family: inherit;
@@ -239,14 +247,14 @@ label {
   background: var(--bg-cream); color: var(--text-secondary);
   text-transform: uppercase; letter-spacing: 0.4px;
 }
-.badge.lead { background: #EDE4D0; color: #6B5B30; }
-.badge.kalkulation { background: #D8E1EC; color: #2E4A6E; }
-.badge.reservierung { background: #E8D8B5; color: #6F4E1E; }
-.badge.selbstauskunft { background: #E8D8B5; color: #6F4E1E; }
-.badge.bank { background: #E8D8B5; color: #6F4E1E; }
-.badge.notar { background: var(--positive-bg); color: var(--positive); }
-.badge.beurkundet { background: var(--positive-bg); color: var(--positive); }
-.badge.abgebrochen { background: var(--negative-bg); color: var(--negative); }
+.badge.lead          { background: var(--badge-lead-bg);        color: var(--badge-lead-fg); }
+.badge.kalkulation   { background: var(--badge-kalkulation-bg); color: var(--badge-kalkulation-fg); }
+.badge.reservierung  { background: var(--badge-mittelphase-bg); color: var(--badge-mittelphase-fg); }
+.badge.selbstauskunft{ background: var(--badge-mittelphase-bg); color: var(--badge-mittelphase-fg); }
+.badge.bank          { background: var(--badge-mittelphase-bg); color: var(--badge-mittelphase-fg); }
+.badge.notar         { background: var(--positive-bg);          color: var(--positive); }
+.badge.beurkundet    { background: var(--positive-bg);          color: var(--positive); }
+.badge.abgebrochen   { background: var(--negative-bg);          color: var(--negative); }
 
 /* ============================== TABS ============================== */
 .tabs {
@@ -1304,17 +1312,141 @@ input[type="range"].spar-zins-range::-moz-range-track {
   margin: 1.5mm 0;
 }
 
-/* --- Auswertung-Block in der SA-Form (live, nicht-PDF) --- */
+/* --- Auswertung-Block in der SA-Form (live, nicht-PDF) ---
+   Audit-Fix Iter 49 (19.05.2026): vorher mit hardkodiertem Material-Blau (#2c5282)
+   und Cool-Grey-Tönen. Jetzt im Cream/Bronze/Wald-System verankert. */
+.sa-auswertung-card {
+  background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-section) 100%);
+  border: 2px solid var(--accent);
+}
+.sa-auswertung-card > .card-title { color: var(--accent-dark); }
 .sa-auswertung-card .kpi-box {
+  background: var(--bg-card);
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  border-left: 4px solid var(--text-tertiary);
   transition: background 0.15s;
+}
+.sa-auswertung-card .kpi-box .kpi-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.sa-auswertung-card .kpi-box .kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.sa-auswertung-card .kpi-box .kpi-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+.sa-auswertung-card .kpi-box.kpi-positive { border-left-color: var(--positive); }
+.sa-auswertung-card .kpi-box.kpi-positive .kpi-value { color: var(--positive); }
+.sa-auswertung-card .kpi-box.kpi-negative { border-left-color: var(--negative); }
+.sa-auswertung-card .kpi-box.kpi-negative .kpi-value { color: var(--negative); }
+.sa-auswertung-card .kpi-box.kpi-primary {
+  border-left-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(176, 138, 77, 0.18);
+}
+.sa-auswertung-card .kpi-box.kpi-primary .kpi-label { color: var(--accent-dark); font-weight: 600; }
+.sa-auswertung-card .kpi-box.kpi-primary .kpi-value { color: var(--accent-dark); }
+.sa-auswertung-card details.sa-aufschluss {
+  background: var(--bg-card);
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  margin-top: 16px;
+}
+.sa-auswertung-card details.sa-aufschluss > summary {
+  cursor: pointer; font-weight: 600; color: var(--accent-dark);
+}
+.sa-aufschluss-table {
+  width: 100%; font-size: 13px;
 }
 .sa-aufschluss-table td {
   padding: 4px 0;
-  border-bottom: 1px dotted #e2e8f0;
+  border-bottom: 1px dotted var(--border);
 }
 .sa-aufschluss-table tr:last-child td {
   border-bottom: none;
 }
+.sa-aufschluss-table .row-sum td {
+  border-top: 1px solid var(--border);
+  font-weight: 600; padding-top: 6px;
+}
+.sa-aufschluss-table .num { text-align: right; }
+.sa-aufschluss-table .num.primary { color: var(--accent-dark); font-weight: 600; }
+.sa-auswertung-card .footer-note {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 12px;
+  font-style: italic;
+}
+
+/* --- PEP-Block (Inline-Form, GwG-Sektion) --- */
+.sa-pep-warning {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-section);
+}
+
+/* --- Admin-Audit: WE-Stammdaten-Tabelle, Status-Badges ---
+   Vorher mit Material-Greens/Reds/Yellows (#c6f6d5 / #fed7d7 / #fefcbf). Jetzt
+   Cream/Bronze/Wald-Sätze konsistent zur Phase-Badges-Logik. */
+.audit-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 11px;
+  display: inline-block;
+}
+.audit-pill.aktiv     { background: var(--positive-bg);          color: var(--positive); }
+.audit-pill.entwurf   { background: var(--badge-mittelphase-bg); color: var(--badge-mittelphase-fg); }
+.audit-pill.archiv    { background: var(--bg-cream);             color: var(--text-tertiary); }
+.audit-pill.fehlt     { background: var(--negative-bg);          color: var(--negative); }
+.audit-pill.size-sm   { padding: 1px 6px; font-size: 10px; }
+.audit-pill.vermietet { background: var(--positive-bg);          color: var(--positive); }
+.audit-pill.leer      { background: var(--negative-bg);          color: var(--negative); }
+
+.audit-cell-missing { color: var(--negative); }
+
+.admin-audit-table {
+  font-size: 12px;
+  min-width: 1400px;
+}
+.admin-audit-table thead tr { background: var(--bg-section); }
+.admin-audit-table tbody tr.row-inactive { background: var(--bg-section); }
+.admin-audit-summary-bar {
+  font-weight: 600; padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Vertriebler-Stats — vorher inline #b7791f/#2c5282/#f7fafc. */
+.stats-cell.warn   { color: var(--badge-mittelphase-fg); font-weight: 700; }
+.stats-cell.notar  { color: var(--accent-dark);         font-weight: 700; }
+.stats-row-summary {
+  background: var(--bg-section);
+  font-weight: 700;
+  border-top: 2px solid var(--border);
+}
+
+/* --- Subventions-Status-Card (Audit-Fix H4, Iter 49) --- */
+.subv-status-card {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border-left: 4px solid var(--accent);
+  background: var(--bg-section);
+}
+.subv-status-card.warn { border-left-color: var(--negative); background: var(--negative-bg); }
+.subv-status-card .title { font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+.subv-status-card .hint  { font-size: 13px; color: var(--text-secondary); }
+.subv-status-card ul     { margin: 8px 0 0 18px; padding: 0; font-size: 13px; }
+.subv-status-card ul li  { margin-bottom: 4px; }
 
 @media print {
   .pdf-template input.sa-fld {

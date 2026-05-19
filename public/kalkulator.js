@@ -703,7 +703,11 @@ function recalc(i) {
     // Hausgeld + Mietverwaltung + Hausverwaltung (WEG) Jahr (inkl. Inflation)
     const hgFaktor = Math.pow(1 + i.hgInflation, y - 1);
     // hgJahr enthält Hausgeld + Mietverwaltung + Hausverwaltung (Gesamt-Verwaltungs-Block für CF-Anzeige)
-    const hausverw = i.hausverwaltung || 0;
+    // Audit-Fix Iter 49 (19.05.2026): Defensive Default 30 €/Mo, wenn Stammdaten-Feld
+    // leer geladen wurde (z.B. Karlsruhe WE 7 in Pre-Flight 19.05.). Sonst null/undefined → 0,
+    // und Belastung Jahr 1 wäre ~21 €/Mo zu optimistisch (= Werbungskostenausfall WEG).
+    // Default analog zum we6-Preset (alle aktiven Presets nutzen 25 oder 30).
+    const hausverw = (i.hausverwaltung == null || !isFinite(i.hausverwaltung)) ? 30 : i.hausverwaltung;
     const hgJahr = (i.hausgeld + i.mietverwaltung + hausverw) * 12 * hgFaktor;
     const mvJahr = i.mietverwaltung * 12 * hgFaktor;
     const hvJahr = hausverw * 12 * hgFaktor;
@@ -753,7 +757,9 @@ function recalc(i) {
     }
     // HG + MV + HV pro Monat (jährliche Inflation)
     const hgFaktorM = Math.pow(1 + (i.hgInflation || 0), y - 1);
-    const hausverwM = (i.hausverwaltung || 0) * hgFaktorM;
+    // Audit-Fix Iter 49: gleicher Default-30-Pfad wie oben (siehe Kommentar bei `hausverw`).
+    const hausverwBase = (i.hausverwaltung == null || !isFinite(i.hausverwaltung)) ? 30 : i.hausverwaltung;
+    const hausverwM = hausverwBase * hgFaktorM;
     const mvM = (i.mietverwaltung || 0) * hgFaktorM;
     const hgM = (i.hausgeld || 0) * hgFaktorM + mvM + hausverwM;
     // Steuervorteil pro Monat — AfA + Zinsen + MV + HV als Werbungskosten gegen Miete
@@ -837,7 +843,8 @@ function recalc(i) {
   // Quick-Modus (kompatibel zu Iter 10): nur Miete − Annuität.
   // Detail-Modus (Iter 11): zusätzlich HG + HV bank-konservativ.
   const bonHgMo = (i.hausgeld || 0);
-  const bonHvMo = (i.hausverwaltung || 0);
+  // Audit-Fix Iter 49: gleicher Default-30-Pfad — Bank-Bonität würde sonst optimistisch sein.
+  const bonHvMo = (i.hausverwaltung == null || !isFinite(i.hausverwaltung)) ? 30 : i.hausverwaltung;
   const bonDelta = (i.bonModus === 'detail')
     ? (bonMieteAnr - bonAnnuMo - bonHgMo - bonHvMo)
     : (bonMieteAnr - bonAnnuMo);

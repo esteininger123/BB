@@ -44,9 +44,12 @@ function firstStringFromLink(v) {
 // Liefert das Stellplatz-Datenobjekt für die App (kombiniert).
 async function loadStellplaetzeForWE(weId) {
   try {
-    // Filter: Datensätze in Stellplatz-Tabelle, die mit weId verlinkt sind.
-    // FIND() auf dem Lookup-Titel wäre möglich; saubererer Weg: alle Stellplätze
-    // mit dem WE-Link laden, dann clientseitig filtern.
+    // Audit-Notiz Iter 49 (19.05.2026): serverseitiger Filter über filterByFormula auf
+    // RECORD_ID() des verknüpften WE-Links wäre der saubere Weg — Airtable's
+    // filterByFormula referenziert Felder aber über Field-NAMEN, nicht Field-IDs.
+    // Die Field-Namen werden im Code nicht geführt (würden Drift verursachen wenn umbenannt).
+    // Bis ein Mapping (oder ein Reverse-Lookup auf der WE-Tabelle) ergänzt ist, bleibt der
+    // clientseitige Filter. Skalierungsrisiko vermerkt im Backlog (§7/§8 QA-Report).
     const recs = await listAll(TABLES.STELLPLATZ, {
       fields: [
         STELLPLATZ_FIELDS.TITEL,
@@ -537,10 +540,11 @@ module.exports = async (req, res) => {
         statusFinal = statusVomLookup;
         statusQuelle = 'we-lookup';
       } else {
-        const vermietetHeuristisch = vertragInfo.vertragVorhanden || (we.kaltmiete > 0);
-        statusFinal = vermietetHeuristisch ? 'vermietet' : 'leer';
-        statusQuelle = vertragInfo.vertragVorhanden ? 'fallback-mietvertrag' :
-                       (we.kaltmiete > 0 ? 'fallback-kaltmiete' : 'fallback-keine-daten');
+        // Audit-Fix Iter 49 (19.05.2026): Heuristik konservativer — `we.kaltmiete > 0`
+        // ist UNZUVERLÄSSIG (leerstehende WEs behalten die alte Bestandsmiete im Feld).
+        // Nur ein echter Mietvertragsdatensatz gilt als Vermietungs-Beweis.
+        statusFinal = vertragInfo.vertragVorhanden ? 'vermietet' : 'leer';
+        statusQuelle = vertragInfo.vertragVorhanden ? 'fallback-mietvertrag' : 'fallback-keine-daten';
       }
 
       // Letzte Mietsteigerung:
