@@ -168,6 +168,9 @@ module.exports = async (req, res) => {
       // Workflow-Datum-Tokens (Pre-fill-Felder zeigen "Schutterwald, den [Workflow.CreatedDate]")
       { name: 'Workflow.CreatedDate',             value: heute },
       { name: 'Workflow.CreateDate',              value: heute }, // alternative Schreibweise im Template
+      // Reservierungs-Datum als sauberer Custom-Token — falls Edgar im Template die Pre-fill-Boxen
+      // durch normalen Text mit [Reservierung.Datum] ersetzt (siehe STAND_NACH_NACHTSESSION.md)
+      { name: 'Reservierung.Datum',               value: heute },
     ];
 
     // --- 6. Recipients (sequenziell: Käufer zuerst, Vertriebler danach)
