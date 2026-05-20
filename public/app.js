@@ -2558,6 +2558,25 @@ function _reservEnsureStyles() {
       font-size: 0.88em; color: #6b5400; border-radius: 4px;
     }
     .reserv-modal .reserv-success { color: #2d7a3e; font-weight: 500; }
+    .reserv-modal .reserv-checkbox-row {
+      margin-top: 18px; padding: 14px; background: #f0ece5; border-radius: 8px;
+      border: 1px solid #e0dac9;
+    }
+    .reserv-modal .reserv-checkbox-label {
+      display: flex; gap: 12px; align-items: flex-start; cursor: pointer;
+    }
+    .reserv-modal .reserv-checkbox-label input[type="checkbox"] {
+      margin-top: 3px; width: 18px; height: 18px; cursor: pointer; flex-shrink: 0;
+      accent-color: #1a1a1a;
+    }
+    .reserv-modal .reserv-checkbox-text { flex: 1; }
+    .reserv-modal .reserv-checkbox-hint {
+      margin-top: 4px; font-size: 0.85em; color: #6b6b6b; line-height: 1.4;
+    }
+    .reserv-modal .reserv-confirm:disabled {
+      background: #d4d0ca; color: #8a8a85; cursor: not-allowed;
+    }
+    .reserv-modal .reserv-confirm:disabled:hover { background: #d4d0ca; }
   `;
   document.head.appendChild(s);
 }
@@ -2575,18 +2594,30 @@ function openReservierungConfirmModal({ kundeName, weLabel, kundeEmail }) {
           '<div class="reserv-info-row"><div class="reserv-info-label">Wohnung</div><div class="reserv-info-value">' + _reservEscapeHtml(weLabel) + '</div></div>' +
           '<div class="reserv-info-row"><div class="reserv-info-label">E-Mail Käufer</div><div class="reserv-info-value">' + _reservEscapeHtml(kundeEmail) + '</div></div>' +
           '<p style="margin-top:14px; color:#555;">Das Dokument wird in PandaDoc mit allen Daten erstellt. Danach kannst du es direkt aufrufen und versenden.</p>' +
+          '<div class="reserv-checkbox-row">' +
+            '<label class="reserv-checkbox-label">' +
+              '<input type="checkbox" id="reserv-snapshot-check" />' +
+              '<div class="reserv-checkbox-text">' +
+                '<strong>Ich habe einen aktuellen Snapshot der Kalkulation gespeichert.</strong>' +
+                '<div class="reserv-checkbox-hint">Der Snapshot friert Kaufpreis, Mietsubvention und alle Berechnungen ein — diese Werte landen 1:1 im Reservierungsdokument. Ohne Snapshot fehlen Subventions-Daten im Doc.</div>' +
+              '</div>' +
+            '</label>' +
+          '</div>' +
         '</div>' +
         '<div class="reserv-modal-actions">' +
           '<button class="reserv-cancel" id="reserv-cancel-btn">Abbrechen</button>' +
-          '<button class="reserv-confirm" id="reserv-confirm-btn">Dokument erstellen</button>' +
+          '<button class="reserv-confirm" id="reserv-confirm-btn" disabled>Dokument erstellen</button>' +
         '</div>' +
       '</div>';
     const close = (ok) => { m.remove(); resolve(ok); };
+    const btn = m.querySelector('#reserv-confirm-btn');
+    const chk = m.querySelector('#reserv-snapshot-check');
+    chk.onchange = () => { btn.disabled = !chk.checked; };
     m.querySelector('#reserv-cancel-btn').onclick = () => close(false);
-    m.querySelector('#reserv-confirm-btn').onclick = () => close(true);
+    btn.onclick = () => { if (!btn.disabled) close(true); };
     m.onclick = (e) => { if (e.target === m) close(false); };
     document.body.appendChild(m);
-    setTimeout(() => { const b = m.querySelector('#reserv-confirm-btn'); if (b) b.focus(); }, 50);
+    setTimeout(() => { chk.focus(); }, 50);
   });
 }
 
