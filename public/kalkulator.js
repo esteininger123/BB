@@ -389,6 +389,16 @@ function computeBonitaetDetailed(sa, gemeinsam) {
   const a = sa.antragsteller || {};
   const m = gemeinsam ? (sa.mitantragsteller || {}) : {};
 
+  // Iter 66 (20.05.2026): Baukasten-Zusatzpositionen — pro Antragsteller können
+  //   beliebig viele Einträge in zusatzEinnahmen / zusatzAusgaben / zusatzVermoegen
+  //   / zusatzSchulden / zusatzSparplaene gepflegt werden. Jede Position hat Titel,
+  //   Notiz, Betrag. Sparpläne haben Mo-Rate UND Wert — Mo läuft in Ausgaben, Wert
+  //   in Vermögen. Alle Beträge fließen in die Bonität ein.
+  function sumZusatz(p, kategorie, feld) {
+    if (!p || !Array.isArray(p[kategorie])) return 0;
+    return p[kategorie].reduce((s, x) => s + (parseFloat(x && x[feld]) || 0), 0);
+  }
+
   // ----- Einkommen -----
   function gehaelter(p) {
     let n = parseFloat(p.anzahlGehaelter || 12);
@@ -398,14 +408,15 @@ function computeBonitaetDetailed(sa, gemeinsam) {
     return n;
   }
   function einkommen(p) {
-    if (!p) return { netto: 0, vermAnr: 0, sonstigeAnr: 0, total: 0 };
+    if (!p) return { netto: 0, vermAnr: 0, sonstigeAnr: 0, zusatz: 0, total: 0 };
     const netto = (parseFloat(p.nettoMo) || 0) * gehaelter(p) / 12;
     const vermBase = (parseFloat(p.vermietungMo) || 0)
       + (p.immo1 ? (parseFloat(p.immo1.mietenMo) || 0) : 0)
       + (p.immo2 ? (parseFloat(p.immo2.mietenMo) || 0) : 0);
     const vermAnr = vermBase * 0.8; // 80 % Mietanrechnung Bank-Standard
     const sonst = (parseFloat(p.sonstigeMo) || 0) + (parseFloat(p.unterhaltMo) || 0) + (parseFloat(p.kindergeldMo) || 0);
-    return { netto, vermAnr, sonstigeAnr: sonst, total: netto + vermAnr + sonst };
+    const zusatz = sumZusatz(p, 'zusatzEinnahmen', 'mo');
+    return { netto, vermAnr, sonstigeAnr: sonst, zusatz, total: netto + vermAnr + sonst + zusatz };
   }
   const eA = einkommen(a);
   const eM = einkommen(m);
@@ -417,9 +428,9 @@ function computeBonitaetDetailed(sa, gemeinsam) {
   const haushaltBasis = erwachsene === 1 ? 1100 : 1600;
   const haushaltPauschale = haushaltBasis + 400 * kinder;
 
-  // ----- Fixkosten (Miete eig. Whg + Unterhalt + PKV + Lebenshaltung + Leasing + Sonstige) -----
-  // Iter 64 (20.05.2026): 3 neue Ausgabe-Felder aus dem SA-Formular ergänzt
-  // (lebenshaltungMo, leasingMo, sonstigeAusgabenMo) — fließen mit in die Bonität.
+  // ----- Fixkosten (Miete eig. Whg + Unterhalt + PKV + Lebenshaltung + Leasing + Sonstige + Baukasten) -----
+  // Iter 64: 3 fixe Ausgabe-Felder (lebenshaltungMo, leasingMo, sonstigeAusgabenMo)
+  // Iter 66: Baukasten — zusatzAusgaben[*].mo + zusatzSparplaene[*].mo
   function fixkosten(p) {
     if (!p) return 0;
     return (parseFloat(p.mieteMo) || 0)
@@ -427,7 +438,9 @@ function computeBonitaetDetailed(sa, gemeinsam) {
          + (parseFloat(p.pkvMo) || 0)
          + (parseFloat(p.lebenshaltungMo) || 0)
          + (parseFloat(p.leasingMo) || 0)
-         + (parseFloat(p.sonstigeAusgabenMo) || 0);
+         + (parseFloat(p.sonstigeAusgabenMo) || 0)
+         + sumZusatz(p, 'zusatzAusgaben', 'mo')
+         + sumZusatz(p, 'zusatzSparplaene', 'mo');
   }
   const fixA = fixkosten(a);
   const fixM = fixkosten(m);
@@ -450,6 +463,8 @@ function computeBonitaetDetailed(sa, gemeinsam) {
     ['bf1','bf2','kd1','kd2'].forEach(k => {
       if (p[k]) s += parseFloat(p[k].restsaldo) || 0;
     });
+    // Iter 66: Baukasten — zusätzliche Schulden (Restsaldo, einmalig)
+    s += sumZusatz(p, 'zusatzSchulden', 'wert');
     return s;
   }
   const verbindlichkeitenMo = verbindMo(a) + verbindMo(m);
@@ -465,6 +480,9 @@ function computeBonitaetDetailed(sa, gemeinsam) {
       + (parseFloat(p.bausparen) || 0)
       + (parseFloat(p.sonstigeVermoegen) || 0);
     if (p.vers) s += parseFloat(p.vers.rueckkauf) || 0;
+    // Iter 66: Baukasten — zusätzliches Vermögen + Sparplan-Werte
+    s += sumZusatz(p, 'zusatzVermoegen', 'wert');
+    s += sumZusatz(p, 'zusatzSparplaene', 'wert');
     return s;
   }
   const liquidesVermoegen = liquideVerm(a) + liquideVerm(m);

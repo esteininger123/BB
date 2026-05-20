@@ -353,26 +353,30 @@ function renderDashboard() {
   `;
 }
 
+// Iter 61 (20.05.2026): Drei sequenzielle `prompt()`-Dialoge durch ein
+// einzelnes Modal ersetzt. Grund: prompt() hat keinen Format-Check, blockiert
+// den UI-Thread, und wenn die Zwischenablage gefüllt war, landeten identische
+// Strings in allen drei Feldern (Vorname == Nachname == E-Mail). Das Modal
+// nutzt denselben Style wie die Reservierungs-Modals (DRY).
 async function createNewKunde() {
-  const vorname = prompt('Vorname?');
-  if (!vorname) return;
-  const nachname = prompt('Nachname?');
-  if (!nachname) return;
-  const email = prompt('E-Mail (optional)?') || '';
+  const data = await openNeuerKundeModal();
+  if (!data) return;
+  const { vorname, nachname, email, telefon } = data;
   try {
     // Stammdaten direkt auch in die Selbstauskunft übertragen → der Vertriebler tippt
     // den Kunden 1× ein, alles ist überall da.
     const saJson = {
       gemeinsam: false,
       antragsteller: {
-        vorname: vorname,
+        vorname,
         name: nachname,
-        email: email,
+        email: email || '',
+        telefonPrivat: telefon || '',
       },
       mitantragsteller: {},
     };
     const k = await api.post('/api/kunden', {
-      vorname, nachname, email, phase: 'Lead', saJson,
+      vorname, nachname, email: email || '', telefon: telefon || '', phase: 'Lead', saJson,
     });
     state.kunden.push(k);
     toast('Kunde angelegt', 'success');
@@ -382,6 +386,120 @@ async function createNewKunde() {
   }
 }
 window.createNewKunde = createNewKunde;
+
+// Neuer-Kunde-Modal — gibt {vorname, nachname, email, telefon} zurück oder null bei Abbruch.
+// Nutzt die Reservierungs-Modal-Styles wieder (gleicher visueller Stil, kein Duplikat).
+function openNeuerKundeModal() {
+  _reservEnsureStyles();
+  _neuerKundeEnsureStyles();
+  return new Promise((resolve) => {
+    const m = document.createElement('div');
+    m.className = 'reserv-modal-overlay';
+    m.innerHTML =
+      '<div class="reserv-modal nk-modal">' +
+        '<h2>Neuen Kunden anlegen</h2>' +
+        '<div class="reserv-modal-body">' +
+          '<div class="nk-grid">' +
+            '<label class="nk-field">' +
+              '<span class="nk-label">Vorname <span class="nk-req">*</span></span>' +
+              '<input type="text" id="nk-vorname" autocomplete="given-name" />' +
+            '</label>' +
+            '<label class="nk-field">' +
+              '<span class="nk-label">Nachname <span class="nk-req">*</span></span>' +
+              '<input type="text" id="nk-nachname" autocomplete="family-name" />' +
+            '</label>' +
+            '<label class="nk-field nk-full">' +
+              '<span class="nk-label">E-Mail</span>' +
+              '<input type="email" id="nk-email" autocomplete="email" placeholder="optional" />' +
+            '</label>' +
+            '<label class="nk-field nk-full">' +
+              '<span class="nk-label">Telefon</span>' +
+              '<input type="tel" id="nk-telefon" autocomplete="tel" placeholder="optional" />' +
+            '</label>' +
+          '</div>' +
+          '<div id="nk-error" class="nk-error" hidden></div>' +
+        '</div>' +
+        '<div class="reserv-modal-actions">' +
+          '<button class="reserv-cancel" id="nk-cancel-btn">Abbrechen</button>' +
+          '<button class="reserv-confirm" id="nk-save-btn">Anlegen</button>' +
+        '</div>' +
+      '</div>';
+    const $ = (id) => m.querySelector('#' + id);
+    const errEl = $('nk-error');
+    const showError = (msg) => { errEl.textContent = msg; errEl.hidden = false; };
+    const hideError = () => { errEl.hidden = true; };
+
+    const close = (val) => { m.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+
+    const trySave = () => {
+      const vorname  = $('nk-vorname').value.trim();
+      const nachname = $('nk-nachname').value.trim();
+      const email    = $('nk-email').value.trim();
+      const telefon  = $('nk-telefon').value.trim();
+
+      if (!vorname)  return showError('Vorname fehlt.');
+      if (!nachname) return showError('Nachname fehlt.');
+      // Vorname und Nachname dürfen nicht identisch sein (typischer Copy-Paste-Fehler).
+      if (vorname.toLowerCase() === nachname.toLowerCase()) {
+        return showError('Vorname und Nachname sind identisch — bitte prüfen.');
+      }
+      // Vorname mit @ ist fast immer eine versehentlich ins falsche Feld gepastete E-Mail.
+      if (vorname.includes('@') || nachname.includes('@')) {
+        return showError('Name enthält "@" — sieht aus wie eine E-Mail im falschen Feld.');
+      }
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return showError('E-Mail-Format ungültig.');
+      }
+      hideError();
+      close({ vorname, nachname, email, telefon });
+    };
+
+    $('nk-cancel-btn').onclick = () => close(null);
+    $('nk-save-btn').onclick = trySave;
+    m.onclick = (e) => { if (e.target === m) close(null); };
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') close(null);
+      else if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') {
+        e.preventDefault();
+        trySave();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+
+    document.body.appendChild(m);
+    setTimeout(() => { $('nk-vorname').focus(); }, 50);
+  });
+}
+
+function _neuerKundeEnsureStyles() {
+  if (document.getElementById('nk-modal-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'nk-modal-styles';
+  s.textContent = `
+    .nk-modal { max-width: 480px; }
+    .nk-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px;
+    }
+    .nk-field { display: flex; flex-direction: column; gap: 4px; }
+    .nk-field.nk-full { grid-column: 1 / -1; }
+    .nk-label { font-size: 0.85em; color: #6b6b6b; }
+    .nk-req { color: #c44; }
+    .nk-field input {
+      padding: 9px 11px; border: 1px solid #d4d0ca; border-radius: 6px;
+      background: #fff; font-family: inherit; font-size: 0.95em;
+      transition: border-color 0.12s;
+    }
+    .nk-field input:focus {
+      outline: none; border-color: #1a1a1a; box-shadow: 0 0 0 2px rgba(26,26,26,0.08);
+    }
+    .nk-error {
+      margin-top: 12px; padding: 9px 12px; background: #fbe9e9; color: #8a1f1f;
+      border-left: 3px solid #c44; border-radius: 4px; font-size: 0.88em;
+    }
+  `;
+  document.head.appendChild(s);
+}
 
 // Synchronisiert die Stammdaten in die saJson.antragsteller-Sektion (Name, Vorname,
 // Email, Telefon, Geburtsdatum). Nicht-überschreibend wenn der User die SA-Felder
@@ -784,12 +902,34 @@ function renderTabKalkulator() {
       <div class="card mt-16">
         <div class="card-title">Dein Vermögensaufbau · 10 Jahre</div>
         <div class="text-tertiary text-small">Die Schere zwischen Marktwert und Deiner Restschuld öffnet sich Jahr für Jahr — das ist Dein Vermögensaufbau.</div>
-        <div class="chart-container" style="height:420px;"><canvas id="chart-vermoegen"></canvas></div>
-        <div class="chart-formula">
-          <strong>Formel:</strong> Gesamtvermögen = (Marktwert × Wertsteigerung<sup>n</sup>) − Restschuld + kum. Cashflows<br>
-          <strong>Vermögenszuwachs</strong> = Gesamtvermögen − eingesetztes EK (die Linie unten zeigt, was zum Start reingesteckt wurde — bleibt konstant)<br>
-          <span class="text-tertiary text-small">Marktwert steigt mit Wertsteigerung. Restschuld sinkt mit Tilgung. Die Schere zwischen beiden plus die kumulierten Cashflows ist das Gesamtvermögen.</span>
+        <div class="chart-info-row" aria-label="Erklärungen zu den Linien">
+          <button type="button" class="chart-info-chip chip-marktwert"
+                  data-info-title="Marktwert (Immobilie)"
+                  data-info-body="Heutiger Kaufpreis (KP) verzinst mit Deiner angenommenen Wertsteigerung p.a.&#10;&#10;Formel: KP × (1 + Wertsteigerung)^Jahr&#10;&#10;Steigt die Wertsteigerung im Slider, wandert diese Linie nach oben.">
+            <span class="chart-info-swatch swatch-marktwert"></span>
+            <span class="chart-info-label">Marktwert</span>
+            <span class="chart-info-i" aria-hidden="true">i</span>
+          </button>
+          <button type="button" class="chart-info-chip chip-restschuld"
+                  data-info-title="Restschuld (Darlehen)"
+                  data-info-body="Was Du der Bank noch schuldest. Sinkt durch Tilgung Jahr für Jahr.&#10;&#10;Formel: Anfangsdarlehen − kumulierte Tilgung&#10;&#10;Tilgung kommt aus Deiner Annuität: Annuität = Zins + Tilgung. Zinsanteil sinkt, Tilgungsanteil steigt mit jedem Jahr.">
+            <span class="chart-info-swatch swatch-restschuld"></span>
+            <span class="chart-info-label">Restschuld</span>
+            <span class="chart-info-i" aria-hidden="true">i</span>
+          </button>
+          <button type="button" class="chart-info-chip chip-vermoegen"
+                  data-info-title="Vermögensaufbau (= Dein Gewinn)"
+                  data-info-body="Was bei einem theoretischen Verkauf nach Abzug aller Kosten als Gewinn übrig bleibt — gerechnet gegenüber Deinem Tag-1-Einsatz.&#10;&#10;Formel: (Marktwert − Restschuld + kumulierte Cashflows) − eingesetztes EK (inkl. Kaufnebenkosten)&#10;&#10;Startet im Minus (Du hast gerade KNK eingezahlt), kreuzt die Null, wenn Tilgung + Wertsteigerung + Cashflows den Einsatz reingeholt haben.">
+            <span class="chart-info-swatch swatch-vermoegen"></span>
+            <span class="chart-info-label">Vermögensaufbau</span>
+            <span class="chart-info-i" aria-hidden="true">i</span>
+          </button>
         </div>
+        <div class="chart-info-popover" id="chart-info-popover" role="dialog" aria-hidden="true">
+          <div class="chart-info-popover-title"></div>
+          <div class="chart-info-popover-body"></div>
+        </div>
+        <div class="chart-container" style="height:420px;"><canvas id="chart-vermoegen"></canvas></div>
       </div>
 
       <!-- DARUNTER: Cashflow + Sparen-vs-Investieren nebeneinander -->
@@ -1952,12 +2092,9 @@ function drawCharts(r) {
   // --- Daten vorbereiten ---
   // Vermögensaufbau: nur 10 Jahre (r.vermoegen ist 0..10)
   const years = r.vermoegen.map(v => 'J' + v.y);
-  const marktwert    = r.vermoegen.map(v => Math.round(v.wert));
-  const restschuld   = r.vermoegen.map(v => Math.round(v.restschuld));
-  const kumCf        = r.vermoegen.map(v => Math.round(v.kumCf || 0));
-  const gesamtVerm   = r.vermoegen.map(v => Math.round(v.vermoegenBrutto)); // = Gesamtvermögen neu
-  const ekBedarf     = Math.round(r.ekBedarf || 0);
-  const ekLinie      = years.map(() => ekBedarf); // konstante Linie für eingesetztes EK
+  const marktwert        = r.vermoegen.map(v => Math.round(v.wert));
+  const restschuld       = r.vermoegen.map(v => Math.round(v.restschuld));
+  const vermoegensaufbau = r.vermoegen.map(v => Math.round(v.vermoegenNetto || 0)); // Gewinn vs. Tag-1-Einsatz
 
   // Cashflow: 10 Jahre (r.cf hat 30 Jahre — wir nehmen die ersten 10)
   const cf10        = r.cf.slice(0, 10);
@@ -2053,8 +2190,11 @@ function drawCharts(r) {
   };
 
   // ============================================================
-  // HAUPTCHART: Vermögensaufbau — Schere Marktwert↔Restschuld,
-  // PLUS gefüllte Gewinn-Zone zwischen EK und Gesamtvermögen
+  // HAUPTCHART: Vermögensaufbau — drei Linien, schlicht.
+  //   [0] Marktwert (Immobilie) — grün, füllt nach unten zur Restschuld (= Schere)
+  //   [1] Restschuld (Darlehen) — rot, gestrichelt
+  //   [2] Vermögensaufbau (= Gewinn vs. Tag-1-Einsatz) — gold/braun, kräftig
+  // Legende aus — die Linien werden über die Info-Chips über dem Chart erklärt.
   // ============================================================
   if (chartV) chartV.destroy();
   chartV = new Chart(document.getElementById('chart-vermoegen'), {
@@ -2062,99 +2202,51 @@ function drawCharts(r) {
     data: {
       labels: years,
       datasets: [
-        // [0] Marktwert oben — gefüllter Bereich nach unten zur Restschuld
+        // [0] Marktwert oben — gefüllter Bereich nach unten zur Restschuld → die Schere
         {
           label: 'Marktwert (Immobilie)',
           data: marktwert,
           borderColor: '#2D6E47',
-          backgroundColor: 'rgba(45,110,71,0.08)',
-          borderWidth: 2.5,
+          backgroundColor: 'rgba(45,110,71,0.10)',
+          borderWidth: 3,
           tension: 0.3,
           pointRadius: 3,
           pointHoverRadius: 6,
-          fill: '+1',   // füllt bis Restschuld → Schere
-          order: 3,
+          fill: '+1',
+          order: 2,
         },
         // [1] Restschuld — Unterkante der Schere
         {
           label: 'Restschuld (Darlehen)',
           data: restschuld,
           borderColor: '#9A3E33',
-          backgroundColor: 'rgba(154,62,51,0.05)',
+          backgroundColor: 'rgba(154,62,51,0)',
           borderWidth: 2.5,
           borderDash: [6, 3],
           tension: 0.3,
           pointRadius: 3,
           pointHoverRadius: 6,
           fill: false,
-          order: 3,
+          order: 2,
         },
-        // [2] Gesamtvermögen — Haupt-Linie. Füllung von hier nach unten bis EK-Linie [4]
-        //     → der gefüllte Bereich IST der Vermögenszuwachs / Gewinn.
+        // [2] Vermögensaufbau (= Gewinn vs. eingesetztes EK)
         {
-          label: 'Gesamtvermögen',
-          data: gesamtVerm,
+          label: 'Vermögensaufbau',
+          data: vermoegensaufbau,
           borderColor: '#B08A4D',
-          backgroundColor: 'rgba(176,138,77,0.35)',
+          backgroundColor: 'rgba(176,138,77,0)',
           borderWidth: 3.5,
           tension: 0.3,
           pointRadius: 4,
           pointHoverRadius: 7,
-          fill: { target: 4, above: 'rgba(176,138,77,0.30)', below: 'rgba(154,62,51,0.20)' },
+          fill: false,
           order: 1,
-        },
-        // [3] Kumulierter Cashflow — Hilfslinie
-        {
-          label: 'Kumulierter Cashflow',
-          data: kumCf,
-          borderColor: '#7A7A72',
-          backgroundColor: 'rgba(122,122,114,0)',
-          borderWidth: 1.5,
-          borderDash: [2, 4],
-          tension: 0.3,
-          pointRadius: 2,
-          pointHoverRadius: 5,
-          fill: false,
-          order: 4,
-        },
-        // [4] Eingesetztes Eigenkapital — konstante horizontale Linie (Boden für Gewinn-Zone)
-        // Iter 50 Polish: war Material-Blau (#2c5282) — einziges Nicht-B&B-Hex im Chart.
-        // Auf text-secondary (#3A3A35) umgestellt: neutrale dunkle Linie, klar abgesetzt
-        // von den drei Werte-Linien (Marktwert/Restschuld/Vermögen) ohne Brand-Bruch.
-        {
-          label: 'Eingesetztes EK (KNK)',
-          data: ekLinie,
-          borderColor: '#3A3A35',
-          backgroundColor: 'rgba(58,58,53,0)',
-          borderWidth: 2,
-          borderDash: [4, 4],
-          tension: 0,
-          pointRadius: 0,
-          pointHoverRadius: 4,
-          fill: false,
-          order: 2,
-        },
-        // [5] Vermögenszuwachs — eigene Linie zwischen EK und Gesamtvermögen,
-        //     macht den „Gewinn" als zusätzliche Größe lesbar
-        {
-          label: '★ Vermögenszuwachs (= Gewinn)',
-          data: r.vermoegen.map(v => Math.round(v.vermoegenNetto || 0)),
-          borderColor: '#2D6E47',
-          backgroundColor: 'rgba(34,84,61,0)',
-          borderWidth: 2,
-          borderDash: [],
-          tension: 0.3,
-          pointRadius: 3,
-          pointHoverRadius: 6,
-          pointStyle: 'rectRot',
-          fill: false,
-          order: 0,
         },
       ],
     },
     options: Object.assign({}, baseOpts, {
       plugins: Object.assign({}, baseOpts.plugins, {
-        legend: { position: 'top', labels: { boxWidth: 16, padding: 10, font: { size: 11 } } },
+        legend: { display: false },
         tooltip: {
           callbacks: {
             label: (ctx) => {
@@ -2843,6 +2935,44 @@ function renderTabSelbstauskunft() {
     inp.addEventListener('change', () => autoSaveSa());
     inp.addEventListener('input', () => recalcSaAuswertung());
   });
+  // Iter 66 (20.05.2026): Baukasten-Inputs (data-sa-zusatz) → gleiche Auto-Save-Logik
+  // plus Plus/Minus-Buttons für Zeilen hinzufügen/entfernen.
+  document.querySelectorAll('[data-sa-zusatz]').forEach(inp => {
+    inp.addEventListener('blur', () => autoSaveSa());
+    inp.addEventListener('change', () => autoSaveSa());
+    inp.addEventListener('input', () => recalcSaAuswertung());
+  });
+  document.querySelectorAll('[data-zusatz-add]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      // Vor Re-Render aktuelle DOM-Werte einlesen
+      collectSaFromDOM();
+      const raw = btn.dataset.zusatzAdd; // "prefix.kategorie" oder "prefix.kategorie|sparplan"
+      const [pfadStr, variant] = raw.split('|');
+      const [prefix, kategorie] = pfadStr.split('.');
+      const target = prefix === 'a' ? 'antragsteller' : 'mitantragsteller';
+      if (!state._sa[target]) state._sa[target] = {};
+      if (!Array.isArray(state._sa[target][kategorie])) state._sa[target][kategorie] = [];
+      const neu = variant === 'sparplan'
+        ? { titel: '', notiz: '', mo: null, wert: null }
+        : { titel: '', notiz: '', mo: null, wert: null };
+      state._sa[target][kategorie].push(neu);
+      renderTabSelbstauskunft();
+      autoSaveSa();
+    });
+  });
+  document.querySelectorAll('[data-zusatz-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      collectSaFromDOM();
+      const [prefix, kategorie, idxStr] = btn.dataset.zusatzRemove.split('.');
+      const target = prefix === 'a' ? 'antragsteller' : 'mitantragsteller';
+      const idx = parseInt(idxStr, 10);
+      if (state._sa[target] && Array.isArray(state._sa[target][kategorie])) {
+        state._sa[target][kategorie].splice(idx, 1);
+      }
+      renderTabSelbstauskunft();
+      autoSaveSa();
+    });
+  });
   // Initial Auswertung rendern (Werte aus state._sa)
   recalcSaAuswertung();
 }
@@ -2985,6 +3115,27 @@ function collectSaFromDOM() {
       sa[target][parts[1]][parts[2]] = v;
     }
   });
+  // Iter 66 (20.05.2026): Baukasten-Inputs lesen — Schema prefix.kategorie.idx.feld
+  document.querySelectorAll('[data-sa-zusatz]').forEach(inp => {
+    const parts = inp.dataset.saZusatz.split('.');
+    if (parts.length !== 4) return;
+    const [prefix, kategorie, idxStr, feld] = parts;
+    const idx = parseInt(idxStr, 10);
+    if (!isFinite(idx)) return;
+    let v;
+    if (inp.value === '' || inp.value === null) {
+      v = null;
+    } else if (inp.type === 'number') {
+      v = parseFloat(inp.value); if (!isFinite(v)) v = null;
+    } else {
+      v = inp.value;
+    }
+    const target = prefix === 'a' ? 'antragsteller' : 'mitantragsteller';
+    if (!sa[target]) sa[target] = {};
+    if (!Array.isArray(sa[target][kategorie])) sa[target][kategorie] = [];
+    while (sa[target][kategorie].length <= idx) sa[target][kategorie].push({ titel: '', notiz: '', mo: null, wert: null });
+    sa[target][kategorie][idx][feld] = v;
+  });
   state._sa = sa;
   return sa;
 }
@@ -3040,6 +3191,38 @@ function saHerkunftEkHtml(h) {
 
 function saPersonHtml(prefix, p) {
   p = p || {};
+
+  // Iter 66 (20.05.2026): Baukasten-Helper für Zusatz-Positions-Listen.
+  // Variante "single": Titel + Notiz + 1 Betrag.
+  // Variante "sparplan": Titel + Notiz + Mo-Rate + Wert (fließt in Ausgaben UND Vermögen).
+  // Inputs nutzen `data-sa-zusatz`, der von collectSaFromDOM separat verarbeitet wird.
+  function zusatzListeHtml(kategorie, summary, hint, einheit, variant) {
+    const liste = Array.isArray(p[kategorie]) ? p[kategorie] : [];
+    const istSparplan = variant === 'sparplan';
+    const betragFeld = einheit === '€/Mo' ? 'mo' : 'wert';
+    const dz = (idx, feld) => `data-sa-zusatz="${prefix}.${kategorie}.${idx}.${feld}"`;
+    const rows = liste.map((item, idx) => {
+      const inputs = istSparplan
+        ? `<input type="number" step="any" placeholder="€/Mo Rate" ${dz(idx, 'mo')} value="${item.mo !== undefined && item.mo !== null ? item.mo : ''}" class="sa-zusatz-mo">
+           <input type="number" step="any" placeholder="€ Bestand/Wert" ${dz(idx, 'wert')} value="${item.wert !== undefined && item.wert !== null ? item.wert : ''}" class="sa-zusatz-wert">`
+        : `<input type="number" step="any" placeholder="${esc(einheit)}" ${dz(idx, betragFeld)} value="${item[betragFeld] !== undefined && item[betragFeld] !== null ? item[betragFeld] : ''}" class="sa-zusatz-betrag">`;
+      return `
+        <div class="sa-zusatz-row" data-zusatz-row="${prefix}.${kategorie}.${idx}" style="display:grid;grid-template-columns:1.2fr 1.5fr ${istSparplan ? '1fr 1fr' : '1fr'} auto;gap:8px;align-items:center;margin-bottom:6px;">
+          <input type="text" placeholder="Titel (z.B. Fondssparplan Riester)" ${dz(idx, 'titel')} value="${esc(item.titel || '')}">
+          <input type="text" placeholder="Notiz (optional)" ${dz(idx, 'notiz')} value="${esc(item.notiz || '')}">
+          ${inputs}
+          <button type="button" class="sa-zusatz-remove secondary" data-zusatz-remove="${prefix}.${kategorie}.${idx}" title="Position entfernen" style="padding:4px 10px;line-height:1;">−</button>
+        </div>`;
+    }).join('');
+    return `
+      <details class="sa-section${liste.length > 0 ? ' open' : ''}" ${liste.length > 0 ? 'open' : ''}>
+        <summary>${esc(summary)} <span class="text-tertiary text-small" style="font-weight:normal;">(${liste.length})</span></summary>
+        ${hint ? `<div class="text-tertiary text-small mb-8">${esc(hint)}</div>` : ''}
+        <div class="sa-zusatz-list">${rows || '<div class="text-tertiary text-small">Noch keine Position erfasst.</div>'}</div>
+        <button type="button" class="sa-zusatz-add secondary mt-8" data-zusatz-add="${prefix}.${kategorie}${istSparplan ? '|sparplan' : ''}">+ Position hinzufügen</button>
+      </details>
+    `;
+  }
   // Text-Feld
   const t = (label, key) => `
     <div>
@@ -3167,6 +3350,9 @@ function saPersonHtml(prefix, p) {
       </div>
     </details>
 
+    ${/* Iter 66 (20.05.2026): Baukasten — Sonstige Einnahmen (Mo) */ ''}
+    ${zusatzListeHtml('zusatzEinnahmen', 'Sonstige Einnahmen (Baukasten)', 'Zusätzliche monatliche Einnahmen, die nicht in den Standard-Feldern oben passen — z.B. nebenberufliche Honorare, Renten, regelmäßige Zuwendungen. Fließt voll in die Bonität ein.', '€/Mo')}
+
     <details class="sa-section" open>
       <summary>Monatliche Fixkosten</summary>
       <div class="grid-2">
@@ -3180,6 +3366,9 @@ function saPersonHtml(prefix, p) {
       </div>
     </details>
 
+    ${/* Iter 66: Baukasten — Sonstige Ausgaben (Mo) */ ''}
+    ${zusatzListeHtml('zusatzAusgaben', 'Sonstige Ausgaben (Baukasten)', 'Weitere monatliche Belastungen außerhalb der Fixkosten oben — z.B. Vereinsbeiträge, Abos, Sparquoten. Fließt in die Fixkosten der Bonität ein.', '€/Mo')}
+
     <details class="sa-section" open>
       <summary>Vermögen</summary>
       <div class="grid-2">
@@ -3190,6 +3379,12 @@ function saPersonHtml(prefix, p) {
         ${n('Sonstige Vermögen', 'sonstigeVermoegen', '€')}
       </div>
     </details>
+
+    ${/* Iter 66: Baukasten — Sonstiges Vermögen (Einmalwert) */ ''}
+    ${zusatzListeHtml('zusatzVermoegen', 'Sonstiges Vermögen (Baukasten)', 'Weitere Vermögenspositionen, die nicht in die Standard-Felder oben passen — z.B. Edelmetalle, Krypto, Sachwerte. Fließt voll in das liquide Vermögen ein.', '€')}
+
+    ${/* Iter 66: Baukasten — Sparpläne mit Mo-Rate + Wert (fließt in BEIDE) */ ''}
+    ${zusatzListeHtml('zusatzSparplaene', 'Sparpläne / fondsgebundene Verträge', 'Z.B. Fondssparplan, fondsgebundene Altersvorsorge, Riester. Monatliche Rate läuft in die Ausgaben, der aktuelle Bestand/Wert ins Vermögen.', '€/Mo + €', 'sparplan')}
 
     <details class="sa-section">
       <summary>Versicherungs-Guthaben (optional)</summary>
@@ -3294,6 +3489,9 @@ function saPersonHtml(prefix, p) {
         ${sub('kd4', 'restsaldo', 'number', 'Restsaldo', '€')}
       </div>
     </details>
+
+    ${/* Iter 66: Baukasten — Zusätzliche Schulden (Restbetrag) */ ''}
+    ${zusatzListeHtml('zusatzSchulden', 'Zusätzliche Schulden (Baukasten)', 'Weitere offene Verbindlichkeiten, die nicht in die detaillierten Verbindlichkeits-Sektionen oben passen — z.B. offene Studienkredite, P2P-Kredite, private Schulden. Restsaldo einmalig; reduziert das Vermögen.', '€')}
   `;
 }
 
@@ -3740,3 +3938,64 @@ window.addEventListener('load', async () => {
   route();
   render();
 });
+
+// ===== Info-Chips für Vermögensaufbau-Chart =====
+// Event-Delegation auf document, damit Re-Renders das Verhalten nicht zerstören.
+(function () {
+  function closeInfoPopover() {
+    const pop = document.getElementById('chart-info-popover');
+    if (!pop) return;
+    pop.classList.remove('open');
+    pop.setAttribute('aria-hidden', 'true');
+    document.querySelectorAll('.chart-info-chip.active').forEach(b => b.classList.remove('active'));
+  }
+
+  document.addEventListener('click', (e) => {
+    const chip = e.target.closest('.chart-info-chip');
+    const pop  = document.getElementById('chart-info-popover');
+
+    // Außerhalb geklickt → schließen
+    if (!chip) {
+      if (pop && pop.classList.contains('open') && !e.target.closest('#chart-info-popover')) {
+        closeInfoPopover();
+      }
+      return;
+    }
+    if (!pop) return;
+    e.preventDefault();
+
+    // Gleicher Chip nochmal → toggle zu
+    if (chip.classList.contains('active')) {
+      closeInfoPopover();
+      return;
+    }
+
+    // Inhalt setzen
+    const titleEl = pop.querySelector('.chart-info-popover-title');
+    const bodyEl  = pop.querySelector('.chart-info-popover-body');
+    if (titleEl) titleEl.textContent = chip.dataset.infoTitle || '';
+    if (bodyEl)  bodyEl.textContent  = chip.dataset.infoBody  || '';
+
+    // Position relativ zum Chip — Popover hängt im Card, position: absolute
+    document.querySelectorAll('.chart-info-chip.active').forEach(b => b.classList.remove('active'));
+    chip.classList.add('active');
+
+    const card = chip.closest('.card');
+    if (card) {
+      const cardRect = card.getBoundingClientRect();
+      const chipRect = chip.getBoundingClientRect();
+      // Pfeil zentriert unter dem Chip
+      const left = chipRect.left - cardRect.left + chipRect.width / 2;
+      const top  = chipRect.bottom - cardRect.top + 8;
+      pop.style.left = left + 'px';
+      pop.style.top  = top + 'px';
+    }
+    pop.classList.add('open');
+    pop.setAttribute('aria-hidden', 'false');
+  });
+
+  // ESC schließt
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeInfoPopover();
+  });
+})();

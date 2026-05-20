@@ -450,6 +450,32 @@ function selbstauskunft(kunde, user) {
     </tr>`;
   }
 
+  // Iter 66 (20.05.2026): Baukasten-Zusatzpositionen — pro Antragsteller eigene
+  //   Listen (zusatzEinnahmen, zusatzAusgaben, zusatzVermoegen, zusatzSchulden,
+  //   zusatzSparplaene). Jede Position wird als eigene Zeile gezeigt — Titel + Notiz
+  //   in der Label-Spalte, Wert in A oder M (je nach Person), die andere Spalte leer.
+  //   Nur Zeilen mit Wert werden gerendert, sonst wäre das PDF aufgebläht.
+  function zusatzRows(kategorie, feld) {
+    let html = '';
+    const renderPerson = (liste, spalte) => {
+      if (!Array.isArray(liste)) return;
+      liste.forEach(item => {
+        if (!item) return;
+        const wert = parseFloat(item[feld]);
+        if (!isFinite(wert) || wert === 0) return; // leere Zeilen nicht ins PDF
+        const titel = item.titel || 'Zusatz-Position';
+        const notiz = item.notiz ? ` <span style="color:#777;font-size:9px;">— ${esc(item.notiz)}</span>` : '';
+        const valHtml = fld(fmtNum(wert));
+        const cellA = spalte === 'A' ? valHtml : '';
+        const cellM = spalte === 'M' && gemeinsam ? valHtml : (gemeinsam ? '' : '');
+        html += `<tr><td class="sa-label">${esc(titel)}${notiz}</td><td>${cellA}</td><td>${cellM}</td></tr>`;
+      });
+    };
+    renderPerson(a[kategorie], 'A');
+    if (gemeinsam) renderPerson(m[kategorie], 'M');
+    return html;
+  }
+
   const versA = a.vers || {};
 
   // === SEITE 1: PERSÖNLICHE VERHÄLTNISSE + EINKOMMEN + FIXKOSTEN ===
@@ -490,6 +516,8 @@ function selbstauskunft(kunde, user) {
           ${row('Sonstige Einkommen', fmtNum(a.sonstigeMo), fmtNum(m.sonstigeMo))}
           ${row('Unterhalt', fmtNum(a.unterhaltMo), fmtNum(m.unterhaltMo))}
           ${row('Kindergeld', fmtNum(a.kindergeldMo), fmtNum(m.kindergeldMo))}
+          ${/* Iter 66 (20.05.2026): Baukasten-Zusatzeinnahmen */ ''}
+          ${zusatzRows('zusatzEinnahmen', 'mo')}
           ${(() => {
             const sumA = (a.nettoMo || 0) + (a.vermietungMo || 0) + (a.sonstigeMo || 0) + (a.unterhaltMo || 0) + (a.kindergeldMo || 0);
             const sumM = (m.nettoMo || 0) + (m.vermietungMo || 0) + (m.sonstigeMo || 0) + (m.unterhaltMo || 0) + (m.kindergeldMo || 0);
@@ -507,6 +535,9 @@ function selbstauskunft(kunde, user) {
           ${row('Laufende Lebenshaltung', fmtNum(a.lebenshaltungMo), fmtNum(m.lebenshaltungMo))}
           ${row('Leasing-Raten', fmtNum(a.leasingMo), fmtNum(m.leasingMo))}
           ${row('Sonstige Ausgaben', fmtNum(a.sonstigeAusgabenMo), fmtNum(m.sonstigeAusgabenMo))}
+          ${/* Iter 66: Baukasten-Zusatzausgaben + Sparplan-Raten (jede Sparplan-Rate ist Ausgabe) */ ''}
+          ${zusatzRows('zusatzAusgaben', 'mo')}
+          ${zusatzRows('zusatzSparplaene', 'mo')}
         </tbody>
       </table>
       ${_footer(user)}
@@ -525,6 +556,9 @@ function selbstauskunft(kunde, user) {
           ${row('Sparbücher', fmtNum(a.sparbuecher), fmtNum(m.sparbuecher))}
           ${row('Bauspar / VWL', fmtNum(a.bausparen), fmtNum(m.bausparen))}
           ${row('Sonstige Vermögen', fmtNum(a.sonstigeVermoegen), fmtNum(m.sonstigeVermoegen))}
+          ${/* Iter 66: Baukasten-Vermögen + Sparplan-Werte (jeder Sparplan-Bestand ist Vermögen) */ ''}
+          ${zusatzRows('zusatzVermoegen', 'wert')}
+          ${zusatzRows('zusatzSparplaene', 'wert')}
           <tr><td class="sa-label">Versicherung — Art</td><td>${fld(versA.art || '')}</td><td></td></tr>
           <tr><td class="sa-label">Beginn / Ende</td><td>${fld(dt(versA.beginn))} &nbsp;/&nbsp; ${fld(dt(versA.ende))}</td><td></td></tr>
           <tr><td class="sa-label">Versicherungssumme</td><td>${fld(fmtNum(versA.summe))}</td><td></td></tr>
@@ -557,6 +591,16 @@ function selbstauskunft(kunde, user) {
           ${sonstVerbRow('kd4', 4)}
         </tbody>
       </table>
+      ${(() => {
+        // Iter 66 (20.05.2026): Baukasten — Zusätzliche Schulden. Nur rendern wenn vorhanden.
+        const hasA = Array.isArray(a.zusatzSchulden) && a.zusatzSchulden.some(x => x && parseFloat(x.wert) > 0);
+        const hasM = gemeinsam && Array.isArray(m.zusatzSchulden) && m.zusatzSchulden.some(x => x && parseFloat(x.wert) > 0);
+        if (!hasA && !hasM) return '';
+        return `<table class="sa-table" style="margin-top:3mm;">
+          <thead><tr><th class="sa-section-h">ZUSÄTZLICHE SCHULDEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
+          <tbody>${zusatzRows('zusatzSchulden', 'wert')}</tbody>
+        </table>`;
+      })()}
       <div style="font-size:7.5px; color:#666; margin-top:1mm; font-style:italic;">Weitere Immobilien bzw. Verbindlichkeiten bitte als Anlage beifügen.</div>
       ${_footer(user)}
     </div>

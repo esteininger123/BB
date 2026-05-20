@@ -55,9 +55,34 @@ module.exports = async (req, res) => {
 
     if (req.method === 'POST') {
       const body = await readBody(req);
-      if (!body.vorname && !body.nachname) {
-        return res.status(400).json({ error: 'vorname oder nachname erforderlich' });
+
+      // Iter 61 (20.05.2026): Validierung verschärft. Vorher reichte EIN Feld,
+      // dadurch konnten Kunden mit "Auto-Snapshot WE 5 Wesseling ..." im Vornamen
+      // und leerem Nachnamen entstehen. Jetzt: beide Pflicht, beide getrimmt,
+      // E-Mail-Format-Check, Identitäts-Check Vorname/Nachname.
+      const vorname  = (body.vorname  || '').trim();
+      const nachname = (body.nachname || '').trim();
+      const email    = (body.email    || '').trim();
+      const telefon  = (body.telefon  || '').trim();
+
+      if (!vorname)  return res.status(400).json({ error: 'vorname erforderlich' });
+      if (!nachname) return res.status(400).json({ error: 'nachname erforderlich' });
+      if (vorname.toLowerCase() === nachname.toLowerCase()) {
+        return res.status(400).json({ error: 'vorname und nachname dürfen nicht identisch sein' });
       }
+      if (vorname.includes('@') || nachname.includes('@')) {
+        return res.status(400).json({ error: 'vorname/nachname enthält "@" — vermutlich E-Mail im falschen Feld' });
+      }
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: 'email-Format ungültig' });
+      }
+
+      // getrimmte Werte zurück in body, damit kundeBodyToFields sie kriegt
+      body.vorname  = vorname;
+      body.nachname = nachname;
+      body.email    = email;
+      body.telefon  = telefon;
+
       const fields = kundeBodyToFields(body, {
         ownerId: session.vertrieblerId,
         touchLastActivity: true
