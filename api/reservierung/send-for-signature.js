@@ -16,11 +16,11 @@
 // automatisch aus dem recipients-Array ausgefüllt — kein extra Mapping nötig.
 
 const { verifySession } = require('../_lib/auth');
-const { airtable } = require('../_lib/airtable');
+const { airtable, listAll } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const {
   TABLES, KUNDEN_FIELDS, WE_FIELDS, SNAPSHOT_FIELDS,
-  PROJEKT_FIELDS, VERTRIEBLER_FIELDS
+  PROJEKT_FIELDS, VERTRIEBLER_FIELDS, STELLPLATZ_FIELDS
 } = require('../_lib/tables');
 
 const PANDADOC_API = 'https://api.pandadoc.com/public/v1';
@@ -113,9 +113,36 @@ module.exports = async (req, res) => {
       }
     } catch (e) {}
 
-    const kaufpreis = (snapKalk && snapKalk.kaufpreis) || we[WE_FIELDS.KAUFPREIS] || 0;
+    const wohnungsPreis = parseFloat(we[WE_FIELDS.KAUFPREIS]) || 0;
     const qm        = we[WE_FIELDS.QM]    || '';
     const weNr      = we[WE_FIELDS.WE_NR] || '';
+
+    // --- 4b. Stellplätze (Garagen / Außenstellplätze) zur WE laden
+    // Jede WE kann 0–N verlinkte Stellplätze haben (siehe SOP-E).
+    // Wir laden alle mit WE_LINK auf diese WE-ID, summieren den Kaufpreis,
+    // und bauen lesbare Beschreibungen für Tokens.
+    let stellplaetze = [];
+    try {
+      const allStpl = await listAll(TABLES.STELLPLATZ, {
+        filterByFormula: `FIND('${weId}', ARRAYJOIN({${STELLPLATZ_FIELDS.WE_LINK}}))`,
+      }, 50);
+      stellplaetze = allStpl.map(rec => {
+        const f = rec.fields || {};
+        const titel = f[STELLPLATZ_FIELDS.TITEL] || '';
+        const typ   = f[STELLPLATZ_FIELDS.TYP] || ''; // "Garage" / "Fläche"
+        const preis = parseFloat(f[STELLPLATZ_FIELDS.KAUFPREIS]) || 0;
+        return { id: rec.id, titel, typ, preis };
+      });
+    } catch (e) {
+      // Stellplatz-Lade-Fehler ist nicht tödlich — Doc bekommt halt nur Wohnung
+    }
+
+    const stellplatzPreis = stellplaetze.reduce((sum, s) => sum + s.preis, 0);
+    const hatStellplatz   = stellplaetze.length > 0 && stellplatzPreis > 0;
+
+    // Snapshot-Kaufpreis hat Vorrang (eingefrorener Preis aus Kalkulation),
+    // sonst Wohnung + Stellplatz aus Live-Daten
+    const kaufpreis = (snapKalk && snapKalk.kaufpreis) || (wohnungsPreis + stellplatzPreis) || 0;
 
     // --- 5. Tokens — EXAKT die Custom-Variablen-Namen aus dem Template
     const fristTage = parseInt(process.env.RESERV_FRIST_TAGE || '14', 10);
@@ -136,8 +163,8 @@ module.exports = async (req, res) => {
     const tokens = [
       // --- Custom-Variables im Doc-Body (aus dem Template) ---
       { name: 'Ablauffrist.Reservierung',         value: ablaufStr },
-      { name: 'Kaufpreis',                        value: formatEUR(kaufpreis) },
-      { name: 'QmAnzahl.Wohnungsnummer',          value: composeQmWeNr(qm, weNr) },
+      { name: 'Kaufpreis',                        value: composeKaufpreis(wohnungsPreis, stellplaetze, snapKalk && snapKalk.kaufpreis) },
+      { name: 'QmAnzahl.Wohnungsnummer',          value: composeQmWeNr(qm, weNr, stellplaetze) },
       { name: 'Straße.Hausnummer.PLZ.Ort',        value: objektAdresse || 'Adresse beim Notar nachzutragen' },
       { name: 'Kaufinteressent.Vorname.Nachname', value: `${vorname} ${nachname}`.trim() },
       { name: 'Kaufinteressent.Ort',              value: kundeOrt || '' },
@@ -302,9 +329,37 @@ function formatEUR(n) {
   });
 }
 
-function composeQmWeNr(qm, weNr) {
+function composeQmWeNr(qm, weNr, stellplaetze) {
   const parts = [];
   if (qm)   parts.push(`${qm} m²`);
   if (weNr) parts.push(`Wohnungs-Nr. ${weNr}`);
+  // Stellplatz-Suffix anhängen, falls vorhanden — z.B. "+ Garage Nr. 5"
+  if (Array.isArray(stellplaetze) && stellplaetze.length > 0) {
+    for (const s of stellplaetze) {
+      if (!s) continue;
+      const typ = s.typ || 'Stellplatz';
+      // Versuche eine Nummer/Bezeichnung aus dem Titel zu extrahieren
+      // Titel-Format z.B. "StPl: 207, 5, Garage" → wir nehmen die Zahl in der Mitte
+      let nr = '';
+      const m = (s.titel || '').match(/StPl:\s*\d+,\s*(\S+?),/);
+      if (m) nr = m[1];
+      parts.push(`+ ${typ}${nr ? ' Nr. ' + nr : ''}`);
+    }
+  }
   return parts.join(', ') || '';
+}
+
+function composeKaufpreis(wohnungsPreis, stellplaetze, snapKaufpreis) {
+  // Wenn Snapshot-Preis existiert, nehmen wir den als Single-Wert (eingefroren).
+  if (snapKaufpreis && snapKaufpreis > 0) {
+    return formatEUR(snapKaufpreis);
+  }
+  const stellplatzPreis = (stellplaetze || []).reduce((sum, s) => sum + (s && s.preis ? s.preis : 0), 0);
+  const gesamt = (wohnungsPreis || 0) + stellplatzPreis;
+  if (stellplatzPreis <= 0) {
+    return formatEUR(wohnungsPreis);
+  }
+  // Mehrteilig: "120.000,00 € (Wohnung) + 15.000,00 € (Garage) = 135.000,00 €"
+  const stplLabel = stellplaetze.length === 1 ? (stellplaetze[0].typ || 'Stellplatz') : 'Stellplätze';
+  return `${formatEUR(wohnungsPreis)} (Wohnung) + ${formatEUR(stellplatzPreis)} (${stplLabel}) = ${formatEUR(gesamt)}`;
 }
