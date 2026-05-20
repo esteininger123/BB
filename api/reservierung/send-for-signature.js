@@ -124,22 +124,50 @@ module.exports = async (req, res) => {
 
     // Vertriebler-Name (Verkäufer) für Custom-Variable im Doc-Body
     const verkaeuferDisplay = (vertriebler[VERTRIEBLER_FIELDS.NAME] || 'Edgar Steininger').trim();
+    // Heute-Datum für Workflow.CreatedDate-Override (Pre-fill-Box-Felder)
+    const heute = new Date().toLocaleDateString('de-DE');
+    // Vertriebler-Name auf First/Last splitten (für Standard-Recipient-Variables-Override)
+    const vkParts = String(verkaeuferDisplay).trim().split(/\s+/);
+    const verkaeuferFirst = vkParts[0] || 'Edgar';
+    const verkaeuferLast  = vkParts.slice(1).join(' ') || 'Steininger';
+    // Zentrale B&B-Mailbox als Verkäufer-Recipient-Mail (siehe Kommentar bei Recipients)
+    const verkaeuferEmail = 'info@bub-immo.de';
 
     const tokens = [
+      // --- Custom-Variables im Doc-Body (aus dem Template) ---
       { name: 'Ablauffrist.Reservierung',         value: ablaufStr },
       { name: 'Kaufpreis',                        value: formatEUR(kaufpreis) },
       { name: 'QmAnzahl.Wohnungsnummer',          value: composeQmWeNr(qm, weNr) },
       { name: 'Straße.Hausnummer.PLZ.Ort',        value: objektAdresse || 'Adresse beim Notar nachzutragen' },
       { name: 'Kaufinteressent.Vorname.Nachname', value: `${vorname} ${nachname}`.trim() },
       { name: 'Kaufinteressent.Ort',              value: kundeOrt || '' },
-      // Verkäufer-Custom-Variable (vom Template-Edit, ersetzt das alte hardcoded "Laurin Zimmerer")
       { name: 'Verkäufer.Vorname.Nachname',       value: verkaeuferDisplay },
-      // Käufer-Adresse zusätzlich auch als Custom-Tokens, damit sie schon im Draft sichtbar ist
-      // (nicht erst nach Send). Falls die Standard-Recipient-Vars trotzdem getrennt sind, werden
-      // sie beim Render zusätzlich durch die Recipient-Daten gefüllt — Doppelung schadet nicht.
+
+      // --- Standard-PandaDoc-Recipient-Variables manuell überschreiben ---
+      // Diese werden in Pre-fill-Feldern (Signatur-Boxen) als „Default-Inhalt" angezeigt
+      // und sind sonst nicht durch Recipient-Daten gefüllt. Wir setzen sie explizit als
+      // Tokens, damit das Doc beim manuellen Send komplett ausgefüllt aussieht.
+      { name: 'Kaufinteressent.FirstName',        value: vorname || '' },
+      { name: 'Kaufinteressent.LastName',         value: nachname || '' },
+      { name: 'Kaufinteressent.Email',            value: email || '' },
       { name: 'Kaufinteressent.StreetAddress',    value: kundeStrasse || '' },
       { name: 'Kaufinteressent.PostalCode',       value: kundePlz || '' },
       { name: 'Kaufinteressent.State',            value: kundeOrt || '' },
+      { name: 'Kaufinteressent.City',             value: kundeOrt || '' },
+      { name: 'Verkäufer.FirstName',              value: verkaeuferFirst },
+      { name: 'Verkäufer.LastName',               value: verkaeuferLast },
+      { name: 'Verkäufer.Name',                   value: verkaeuferDisplay },
+      { name: 'Verkäufer.Nachname',               value: verkaeuferLast },
+      { name: 'Verkäufer.Email',                  value: verkaeuferEmail },
+      { name: 'Verkäufer.Company',                value: 'B&B Immo GmbH' },
+      { name: 'Verkäufer.StreetAddress',          value: 'Burdastraße 23' },
+      { name: 'Verkäufer.City',                   value: 'Schutterwald' },
+      { name: 'Verkäufer.PostalCode',             value: '77746' },
+      { name: 'Verkäufer.Country',                value: 'Deutschland' },
+
+      // Workflow-Datum-Tokens (Pre-fill-Felder zeigen "Schutterwald, den [Workflow.CreatedDate]")
+      { name: 'Workflow.CreatedDate',             value: heute },
+      { name: 'Workflow.CreateDate',              value: heute }, // alternative Schreibweise im Template
     ];
 
     // --- 6. Recipients (sequenziell: Käufer zuerst, Vertriebler danach)
@@ -151,9 +179,6 @@ module.exports = async (req, res) => {
     // Airtable-Vertrieblerprofil (z.B. "Edgar Steininger" oder "Laurin Zimmerer") — so
     // sieht der Käufer wer der konkrete Ansprechpartner ist, aber alle Verkäufer-Mails
     // landen zentral. Spart pro-Vertriebler-PandaDoc-Accounts.
-    const verkaeuferEmail = 'info@bub-immo.de';
-    const verkaeuferName  = vertriebler[VERTRIEBLER_FIELDS.NAME]  || 'Edgar Steininger';
-    const [vkFirst, ...vkRest] = String(verkaeuferName).trim().split(/\s+/);
 
     const recipients = [
       {
@@ -171,8 +196,8 @@ module.exports = async (req, res) => {
       },
       {
         email: verkaeuferEmail,
-        first_name: vkFirst || 'Edgar',
-        last_name:  vkRest.join(' ') || 'Steininger',
+        first_name: verkaeuferFirst,
+        last_name:  verkaeuferLast,
         role:       'Verkäufer',
         signing_order: 2,
         company:    'B&B Immo GmbH',
@@ -221,68 +246,40 @@ module.exports = async (req, res) => {
         if (statusData.status === 'document.draft') ready = true;
       } catch (e) {}
     }
-    if (!ready) {
-      return res.status(202).json({
-        message: 'Dokument erstellt, aber noch nicht versandfertig. PandaDoc baut es im Hintergrund — bitte gleich nochmal Button drücken.',
-        pandadocDocumentId: docId
-      });
-    }
+    // HYBRID-WORKFLOW: Wir senden das Doc NICHT automatisch via API — stattdessen
+    // gibt das Backend die PandaDoc-Editor-URL zurück. Das Frontend öffnet den Tab
+    // direkt am vorausgefüllten Doc, der Vertriebler prüft kurz und klickt im
+    // PandaDoc-UI auf "Dokument senden". Vorteile:
+    // - Umgeht Sandbox-„outside org"-Block (UI-Send hat diese Restriktion nicht)
+    // - Vertriebler hat Sanity-Check vor Versand
+    // - Sobald Production-Key da ist, können wir auf Auto-Send umstellen
+    //
+    // Polling auf document.draft ist nicht zwingend für den Editor — der Editor
+    // wartet selbst. Wenn ready=false, weisen wir trotzdem auf den Editor hin.
 
-    // --- 9. Versenden
-    const mailBody =
-`Hallo ${vorname},
+    const editorUrl = `https://app.pandadoc.com/a/#/documents/${docId}`;
 
-anbei das Reservierungsdokument für die Wohnung Nr. ${weNr}, ${objektAdresse || '(Adresse folgt)'}.
-
-Kurz zur Übersicht:
-- Kaufpreis: ${formatEUR(kaufpreis)}
-- Reservierungsdauer: bis ${ablaufStr}
-
-Unterschreib online über den Link oben. Sobald deine Unterschrift da ist, gegenzeichne ich.
-
-Fragen? Ruf mich direkt an.
-
-${verkaeuferName}`;
-
-    try {
-      const sendResp = await fetch(`${PANDADOC_API}/documents/${docId}/send`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `API-Key ${apiKey}`,
-          'Content-Type':  'application/json'
-        },
-        body: JSON.stringify({
-          message: mailBody,
-          subject: `Reservierung Wohnung ${weNr} – bitte gegenzeichnen`,
-          silent:  false
-        })
-      });
-      if (!sendResp.ok) {
-        const errText = await sendResp.text();
-        return res.status(502).json({ error: 'PandaDoc-Send fehlgeschlagen', detail: errText });
-      }
-    } catch (e) {
-      return res.status(502).json({ error: 'Versand fehlgeschlagen', detail: e.message });
-    }
-
-    // --- 10. Optional: PandaDoc-DocId in Kunden-Notizen vermerken (V1, bis eigenes Feld da ist)
+    // PandaDoc-DocId in Kunden-Notizen vermerken (Status: erstellt, manueller Send pendant)
     try {
       const oldNotizen = kunde[KUNDEN_FIELDS.NOTIZEN] || '';
       const stempel = new Date().toISOString().substring(0, 16).replace('T', ' ');
-      const neueZeile = `[${stempel}] Reservierung an ${email} versandt — PandaDoc-Doc: ${docId}`;
+      const neueZeile = `[${stempel}] Reservierung erstellt für ${email} — PandaDoc-Doc: ${docId} (wartet auf manuellen Send)`;
       const neueNotizen = oldNotizen ? `${oldNotizen}\n${neueZeile}` : neueZeile;
       await airtable('update', TABLES.KUNDEN, {
         recordId: kundeId,
         fields: { [KUNDEN_FIELDS.NOTIZEN]: neueNotizen }
       });
     } catch (e) {
-      // Notiz-Schreib-Fehler ist nicht tödlich; Mail ist schon raus
+      // Notiz-Schreib-Fehler ist nicht tödlich; Doc ist im PandaDoc erstellt
     }
 
     return res.status(200).json({
       ok: true,
-      message: 'Reservierungsdokument versandt',
+      message: ready
+        ? 'Reservierungsdokument erstellt — öffne PandaDoc und klick „Dokument senden"'
+        : 'Dokument wird im Hintergrund vorbereitet — öffne PandaDoc, dort steht es gleich versandbereit',
       pandadocDocumentId: docId,
+      editorUrl,
       recipients: recipients.map(r => r.email),
       ablauffrist: ablaufStr
     });

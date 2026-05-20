@@ -2383,10 +2383,11 @@ async function sendReservierungForSignature() {
   const weLabel = (w && (w.projektName ? w.projektName + ' — ' : '') + (w.lageText || w.lage || ('WE ' + w.weNr))) || 'die ausgewählte WE';
   const kundeName = ((state.kunde && state.kunde.vorname) || '') + ' ' + ((state.kunde && state.kunde.nachname) || '');
   const msg =
-    'Reservierung an ' + kundeName.trim() + ' senden?\n\n' +
+    'Reservierung für ' + kundeName.trim() + ' vorbereiten?\n\n' +
     'Wohnung: ' + weLabel + '\n' +
-    'E-Mail-Adresse Käufer: ' + kundeEmail + '\n\n' +
-    'Du bekommst das Doc nach der Käufer-Unterschrift zur Gegenzeichnung.';
+    'E-Mail Käufer: ' + kundeEmail + '\n\n' +
+    'Nach Bestätigung öffnet sich PandaDoc mit dem vorausgefüllten Dokument.\n' +
+    'Du prüfst kurz und klickst dort auf „Dokument senden".';
   if (!confirm(msg)) return;
 
   // Falls ein Snapshot für diese WE existiert, den jüngsten als Quelle für den Kaufpreis mitschicken.
@@ -2398,17 +2399,20 @@ async function sendReservierungForSignature() {
     if (fitting[0]) snapshotId = fitting[0].id;
   }
 
-  toast('Sende an PandaDoc…', 'info');
+  toast('Erstelle Dokument in PandaDoc…', 'info');
   try {
     const resp = await api.post('/api/reservierung/send-for-signature', {
       kundeId: state.kundeId,
       weId: weId,
       snapshotId: snapshotId
     });
-    if (resp && resp.ok) {
-      toast('Reservierung versandt an ' + (resp.recipients && resp.recipients[0] ? resp.recipients[0] : kundeEmail) + ' (Frist: ' + (resp.ablauffrist || '') + ')', 'success');
+    if (resp && resp.ok && resp.editorUrl) {
+      toast('Dokument erstellt — PandaDoc öffnet sich. Dort auf „Dokument senden" klicken.', 'success');
+      // Direkt in neuem Tab öffnen, der Vertriebler ist sofort im Send-Step.
+      window.open(resp.editorUrl, '_blank', 'noopener');
     } else if (resp && resp.message) {
       toast(resp.message, 'info');
+      if (resp.editorUrl) window.open(resp.editorUrl, '_blank', 'noopener');
     }
   } catch (e) {
     const hint = e.body && e.body.hint ? ' — ' + e.body.hint : '';
