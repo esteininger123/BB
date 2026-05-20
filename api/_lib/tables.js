@@ -161,7 +161,7 @@ const KALK_STAMMDATEN_FIELDS = {
   MARKTPREIS_IS:         'fldhMmMxLn1PSjbwN', // Currency €/m² — ImmoScout-Marktpreis
   MARKTPREIS_HD:         'fldvlXM6pBUzVYdpF', // Currency €/m² — Homeday-Marktpreis
   // Iter 41.10 — Mietsubvention 2-Phasen-Modell:
-  MARKTMIETE:            'fldnrgRONiWWsSxZb', // Currency €/Mo — Kalt-Marktmiete (deckelt Erhöhungs-Subv)
+  MARKTMIETE:            'fldnrgRONiWWsSxZb', // Currency €/qm — Markt-Kaltmiete pro qm (Iter 65, 20.05.2026: vorher €/Mo, jetzt €/qm zur Projekt-Pflege). Backend multipliziert beim Bedarf mit WE.qm.
   // Iter 41.17 (18.05.2026) — Edgar-Fix: Vermietungs-Status der WE als Lookup in
   // die Kalk-Stammdaten gespiegelt („Miet-status (ist)"). Single Source of Truth
   // für leer/vermietet — vorher leitete das Backend den Status aus Vertrag + Kaltmiete>0

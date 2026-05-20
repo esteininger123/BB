@@ -19,7 +19,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 61, hgInflation: 0, mietverwaltung: 30, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
   // WE 4, 1.OG Rechts — leerstehend, renoviert. Marktanker WE 6 290 (500€ ab 1.3.26).
@@ -30,7 +30,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 61, hgInflation: 0, mietverwaltung: 30, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
   // WE 5, 2.OG Links — 2 Garagen!
@@ -41,7 +41,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 61, hgInflation: 0, mietverwaltung: 30, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
 
@@ -54,7 +54,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 60.56, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 25,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.045, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.045, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.02, marktwertProQm: 0,
   },
   // WE 10, 1.OG Rechts — laut Airtable einvernehmliche Erhöhung 593€ ab 1.4.26
@@ -65,7 +65,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 60.56, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.037, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.037, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
   // WE 12, 2.OG Rechts — V1-Excel-Werte 1:1, mit Marktwert!
@@ -76,7 +76,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 60.56, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.0345, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.0345, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 3267,
   },
 
@@ -89,7 +89,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 71, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
   // WE 2, EG Mitte
@@ -100,7 +100,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 60, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
   // WE 3, EG Rechts — mit Garage
@@ -111,7 +111,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 35, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
   // WE 4, 1.OG Links — mit Garage
@@ -122,7 +122,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 60, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
   // WE 6, 1.OG Rechts
@@ -133,7 +133,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 46, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
   // WE 7, 2.OG Links
@@ -144,7 +144,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 60, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
   // WE 8, 2.OG Mitte — Stellplatz + Garage
@@ -155,7 +155,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 73, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
   // WE 12, 3.OG Rechts — mit Stellplatz
@@ -166,7 +166,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 34, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
   // WE 13, 4.OG Links — mit Garage
@@ -177,7 +177,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 71, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
   // WE 14, 4.OG Mitte — Stellplatz + Garage
@@ -188,7 +188,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 73, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
   // WE 15, 4.OG Rechts — mit Stellplatz (Fläche)
@@ -199,7 +199,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 35, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
   // WE 16, DG Links — mit Garage. Miete in Airtable leer → realistisch geschätzt anhand qm
@@ -210,7 +210,7 @@ window.WE_PRESETS_BY_RECID = {
     mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
     hausgeld: 47, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03, marktwertProQm: 0,
   },
 };

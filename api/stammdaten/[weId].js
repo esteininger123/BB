@@ -276,6 +276,7 @@ function resolveVermietungsstatusFromLookup(rawVal) {
 }
 
 // --- Iter 41.10: 2-Phasen-Mietsubvention (Edgar/Henry-Modell 18.05.2026) ---
+// --- Iter 62/63 (20.05.2026): Marktmiete-Cap statt P2-Streichung + Tag-1-Erhöhung ---
 //
 // Logik:
 // - Käufer sieht ab Tag 1 die konstante Käufer-Miete = MbV + X über bis zu 6 Jahre.
@@ -283,12 +284,21 @@ function resolveVermietungsstatusFromLookup(rawVal) {
 //   die Marktmiete (rechtl. Erhöhungslimit) und durch den Subv-Cap (€).
 // - Phase 1 läuft (36 − Mo seit letzter Erhöhung) Monate. Subv P1/Mo = X.
 //   (Mieter zahlt MbV; B&B legt X drauf, sodass Käufer MbV + X sieht.)
-// - Phase 2 läuft 36 Monate, sofern nach Phase 1 die Käufer-Miete noch
-//   > 10 % unter Marktmiete liegt. Sonst entfällt P2.
-//   (Mieter wird in P2 legal um MbV × Kapp erhöht; Subv P2/Mo = X − MbV × Kapp.)
+// - Phase 2 läuft 36 Monate, sofern es überhaupt legalen Markt-Spielraum gibt
+//   (Marktmiete > MbV). Iter 62: Die alte 10-%-Schwelle, die Phase 2 strich, wenn
+//   die Käufer-Miete nach P1 zu nah an Markt war, wurde entfernt. Stattdessen wird
+//   die Mieter-Erhöhung in Phase 2 auf min(MbV × (1+Kapp), Marktmiete) gedeckelt
+//   und die Subv für Phase 2 entsprechend reduziert. Das hält die Käufer-Miete
+//   über die vollen 72 Monate konstant auf MbV + X.
+//   (Mieter wird in P2 legal erhöht; Subv P2/Mo = X − (Mieter-Erhöhung).)
 // - Cap = max(5.000 €, qm × 150 €/qm). Override per Stammdaten möglich (heute nicht).
 // - Wenn (P1-Subv + P2-Subv) > Cap, wird X so reduziert, dass die Summe genau dem
 //   Cap entspricht. Käufer-Miete bleibt 6 Jahre konstant, nur niedriger als ideal.
+// - Iter 63: Wenn die letzte Mietsteigerung > 36 Monate her ist und keine Erhöhung
+//   vor Verkauf gemacht wurde, wird die erste Erhöhung beim Käufer ab Tag 1
+//   eingerechnet — d.h. der Mieter zahlt ab Tag 1 schon MbV × (1+Kapp) (durch
+//   Marktmiete gedeckelt). Danach laufen die 2 regulären Subv-Zyklen (72 Mo). Der
+//   neue Mieter-Tag-1-Wert wird im Output als `kaltmieteAdjustiert` zurückgegeben.
 // - Manueller Mietzuschuss in Stammdaten hat Vorrang vor der Auto-Berechnung
 //   (wird als einzige Phase ausgewiesen).
 // - Vermietungsmodus ≠ 'Bestand' (Neuvermietung, Index, leer) → keine Subvention.
@@ -340,63 +350,94 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     });
   }
 
-  const mbv = kalkApi.mieteBeiVerkauf;
-  if (!mbv || mbv <= 0) return Object.assign({}, empty, { quelle: 'auto-mbv-fehlt', erlaeuterung: 'Miete bei Verkauf in Stammdaten fehlt.' });
+  const mbvRaw = kalkApi.mieteBeiVerkauf;
+  if (!mbvRaw || mbvRaw <= 0) return Object.assign({}, empty, { quelle: 'auto-mbv-fehlt', erlaeuterung: 'Miete bei Verkauf in Stammdaten fehlt.' });
 
   const kappPct = parseKappPct(kalkApi.kappungsgrenze);
   if (!kappPct || kappPct <= 0) return Object.assign({}, empty, { quelle: 'auto-kappung-fehlt', erlaeuterung: 'Kappungsgrenze in Stammdaten fehlt.' });
 
-  const marktmiete = kalkApi.marktmiete || 0;
+  // Iter 65 (20.05.2026): kalkApi.marktmiete enthält jetzt €/qm, nicht mehr €/Mo
+  // absolut. Für die Subv-Berechnung wird der absolute Wert (€/Mo) gebraucht
+  // → mit WE.qm multiplizieren. Wenn qm fehlt, fällt der Code auf 0 zurück und
+  //   die Markt-Deckelung greift nicht (= konservativ wie ohne Marktmiete).
+  const marktmieteEurQm = kalkApi.marktmiete || 0;
+  const marktmiete = marktmieteEurQm > 0 && weQm > 0 ? marktmieteEurQm * weQm : 0;
 
   // Phase-1-Laufzeit aus letzter Mietsteigerung
   const letzte = (vermietung && vermietung.letzteMietsteigerung) || kalkApi.letzteMietsteigerung;
-  let monateSeit = null; // null = unbekannt → konservativ 0 Mo verstrichen
+  let monateSeitRaw = null; // null = unbekannt → konservativ 0 Mo verstrichen
   if (letzte) {
     const datum = new Date(letzte);
     const heute = new Date();
-    monateSeit = Math.max(0, (heute.getFullYear() - datum.getFullYear()) * 12 + (heute.getMonth() - datum.getMonth()));
+    monateSeitRaw = Math.max(0, (heute.getFullYear() - datum.getFullYear()) * 12 + (heute.getMonth() - datum.getMonth()));
   }
+
+  // --- Iter 63 (20.05.2026): Tag-1-Erhöhung wenn letzte Mietsteigerung > 36 Monate ---
+  // Wenn die letzte Erhöhung mehr als 3 Jahre her ist und vor Verkauf nichts mehr
+  // angepasst wurde, hebt B&B die Mieter-Miete schon vor Übergabe auf MbV × (1+Kapp)
+  // (durch Marktmiete gedeckelt). Der Mieter zahlt diesen Wert ab Tag 1. Danach läuft
+  // der reguläre 2-Phasen-Zyklus (72 Monate) gegen die neue Basis.
+  let mbv = mbvRaw;
+  let monateSeit = monateSeitRaw;
+  let tag1Erhoehung = false;
+  let tag1Anhebung = 0; // €/Mo, um den die Mieter-Miete vor Verkauf erhöht wird
+  if (monateSeitRaw !== null && monateSeitRaw > 36) {
+    const mieterErhoehung = mbvRaw * kappPct;
+    const mbvNeu = marktmiete > 0
+      ? Math.min(mbvRaw + mieterErhoehung, marktmiete)
+      : mbvRaw + mieterErhoehung;
+    if (mbvNeu > mbvRaw + 0.01) {
+      tag1Erhoehung = true;
+      tag1Anhebung = mbvNeu - mbvRaw;
+      mbv = mbvNeu;          // ab hier rechnet alles mit dem neuen MbV
+      monateSeit = 0;        // Phase 1 läuft volle 36 Monate ab Übergabe
+    }
+  }
+
   const p1Monate = monateSeit !== null ? Math.max(0, 36 - monateSeit) : 36;
   const p2Monate = 36;
 
   // X_ideal = MbV × ((1+Kapp)² − 1)   (= 2 Erhöhungsstufen drauf)
   // Markt-Deckelung: X kann max. (Marktmiete − MbV) sein, sonst rechtl. nicht haltbar.
-  const xIdealEhneMarkt = mbv * ((1 + kappPct) * (1 + kappPct) - 1);
-  const xMaxMarkt = marktmiete > 0 ? Math.max(0, marktmiete - mbv) : xIdealEhneMarkt;
-  const xIdeal = Math.min(xIdealEhneMarkt, xMaxMarkt);
+  const xIdealOhneMarkt = mbv * ((1 + kappPct) * (1 + kappPct) - 1);
+  const xMaxMarkt = marktmiete > 0 ? Math.max(0, marktmiete - mbv) : xIdealOhneMarkt;
+  let xFinal = Math.min(xIdealOhneMarkt, xMaxMarkt);
 
-  if (xIdeal <= 0) {
+  if (xFinal <= 0) {
     return Object.assign({}, empty, {
       quelle: 'auto-kein-spielraum',
-      erlaeuterung: 'Miete bei Verkauf ≥ Marktmiete — keine legale Erhöhung möglich.'
+      erlaeuterung: tag1Erhoehung
+        ? `Letzte Mietsteigerung war ${monateSeitRaw} Mo her — Mieter wird vor Verkauf auf ${Math.round(mbv)} €/Mo angehoben. Danach kein weiterer legaler Spielraum bis zur Marktmiete.`
+        : 'Miete bei Verkauf ≥ Marktmiete — keine legale Erhöhung möglich.',
+      tag1Erhoehung,
+      kaltmieteAdjustiert: tag1Erhoehung ? Math.round(mbv * 100) / 100 : null,
     });
   }
 
-  // 10-%-Schwelle: Phase 2 nur wenn Käufer-Miete nach P1 (= MbV + 1×Kapp) noch > 10 % unter Markt.
-  // Käufer-Miete nach P1 wäre MbV + MbV × Kapp = MbV × (1+Kapp). Wenn der Abstand
-  // zur Marktmiete ≤ 10 %, brauchen wir keine 2. Stufe.
-  let p2Aktiv = true;
-  if (marktmiete > 0) {
-    const kaufermieteNachP1 = mbv * (1 + kappPct);
-    const abstandPct = (marktmiete - kaufermieteNachP1) / marktmiete;
-    if (abstandPct <= 0.10) p2Aktiv = false;
-  }
+  // Iter 62 (20.05.2026): Phase 2 läuft IMMER, solange es legalen Markt-Spielraum gibt
+  // (xMaxMarkt > 0). Die alte 10-%-Schwelle ist weg. Wenn die kapp-Erhöhung des Mieters
+  // in Phase 2 die Marktmiete übersteigen würde, wird der Mieter nur auf Marktmiete
+  // erhöht — die Subv in Phase 2 reduziert sich entsprechend, läuft aber volle 36 Monate.
+  const p2Aktiv = xMaxMarkt > 0.01;
 
-  // X_ideal in der 2-Stufen-Variante
-  // Wenn nur P1 aktiv ist, beträgt X höchstens MbV × Kapp (= 1 Stufe).
-  let xFinal = xIdeal;
-  if (!p2Aktiv) {
-    const xEinStufe = Math.min(mbv * kappPct, xMaxMarkt);
-    xFinal = xEinStufe;
-  }
+  // Mieter-Erhöhung in Phase 2 — gedeckelt durch Marktmiete (rechtlich)
+  const mieterErhoehungP2 = p2Aktiv
+    ? Math.min(mbv * kappPct, marktmiete > 0 ? (marktmiete - mbv) : (mbv * kappPct))
+    : 0;
+  // Iter 62: marktCapGreift = wahr, sobald die Markt-Deckelung eine der beiden
+  // Größen reduziert: entweder den Käufer-Aufschlag X (xFinal < xIdealOhneMarkt)
+  // oder die Mieter-Erhöhung in Phase 2 (mieterErhoehungP2 < mbv * kappPct).
+  const marktCapGreift = p2Aktiv && marktmiete > 0 && (
+    xFinal < xIdealOhneMarkt - 0.01 ||
+    mieterErhoehungP2 < mbv * kappPct - 0.01
+  );
 
   // Iter 47/48: Effektivmiete bleibt für den Käufer über alle Phasen konstant.
   // Phase 1: B&B legt vollen Aufschlag (xFinal) drauf — Mieter zahlt noch MbV.
-  // Phase 2: Mieter wird legal erhöht auf MbV×(1+kapp). B&B legt nur noch (xFinal − MbV×kapp)
-  //          drauf — Summe für den Käufer bleibt MbV+xFinal. Beide Phasen → gleiche Mieteinnahme.
-  // phasen[] zeigt die ECHTEN monatlichen Subv-Werte, die der Käufer in jeder Phase erhält.
+  // Phase 2: Mieter wird auf MbV + mieterErhoehungP2 erhöht. B&B legt nur noch
+  //          (xFinal − mieterErhoehungP2) drauf — Käufer sieht weiter MbV + xFinal.
   let p1Mo = xFinal;
-  let p2Mo = p2Aktiv ? Math.max(0, xFinal - mbv * kappPct) : 0;
+  let p2Mo = p2Aktiv ? Math.max(0, xFinal - mieterErhoehungP2) : 0;
 
   let p1Eur = p1Mo * p1Monate;
   let p2Eur = p2Aktiv ? p2Mo * p2Monate : 0;
@@ -409,14 +450,14 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
 
   if (totalEurRaw > cap && cap > 0) {
     capGreift = true;
-    // Cap: X so kürzen, dass X×p1 + (X−MbV×kapp)×p2 = Cap
-    // → X = (Cap + p2Monate×MbV×kapp) / (p1Monate + p2Monate)
+    // Cap: X so kürzen, dass X×p1 + (X − mieterErhoehungP2)×p2 = Cap
+    // → X = (Cap + p2Monate × mieterErhoehungP2) / (p1Monate + p2Monate)
     const denom = p1Monate + (p2Aktiv ? p2Monate : 0);
     if (denom > 0) {
-      const xNew = (cap + (p2Aktiv ? p2Monate * mbv * kappPct : 0)) / denom;
+      const xNew = (cap + (p2Aktiv ? p2Monate * mieterErhoehungP2 : 0)) / denom;
       xFinal = Math.max(0, xNew);
       p1Mo = xFinal;
-      p2Mo = p2Aktiv ? Math.max(0, xFinal - mbv * kappPct) : 0;
+      p2Mo = p2Aktiv ? Math.max(0, xFinal - mieterErhoehungP2) : 0;
       p1Eur = p1Mo * p1Monate;
       p2Eur = p2Aktiv ? p2Mo * p2Monate : 0;
       totalEurRaw = p1Eur + p2Eur;
@@ -441,20 +482,40 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   }
 
   // Erläuterung an Dich (Du-Form, direkt an Endkunde).
-  let erlaeuterung = '';
+  const hinweise = [];
+  if (tag1Erhoehung) {
+    hinweise.push(`Letzte Mietsteigerung war ${monateSeitRaw} Monate her — wir heben die Miete vor Übergabe um ${Math.round(tag1Anhebung)} €/Mo auf ${Math.round(mbv)} €/Mo an. Danach laufen die regulären 2 Subv-Zyklen über 72 Monate.`);
+  }
+  if (marktCapGreift) {
+    // Iter 65 (20.05.2026): Marktmiete jetzt als €/qm gepflegt — für den Hinweis
+    //   den umgerechneten €/Mo-Wert zeigen, plus die €/qm-Basis.
+    const mmBasis = (marktmieteEurQm > 0 && weQm > 0)
+      ? ` (${marktmieteEurQm.toFixed(2).replace('.', ',')} €/qm × ${weQm} qm = ${Math.round(marktmiete)} €/Mo)`
+      : ` (${Math.round(marktmiete)} €/Mo)`;
+    hinweise.push(`Die rechnerische 2. Mieterhöhung würde die Marktmiete${mmBasis} überschreiten — wir cappen die Mieter-Erhöhung in Phase 2 auf Marktmiete-Niveau und halten die Käufer-Miete trotzdem über alle 72 Monate konstant.`);
+  }
   const gesamtMonate = p1Monate + (p2Aktiv ? p2Monate : 0);
   const gesamtJahre = Math.round(gesamtMonate / 12 * 10) / 10;
   if (p2Aktiv && phasen.length === 2) {
-    erlaeuterung = `Deine Mieteinnahme bleibt ${Math.round(mbv + xFinal)} €/Mo konstant über ${gesamtJahre} Jahre — auch wenn sich die Mietzahlung Deines Mieters durch die gesetzliche Erhöhung anpasst.`;
+    hinweise.push(`Deine Mieteinnahme bleibt ${Math.round(mbv + xFinal)} €/Mo konstant über ${gesamtJahre} Jahre — auch wenn sich die Mietzahlung Deines Mieters durch die gesetzliche Erhöhung anpasst.`);
   } else if (phasen.length === 1) {
-    erlaeuterung = `Wir stocken Deine Mieteinnahme um ${Math.round(p1Mo)} €/Mo auf, über ${p1Monate} Monate.`;
+    hinweise.push(`Wir stocken Deine Mieteinnahme um ${Math.round(p1Mo)} €/Mo auf, über ${p1Monate} Monate.`);
   }
-  if (capDetail) erlaeuterung = capDetail + ' ' + erlaeuterung;
+  if (capDetail) hinweise.unshift(capDetail);
+  const erlaeuterung = hinweise.join(' ');
 
   // Für Backward-Compat: mo + monate als Durchschnitt aus beiden Phasen.
   const totalMo = (phasen.reduce((s, p) => s + p.monate, 0)) || 0;
   const totalEur = Math.round(totalEurRaw);
   const moDurchschnitt = totalMo > 0 ? Math.round(totalEur / totalMo * 100) / 100 : 0;
+
+  // Quelle-Label für Frontend-Anzeige
+  let quelleLabel;
+  if (capGreift) quelleLabel = 'auto-cap';
+  else if (tag1Erhoehung) quelleLabel = 'auto-tag1-erhoehung';
+  else if (marktCapGreift) quelleLabel = 'auto-marktcap-p2';
+  else if (p2Aktiv) quelleLabel = 'auto-2-phasen';
+  else quelleLabel = 'auto-1-phase';
 
   return {
     phasen,
@@ -463,8 +524,17 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     monate: totalMo,
     capEur: Math.round(cap),
     capGreift,
-    quelle: capGreift ? 'auto-cap' : (p2Aktiv ? 'auto-2-phasen' : 'auto-1-phase'),
+    quelle: quelleLabel,
     erlaeuterung,
+    // Iter 63: Tag-1-Erhöhung-Output für das Frontend
+    tag1Erhoehung,
+    tag1Anhebung: Math.round(tag1Anhebung * 100) / 100,
+    kaltmieteAdjustiert: tag1Erhoehung ? Math.round(mbv * 100) / 100 : null,
+    // Iter 62: Cap-Indikatoren
+    marktCapGreift,
+    // Iter 65: Marktmiete als €/qm + umgerechnet €/Mo für UI-Anzeige
+    marktmieteEurQm,
+    marktmieteAbs: Math.round(marktmiete * 100) / 100,
   };
 }
 
@@ -602,6 +672,14 @@ module.exports = async (req, res) => {
           subventionCapEur:      subv.capEur,
           subventionCapGreift:   subv.capGreift,
           subventionErlaeuterung: subv.erlaeuterung || '',
+          // Iter 62/63 (20.05.2026)
+          subventionTag1Erhoehung:    subv.tag1Erhoehung || false,
+          subventionTag1Anhebung:     subv.tag1Anhebung || 0,
+          subventionKaltmieteAdjustiert: subv.kaltmieteAdjustiert || null,
+          subventionMarktCapGreift:   subv.marktCapGreift || false,
+          // Iter 65 (20.05.2026): Marktmiete €/qm + umgerechnet €/Mo
+          marktmieteEurQm:            subv.marktmieteEurQm || 0,
+          marktmieteAbs:              subv.marktmieteAbs || 0,
           marktpreisGemittelt:        marktSchnitt.wert,
           marktpreisGemitteltQuelle:  marktSchnitt.quelle,
         },

@@ -503,6 +503,10 @@ function selbstauskunft(kunde, user) {
           ${row('Miete inkl. NK', fmtNum(a.mieteMo), fmtNum(m.mieteMo))}
           ${row('Unterhaltszahlungen', fmtNum(a.unterhaltZahlungMo), fmtNum(m.unterhaltZahlungMo))}
           ${row('Beitrag private Krankenversicherung', fmtNum(a.pkvMo), fmtNum(m.pkvMo))}
+          ${/* Iter 64 (20.05.2026) */ ''}
+          ${row('Laufende Lebenshaltung', fmtNum(a.lebenshaltungMo), fmtNum(m.lebenshaltungMo))}
+          ${row('Leasing-Raten', fmtNum(a.leasingMo), fmtNum(m.leasingMo))}
+          ${row('Sonstige Ausgaben', fmtNum(a.sonstigeAusgabenMo), fmtNum(m.sonstigeAusgabenMo))}
         </tbody>
       </table>
       ${_footer(user)}

@@ -147,6 +147,36 @@ module.exports = async (req, res) => {
     // sonst Wohnung + Stellplatz aus Live-Daten
     const kaufpreis = (snapKalk && snapKalk.kaufpreis) || (wohnungsPreis + stellplatzPreis) || 0;
 
+    // --- 4c. Mietsubvention aus Snapshot-Kalkulation (subventionPhasen / subventionMo+Monate)
+    let mietsubventionTotal = 0;
+    let mietsubventionBeschreibung = '';
+    let mietsubventionBlock = '';
+    if (snapKalk) {
+      const rawPhasen = Array.isArray(snapKalk.subventionPhasen) ? snapKalk.subventionPhasen : [];
+      const phasen = rawPhasen.length > 0
+        ? rawPhasen
+        : (parseFloat(snapKalk.subventionMo) > 0 && parseInt(snapKalk.subventionMonate) > 0
+            ? [{ mo: parseFloat(snapKalk.subventionMo), monate: parseInt(snapKalk.subventionMonate), label: 'Mietsubvention' }]
+            : []);
+      // Total aus Vorberechnung oder neu berechnen
+      if (typeof snapKalk._subventionTotalEur === 'number' && snapKalk._subventionTotalEur > 0) {
+        mietsubventionTotal = snapKalk._subventionTotalEur;
+      } else if (phasen.length > 0) {
+        mietsubventionTotal = phasen.reduce((sum, p) => sum + (parseFloat(p.mo) || 0) * (parseInt(p.monate) || 0), 0);
+      }
+      if (phasen.length > 0 && mietsubventionTotal > 0) {
+        // Beschreibung: "60,23 €/Monat × 12 Monate" (eine Phase) oder "X + Y" (mehrere)
+        mietsubventionBeschreibung = phasen.map(p => {
+          const mo = formatEUR(parseFloat(p.mo) || 0);
+          const monate = parseInt(p.monate) || 0;
+          const label = (p.label && p.label !== 'Mietsubvention') ? ` (${p.label})` : '';
+          return `${mo}/Monat × ${monate} Monate${label}`;
+        }).join(' + ');
+        // Vorgefertigter Satz für direktes Einfügen ins Template
+        mietsubventionBlock = `Zusätzlich enthält diese Reservierung eine Mietsubvention von ${formatEUR(mietsubventionTotal)} (${mietsubventionBeschreibung}).`;
+      }
+    }
+
     // --- 5. Tokens — EXAKT die Custom-Variablen-Namen aus dem Template
     const fristTage = parseInt(process.env.RESERV_FRIST_TAGE || '14', 10);
     const ablaufDate = new Date(Date.now() + fristTage * 24 * 3600 * 1000);
@@ -201,6 +231,17 @@ module.exports = async (req, res) => {
       // Reservierungs-Datum als sauberer Custom-Token — falls Edgar im Template die Pre-fill-Boxen
       // durch normalen Text mit [Reservierung.Datum] ersetzt (siehe STAND_NACH_NACHTSESSION.md)
       { name: 'Reservierung.Datum',               value: heute },
+
+      // --- Mietsubvention (aus Snapshot-kalkJson) ---
+      // Drei Token-Varianten, je nach Template-Bedarf:
+      // - Mietsubvention.Total:        nur die Summe, z.B. "722,76 €"
+      // - Mietsubvention.Beschreibung: nur die Aufteilung, z.B. "60,23 €/Monat × 12 Monate"
+      // - Mietsubvention.Block:        ganzer Satz, erscheint nur wenn Subvention existiert.
+      //                                Edgar fügt einfach [Mietsubvention.Block] ins Template
+      //                                ein — wenn keine Subvention da ist, bleibt der Platz leer.
+      { name: 'Mietsubvention.Total',             value: mietsubventionTotal > 0 ? formatEUR(mietsubventionTotal) : '' },
+      { name: 'Mietsubvention.Beschreibung',      value: mietsubventionBeschreibung },
+      { name: 'Mietsubvention.Block',             value: mietsubventionBlock },
     ];
 
     // --- 6. Recipients (sequenziell: Käufer zuerst, Vertriebler danach)

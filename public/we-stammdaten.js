@@ -501,7 +501,7 @@ window.WE_STAMMDATEN = {
       mietverwaltung:  0,                    // optional 29 €, default 0
       hausverwaltung:  s.hausverwaltungMo || 30,
       afaSatz:         ((s.afaGutachtenPct || 2.0) / 100),
-      gebaeudeAnteil:  0.80,
+      gebaeudeAnteil:  0.85,
       afaBemessung:    'kaufpreis',
       wertsteigerung:  ((s.wertsteigerungPctPa || 3.0) / 100),
       // Meta für Anzeige / PDF (nicht für Berechnung)

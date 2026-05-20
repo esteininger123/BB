@@ -620,6 +620,12 @@ function renderTabKalkulator() {
   if (state.kalk.sparZins === undefined || state.kalk.sparZins === null) {
     state.kalk.sparZins = 0.025; // 2,5 % p.a. Default
   }
+  // Iter 60 (20.05.2026): Defensive Default für SA-Steuersatz, falls noch nicht gesetzt
+  //   (alte Kunden ohne Snapshot, frisch geladene States). Initialisierung aus dem
+  //   Quick-Wert oder aus dem Profil-Default (0,30).
+  if (typeof state.kalk.saSteuersatz !== 'number' || !isFinite(state.kalk.saSteuersatz)) {
+    state.kalk.saSteuersatz = (typeof state.kalk.steuersatz === 'number') ? state.kalk.steuersatz : 0.30;
+  }
   const isPaket = state.kalk._isPaket === true;
 
   const currentProfil = detectProfil(i);
@@ -963,7 +969,10 @@ function kalkInputsPaketHtml(i) {
     <details class="kalk-section" ${sec('pst')} data-sec="pst" ontoggle="toggleKalkSection('pst', this)">
       <summary>3 · Steuer</summary>
       <div class="grid-1">
-        ${slider('Persönlicher Steuersatz', 'steuersatz', 25, 50, 1)}
+        ${isQuick
+          ? slider('Persönlicher Steuersatz', 'steuersatz', 25, 50, 1)
+          : slider('Persönlicher Steuersatz (aus Selbstauskunft)', 'saSteuersatz', 25, 50, 1)
+        }
       </div>
     </details>
     ${isQuick ? `
@@ -1182,7 +1191,15 @@ function kalkInputsThemenHtml(i) {
         ${slider('Persönlicher Steuersatz', 'steuersatz', 25, 50, 1)}
       </div>
     </details>
-    ` : ''}
+    ` : `
+    <details class="kalk-section" ${sec('sast')} data-sec="sast" ontoggle="toggleKalkSection('sast', this)">
+      <summary>6 · Persönlicher Steuersatz (Selbstauskunft)</summary>
+      <div class="text-tertiary text-small mb-12">Im Detail-Modus wird Bonität aus der Selbstauskunft gezogen — den Steuersatz stellst Du hier separat ein. Der Quick-Wert wird nicht mehr übernommen.</div>
+      <div class="grid-1">
+        ${slider('Persönlicher Steuersatz', 'saSteuersatz', 25, 50, 1)}
+      </div>
+    </details>
+    `}
   `;
 }
 
@@ -1241,6 +1258,16 @@ function bindKalkInputs() {
           Array.isArray(state.kalk.subventionPhasen) && state.kalk.subventionPhasen.length > 0) {
         state.kalk.subventionPhasen = [];
         state.kalk._subventionQuelle = 'manuell-slider';
+      }
+      // Iter 60 (20.05.2026): KNK-Toggle schaltet den Default-Zins um.
+      //   - KNK NICHT mitfinanziert → 4,5 % Zins
+      //   - KNK mitfinanziert       → 4,8 % Zins
+      //   Tilgung bleibt unverändert (1 % Default aus Profil). User kann den
+      //   Wert danach manuell überschreiben.
+      if (k === 'knkMitfinanziert') {
+        state.kalk.zins = (v === true) ? 0.048 : 0.045;
+        renderTabKalkulator();
+        return;
       }
       // Begleitenden Slider mitziehen, falls vorhanden
       const slider = document.querySelector(`input[type="range"][data-slider="${k}"]`);
@@ -1393,6 +1420,15 @@ async function loadWeIntoKalk(weId) {
       state.kalk._subventionCapEur       = derived.subventionCapEur || 0;
       state.kalk._subventionCapGreift    = !!derived.subventionCapGreift;
       state.kalk._subventionErlaeuterung = derived.subventionErlaeuterung || '';
+      // Iter 62/63 (20.05.2026): zusätzliche Subv-Indikatoren für die UI
+      state.kalk._subventionTag1Erhoehung    = !!derived.subventionTag1Erhoehung;
+      state.kalk._subventionTag1Anhebung     = derived.subventionTag1Anhebung || 0;
+      state.kalk._subventionMarktCapGreift   = !!derived.subventionMarktCapGreift;
+      state.kalk._subventionKaltmieteAdjustiert = derived.subventionKaltmieteAdjustiert || null;
+      // Iter 65 (20.05.2026): Marktmiete jetzt als €/qm in Airtable gepflegt;
+      //   das Backend liefert €/qm + umgerechneten €/Mo-Wert, damit die UI beides zeigen kann.
+      state.kalk._marktmieteEurQm = derived.marktmieteEurQm || 0;
+      state.kalk._marktmieteAbs   = derived.marktmieteAbs || 0;
       if (sd.afaGutachten !== null)          state.kalk.afaSatz = sd.afaGutachten;
       if (sd.wertsteigerung !== null)        state.kalk.wertsteigerung = sd.wertsteigerung;
       if (sd.grEst !== null)                 state.kalk.grEstPct = sd.grEst;
@@ -1402,6 +1438,14 @@ async function loadWeIntoKalk(weId) {
       // Stellplatzmiete bleibt separat in state.kalk.stellplatzMiete.
       if (sd.mieteBeiVerkauf != null && sd.mieteBeiVerkauf > 0) {
         state.kalk.kaltmiete = sd.mieteBeiVerkauf;
+        state.kalk._mieteBeiVerkaufActive = true;
+      }
+      // Iter 63 (20.05.2026): Wenn das Backend signalisiert, dass die letzte
+      //   Mietsteigerung > 3 Jahre her ist und die erste Erhöhung beim Käufer
+      //   ab Tag 1 eingerechnet wird, überschreiben wir die Tag-1-Mieter-Miete
+      //   mit dem angepassten Wert. Subv-Phasen rechnen dann gegen diese neue Basis.
+      if (state.kalk._subventionTag1Erhoehung && state.kalk._subventionKaltmieteAdjustiert) {
+        state.kalk.kaltmiete = state.kalk._subventionKaltmieteAdjustiert;
         state.kalk._mieteBeiVerkaufActive = true;
       }
       // Iter 41.9 — Markt-Schnitt (IS + HD)
@@ -1559,6 +1603,9 @@ function recalcAndRender() {
       const personSettings = {
         zins: state.kalk.zins, tilgung: state.kalk.tilgung, knkMitfinanziert: state.kalk.knkMitfinanziert,
         steuersatz: state.kalk.steuersatz,
+        // Iter 60 (20.05.2026): saSteuersatz separat ans Paket-Recalc — der greift
+        // nur, wenn bonModus === 'detail' (siehe recalc() in kalkulator.js).
+        saSteuersatz: state.kalk.saSteuersatz,
         bonEinnahmen: state.kalk.bonEinnahmen, bonAusgaben: state.kalk.bonAusgaben, bonVermoegen: state.kalk.bonVermoegen,
         bonModus: state.kalk.bonModus,
         selbstauskunft: state.kalk.selbstauskunft, saAntragGemeinsam: state.kalk.saAntragGemeinsam,
@@ -1758,21 +1805,43 @@ function renderStories(r) {
           if (phasen.length === 0 && !i.subventionMonate) return '';
           const totalEur = r.mietsubventionGesamt || 0;
           const capInfo = state.kalk._subventionCapGreift ? ` <span style="color:var(--badge-mittelphase-fg);">(Maximal-Subvention erreicht — max ${fmt(state.kalk._subventionCapEur)})</span>` : '';
+          // Iter 62/63 (20.05.2026): Hinweis-Badges für Vertriebler — Tag-1-Erhöhung
+          // und Marktmiete-Cap auf Phase 2. Das macht für den Vertriebler sichtbar,
+          // welche Sonderlogik gerade greift, ohne dass er die Backend-Erläuterung
+          // entziffern muss.
+          const hinweise = [];
+          if (state.kalk._subventionTag1Erhoehung) {
+            const anhebung = Math.round(state.kalk._subventionTag1Anhebung || 0);
+            hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#fff3cd;border-left:3px solid #d39e00;padding:6px 10px;margin-top:6px;color:#664d03;font-size:13px;">⚠ <strong>Tag-1-Erhöhung aktiv:</strong> Die letzte Mietsteigerung war &gt; 3 Jahre her. Wir heben den Mieter vor Übergabe um ${anhebung} €/Mo an — Käufer bekommt die schon erhöhte Miete ab Tag 1, danach 2 reguläre Subv-Zyklen (72 Mo).</span>`);
+          }
+          if (state.kalk._subventionMarktCapGreift) {
+            // Iter 65 (20.05.2026): Marktmiete als €/qm × qm = €/Mo zur Klarheit
+            const mmQm = state.kalk._marktmieteEurQm || 0;
+            const mmAbs = state.kalk._marktmieteAbs || 0;
+            const qm = i.qm || 0;
+            const mmText = (mmQm > 0 && qm > 0)
+              ? ` (Marktmiete ${mmQm.toFixed(2).replace('.', ',')} €/qm × ${qm.toFixed(2).replace('.', ',')} qm = ${Math.round(mmAbs)} €/Mo)`
+              : (mmAbs > 0 ? ` (Marktmiete ${Math.round(mmAbs)} €/Mo)` : '');
+            hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#cfe2ff;border-left:3px solid #0d6efd;padding:6px 10px;margin-top:6px;color:#084298;font-size:13px;">ℹ <strong>Marktmiete-Cap auf Phase 2:</strong> Die rechnerische 2. Mieterhöhung würde die Marktmiete überschreiten — wir cappen die Mieter-Erhöhung auf Marktmiete-Niveau${mmText}. Die Käufer-Miete bleibt trotzdem volle 72 Monate konstant.</span>`);
+          }
+          const hinweisHtml = hinweise.join('<br>');
           if (phasen.length >= 2) {
             const p1 = phasen[0], p2 = phasen[1];
             return `<p><strong>Deine Mietsubvention gesamt: ${fmt(totalEur)}</strong>${capInfo}<br>
               · Phase 1: <strong>${fmtEurMo(p1.mo)}</strong> × ${p1.monate} Mo = ${fmt(p1.mo * p1.monate)}<br>
               · Phase 2: <strong>${fmtEurMo(p2.mo)}</strong> × ${p2.monate} Mo = ${fmt(p2.mo * p2.monate)}<br>
               ${state.kalk._subventionErlaeuterung ? `<span class="text-tertiary text-small">${esc(state.kalk._subventionErlaeuterung)}</span>` : ''}
+              ${hinweisHtml}
             </p>`;
           } else if (phasen.length === 1) {
             const p = phasen[0];
             return `<p><strong>Deine Mietsubvention gesamt: ${fmt(totalEur)}</strong>${capInfo}<br>
               · ${esc(p.label || 'Phase 1')}: <strong>${fmtEurMo(p.mo)}</strong> × ${p.monate} Mo<br>
               ${state.kalk._subventionErlaeuterung ? `<span class="text-tertiary text-small">${esc(state.kalk._subventionErlaeuterung)}</span>` : ''}
+              ${hinweisHtml}
             </p>`;
           } else {
-            return `<p>Mietsubvention <strong>${fmtEurMo(i.subventionMo)}</strong> über <strong>${i.subventionMonate} Monate</strong> — Summe <strong>${fmt(totalEur)}</strong>. Wir fangen Deine Anlaufphase ab.</p>`;
+            return `<p>Mietsubvention <strong>${fmtEurMo(i.subventionMo)}</strong> über <strong>${i.subventionMonate} Monate</strong> — Summe <strong>${fmt(totalEur)}</strong>. Wir fangen Deine Anlaufphase ab.${hinweisHtml ? '<br>' + hinweisHtml : ''}</p>`;
           }
         })()}
         ${(() => {
@@ -3073,6 +3142,10 @@ function saPersonHtml(prefix, p) {
         ${n('Miete inkl. NK (eigene Whg)', 'mieteMo', '€/Mo')}
         ${n('Unterhaltszahlungen', 'unterhaltZahlungMo', '€/Mo')}
         ${n('Beitrag private Krankenversicherung', 'pkvMo', '€/Mo')}
+        ${/* Iter 64 (20.05.2026): 3 neue Ausgaben-Felder aus Henry-Durchgang. */ ''}
+        ${n('Laufende Lebenshaltung', 'lebenshaltungMo', '€/Mo')}
+        ${n('Leasing-Raten', 'leasingMo', '€/Mo')}
+        ${n('Sonstige Ausgaben', 'sonstigeAusgabenMo', '€/Mo')}
       </div>
     </details>
 
@@ -3269,6 +3342,11 @@ function loadSnapshot(id) {
     }
     // Wichtig: state.kalk komplett ersetzen (kein Object.assign, sonst bleiben alte Felder)
     state.kalk = kalk;
+    // Iter 60 (20.05.2026): Alte Snapshots haben kein saSteuersatz — initialisieren
+    //   aus dem damaligen `steuersatz`, damit der Detail-Modus-Slider nicht auf 0 % steht.
+    if (typeof state.kalk.saSteuersatz !== 'number') {
+      state.kalk.saSteuersatz = (typeof state.kalk.steuersatz === 'number') ? state.kalk.steuersatz : 0.30;
+    }
     setTab('kalkulator');
     toast('Snapshot "' + (s.bezeichnung || '—') + '" geladen', 'success');
   } catch (e) {

@@ -90,26 +90,35 @@ function getDefaults() {
  * Käufer-Profile (Vertriebs-Szenarien)
  * Setzen: zins, tilgung, knkMitfinanziert, steuersatz, bonEinnahmen, bonAusgaben, bonVermoegen
  */
+// Iter 60 (20.05.2026): Default-Zinsen + Tilgung neu festgezurrt nach Henry-Durchgang.
+//  - Standard (KNK NICHT mitfinanziert): 4,5 % Zins, 1 % Tilgung
+//  - KNK mitfinanziert: 4,8 % Zins (wird beim Toggle in app.js gesetzt), 1 % Tilgung
+//  saSteuersatz = unabhängiger Steuersatz für den Detail-Modus (aus Selbstauskunft).
+//  Wird beim Render und beim recalc-Aufruf verwendet, sodass der Quick-Wert in
+//  `steuersatz` nicht überschrieben wird, wenn der Vertriebler im SA-Modus rechnet.
 const PROFILES = {
   standard: {
-    zins: 0.044,
-    tilgung: 0.0125,
+    zins: 0.045,
+    tilgung: 0.01,
     knkMitfinanziert: false,
     steuersatz: 0.30,
+    saSteuersatz: 0.30,
     bonEinnahmen: 4000, bonAusgaben: 1800, bonVermoegen: 20000,
   },
   premium: {
-    zins: 0.044,
-    tilgung: 0.0125,
+    zins: 0.045,
+    tilgung: 0.01,
     knkMitfinanziert: false,
     steuersatz: 0.35,
+    saSteuersatz: 0.35,
     bonEinnahmen: 5500, bonAusgaben: 2200, bonVermoegen: 20000,
   },
   spitze: {
-    zins: 0.044,
-    tilgung: 0.0125,
+    zins: 0.045,
+    tilgung: 0.01,
     knkMitfinanziert: false,
     steuersatz: 0.42,
+    saSteuersatz: 0.42,
     bonEinnahmen: 8000, bonAusgaben: 3000, bonVermoegen: 20000,
   },
 };
@@ -132,7 +141,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 60.65, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.037, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.037, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   we2: {
@@ -152,7 +161,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 60.56, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 25,
     zins: 0.045,
-    afaSatz: 0.045, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.045, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.02,
   },
   we10: {
@@ -162,7 +171,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 60.56, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.037, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.037, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   we12: {
@@ -172,7 +181,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 60.56, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.0345, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.0345, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   leer: {
@@ -182,7 +191,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 60, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   // === Bruchsal Heidelberger Str. 21 (PR-37) ===
@@ -195,7 +204,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 84, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br2: {
@@ -205,7 +214,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 71, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br3: {
@@ -215,7 +224,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 41, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br4: {
@@ -225,7 +234,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 70, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br5: {
@@ -235,7 +244,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 86, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br6: {
@@ -245,7 +254,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 54, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br7: {
@@ -255,7 +264,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 70, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br8: {
@@ -265,7 +274,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 86, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br9: {
@@ -275,7 +284,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 54, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br10: {
@@ -285,7 +294,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 84, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br11: {
@@ -295,7 +304,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 86, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br12: {
@@ -305,7 +314,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 40, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br13: {
@@ -315,7 +324,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 83, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br14: {
@@ -325,7 +334,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 86, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br15: {
@@ -335,7 +344,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 41, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br16: {
@@ -345,7 +354,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 55, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   br17: {
@@ -355,7 +364,7 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 66, hgInflation: 0, mietverwaltung: 0, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 0.80, afaBemessung: 'kaufpreis',
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
 };
@@ -408,10 +417,17 @@ function computeBonitaetDetailed(sa, gemeinsam) {
   const haushaltBasis = erwachsene === 1 ? 1100 : 1600;
   const haushaltPauschale = haushaltBasis + 400 * kinder;
 
-  // ----- Fixkosten (Miete eig. Whg + Unterhalt + PKV) -----
+  // ----- Fixkosten (Miete eig. Whg + Unterhalt + PKV + Lebenshaltung + Leasing + Sonstige) -----
+  // Iter 64 (20.05.2026): 3 neue Ausgabe-Felder aus dem SA-Formular ergänzt
+  // (lebenshaltungMo, leasingMo, sonstigeAusgabenMo) — fließen mit in die Bonität.
   function fixkosten(p) {
     if (!p) return 0;
-    return (parseFloat(p.mieteMo) || 0) + (parseFloat(p.unterhaltZahlungMo) || 0) + (parseFloat(p.pkvMo) || 0);
+    return (parseFloat(p.mieteMo) || 0)
+         + (parseFloat(p.unterhaltZahlungMo) || 0)
+         + (parseFloat(p.pkvMo) || 0)
+         + (parseFloat(p.lebenshaltungMo) || 0)
+         + (parseFloat(p.leasingMo) || 0)
+         + (parseFloat(p.sonstigeAusgabenMo) || 0);
   }
   const fixA = fixkosten(a);
   const fixM = fixkosten(m);
@@ -495,6 +511,14 @@ function computeBonitaetDetailed(sa, gemeinsam) {
  * Master-Recalc — bildet exakt die Excel-Logik nach
  */
 function recalc(i) {
+  // Iter 60 (20.05.2026): Bonitäts-Modus „Detail" hat eigenen Steuersatz.
+  //   Der Wert aus dem Quick-Eingabefeld (`i.steuersatz`) bleibt erhalten —
+  //   im Detail-Modus wird `i.saSteuersatz` benutzt, falls gesetzt. So kann
+  //   der Vertriebler im SA-Tab einen anderen Steuersatz anlegen, ohne den
+  //   Quick-Wert zu überschreiben (Anforderung Henry-Durchgang 20.05.2026).
+  if (i && i.bonModus === 'detail' && typeof i.saSteuersatz === 'number' && isFinite(i.saSteuersatz)) {
+    i = Object.assign({}, i, { steuersatz: i.saSteuersatz });
+  }
   const kpGesamt = i.kaufpreis + i.stellplatzKp;
   // Kaufnebenkosten: GrESt (variabel pro Bundesland) + Notar 1,5 % + Grundbuch 0,5 %.
   // Keine Maklerprovision — B&B verkauft direkt. GrESt kommt aus Airtable-Stammdaten
@@ -527,8 +551,9 @@ function recalc(i) {
   //   Steuerrechtlich gilt: anteilig würden Notar/Grundbuch auf die Anschaffungs-
   //   kosten aktiviert. Pragmatisch nicht — wir nehmen die Vertrags-Basis.
   // AfA-Bemessung: Kaufpreis × Gebäude-Anteil (Boden-Anteil wird abgezogen — der ist nicht abschreibbar).
-  // Bei fehlendem gebaeudeAnteil: Default 80 %.
-  const gebaeudeAnteilFaktor = (i.gebaeudeAnteil !== undefined && i.gebaeudeAnteil !== null && isFinite(i.gebaeudeAnteil)) ? i.gebaeudeAnteil : 0.8;
+  // Iter 61 (20.05.2026): Standard-Default 85 % Gebäude / 15 % Boden (Henry-Durchgang).
+  // Wenn die Kalk-Stammdaten in Airtable einen anderen Wert pflegen, gilt der.
+  const gebaeudeAnteilFaktor = (i.gebaeudeAnteil !== undefined && i.gebaeudeAnteil !== null && isFinite(i.gebaeudeAnteil)) ? i.gebaeudeAnteil : 0.85;
   const afaBemessungBetrag = kpGesamt * gebaeudeAnteilFaktor;
   const afaJahr = afaBemessungBetrag * i.afaSatz;
   const afaMo = afaJahr / 12;
@@ -950,7 +975,7 @@ function recalcPaket(weInputsArr, personSettings) {
   if (!Array.isArray(weInputsArr) || weInputsArr.length === 0) return null;
   const ps = personSettings || {};
   const personFields = [
-    'zins', 'tilgung', 'knkMitfinanziert', 'steuersatz',
+    'zins', 'tilgung', 'knkMitfinanziert', 'steuersatz', 'saSteuersatz',
     'bonEinnahmen', 'bonAusgaben', 'bonVermoegen', 'bonModus',
     'selbstauskunft', 'saAntragGemeinsam', 'sparZins'
   ];
