@@ -119,20 +119,23 @@ module.exports = async (req, res) => {
 
     // --- 4b. Stellplätze (Garagen / Außenstellplätze) zur WE laden
     // Jede WE kann 0–N verlinkte Stellplätze haben (siehe SOP-E).
-    // Wir laden alle mit WE_LINK auf diese WE-ID, summieren den Kaufpreis,
-    // und bauen lesbare Beschreibungen für Tokens.
+    // Wir laden alle Stellplätze (mit returnFieldsByFieldId=true) und filtern clientseitig
+    // nach WE_LINK — filterByFormula mit Field-IDs greift nicht zuverlässig.
     let stellplaetze = [];
     try {
-      const allStpl = await listAll(TABLES.STELLPLATZ, {
-        filterByFormula: `FIND('${weId}', ARRAYJOIN({${STELLPLATZ_FIELDS.WE_LINK}}))`,
-      }, 50);
-      stellplaetze = allStpl.map(rec => {
-        const f = rec.fields || {};
-        const titel = f[STELLPLATZ_FIELDS.TITEL] || '';
-        const typ   = f[STELLPLATZ_FIELDS.TYP] || ''; // "Garage" / "Fläche"
-        const preis = parseFloat(f[STELLPLATZ_FIELDS.KAUFPREIS]) || 0;
-        return { id: rec.id, titel, typ, preis };
-      });
+      const allStpl = await listAll(TABLES.STELLPLATZ, {}, 500);
+      stellplaetze = allStpl
+        .filter(rec => {
+          const links = (rec.fields && rec.fields[STELLPLATZ_FIELDS.WE_LINK]) || [];
+          return Array.isArray(links) && links.includes(weId);
+        })
+        .map(rec => {
+          const f = rec.fields || {};
+          const titel = f[STELLPLATZ_FIELDS.TITEL] || '';
+          const typ   = f[STELLPLATZ_FIELDS.TYP] || ''; // "Garage" / "Fläche"
+          const preis = parseFloat(f[STELLPLATZ_FIELDS.KAUFPREIS]) || 0;
+          return { id: rec.id, titel, typ, preis };
+        });
     } catch (e) {
       // Stellplatz-Lade-Fehler ist nicht tödlich — Doc bekommt halt nur Wohnung
     }
