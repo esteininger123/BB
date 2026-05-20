@@ -2378,17 +2378,14 @@ async function sendReservierungForSignature() {
     return;
   }
 
-  // Bestätigungs-Dialog mit Klartext, was passiert
+  // Kontext für Modal
   const w = (state.wohneinheiten || []).find(x => x.id === weId);
   const weLabel = (w && (w.projektName ? w.projektName + ' — ' : '') + (w.lageText || w.lage || ('WE ' + w.weNr))) || 'die ausgewählte WE';
-  const kundeName = ((state.kunde && state.kunde.vorname) || '') + ' ' + ((state.kunde && state.kunde.nachname) || '');
-  const msg =
-    'Reservierung für ' + kundeName.trim() + ' vorbereiten?\n\n' +
-    'Wohnung: ' + weLabel + '\n' +
-    'E-Mail Käufer: ' + kundeEmail + '\n\n' +
-    'Nach Bestätigung öffnet sich PandaDoc mit dem vorausgefüllten Dokument.\n' +
-    'Du prüfst kurz und klickst dort auf „Dokument senden".';
-  if (!confirm(msg)) return;
+  const kundeName = (((state.kunde && state.kunde.vorname) || '') + ' ' + ((state.kunde && state.kunde.nachname) || '')).trim() || '(unbekannt)';
+
+  // Modal 1: Bestätigung vor API-Call
+  const userConfirmed = await openReservierungConfirmModal({ kundeName, weLabel, kundeEmail });
+  if (!userConfirmed) return;
 
   // Falls ein Snapshot für diese WE existiert, den jüngsten als Quelle für den Kaufpreis mitschicken.
   let snapshotId = null;
@@ -2407,12 +2404,26 @@ async function sendReservierungForSignature() {
       snapshotId: snapshotId
     });
     if (resp && resp.ok && resp.editorUrl) {
-      toast('Dokument erstellt — PandaDoc öffnet sich. Dort auf „Dokument senden" klicken.', 'success');
-      // Direkt in neuem Tab öffnen, der Vertriebler ist sofort im Send-Step.
-      window.open(resp.editorUrl, '_blank', 'noopener');
+      // Modal 2: Doc erstellt → großer Link zum finalen Send
+      openReservierungFinalModal({
+        editorUrl: resp.editorUrl,
+        kundeName,
+        weLabel,
+        kundeEmail,
+        ablauffrist: resp.ablauffrist || ''
+      });
     } else if (resp && resp.message) {
       toast(resp.message, 'info');
-      if (resp.editorUrl) window.open(resp.editorUrl, '_blank', 'noopener');
+      if (resp.editorUrl) {
+        openReservierungFinalModal({
+          editorUrl: resp.editorUrl,
+          kundeName,
+          weLabel,
+          kundeEmail,
+          ablauffrist: resp.ablauffrist || '',
+          warnung: resp.message
+        });
+      }
     }
   } catch (e) {
     const hint = e.body && e.body.hint ? ' — ' + e.body.hint : '';
@@ -2421,6 +2432,122 @@ async function sendReservierungForSignature() {
   }
 }
 window.sendReservierungForSignature = sendReservierungForSignature;
+
+// --- Modal-Helpers für die Reservierungs-Flow ---
+
+function _reservEscapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function _reservEnsureStyles() {
+  if (document.getElementById('reserv-modal-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'reserv-modal-styles';
+  s.textContent = `
+    .reserv-modal-overlay {
+      position: fixed; inset: 0; background: rgba(33,33,28,0.55);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999; padding: 20px; backdrop-filter: blur(2px);
+      animation: reservFadeIn 0.15s ease-out;
+    }
+    @keyframes reservFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .reserv-modal {
+      background: #fbf9f4; border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+      max-width: 520px; width: 100%; padding: 28px; font-family: inherit;
+      color: #1a1a1a; animation: reservSlideUp 0.2s ease-out;
+    }
+    @keyframes reservSlideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .reserv-modal h2 { margin: 0 0 16px 0; font-size: 1.4em; font-weight: 600; }
+    .reserv-modal .reserv-modal-body { line-height: 1.5; font-size: 0.97em; }
+    .reserv-modal .reserv-modal-body p { margin: 6px 0; }
+    .reserv-modal .reserv-info-row { display: flex; padding: 6px 0; border-bottom: 1px solid #eae6df; }
+    .reserv-modal .reserv-info-row:last-of-type { border-bottom: none; }
+    .reserv-modal .reserv-info-label { width: 140px; color: #6b6b6b; font-size: 0.9em; }
+    .reserv-modal .reserv-info-value { flex: 1; }
+    .reserv-modal .reserv-modal-actions {
+      display: flex; gap: 10px; margin-top: 22px; justify-content: flex-end; align-items: center;
+    }
+    .reserv-modal .reserv-modal-actions button,
+    .reserv-modal .reserv-modal-actions a.reserv-cta {
+      padding: 10px 18px; border-radius: 6px; cursor: pointer; font-size: 0.95em;
+      border: none; font-family: inherit; text-decoration: none; display: inline-block;
+    }
+    .reserv-modal .reserv-cancel {
+      background: transparent; color: #6b6b6b; border: 1px solid #d4d0ca;
+    }
+    .reserv-modal .reserv-cancel:hover { background: #f0ece5; }
+    .reserv-modal .reserv-confirm {
+      background: #1a1a1a; color: #fff;
+    }
+    .reserv-modal .reserv-confirm:hover { background: #000; }
+    .reserv-modal a.reserv-cta {
+      background: #1a1a1a; color: #fff; font-weight: 500;
+    }
+    .reserv-modal a.reserv-cta:hover { background: #000; }
+    .reserv-modal .reserv-hint {
+      margin-top: 14px; padding: 10px 12px; background: #fff5e1; border-left: 3px solid #d9a200;
+      font-size: 0.88em; color: #6b5400; border-radius: 4px;
+    }
+    .reserv-modal .reserv-success { color: #2d7a3e; font-weight: 500; }
+  `;
+  document.head.appendChild(s);
+}
+
+function openReservierungConfirmModal({ kundeName, weLabel, kundeEmail }) {
+  _reservEnsureStyles();
+  return new Promise((resolve) => {
+    const m = document.createElement('div');
+    m.className = 'reserv-modal-overlay';
+    m.innerHTML =
+      '<div class="reserv-modal">' +
+        '<h2>Reservierung vorbereiten</h2>' +
+        '<div class="reserv-modal-body">' +
+          '<div class="reserv-info-row"><div class="reserv-info-label">Käufer</div><div class="reserv-info-value">' + _reservEscapeHtml(kundeName) + '</div></div>' +
+          '<div class="reserv-info-row"><div class="reserv-info-label">Wohnung</div><div class="reserv-info-value">' + _reservEscapeHtml(weLabel) + '</div></div>' +
+          '<div class="reserv-info-row"><div class="reserv-info-label">E-Mail Käufer</div><div class="reserv-info-value">' + _reservEscapeHtml(kundeEmail) + '</div></div>' +
+          '<p style="margin-top:14px; color:#555;">Das Dokument wird in PandaDoc mit allen Daten erstellt. Danach kannst du es direkt aufrufen und versenden.</p>' +
+        '</div>' +
+        '<div class="reserv-modal-actions">' +
+          '<button class="reserv-cancel" id="reserv-cancel-btn">Abbrechen</button>' +
+          '<button class="reserv-confirm" id="reserv-confirm-btn">Dokument erstellen</button>' +
+        '</div>' +
+      '</div>';
+    const close = (ok) => { m.remove(); resolve(ok); };
+    m.querySelector('#reserv-cancel-btn').onclick = () => close(false);
+    m.querySelector('#reserv-confirm-btn').onclick = () => close(true);
+    m.onclick = (e) => { if (e.target === m) close(false); };
+    document.body.appendChild(m);
+    setTimeout(() => { const b = m.querySelector('#reserv-confirm-btn'); if (b) b.focus(); }, 50);
+  });
+}
+
+function openReservierungFinalModal({ editorUrl, kundeName, weLabel, kundeEmail, ablauffrist, warnung }) {
+  _reservEnsureStyles();
+  const m = document.createElement('div');
+  m.className = 'reserv-modal-overlay';
+  m.innerHTML =
+    '<div class="reserv-modal">' +
+      '<h2><span class="reserv-success">✓</span> Reservierung steht bereit</h2>' +
+      '<div class="reserv-modal-body">' +
+        '<p>Das Dokument für <strong>' + _reservEscapeHtml(kundeName) + '</strong> ist in PandaDoc vorbereitet und vollständig ausgefüllt.</p>' +
+        '<div class="reserv-info-row" style="margin-top:12px;"><div class="reserv-info-label">Wohnung</div><div class="reserv-info-value">' + _reservEscapeHtml(weLabel) + '</div></div>' +
+        '<div class="reserv-info-row"><div class="reserv-info-label">E-Mail Käufer</div><div class="reserv-info-value">' + _reservEscapeHtml(kundeEmail) + '</div></div>' +
+        (ablauffrist ? '<div class="reserv-info-row"><div class="reserv-info-label">Reservierung bis</div><div class="reserv-info-value">' + _reservEscapeHtml(ablauffrist) + '</div></div>' : '') +
+        '<div class="reserv-hint">Klick auf den Button unten öffnet PandaDoc direkt am Doc. Dort prüfst du kurz, säuberst ggf. den Doc-Namen (z.B. „[DEV]" entfernen) und klickst oben rechts auf <strong>„Dokument senden"</strong>.</div>' +
+        (warnung ? '<p style="margin-top:10px;color:#a35200;font-size:0.9em;">' + _reservEscapeHtml(warnung) + '</p>' : '') +
+      '</div>' +
+      '<div class="reserv-modal-actions">' +
+        '<button class="reserv-cancel" id="reserv-close-btn">Schließen</button>' +
+        '<a class="reserv-cta" href="' + _reservEscapeHtml(editorUrl) + '" target="_blank" rel="noopener" id="reserv-cta-link">→ Reservierung final senden</a>' +
+      '</div>' +
+    '</div>';
+  const close = () => m.remove();
+  m.querySelector('#reserv-close-btn').onclick = close;
+  m.querySelector('#reserv-cta-link').addEventListener('click', () => { setTimeout(close, 300); });
+  m.onclick = (e) => { if (e.target === m) close(); };
+  document.body.appendChild(m);
+  setTimeout(() => { const a = m.querySelector('#reserv-cta-link'); if (a) a.focus(); }, 50);
+}
 
 // ===== MODUL: views/selbstauskunft-tab (SA-Form + Auswertung + Auto-Save) =====
 /* ============================== SELBSTAUSKUNFT-TAB ============================== */
