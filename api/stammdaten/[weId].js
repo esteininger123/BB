@@ -695,7 +695,15 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   let totalEurRaw = p1Eur + p2Eur;
 
   // Cap auf den echten Subv-Abfluss
-  const cap = Math.max(5000, (weQm || 0) * 150);
+  // Iter-4 (22.05.2026): Cap erweitert auf qm × 200 (vorher 150) + MbV × 18.
+  // Vorher deckelte qm × 150 die Subv-Story bei grossen WEs zu früh:
+  // z.B. WE10 (83,74 qm) hatte Cap 12.561 €, obwohl der rechtliche Markt-Spielraum
+  // 16.421 € hergegeben hätte. qm × 200 hebt den Cap auf 16.748 € → volle
+  // Story möglich. Bei kleinen WEs (53-66 qm) wirkt der Cap eh nicht, weil die
+  // Subv-Story dort schon natürlich klein ist (kein Cap-Bruch).
+  // MbV × 18 als zusätzliche Obergrenze für WEs mit hoher Miete + kleiner Fläche.
+  // Edgar-Bestätigung 22.05.2026.
+  const cap = Math.max(5000, (weQm || 0) * 200, mbvRaw * 18);
   let capGreift = false;
   let capDetail = '';
 
