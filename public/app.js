@@ -2681,7 +2681,10 @@ async function sendReservierungForSignature() {
   let snapshotId = null;
   if (Array.isArray(state.snapshots)) {
     const fitting = state.snapshots
-      .filter(s => s && s.weRecId === weId)
+      // API liefert das WE-Feld als `weRecordId` (siehe mappers.js → snapshotRecordToApi).
+      // Älterer Code suchte hier nach `s.weRecId` — matched nie → snapshotId blieb null
+      // → Backend bekam keinen Snapshot → Mietsubvention fehlte im Doc.
+      .filter(s => s && s.weRecordId === weId)
       .sort((a, b) => new Date(b.created || 0) - new Date(a.created || 0));
     if (fitting[0]) snapshotId = fitting[0].id;
   }
