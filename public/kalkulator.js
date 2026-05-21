@@ -378,9 +378,10 @@ const PRESETS = {
  *   - Netto-Gehalt × Anzahl-Gehälter / 12 (Anrechenbarkeit Gehalt: 100 %)
  *   - Miet-Einnahmen (Vermietung + Bestandsimmo): 80 % Anrechnung (Leerstand/Ausfall)
  *   - Sonstige + Unterhalt + Kindergeld: 100 %
- *   - Haushaltspauschale: 1.100 (1 EW) bzw. 1.600 (2 EW) + 400 pro Kind
- *   - Verbindlichkeiten: mtl. Belastung Bf1+Bf2+Kd1+Kd2 + Vers-Belastung
- *   - Fixkosten: Miete eig. Whg + Unterhaltszahlungen + PKV
+ *   - Haushaltspauschale: Iter 69 (21.05.2026) — NICHT mehr automatisch angesetzt.
+ *     Ausgaben kommen ausschließlich aus den SA-Eingaben (Fixkosten + Baukasten + Verbindlichkeiten).
+ *   - Verbindlichkeiten: mtl. Belastung Bf1+Bf2+Kd1+Kd2 + Vers-Belastung + Baukasten-Schulden
+ *   - Fixkosten: Miete eig. Whg + Unterhalt + PKV + Lebenshaltung + Leasing + Sonstige + Baukasten-Ausgaben + Sparplan-Raten
  *   - Freies Vermögen (für Bank): Bankguthaben + Wertpapiere + Sparbücher + Bausparen +
  *     Sonstige + Rückkaufwert Versicherung (Bestandsimmobilien-EK NICHT zählen)
  */
@@ -422,11 +423,15 @@ function computeBonitaetDetailed(sa, gemeinsam) {
   const eM = einkommen(m);
   const einkommenAnrechenbarMo = eA.total + eM.total;
 
-  // ----- Haushaltspauschale (Bank-Standard) -----
+  // ----- Haushalt -----
+  // Iter 69 (21.05.2026): Edgar-Vorgabe — KEINE Bank-Standard-Pauschale mehr
+  //   (vorher 1100/1600 € + 400 €/Kind). Die tatsächlichen Ausgaben kommen
+  //   ausschließlich aus der SA: Fixkosten (Miete, PKV, Unterhalt, Lebenshaltung,
+  //   Leasing, Sonstiges) + Baukasten-Zusatzausgaben + Sparplan-Raten + Verbindlichkeiten.
+  //   Pauschale wird im Output mit 0 zurückgegeben für Backward-Compat.
   const erwachsene = 1 + (gemeinsam ? 1 : 0);
   const kinder = (parseInt(a.kinderAnzahl) || 0) + (gemeinsam ? (parseInt(m.kinderAnzahl) || 0) : 0);
-  const haushaltBasis = erwachsene === 1 ? 1100 : 1600;
-  const haushaltPauschale = haushaltBasis + 400 * kinder;
+  const haushaltPauschale = 0;
 
   // ----- Fixkosten (Miete eig. Whg + Unterhalt + PKV + Lebenshaltung + Leasing + Sonstige + Baukasten) -----
   // Iter 64: 3 fixe Ausgabe-Felder (lebenshaltungMo, leasingMo, sonstigeAusgabenMo)
@@ -865,7 +870,7 @@ function recalc(i) {
     bonDetail = computeBonitaetDetailed(i.selbstauskunft, i.saAntragGemeinsam !== false);
     // Quick-äquivalente Werte aus Selbstauskunft ableiten
     bonEinnahmen = bonDetail.einkommenAnrechenbarMo;
-    bonAusgaben = bonDetail.ausgabenGesamtMo; // Mindestausgaben Haushalt + Fixkosten + Verbindlichkeiten
+    bonAusgaben = bonDetail.ausgabenGesamtMo; // Iter 69: Fixkosten + Verbindlichkeiten aus SA (keine Pauschale mehr)
     bonVermoegen = bonDetail.freiesVermoegen;
   } else {
     bonEinnahmen = (i.bonEinnahmen !== undefined) ? i.bonEinnahmen

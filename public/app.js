@@ -3145,7 +3145,7 @@ function saAuswertungHtml() {
         <div class="kpi-box ${ueberschussCls}">
           <div class="kpi-label">Anrechenbarer Überschuss</div>
           <div class="kpi-value">${eur(ueberschuss)} <span style="font-size:13px;font-weight:400;color:var(--text-tertiary);">/ Monat</span></div>
-          <div class="kpi-hint">Einkommen anrechenbar (80% Miete) minus Haushaltspauschale, Fixkosten und Verbindlichkeiten</div>
+          <div class="kpi-hint">Einkommen anrechenbar (80% Miete) minus tatsächliche Fixkosten und Verbindlichkeiten aus der Selbstauskunft (Iter 69: keine pauschale Haushaltsannahme mehr)</div>
         </div>
         <div class="kpi-box">
           <div class="kpi-label">Gesamtvermögen</div>
@@ -3167,10 +3167,9 @@ function saAuswertungHtml() {
             <table class="sa-aufschluss-table">
               <tr><td>Einkommen anrechenbar (Mo)</td><td class="num" style="font-weight:600;">${eur(einkAnr)}</td></tr>
             </table>
-            <div style="font-weight:600;margin:16px 0 8px;">Ausgaben-Seite (Bank-Sicht)</div>
+            <div style="font-weight:600;margin:16px 0 8px;">Ausgaben-Seite (aus Selbstauskunft)</div>
             <table class="sa-aufschluss-table">
-              <tr><td>Haushaltspauschale</td><td class="num">${eur(haushalt)}</td></tr>
-              <tr><td>Fixkosten (Miete/Unterhalt/PKV)</td><td class="num">${eur(fix)}</td></tr>
+              <tr><td>Fixkosten (Miete/Unterhalt/PKV/Lebenshaltung/Leasing/Sonstige + Baukasten)</td><td class="num">${eur(fix)}</td></tr>
               <tr><td>Verbindlichkeiten (mtl.)</td><td class="num">${eur(verbMo)}</td></tr>
               <tr class="row-sum"><td>Summe Ausgaben</td><td class="num">${eur(ausg)}</td></tr>
             </table>
