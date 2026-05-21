@@ -12,15 +12,20 @@
 //
 // Sobald die echte SA-Endpoint läuft, kann diese Datei gelöscht werden.
 
-const chromium = require('@sparticuz/chromium');
+const chromium = require('@sparticuz/chromium-min');
 const puppeteer = require('puppeteer-core');
+
+// chromium-min lädt das Binary on-demand vom Sparticuz-GitHub-Release-Pack.
+// Version muss exakt zum installierten chromium-min-Package matchen (131.0.1).
+const CHROMIUM_PACK_URL = 'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar';
 
 module.exports = async (req, res) => {
   const startTs = Date.now();
   let browser = null;
   try {
-    // Chromium binary + executable path aus @sparticuz/chromium
-    const executablePath = await chromium.executablePath();
+    // chromium-min.executablePath(url) lädt das Binary beim ersten Aufruf nach /tmp,
+    // bei Folgeaufrufen wird der Cache wiederverwendet (innerhalb derselben Lambda-Instanz).
+    const executablePath = await chromium.executablePath(CHROMIUM_PACK_URL);
     console.log('[spike] chromium.executablePath OK', executablePath, '(' + (Date.now() - startTs) + 'ms)');
 
     browser = await puppeteer.launch({
