@@ -16,7 +16,7 @@
       "memory": 3008,
       "maxDuration": 60
     },
-    "api/_spike/html-to-pdf.js": {
+    "api/spike/html-to-pdf.js": {
       "memory": 3008,
       "maxDuration": 60
     }

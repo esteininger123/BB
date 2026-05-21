@@ -1,4 +1,4 @@
-// GET /api/_spike/html-to-pdf
+// GET /api/spike/html-to-pdf
 //
 // Setup-Spike (Iter 83): Prüft, ob Puppeteer + @sparticuz/chromium auf Vercel funktioniert.
 // Generiert ein minimales Hello-PDF und gibt es als application/pdf zurück.
@@ -6,7 +6,7 @@
 // Ziel: bestätigen dass der Chromium-Binary geladen werden kann, der Cold-Start
 // in der maxDuration (60s) durchläuft, und die Function-Size unter Vercel-Limit bleibt.
 //
-// Nutzung: einfach im Browser GET https://bb-brown-pi.vercel.app/api/_spike/html-to-pdf
+// Nutzung: einfach im Browser GET https://bb-brown-pi.vercel.app/api/spike/html-to-pdf
 // → wenn ein PDF runtergeladen wird (1-2 Seiten "Hello PDF"), ist der Setup OK.
 // → wenn 500/Timeout: Logs in Vercel-Dashboard prüfen.
 //
