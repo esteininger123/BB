@@ -724,6 +724,29 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     }
   }
 
+  // Iter-4 (22.05.2026, Henry/Edgar-Vorgabe): Mindestschwelle 1.000 € Total.
+  // Subventionen unter 1.000 € werden NICHT als Vermarktungs-Story angezeigt —
+  // sie wirken im Verkauf unprofessionell ("4 €/Mo aufgestockt" liest sich
+  // schlechter als gar keine Subv-Story). Henrys WE11 mit 156 € Subv-Total
+  // war der Auslöser. Tag-1-Anhebung / Vereinbarung bleiben informativ erhalten,
+  // aber phasen + totalEur werden 0 zurückgegeben.
+  const SUBV_MINDESTSCHWELLE_EUR = 1000;
+  if (totalEurRaw < SUBV_MINDESTSCHWELLE_EUR) {
+    return Object.assign({}, empty, {
+      quelle: 'auto-unter-mindestschwelle',
+      erlaeuterung: tag1Erhoehung
+        ? `Käufer übernimmt mit ${Math.round(mbv)} €/Mo (Vereinbarung wirksam ab Übergabe). Subv-Story unter 1.000 € Total — kein nennenswerter Vermarktungs-Hebel.`
+        : `Miete bei Verkauf liegt nahe an der Marktmiete (${Math.round(marktmiete)} €/Mo) — rechnerische Subv-Story unter 1.000 € Total, nicht ausgewiesen.`,
+      tag1Erhoehung,
+      tag1Anhebung: Math.round(tag1Anhebung * 100) / 100,
+      tag1Quelle,
+      kaltmieteAdjustiert: tag1Erhoehung ? Math.round(mbv * 100) / 100 : null,
+      vereinbarung: vereinbarungInfo,
+      marktmieteEurQm,
+      marktmieteAbs: Math.round(marktmiete * 100) / 100,
+    });
+  }
+
   const phasen = [];
   if (p1Monate > 0 && p1Mo > 0) {
     phasen.push({
