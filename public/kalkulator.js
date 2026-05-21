@@ -707,15 +707,27 @@ function recalc(i) {
   //   stieg im Modell auf 20 €/qm bei einer Marktmiete von 12 €/qm. Mit dem
   //   richtigen Feld kann der Cap jetzt sauber zurück.
   //
-  // Cap = i.marktmieteEurQm × i.qm. Wenn eines der beiden fehlt → kein Cap
-  //   (Fallback altes Verhalten, Status-Card warnt separat über Pflegelücke).
-  const marktCapMo = (i.marktmieteEurQm > 0 && i.qm > 0)
-    ? i.marktmieteEurQm * i.qm
-    : Infinity;
+  // Iter 77 (21.05.2026): Marktmiete wächst mit `wertsteigerung` p.a.
+  //   Vorher war der Cap statisch über 10 Jahre — das war konservativ-falsch:
+  //   wenn die Vermögensbasis (Verkaufswert) jährlich 3 % zulegt, dann tun
+  //   das die Vergleichsmieten in derselben Region auch. Sonst rechnet die
+  //   App eine zukunftsfreie Marktmiete, was den Käufer-Cashflow ab Jahr 7
+  //   unrealistisch deckelt. Wir nutzen denselben Inflations-Parameter wie
+  //   für die Vermögensbasis (i.wertsteigerung), damit Verkaufswert und
+  //   Mietniveau konsistent in dieselbe Richtung laufen.
+  //
+  // Cap(Jahr y) = i.marktmieteEurQm × i.qm × (1 + wertsteigerung)^(y-1).
+  // Wenn marktmieteEurQm oder qm fehlt → kein Cap (Fallback, Status-Card warnt).
+  function marktCapForMonth(m) {
+    if (!(i.marktmieteEurQm > 0 && i.qm > 0)) return Infinity;
+    const y = Math.ceil(m / 12); // Jahr 1..30 (Mo 1-12 → J1, 13-24 → J2, …)
+    const inflRate = (i.wertsteigerung != null && isFinite(i.wertsteigerung)) ? i.wertsteigerung : 0;
+    return i.marktmieteEurQm * i.qm * Math.pow(1 + inflRate, y - 1);
+  }
 
   function kaltmieteForMonth(m) {
     const raw = i.kaltmiete * faktorFor(m);
-    return Math.min(raw, marktCapMo);
+    return Math.min(raw, marktCapForMonth(m));
   }
 
   // Iter 47/48: Globale Effektivmiete über alle Subv-Phasen konstant.

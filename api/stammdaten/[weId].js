@@ -582,8 +582,16 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
       // Monate bis zur Erhöhung (negativ = Vergangenheit)
       const monateBisErhoehung = (geplDate.getFullYear() - heute.getFullYear()) * 12
         + (geplDate.getMonth() - heute.getMonth());
+      // Iter-4 Fix (21.05.2026, WE7-Bug): Bedingung war "geplKaltmiete > mbvRaw + 0.01".
+      // Das war zu strikt: Henry pflegt häufig MbV = die geplante Erhöhungsmiete (die,
+      // die der Käufer langfristig kriegt). Wenn dann der Mietvertrag mit gleicher
+      // Kaltmiete als zukünftige Erhöhung gepflegt ist (z.B. WE7: MbV=740, MV=740 ab
+      // 1.8.26), liefen beide Werte exakt parallel — Code sagte „nicht anwendbar" und
+      // fiel auf Tag-1-Annahme zurück (Mieter angeblich auf 846 €/Mo) — falsch.
+      // Lösung: ≥ statt > (mit Toleranz). Wenn Henrys MbV die geplante Erhöhung ist,
+      // ist die Vereinbarung anwendbar — Tag-1-Annahme bleibt aus.
       const anwendbar = monateBisErhoehung >= -1 && monateBisErhoehung <= 12
-        && geplKaltmiete > mbvRaw + 0.01;
+        && geplKaltmiete >= mbvRaw - 0.01;
       vereinbarungInfo = {
         datum: geplDatumRaw,
         monateBisErhoehung,
