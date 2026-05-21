@@ -512,13 +512,39 @@ function syncStammdatenInSa() {
   if (!sa || typeof sa !== 'object') sa = { gemeinsam: false, antragsteller: {}, mitantragsteller: {} };
   if (!sa.antragsteller) sa.antragsteller = {};
   const a = sa.antragsteller;
-  // Nur überschreiben wenn das SA-Feld leer ist (User-Edits respektieren).
-  if (!a.vorname && k.vorname) a.vorname = k.vorname;
-  if (!a.name && k.nachname) a.name = k.nachname;
-  if (!a.email && k.email) a.email = k.email;
-  if (!a.telefonPrivat && k.telefon) a.telefonPrivat = k.telefon;
-  if (!a.geburtsdatum && k.geburtsdatum) a.geburtsdatum = k.geburtsdatum;
+  // Iter 68 (21.05.2026): Stammdaten = Master für die fünf gemeinsamen Felder.
+  //   Edgar-Vorgabe: „Stammdaten des Kunden automatisch mit der Selbstauskunft gespiegelt".
+  //   Bei jedem Stammdaten-Save (auch Auto-Save) werden die SA-Antragsteller-Felder
+  //   überschrieben — keine „leer-respektieren"-Logik mehr, sonst driften die beiden
+  //   Seiten auseinander.
+  if (k.vorname !== undefined) a.vorname = k.vorname || '';
+  if (k.nachname !== undefined) a.name = k.nachname || '';
+  if (k.email !== undefined) a.email = k.email || '';
+  if (k.telefon !== undefined) a.telefonPrivat = k.telefon || '';
+  if (k.geburtsdatum !== undefined) a.geburtsdatum = k.geburtsdatum || '';
   return sa;
+}
+
+// Iter 68: Rückwärts-Spiegel — SA-Antragsteller-Felder ins Stammdaten-Objekt
+// (state.kunde) ziehen. Wird beim SA-Auto-Save aufgerufen, sobald der Vertriebler
+// in der SA z.B. den Namen oder das Geburtsdatum ändert.
+function syncSaToStammdaten() {
+  const k = state.kunde;
+  const sa = state._sa;
+  if (!k || !sa || !sa.antragsteller) return false;
+  const a = sa.antragsteller;
+  let changed = false;
+  const setIfDiff = (kField, val) => {
+    const norm = (val === undefined || val === null) ? '' : String(val);
+    const cur  = (k[kField] === undefined || k[kField] === null) ? '' : String(k[kField]);
+    if (norm !== cur) { k[kField] = norm; changed = true; }
+  };
+  setIfDiff('vorname', a.vorname);
+  setIfDiff('nachname', a.name);
+  setIfDiff('email', a.email);
+  setIfDiff('telefon', a.telefonPrivat);
+  setIfDiff('geburtsdatum', a.geburtsdatum);
+  return changed;
 }
 window.go = go;
 
@@ -658,31 +684,31 @@ function renderTabUebersicht() {
   const k = state.kunde;
   el.innerHTML = `
     <div class="card">
-      <div class="card-title">Stammdaten</div>
+      <div class="card-title">Stammdaten <span class="text-tertiary text-small" style="font-weight:normal;">(Auto-Save aktiv · spiegelt sich in die Selbstauskunft)</span></div>
       <div class="grid-2">
         <div>
           <label>Vorname</label>
-          <input id="f-vorname" value="${esc(k.vorname || '')}">
+          <input id="f-vorname" data-stamm="vorname" value="${esc(k.vorname || '')}">
         </div>
         <div>
           <label>Nachname</label>
-          <input id="f-nachname" value="${esc(k.nachname || '')}">
+          <input id="f-nachname" data-stamm="nachname" value="${esc(k.nachname || '')}">
         </div>
         <div>
           <label>E-Mail</label>
-          <input id="f-email" type="email" value="${esc(k.email || '')}">
+          <input id="f-email" data-stamm="email" type="email" value="${esc(k.email || '')}">
         </div>
         <div>
           <label>Telefon</label>
-          <input id="f-telefon" value="${esc(k.telefon || '')}">
+          <input id="f-telefon" data-stamm="telefon" value="${esc(k.telefon || '')}">
         </div>
         <div>
           <label>Geburtsdatum</label>
-          <input id="f-geburtsdatum" type="date" value="${esc(k.geburtsdatum || '')}">
+          <input id="f-geburtsdatum" data-stamm="geburtsdatum" type="date" value="${esc(k.geburtsdatum || '')}">
         </div>
       </div>
       <div class="mt-16">
-        <button onclick="saveStammdaten()">Speichern</button>
+        <span id="stamm-save-status" class="text-tertiary text-small"></span>
       </div>
     </div>
 
@@ -692,23 +718,65 @@ function renderTabUebersicht() {
       <div class="text-tertiary text-small mt-8">Auto-Save bei Klick außerhalb.</div>
     </div>
   `;
+  // Iter 68 (21.05.2026): Auto-Save für Stammdaten — gleiche Logik wie SA-Auto-Save.
+  //   Bei jedem `input` wird state.kunde lokal aktualisiert, debounced 600 ms später
+  //   das PUT abgesetzt. saveStammdaten ruft syncStammdatenInSa auf, damit die
+  //   gemeinsamen Felder gleichzeitig in der Selbstauskunft erscheinen.
+  document.querySelectorAll('[data-stamm]').forEach(inp => {
+    const apply = () => {
+      const key = inp.dataset.stamm;
+      state.kunde[key] = inp.value;
+      autoSaveStammdaten();
+    };
+    inp.addEventListener('input', apply);
+    inp.addEventListener('blur', apply);
+    inp.addEventListener('change', apply);
+  });
 }
 
-async function saveStammdaten() {
+let _stammAutoSaveTimer = null;
+async function autoSaveStammdaten() {
+  clearTimeout(_stammAutoSaveTimer);
+  const statusEl = document.getElementById('stamm-save-status');
+  if (statusEl) statusEl.textContent = '… wird gespeichert';
+  _stammAutoSaveTimer = setTimeout(async () => {
+    await saveStammdaten({ silent: true });
+    if (statusEl) {
+      statusEl.textContent = '✓ gespeichert ' + new Date().toLocaleTimeString('de-DE');
+      setTimeout(() => { if (statusEl.textContent.startsWith('✓')) statusEl.textContent = ''; }, 3000);
+    }
+  }, 600);
+}
+window.autoSaveStammdaten = autoSaveStammdaten;
+
+async function saveStammdaten(opts) {
+  opts = opts || {};
+  const get = (id) => {
+    const el = document.getElementById(id);
+    return el ? el.value : (state.kunde[id.replace('f-', '')] || '');
+  };
   const body = {
-    vorname: document.getElementById('f-vorname').value,
-    nachname: document.getElementById('f-nachname').value,
-    email: document.getElementById('f-email').value,
-    telefon: document.getElementById('f-telefon').value,
-    geburtsdatum: document.getElementById('f-geburtsdatum').value,
+    vorname: get('f-vorname'),
+    nachname: get('f-nachname'),
+    email: get('f-email'),
+    telefon: get('f-telefon'),
+    geburtsdatum: get('f-geburtsdatum'),
   };
   try {
-    // Erst die Stammdaten lokal mergen, dann SA-Sync aufrufen → ein PUT mit beidem.
     Object.assign(state.kunde, body);
     const sa = syncStammdatenInSa();
     await api.put('/api/kunden/' + state.kundeId, { ...body, saJson: sa });
     state.kunde.saJson = sa;
-    toast('Stammdaten gespeichert (auch in Selbstauskunft übernommen)', 'success');
+    // Wenn der SA-Tab gerade offen ist, _sa-Cache aktualisieren, damit die
+    // gespiegelten Felder beim nächsten Render bzw. Auswertung sichtbar sind.
+    if (state._sa && state._sa.antragsteller) {
+      state._sa.antragsteller.vorname = body.vorname;
+      state._sa.antragsteller.name = body.nachname;
+      state._sa.antragsteller.email = body.email;
+      state._sa.antragsteller.telefonPrivat = body.telefon;
+      state._sa.antragsteller.geburtsdatum = body.geburtsdatum;
+    }
+    if (!opts.silent) toast('Stammdaten gespeichert (auch in Selbstauskunft übernommen)', 'success');
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
 window.saveStammdaten = saveStammdaten;
@@ -3208,10 +3276,22 @@ async function autoSaveSa() {
   _saAutoSaveTimer = setTimeout(async () => {
     const sa = collectSaFromDOM();
     sa.gemeinsam = document.getElementById('sa-gemeinsam') ? document.getElementById('sa-gemeinsam').checked : (sa.gemeinsam === true);
+    // Iter 68 (21.05.2026): Bidirektionaler Mirror — wenn der Vertriebler in der SA
+    //   die Antragsteller-Stammdaten ändert (Vorname, Name, E-Mail, Telefon,
+    //   Geburtsdatum), übernehmen wir sie zurück in state.kunde und schicken sie
+    //   im selben PUT mit. So bleiben Stammdaten-Tab und SA-Tab synchron.
+    const stammChanged = syncSaToStammdaten();
+    const payload = { saJson: sa };
+    if (stammChanged) {
+      payload.vorname = state.kunde.vorname || '';
+      payload.nachname = state.kunde.nachname || '';
+      payload.email = state.kunde.email || '';
+      payload.telefon = state.kunde.telefon || '';
+      payload.geburtsdatum = state.kunde.geburtsdatum || '';
+    }
     try {
-      await api.put('/api/kunden/' + state.kundeId, { saJson: sa });
+      await api.put('/api/kunden/' + state.kundeId, payload);
       state.kunde.saJson = sa;
-      // Kleiner stiller Indikator: kurzer Toast erst bei "manuellem" Speichern
     } catch (e) {
       console.error('autoSaveSa', e);
     }
