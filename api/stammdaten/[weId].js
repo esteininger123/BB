@@ -117,8 +117,7 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
       ],
     }, 5000);
 
-    let stplMietsumme = 0;
-    let stplMietsummeNominal = 0; // ohne Pro-rata — für Debug/Diff
+    let stplMietsummeNominal = 0; // Summe ohne Filter — für Debug/Diff (Backward-Compat)
     let vertraegeMitStellplatz = 0;
     let jungsteMietsteigerung = null; // YYYY-MM-DD — letzte vergangene/aktuelle Erhöhung
     let jungsterVertragsbeginn = null; // YYYY-MM-DD — letzter vergangener Vertragsbeginn
@@ -129,6 +128,17 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
     const useProRata = Array.isArray(weStpIds);
     const heuteISO = new Date().toISOString().slice(0, 10);
 
+    // Iter-4 Fix (Henry-Bug WE4, 21.05.2026): Stellplatzmiete wurde bisher über
+    // ALLE aktiven Mietverträge der WE aufaddiert. Bei einer typischen Mieter-
+    // Geschichte (Erstvertrag 2018 → Erhöhungsvertrag 2024) lagen damit zwei
+    // Stellplatzmieten zur selben Garage im Aggregat → Summe doppelt. Henry hat
+    // das manuell durch Löschen der alten Stellplatzmiete gefixt; jetzt im Code:
+    // pro Stellplatz-Record gewinnt der jüngste Vertrag. Pro-rata-Logik (mehrere
+    // Stellplätze im selben Vertrag) bleibt erhalten.
+    //
+    // Datenstruktur: stpId → { miete: €/Mo, datum: YYYY-MM-DD, vertragId }
+    const jungsteStplMieteByPlatz = new Map();
+
     recs.forEach(r => {
       const f = r.fields || {};
       const weLink = f[MIETVERTRAG_FIELDS.WE_LINK] || [];
@@ -137,8 +147,7 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
         return id === weId;
       });
       if (!linked) return;
-      // Archivierte Verträge nicht für Datum-/Kaltmiete-Erkennung nutzen, aber
-      // Stellplatzmiete-Aggregation bleibt unverändert (Backward-Compat).
+
       const statusLookup = f[MIETVERTRAG_FIELDS.STATUS_LOOKUP];
       const statusName = Array.isArray(statusLookup)
         ? (statusLookup[0] && typeof statusLookup[0] === 'object' ? statusLookup[0].name : statusLookup[0])
@@ -148,16 +157,34 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
       vertragVorhanden = true;
       const stpl = f[MIETVERTRAG_FIELDS.STELLPLATZ_LINK];
       const stplMiete = num(f[MIETVERTRAG_FIELDS.STELLPLATZMIETE]) || 0;
-      if (stpl && stplMiete > 0) {
+      const gueltigRaw = f[MIETVERTRAG_FIELDS.GUELTIG_AB] || null;
+      const beginnRaw  = f[MIETVERTRAG_FIELDS.VERTRAGSBEGINN] || null;
+      const datumFuerStpl = gueltigRaw || beginnRaw || '0000-00-00';
+
+      if (stpl && stplMiete > 0 && !istArchiviert) {
         const stplArr = Array.isArray(stpl) ? stpl : [];
         const vertragStpIds = stplArr.map(x => (x && typeof x === 'object' && x.id) ? x.id : x);
-        let effektiveMiete = stplMiete;
-        if (useProRata && vertragStpIds.length > 0) {
-          // Pro-rata: nur Stellplätze zählen, die noch zur WE verknüpft sind
-          const gueltigeAnzahl = vertragStpIds.filter(id => weStpIds.includes(id)).length;
-          effektiveMiete = stplMiete * (gueltigeAnzahl / vertragStpIds.length);
+        // Bei Pro-rata: nur Stellplätze, die noch zur WE verknüpft sind.
+        const relevanteStpIds = useProRata && vertragStpIds.length > 0
+          ? vertragStpIds.filter(id => weStpIds.includes(id))
+          : vertragStpIds;
+
+        if (relevanteStpIds.length > 0) {
+          // Anteilige Miete pro Stellplatz im Vertrag (volle Stellplatzmiete
+          // / Anzahl im Vertrag — egal ob noch zur WE oder nicht). So bleibt
+          // die Pro-rata-Mathematik konsistent zum alten Verhalten.
+          const proStpMiete = stplMiete / vertragStpIds.length;
+          relevanteStpIds.forEach(stpId => {
+            const cur = jungsteStplMieteByPlatz.get(stpId);
+            if (!cur || datumFuerStpl > cur.datum) {
+              jungsteStplMieteByPlatz.set(stpId, {
+                miete: proStpMiete,
+                datum: datumFuerStpl,
+                vertragId: r.id,
+              });
+            }
+          });
         }
-        stplMietsumme += effektiveMiete;
         stplMietsummeNominal += stplMiete;
         vertraegeMitStellplatz += 1;
       }
@@ -217,10 +244,18 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
       }
     }
 
+    // Iter-4 Fix (WE4-Bug): Stellplatzmiete-Summe nur aus dem jeweils JÜNGSTEN
+    // Mietvertrag pro Stellplatz. Bei einer typischen WE mit nur einem aktiven
+    // Vertrag identisch zum alten Verhalten. Bei zwei Verträgen (alt + neu) auf
+    // denselben Stellplatz greift jetzt der jüngere — kein Aufaddieren mehr.
+    const stplMietsumme = Array.from(jungsteStplMieteByPlatz.values())
+      .reduce((s, x) => s + x.miete, 0);
+
     return {
       stellplatzMietsumme: stplMietsumme,
       stellplatzMietsummeNominal: stplMietsummeNominal,
       stellplatzMieteProRata: useProRata && stplMietsummeNominal !== stplMietsumme,
+      stellplatzMieteJuengsterCount: jungsteStplMieteByPlatz.size, // Debug
       vertraegeMitStellplatz,
       vertragVorhanden,
       // Iter 41.13: Vertragsbeginn ist verlässlicher gepflegt als 'Anpassung gültig ab'.
@@ -325,7 +360,49 @@ function kalkStammRecordToApi(rec) {
     // Iter 70 (21.05.2026) — Einvernehmliche Mieterhöhung vor Übergabe (siehe tables.js).
     geplanteErhoehungDatum:     f[KALK_STAMMDATEN_FIELDS.GEPLANTE_ERHOEHUNG_DATUM] || null,
     geplanteErhoehungKaltmiete: num(f[KALK_STAMMDATEN_FIELDS.GEPLANTE_ERHOEHUNG_KALTMIETE]),
+    // Iter-4 (21.05.2026) — vom Backend zurückgeschriebene Auto-Subv (Vergleichswerte
+    // für Idempotenz-Check beim Write-back).
+    autoSubvMo:    num(f[KALK_STAMMDATEN_FIELDS.AUTO_SUBV_MO]),
+    autoSubvTotal: num(f[KALK_STAMMDATEN_FIELDS.AUTO_SUBV_TOTAL]),
   };
+}
+
+// Iter-4 (21.05.2026) — Write-back der Auto-Subv-Werte nach Airtable.
+//
+// Hintergrund: Die Airtable-KP-Vorschlag-Formel kann nur auf gespeicherte Felder
+// zugreifen. Bisher kannte sie nur den manuellen `Mietzuschuss` — die per
+// computeAutoSubvention() im Backend errechnete Story war für Airtable unsichtbar.
+// Henrys Beobachtung: „Alle Einheiten mit Mietsubvention haben nicht gepasst" — weil
+// der KP-Vorschlag die Subv-Story nicht eingepreist hat.
+//
+// Lösung: Nach jeder Subv-Berechnung schreibt das Backend Phase-1-Rate und Total
+// in zwei dedizierte Airtable-Felder. Die KP-Vorschlag-Formel kann sie dann nutzen.
+//
+// Idempotenz: Wir schreiben nur, wenn sich Werte signifikant geändert haben
+// (>5 €/Mo bei Mo-Wert ODER >50 € beim Total), um Schreiboperationen bei jedem
+// Endpoint-Aufruf zu vermeiden. Fire-and-forget — die Response wartet nicht drauf,
+// Fehler werden geloggt aber nicht hochgereicht.
+function maybeWriteBackAutoSubv(kalkApi, subv) {
+  if (!kalkApi || !kalkApi.id) return; // kein Stammdaten-Record vorhanden
+  // Bei "kein-spielraum" / "leer" / "unter-mindestschwelle" → 0 schreiben, wenn nicht schon 0
+  const neuMo    = (subv && typeof subv.mo === 'number' && isFinite(subv.mo))           ? Math.round(subv.mo * 100) / 100        : 0;
+  const neuTotal = (subv && typeof subv.totalEur === 'number' && isFinite(subv.totalEur)) ? Math.round(subv.totalEur * 100) / 100 : 0;
+  const altMo    = kalkApi.autoSubvMo    || 0;
+  const altTotal = kalkApi.autoSubvTotal || 0;
+  const moDiff    = Math.abs(neuMo - altMo);
+  const totalDiff = Math.abs(neuTotal - altTotal);
+  // Schwellen: 5 €/Mo bzw. 50 € Total. Wenn beide unter Schwelle → nicht schreiben.
+  if (moDiff < 5 && totalDiff < 50) return;
+  // Fire-and-forget: kein await, kein throw nach oben.
+  airtable('update', TABLES.KALK_STAMMDATEN, {
+    recordId: kalkApi.id,
+    fields: {
+      [KALK_STAMMDATEN_FIELDS.AUTO_SUBV_MO]:    neuMo,
+      [KALK_STAMMDATEN_FIELDS.AUTO_SUBV_TOTAL]: neuTotal,
+    }
+  }).catch(e => {
+    console.warn(`[stammdaten] Auto-Subv-Writeback fehlgeschlagen für ${kalkApi.id}: ${e.message}`);
+  });
 }
 
 // Iter 41.17 (18.05.2026) — Vermietungs-Status aus dem WE-Lookup ableiten.
@@ -846,6 +923,16 @@ module.exports = async (req, res) => {
       // Subvention auto + Markt-Schnitt direkt vom Backend liefern
       const subv = computeAutoSubvention(kalkApi, vermietungObj, we.qm);
       const marktSchnitt = computeMarktpreisGemittelt(kalkApi);
+
+      // Iter-4 (21.05.2026): Auto-Subv zurück nach Airtable, damit die
+      // KP-Vorschlag-Formel sie einbeziehen kann. Fire-and-forget — die Response
+      // wartet nicht. Nur bei signifikanter Änderung (>5 €/Mo oder >50 € Total),
+      // siehe maybeWriteBackAutoSubv. Wenn manueller Mietzuschuss gepflegt ist,
+      // hat der Vorrang (computeAutoSubvention liefert dann subv.mo = manueller
+      // Wert) — wir schreiben dann den manuellen Wert in die Auto-Felder, was
+      // ein No-op für die Formel ist (die nutzt entweder/oder, siehe Airtable-
+      // Formel-Vorlage in §IT-4 der Doku).
+      maybeWriteBackAutoSubv(kalkApi, subv);
 
       return res.status(200).json({
         we,

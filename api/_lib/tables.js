@@ -175,6 +175,13 @@ const KALK_STAMMDATEN_FIELDS = {
   // gesetzt sind. Vorrang vor der automatischen Tag-1-Erhöhung (Iter 63).
   GEPLANTE_ERHOEHUNG_DATUM:    'fldlgR66D0zzaQ1hA', // Date — ab wann gilt die vereinbarte Miete
   GEPLANTE_ERHOEHUNG_KALTMIETE: 'fldg9Pmx9sfFowLl9', // Currency €/Mo — neue Kaltmiete laut Vereinbarung
+  // Iter-4 (21.05.2026) — Auto-Subv-Write-back. Backend schreibt nach jeder
+  // /api/stammdaten/[weId]-Berechnung die computeAutoSubvention-Ergebnisse zurück,
+  // damit die Airtable-KP-Vorschlag-Formel auch dann eine Subvention drin hat,
+  // wenn der manuelle Mietzuschuss leer ist (Standardfall bei Bruchsal-WEs).
+  // Henry/Vertrieb pflegt diese Felder NICHT manuell — sie sind Backend-Output.
+  AUTO_SUBV_MO:    'fldLV8CC1wvrRSJ6x', // Currency €/Mo — Phase-1-Subv-Rate
+  AUTO_SUBV_TOTAL: 'fld99AS9ebipT5TSO', // Currency € — Total über alle Phasen
 };
 
 const KALK_STATUS_AKTIV    = 'Aktiv';
