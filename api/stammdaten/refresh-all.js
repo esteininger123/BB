@@ -45,10 +45,22 @@ module.exports = async (req, res) => {
     return methodNotAllowed(res, ['POST', 'GET']);
   }
 
-  const session = verifySession(req);
-  if (!session) return res.status(401).json({ error: 'Nicht eingeloggt' });
-  if (session.rolle !== 'Admin') {
-    return res.status(403).json({ error: 'Nur Admins dürfen alle WEs neu berechnen.' });
+  // Iter-4 (22.05.2026): Zwei Auth-Wege.
+  //  1. Admin-Session-Cookie (manueller Aufruf via Browser)
+  //  2. Bearer-Token CRON_SECRET (Vercel-Cron-Job)
+  // Vercel-Cron sendet `Authorization: Bearer <CRON_SECRET>`. CRON_SECRET wird
+  // in Vercel-Env-Vars gesetzt (Settings → Environment Variables).
+  const cronSecret = process.env.CRON_SECRET;
+  const authHeader = (req.headers && req.headers.authorization) || '';
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  const istCron = cronSecret && bearerMatch && bearerMatch[1] === cronSecret;
+
+  if (!istCron) {
+    const session = verifySession(req);
+    if (!session) return res.status(401).json({ error: 'Nicht eingeloggt' });
+    if (session.rolle !== 'Admin') {
+      return res.status(403).json({ error: 'Nur Admins dürfen alle WEs neu berechnen.' });
+    }
   }
 
   try {

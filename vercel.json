@@ -10,5 +10,19 @@
       ]
     }
   ],
-  "cleanUrls": true
+  "cleanUrls": true,
+  "crons": [
+    {
+      "path": "/api/stammdaten/refresh-all",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/stammdaten/refresh-all",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/stammdaten/refresh-all",
+      "schedule": "0 16 * * *"
+    }
+  ]
 }
