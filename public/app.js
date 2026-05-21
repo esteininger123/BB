@@ -3681,8 +3681,10 @@ function renderTabSnapshots() {
                   <td class="text-tertiary">${esc(s.weBezeichnung || '—')}</td>
                   <td>${esc(s.pdfTyp || '—')}</td>
                   <td class="text-tertiary">${esc(fmtDate(s.created))}</td>
-                  <td>
+                  <td style="white-space:nowrap; display:flex; gap:6px; justify-content:flex-end;">
                     <button class="secondary" onclick="loadSnapshot('${esc(s.id)}')" ${hasKalk ? '' : 'disabled title="Keine Kalkulations-Daten in diesem Snapshot"'}>Laden</button>
+                    <button class="secondary" onclick="renameSnapshot('${esc(s.id)}')" title="Bezeichnung umbenennen">Umbenennen</button>
+                    <button class="secondary" onclick="deleteSnapshot('${esc(s.id)}')" title="Snapshot löschen" style="color:#c00;">Löschen</button>
                   </td>
                 </tr>
               `;
@@ -3693,6 +3695,46 @@ function renderTabSnapshots() {
     </div>
   `;
 }
+
+async function renameSnapshot(id) {
+  const s = (state.snapshots || []).find(x => x.id === id);
+  if (!s) {
+    toast('Snapshot nicht in Liste — bitte Seite aktualisieren', 'error');
+    return;
+  }
+  const neu = prompt('Neue Bezeichnung:', s.bezeichnung || '');
+  if (neu === null) return;                       // Cancel
+  const trimmed = String(neu).trim();
+  if (trimmed === (s.bezeichnung || '').trim()) return;  // unverändert
+  try {
+    const updated = await api.patch('/api/snapshots', { id, bezeichnung: trimmed });
+    // Lokale Liste aktualisieren
+    const idx = state.snapshots.findIndex(x => x.id === id);
+    if (idx >= 0) state.snapshots[idx] = updated;
+    if (state.tab === 'snapshots') renderTabSnapshots();
+    toast('Bezeichnung aktualisiert', 'success');
+  } catch (e) {
+    toast('Fehler beim Umbenennen: ' + (e.message || 'unbekannt'), 'error');
+  }
+}
+window.renameSnapshot = renameSnapshot;
+
+async function deleteSnapshot(id) {
+  const s = (state.snapshots || []).find(x => x.id === id);
+  const label = s && s.bezeichnung ? s.bezeichnung : id;
+  if (!confirm('Snapshot "' + label + '" wirklich löschen? Das kann nicht rückgängig gemacht werden.')) {
+    return;
+  }
+  try {
+    await api.delete('/api/snapshots?id=' + encodeURIComponent(id));
+    state.snapshots = (state.snapshots || []).filter(x => x.id !== id);
+    if (state.tab === 'snapshots') renderTabSnapshots();
+    toast('Snapshot gelöscht', 'success');
+  } catch (e) {
+    toast('Fehler beim Löschen: ' + (e.message || 'unbekannt'), 'error');
+  }
+}
+window.deleteSnapshot = deleteSnapshot;
 
 function loadSnapshot(id) {
   const s = state.snapshots.find(x => x.id === id);

@@ -1,5 +1,10 @@
-// GET  /api/snapshots?kundeId=xxx — Snapshots zu einem Kunden listen
-// POST /api/snapshots             — neuen Snapshot anlegen
+// GET    /api/snapshots?kundeId=xxx          — Snapshots zu einem Kunden listen
+// POST   /api/snapshots                      — neuen Snapshot anlegen
+// PATCH  /api/snapshots  body:{id,bezeichnung} — Bezeichnung umbenennen
+// DELETE /api/snapshots?id=xxx               — Snapshot löschen (irreversibel)
+//
+// Berechtigung: Wer den Kunden bedienen darf (Owner oder Admin), darf auch
+// dessen Snapshots umbenennen und löschen.
 
 const { verifySession } = require('./_lib/auth');
 const { airtable, listAll } = require('./_lib/airtable');
@@ -68,7 +73,63 @@ module.exports = async (req, res) => {
       return res.status(201).json(snapshotRecordToApi(created));
     }
 
-    return methodNotAllowed(res, ['GET', 'POST']);
+    // --- PATCH: Bezeichnung ändern ---
+    // Erlaubt User, die Bezeichnung eines Snapshots umzubenennen, ohne den Inhalt anzufassen.
+    // Body: { id, bezeichnung }
+    if (req.method === 'PATCH') {
+      const body = await readBody(req);
+      const id = body && body.id;
+      if (!id) return res.status(400).json({ error: 'Snapshot-id fehlt' });
+      if (typeof body.bezeichnung !== 'string') {
+        return res.status(400).json({ error: 'bezeichnung (string) fehlt' });
+      }
+
+      // Snapshot laden um Kunden-ID rauszufinden → Zugriffsprüfung
+      let snapRec;
+      try {
+        snapRec = await airtable('get', TABLES.SNAPSHOTS, { recordId: id });
+      } catch (e) {
+        return res.status(404).json({ error: 'Snapshot nicht gefunden' });
+      }
+      const kundenLink = (snapRec.fields && snapRec.fields[SNAPSHOT_FIELDS.KUNDE]) || [];
+      const kundeId = Array.isArray(kundenLink) && kundenLink.length > 0
+        ? (typeof kundenLink[0] === 'object' ? kundenLink[0].id : kundenLink[0])
+        : null;
+      const allowed = await canAccessKunde(session, kundeId);
+      if (!allowed) return res.status(403).json({ error: 'Kein Zugriff auf diesen Snapshot' });
+
+      const updated = await airtable('update', TABLES.SNAPSHOTS, {
+        recordId: id,
+        fields: { [SNAPSHOT_FIELDS.BEZEICHNUNG]: body.bezeichnung.trim() }
+      });
+      return res.status(200).json(snapshotRecordToApi(updated));
+    }
+
+    // --- DELETE: Snapshot löschen ---
+    // Irreversibel. Query: ?id=xxx
+    if (req.method === 'DELETE') {
+      const id = req.query && req.query.id;
+      if (!id) return res.status(400).json({ error: 'Snapshot-id fehlt' });
+
+      // Snapshot laden um Kunden-ID rauszufinden → Zugriffsprüfung
+      let snapRec;
+      try {
+        snapRec = await airtable('get', TABLES.SNAPSHOTS, { recordId: id });
+      } catch (e) {
+        return res.status(404).json({ error: 'Snapshot nicht gefunden' });
+      }
+      const kundenLink = (snapRec.fields && snapRec.fields[SNAPSHOT_FIELDS.KUNDE]) || [];
+      const kundeId = Array.isArray(kundenLink) && kundenLink.length > 0
+        ? (typeof kundenLink[0] === 'object' ? kundenLink[0].id : kundenLink[0])
+        : null;
+      const allowed = await canAccessKunde(session, kundeId);
+      if (!allowed) return res.status(403).json({ error: 'Kein Zugriff auf diesen Snapshot' });
+
+      await airtable('delete', TABLES.SNAPSHOTS, { recordId: id });
+      return res.status(200).json({ ok: true, id });
+    }
+
+    return methodNotAllowed(res, ['GET', 'POST', 'PATCH', 'DELETE']);
   } catch (e) {
     return sendError(res, e);
   }

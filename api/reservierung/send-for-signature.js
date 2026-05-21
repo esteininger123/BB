@@ -166,11 +166,12 @@ module.exports = async (req, res) => {
       }
       if (phasen.length > 0 && mietsubventionTotal > 0) {
         // Beschreibung: "60,23 €/Monat × 12 Monate" (eine Phase) oder "X + Y" (mehrere)
+        // Labels wie "Manuell (Override)" sind interne Kalkulator-Infos und
+        // gehören NICHT ins Kunden-Doc — wir lassen sie hier weg.
         mietsubventionBeschreibung = phasen.map(p => {
           const mo = formatEUR(parseFloat(p.mo) || 0);
           const monate = parseInt(p.monate) || 0;
-          const label = (p.label && p.label !== 'Mietsubvention') ? ` (${p.label})` : '';
-          return `${mo}/Monat × ${monate} Monate${label}`;
+          return `${mo}/Monat × ${monate} Monate`;
         }).join(' + ');
         // Vorgefertigter Satz für direktes Einfügen ins Template
         mietsubventionBlock = `Zusätzlich enthält diese Reservierung eine Mietsubvention von ${formatEUR(mietsubventionTotal)} (${mietsubventionBeschreibung}).`;

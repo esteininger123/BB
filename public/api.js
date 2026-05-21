@@ -32,6 +32,13 @@ const api = {
       body: JSON.stringify(body || {}),
     });
   },
+  patch(url, body) {
+    return _fetch(url, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body || {}),
+    });
+  },
   delete(url) { return _fetch(url, { method: 'DELETE', credentials: 'include' }); },
 };
 
