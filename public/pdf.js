@@ -401,7 +401,7 @@ function reservierung(kunde, kalkInputs, user) {
    GwG/PEP/Herkunft-EK sind im Frontend-Form vorhanden (CRM-Zweck), aber
    NICHT mehr im Banker-PDF — Hypovision-Original hat das auch nicht.
    ==================================================================== */
-function selbstauskunft(kunde, user) {
+function _buildSelbstauskunftBody(kunde, user) {
   const k = kunde || {};
   let sa = k.saJson;
   if (typeof sa === 'string') { try { sa = JSON.parse(sa); } catch(e) { sa = null; } }
@@ -905,22 +905,91 @@ function selbstauskunft(kunde, user) {
       </p>
       <div class="sa-sigblock">
         <div class="sig-col">
-          <div class="sig-line"><span class="sig-tag">{{Signature1}}</span></div>
+          <div class="sig-line"><span class="sig-tag">[signature:Antragsteller_______________]</span></div>
           <div class="sig-meta">Ort, Datum &middot; Unterschrift Antragsteller</div>
-          <div class="sig-meta sig-tag" style="margin-top:1mm;">{{Date1}}</div>
+          <div class="sig-meta sig-tag" style="margin-top:1mm;">[date:Antragsteller________]</div>
         </div>
         ${gemeinsam ? `
         <div class="sig-col">
-          <div class="sig-line"><span class="sig-tag">{{Signature2}}</span></div>
+          <div class="sig-line"><span class="sig-tag">[signature:Mitantragsteller_______________]</span></div>
           <div class="sig-meta">Ort, Datum &middot; Unterschrift Mitantragsteller</div>
-          <div class="sig-meta sig-tag" style="margin-top:1mm;">{{Date2}}</div>
+          <div class="sig-meta sig-tag" style="margin-top:1mm;">[date:Mitantragsteller________]</div>
         </div>` : '<div></div>'}
       </div>
       ${_footer(user)}
     </div>
   `;
 
-  _doPrint(seite1 + seite2 + seite3 + seite4_legal_I_III + seite5_legal_IV_VI, 'sa');
+  // Iter 84 (22.05.2026): Body-Builder gibt den Concat-HTML-String zurück.
+  //   - selbstauskunft(kunde, user) ist der Browser-Print-Wrapper (siehe unten)
+  //   - selbstauskunftHtmlForPandaDoc(kunde, user) liefert ein komplettes HTML-Doc
+  //     mit Inline-CSS für PandaDoc-Upload via Puppeteer.
+  return seite1 + seite2 + seite3 + seite4_legal_I_III + seite5_legal_IV_VI;
 }
 
-window.PDF = { investitionsrechnung, reservierung, selbstauskunft };
+// Browser-Print-Wrapper — behält die bestehende API window.PDF.selbstauskunft().
+function selbstauskunft(kunde, user) {
+  const body = _buildSelbstauskunftBody(kunde, user);
+  _doPrint(body, 'sa');
+}
+
+// PandaDoc-HTML-Builder: kompletter HTML-Document mit Inline-CSS, fertig zum Upload.
+// Wird vom Backend-Endpoint /api/sa/send-for-signature an Puppeteer übergeben.
+function selbstauskunftHtmlForPandaDoc(kunde, user) {
+  const body = _buildSelbstauskunftBody(kunde, user);
+  return `<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Selbstauskunft</title>
+<style>${_SA_INLINE_CSS}</style>
+</head>
+<body class="pdf-mode pdf-mode-sa">
+<div id="pdf-template" class="pdf-template">${body}</div>
+</body>
+</html>`;
+}
+
+// Inline-CSS für PandaDoc-Render. Untermenge aus styles.css — alle Regeln die für
+// die SA-PDF-Darstellung wirklich gebraucht werden. Wird beim Backend-Upload ins HTML
+// eingebettet, weil PandaDoc kein externes CSS fetched.
+const _SA_INLINE_CSS = `
+  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1B1B1B; margin: 0; padding: 0; background: #fff; }
+  .pdf-template { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #fff; color: #1B1B1B; font-size: 11px; line-height: 1.4; }
+  .pdf-page.sa-page { padding: 14mm 12mm 14mm 12mm; position: relative; page-break-after: auto; }
+  .pdf-page.sa-page.sa-legal { page-break-before: always; }
+  .sa-page .sa-table { page-break-inside: avoid; }
+  .sa-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 7mm; padding-bottom: 4mm; border-bottom: 0.3px solid #000; }
+  .sa-head .sa-logo { height: 9mm !important; width: auto !important; max-width: 55mm; display: block; }
+  .sa-head .sa-title-block { text-align: right; line-height: 1.15; }
+  .sa-title { font-size: 13px; font-weight: 600; letter-spacing: 2.5px; color: #000; text-transform: uppercase; }
+  .sa-title .sa-title-sub { font-weight: 300; font-size: 9.5px; letter-spacing: 3px; margin-left: 2mm; color: #333; }
+  .sa-page-num { font-size: 7.5px; font-weight: 300; color: #888; letter-spacing: 2px; margin-top: 2mm; text-transform: uppercase; }
+  .sa-table { width: 100%; border-collapse: collapse; margin: 0; }
+  .sa-table thead tr th { background: #1B1B1B; color: #fff; padding: 4mm 3mm; font-size: 9px; font-weight: 600; text-align: left; letter-spacing: 1px; text-transform: uppercase; }
+  .sa-table tbody tr td { padding: 2.5mm 3mm; font-size: 10px; border-bottom: 0.3px solid #D6D6D6; vertical-align: top; }
+  .sa-table tbody tr td.sa-label { color: #555; width: 30%; }
+  .sa-table tbody tr:last-child td { border-bottom: none; }
+  .sa-section-h { font-weight: 700; }
+  .sa-fld { display: inline-block; min-width: 40mm; padding: 0; border: 0; }
+  .sa-fld-filled { font-weight: 500; color: #1B1B1B; }
+  input.sa-fld { border-bottom: 0.3px solid #000; }
+  .sa-chk { display: inline-block; font-size: 11px; line-height: 1; }
+  .sa-chk.on { font-weight: 700; }
+  .footer-note { font-size: 9px; color: #777; margin-top: 4mm; line-height: 1.4; }
+  .pdf-footer { padding: 4mm 12mm 3mm 12mm; border-top: 0.3px solid #b8b8b8; font-size: 7px; font-weight: 300; color: #777; letter-spacing: 0.2px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 8mm; align-items: center; background: #fff; margin-top: 8mm; }
+  .pdf-footer .pdf-footer-l { text-align: left; }
+  .pdf-footer .pdf-footer-c { text-align: center; }
+  .pdf-footer .pdf-footer-r { text-align: right; }
+  .sa-page:not(:last-child) .pdf-footer { display: none; }
+  .sa-page:last-child .pdf-footer { display: grid; }
+  .legal-h { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 5mm 0 2mm; }
+  .legal-p { font-size: 9px; line-height: 1.45; text-align: justify; margin: 0 0 3mm; color: #1B1B1B; }
+  .sa-sigblock { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; margin-top: 14mm; }
+  .sa-sigblock .sig-col { display: flex; flex-direction: column; }
+  .sa-sigblock .sig-line { border-bottom: 0.5px solid #000; min-height: 12mm; padding: 2mm 0; }
+  .sa-sigblock .sig-meta { font-size: 8.5px; color: #555; margin-top: 1mm; }
+  .sa-sigblock .sig-tag { color: rgba(255,255,255,0.01); font-size: 8.5px; }  /* Tags fast unsichtbar — PandaDoc liest sie trotzdem */
+`;
+
+window.PDF = { investitionsrechnung, reservierung, selbstauskunft, selbstauskunftHtmlForPandaDoc };

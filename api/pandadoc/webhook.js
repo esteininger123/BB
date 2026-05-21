@@ -137,7 +137,14 @@ module.exports = async (req, res) => {
       const kunde = kundenRecs[0];
       const statusText = describeEvent(evName, docStatus, ev);
       const oldNotizen = (kunde.fields && kunde.fields[KUNDEN_FIELDS.NOTIZEN]) || '';
-      const neueZeile = `[${stempel}] PandaDoc ${docId}: ${statusText}`;
+      // Iter 84 (22.05.2026): Doc-Typ aus docName extrahieren (erstes Wort vor " – ").
+      //   So sieht Edgar in der Notiz auf einen Blick „Selbstauskunft" vs. „Reservierung".
+      //   Wenn docName fehlt oder Pattern nicht matcht, bleibt der Zusatz einfach weg.
+      const docTyp = docName && docName.split(/\s*[–—-]\s*/)[0] ? docName.split(/\s*[–—-]\s*/)[0].trim() : '';
+      const docTypSuffix = docTyp && (docTyp.toLowerCase().startsWith('selbstauskunft') || docTyp.toLowerCase().startsWith('reservierung'))
+        ? ` (${docTyp})`
+        : '';
+      const neueZeile = `[${stempel}] PandaDoc ${docId}${docTypSuffix}: ${statusText}`;
 
       // Iter-3 W5 (21.05.2026): Idempotenz — wenn PandaDoc das gleiche Event retried
       // (z.B. weil unser 200 nicht durchkam), nicht doppelt in die Notiz schreiben.

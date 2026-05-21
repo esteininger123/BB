@@ -2959,6 +2959,152 @@ function openReservierungFinalModal({ editorUrl, kundeName, weLabel, kundeEmail,
   setTimeout(() => { const a = m.querySelector('#reserv-cta-link'); if (a) a.focus(); }, 50);
 }
 
+// ===== SA via PandaDoc — Versand-Workflow (Iter 84, 22.05.2026) =====
+// Analog zur Reservierung: Bestätigungs-Modal → API-Call → Editor-Link.
+// Frontend generiert das HTML via PDF.selbstauskunftHtmlForPandaDoc() und schickt
+// es an /api/sa/send-for-signature. Backend rendert via Puppeteer zu PDF und
+// uploaded zu PandaDoc mit parse_form_fields:true → Field-Tags werden erkannt.
+
+async function sendSaForSignature() {
+  if (!state.kundeId) {
+    toast('Erst Kunde auswählen', 'error');
+    return;
+  }
+  if (!state.kunde) {
+    toast('Kunde nicht geladen — Tab neu laden', 'error');
+    return;
+  }
+  // saJson aus state oder Kunde
+  let sa = state._sa || state.kunde.saJson;
+  if (typeof sa === 'string') { try { sa = JSON.parse(sa); } catch { sa = null; } }
+  if (!sa || !sa.antragsteller) {
+    toast('Selbstauskunft ist leer — bitte erst ausfüllen und speichern', 'error');
+    return;
+  }
+  const a = sa.antragsteller || {};
+  const m = sa.mitantragsteller || {};
+  const gemeinsam = sa.gemeinsam === true;
+
+  if (!a.email) {
+    toast('E-Mail des Antragstellers fehlt in der SA', 'error');
+    return;
+  }
+  if (gemeinsam && !m.email) {
+    toast('E-Mail des Mitantragstellers fehlt in der SA', 'error');
+    return;
+  }
+
+  const kundeName = ((a.vorname || '') + ' ' + (a.name || '')).trim() || '(ohne Name)';
+  const mitName = gemeinsam ? ((m.vorname || '') + ' ' + (m.name || '')).trim() : null;
+
+  // Modal 1: Bestätigung vor API-Call
+  const userConfirmed = await openSaConfirmModal({ kundeName, kundeEmail: a.email, mitName, mitEmail: gemeinsam ? m.email : null });
+  if (!userConfirmed) return;
+
+  // HTML generieren (im Browser, mit Inline-CSS für PandaDoc)
+  if (!window.PDF || typeof window.PDF.selbstauskunftHtmlForPandaDoc !== 'function') {
+    toast('PDF-Modul nicht aktuell — Seite neu laden (Cache-Bust)', 'error');
+    return;
+  }
+  // collectSaFromDOM stellt sicher, dass state._sa den aktuellen UI-Stand hat
+  collectSaFromDOM();
+  state.kunde.saJson = state._sa;
+  const html = window.PDF.selbstauskunftHtmlForPandaDoc(state.kunde, state.user);
+
+  toast('Erstelle Dokument in PandaDoc… (kann 10-15 Sek dauern)', 'info');
+  try {
+    const resp = await api.post('/api/sa/send-for-signature', {
+      kundeId: state.kundeId,
+      html,
+    });
+    if (resp && resp.ok && resp.editorUrl) {
+      openSaFinalModal({
+        editorUrl: resp.editorUrl,
+        kundeName,
+        kundeEmail: a.email,
+        mitName,
+        mitEmail: gemeinsam ? m.email : null,
+        message: resp.message,
+      });
+    } else if (resp && resp.message) {
+      toast(resp.message, 'info');
+      if (resp.editorUrl) {
+        openSaFinalModal({
+          editorUrl: resp.editorUrl,
+          kundeName,
+          kundeEmail: a.email,
+          mitName,
+          mitEmail: gemeinsam ? m.email : null,
+          message: resp.message,
+          warnung: resp.message,
+        });
+      }
+    } else {
+      toast('Unerwartete Antwort vom Server', 'error');
+    }
+  } catch (e) {
+    toast('Fehler: ' + (e && e.message ? e.message : 'Unbekannt'), 'error');
+  }
+}
+window.sendSaForSignature = sendSaForSignature;
+
+function openSaConfirmModal({ kundeName, kundeEmail, mitName, mitEmail }) {
+  _reservEnsureStyles();  // gleiches CSS wie Reservierungs-Modal
+  return new Promise((resolve) => {
+    const m = document.createElement('div');
+    m.className = 'reserv-modal-overlay';
+    m.innerHTML =
+      '<div class="reserv-modal">' +
+        '<h2>Selbstauskunft via PandaDoc</h2>' +
+        '<div class="reserv-modal-body">' +
+          '<div class="reserv-info-row"><div class="reserv-info-label">Antragsteller</div><div class="reserv-info-value">' + _reservEscapeHtml(kundeName) + '</div></div>' +
+          '<div class="reserv-info-row"><div class="reserv-info-label">E-Mail</div><div class="reserv-info-value">' + _reservEscapeHtml(kundeEmail) + '</div></div>' +
+          (mitName ? '<div class="reserv-info-row"><div class="reserv-info-label">Mit-Antragsteller</div><div class="reserv-info-value">' + _reservEscapeHtml(mitName) + '</div></div>' : '') +
+          (mitEmail ? '<div class="reserv-info-row"><div class="reserv-info-label">E-Mail (Mit)</div><div class="reserv-info-value">' + _reservEscapeHtml(mitEmail) + '</div></div>' : '') +
+          '<p style="margin-top:14px; color:#555;">Die Selbstauskunft wird als PDF in PandaDoc hochgeladen. Field-Tags für Signatur und Datum werden automatisch erkannt. Danach kannst du das Doc prüfen und versenden.</p>' +
+          '<p style="margin-top:8px; color:#a35200; font-size:0.9em;">Voraussetzung: SA muss vollständig ausgefüllt + gespeichert sein. Field-Tags in PandaDoc-Workspace müssen aktiviert sein (Settings → Workspace → Field Tags).</p>' +
+        '</div>' +
+        '<div class="reserv-modal-actions">' +
+          '<button class="reserv-cancel" id="sa-cancel-btn">Abbrechen</button>' +
+          '<button class="reserv-confirm" id="sa-confirm-btn">Dokument erstellen</button>' +
+        '</div>' +
+      '</div>';
+    const close = (ok) => { m.remove(); resolve(ok); };
+    m.querySelector('#sa-cancel-btn').onclick = () => close(false);
+    m.querySelector('#sa-confirm-btn').onclick = () => close(true);
+    m.onclick = (e) => { if (e.target === m) close(false); };
+    document.body.appendChild(m);
+    setTimeout(() => { const b = m.querySelector('#sa-confirm-btn'); if (b) b.focus(); }, 50);
+  });
+}
+
+function openSaFinalModal({ editorUrl, kundeName, kundeEmail, mitName, mitEmail, message, warnung }) {
+  _reservEnsureStyles();
+  const m = document.createElement('div');
+  m.className = 'reserv-modal-overlay';
+  m.innerHTML =
+    '<div class="reserv-modal">' +
+      '<h2><span class="reserv-success">✓</span> Selbstauskunft steht bereit</h2>' +
+      '<div class="reserv-modal-body">' +
+        '<p>Das Dokument für <strong>' + _reservEscapeHtml(kundeName) + '</strong>' + (mitName ? ' + <strong>' + _reservEscapeHtml(mitName) + '</strong>' : '') + ' ist in PandaDoc vorbereitet.</p>' +
+        '<div class="reserv-info-row" style="margin-top:12px;"><div class="reserv-info-label">E-Mail Antragsteller</div><div class="reserv-info-value">' + _reservEscapeHtml(kundeEmail) + '</div></div>' +
+        (mitEmail ? '<div class="reserv-info-row"><div class="reserv-info-label">E-Mail Mit-Antragsteller</div><div class="reserv-info-value">' + _reservEscapeHtml(mitEmail) + '</div></div>' : '') +
+        '<div class="reserv-hint">Klick auf den Button öffnet PandaDoc direkt am Doc. Dort prüfst du kurz die Signaturfeld-Positionen (sollten an den korrekten Stellen automatisch erkannt sein), passt ggf. den Doc-Namen an und klickst oben rechts auf <strong>„Dokument senden"</strong>.</div>' +
+        (warnung ? '<p style="margin-top:10px;color:#a35200;font-size:0.9em;">' + _reservEscapeHtml(warnung) + '</p>' : '') +
+      '</div>' +
+      '<div class="reserv-modal-actions">' +
+        '<button class="reserv-cancel" id="sa-close-btn">Schließen</button>' +
+        '<a class="reserv-cta" href="' + _reservEscapeHtml(editorUrl) + '" target="_blank" rel="noopener" id="sa-cta-link">→ In PandaDoc öffnen &amp; senden</a>' +
+      '</div>' +
+    '</div>';
+  const close = () => m.remove();
+  m.querySelector('#sa-close-btn').onclick = close;
+  m.querySelector('#sa-cta-link').addEventListener('click', () => { setTimeout(close, 300); });
+  m.onclick = (e) => { if (e.target === m) close(); };
+  document.body.appendChild(m);
+  setTimeout(() => { const a = m.querySelector('#sa-cta-link'); if (a) a.focus(); }, 50);
+}
+
 // ===== MODUL: views/selbstauskunft-tab (SA-Form + Auswertung + Auto-Save) =====
 /* ============================== SELBSTAUSKUNFT-TAB ============================== */
 
@@ -3145,7 +3291,8 @@ function renderTabSelbstauskunft() {
       <div id="sa-auswertung-wrap" class="mt-16">${saAuswertungHtml()}</div>
       <div class="toolbar mt-16">
         <button onclick="saveSelbstauskunft()">Speichern</button>
-        <button class="secondary" onclick="exportSaPdf()">PDF Selbstauskunft</button>
+        <button class="secondary" onclick="exportSaPdf()">PDF Selbstauskunft (Druck)</button>
+        <button onclick="sendSaForSignature()">→ Selbstauskunft via PandaDoc senden</button>
       </div>
     </div>
   `;

@@ -1,53 +1,59 @@
 // POST /api/sa/send-for-signature
 //
-// Schickt die Selbstauskunft eines Kunden an PandaDoc zur digitalen Signatur.
-// STATUS: STUB. Bevor das produktiv funktioniert, muss Edgar:
-//   1. PandaDoc-Account anlegen (https://www.pandadoc.com)
-//   2. API-Key generieren (Settings → Developer → API Keys → Create API Key)
-//   3. Selbstauskunft-PDF einmalig als Template hochladen, Signaturfelder den
-//      PandaDoc-Token-Tags {{Signature1}}, {{Date1}}, {{Signature2}}, {{Date2}}
-//      zuordnen, Template-ID notieren.
-//   4. Env-Vars setzen (Vercel → Settings → Environment Variables):
-//        PANDADOC_API_KEY          (der API-Key, Format: "API-Key xxx")
-//        PANDADOC_TEMPLATE_ID_SA   (Template-ID aus PandaDoc)
-//        PANDADOC_WEBHOOK_SECRET   (frei wählbar — zum Verifizieren der Webhook-Calls)
+// Iter 84 (22.05.2026): Neu geschrieben für Variante B (HTML → PDF → Upload).
+// Ersetzt den alten Template-basierten Stub.
 //
-// Wenn Edgar lieber das PDF aus dem Browser an PandaDoc weiterreicht (statt
-// Template-Variante), siehe Variante B unten im Kommentarblock.
+// Flow:
+//   1. Frontend ruft PDF.selbstauskunftHtmlForPandaDoc(kunde, user) → komplettes HTML
+//   2. Frontend POSTet { kundeId, html } an diesen Endpoint
+//   3. Backend rendert das HTML via Puppeteer + @sparticuz/chromium-min zu PDF
+//   4. Backend uploaded das PDF zu PandaDoc (multipart/form-data) mit parse_form_fields:true
+//      → PandaDoc erkennt die [signature:Antragsteller___]- und [date:...]-Tags im PDF
+//   5. Backend wartet auf document.draft (3-10 Sek async)
+//   6. Backend gibt Editor-URL zurück (Hybrid wie Reservierung)
+//   7. Frontend öffnet Editor-Tab, Vertriebler klickt im PandaDoc-UI „Dokument senden"
+//
+// Env-Vars:
+//   PANDADOC_API_KEY            (bereits gesetzt für Reservierung)
+//   PANDADOC_EDITOR_HOST        (optional, default app.pandadoc.com)
+//   CHROMIUM_PACK_URL           (optional, default GitHub-Release v133)
+//
+// PandaDoc-Workspace muss „Field Tags" aktiviert haben — sonst werden die Tags
+// im PDF nicht in Signaturfelder umgewandelt.
 
+const chromium = require('@sparticuz/chromium-min');
+const puppeteer = require('puppeteer-core');
 const { verifySession } = require('../_lib/auth');
 const { airtable } = require('../_lib/airtable');
 const { readBody, methodNotAllowed } = require('../_lib/http');
 const { TABLES, KUNDEN_FIELDS } = require('../_lib/tables');
 
 const PANDADOC_API = 'https://api.pandadoc.com/public/v1';
-
-// B&B-Kontaktdaten zentral. Wenn sich Nummer/E-Mail ändert, hier anpassen.
-const BB_KONTAKT = {
-  telefon: '07805 / 919 16 41',
-  email:   'info@bub-immo.de',
-};
+const DEFAULT_PACK_URL = 'https://github.com/Sparticuz/chromium/releases/download/v133.0.0/chromium-v133.0.0-pack.tar';
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const startTs = Date.now();
 
   const session = verifySession(req);
   if (!session) return res.status(401).json({ error: 'Nicht eingeloggt' });
 
   const apiKey = process.env.PANDADOC_API_KEY;
-  const templateId = process.env.PANDADOC_TEMPLATE_ID_SA;
-  if (!apiKey || !templateId) {
+  if (!apiKey) {
     return res.status(503).json({
       error: 'PandaDoc nicht konfiguriert',
-      hint: 'Env-Vars PANDADOC_API_KEY und PANDADOC_TEMPLATE_ID_SA fehlen. Siehe Kommentar in api/sa/send-for-signature.js.'
+      hint: 'Env-Var PANDADOC_API_KEY fehlt in Vercel.'
     });
   }
 
   const body = await readBody(req);
-  const { kundeId } = body;
+  const { kundeId, html } = body || {};
   if (!kundeId) return res.status(400).json({ error: 'kundeId erforderlich' });
+  if (!html || typeof html !== 'string' || html.length < 100) {
+    return res.status(400).json({ error: 'html erforderlich (vom Frontend via PDF.selbstauskunftHtmlForPandaDoc)' });
+  }
 
-  // Kunde laden + Zugriff prüfen (gleiche Logik wie in snapshots.js)
+  // Kunde laden + Owner-Check (analog Reservierungs-Endpoint)
   let kundeRec;
   try {
     kundeRec = await airtable('get', TABLES.KUNDEN, { recordId: kundeId });
@@ -61,130 +67,136 @@ module.exports = async (req, res) => {
     }
   }
 
+  // saJson aus Kunde lesen — daraus Recipients ableiten
   const sa = parseSaJson(kundeRec.fields && kundeRec.fields[KUNDEN_FIELDS.SA_JSON]);
   if (!sa || !sa.antragsteller) {
     return res.status(400).json({ error: 'Selbstauskunft des Kunden ist leer — bitte erst ausfüllen.' });
   }
-
-  const a = sa.antragsteller;
+  const a = sa.antragsteller || {};
   const m = sa.mitantragsteller || {};
   const gemeinsam = sa.gemeinsam === true;
 
   if (!a.email) return res.status(400).json({ error: 'E-Mail des Antragstellers fehlt in der Selbstauskunft.' });
-  if (gemeinsam && !m.email) return res.status(400).json({ error: 'E-Mail des Mitantragstellers fehlt.' });
+  if (gemeinsam && !m.email) return res.status(400).json({ error: 'E-Mail des Mitantragstellers fehlt — bitte in der SA ergänzen.' });
 
-  // --- Empfänger-Mapping. Die "role" muss exakt so heißen, wie im PandaDoc-Template
-  // hinterlegt ist (in PandaDoc als Recipient-Role-Name beim Template-Setup festgelegt).
-  const recipients = [
-    {
-      email: a.email,
-      first_name: a.vorname || '',
-      last_name: a.name || '',
-      role: 'Antragsteller'
-    }
-  ];
+  // ----- 1) HTML zu PDF via Puppeteer -----
+  let pdfBuffer = null;
+  let browser = null;
+  try {
+    const executablePath = await chromium.executablePath(process.env.CHROMIUM_PACK_URL || DEFAULT_PACK_URL);
+    chromium.setHeadlessMode = true;
+    chromium.setGraphicsMode = false;
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath,
+      headless: chromium.headless,
+    });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '14mm', right: '12mm', bottom: '18mm', left: '12mm' },
+    });
+  } catch (e) {
+    if (browser) try { await browser.close(); } catch {}
+    return res.status(500).json({ error: 'PDF-Generation fehlgeschlagen', detail: e.message, durationMs: Date.now() - startTs });
+  } finally {
+    if (browser) try { await browser.close(); } catch {}
+  }
+
+  // ----- 2) PandaDoc-Upload (multipart/form-data) -----
+  // Recipients: Antragsteller + ggf. Mitantragsteller. Rollen-Strings exakt
+  // wie die Field-Tags im PDF ([signature:Antragsteller___]).
+  const recipients = [{
+    email: a.email,
+    first_name: a.vorname || '',
+    last_name: a.name || '',
+    role: 'Antragsteller',
+    signing_order: 1,
+  }];
   if (gemeinsam) {
     recipients.push({
       email: m.email,
       first_name: m.vorname || '',
       last_name: m.name || '',
-      role: 'Mitantragsteller'
+      role: 'Mitantragsteller',
+      signing_order: 2,
     });
   }
+  const docName = `Selbstauskunft – ${a.vorname || ''} ${a.name || ''}`.trim();
+  const dataJson = {
+    name: docName,
+    recipients,
+    parse_form_fields: true,  // Triggert Field-Tag-Erkennung im PDF
+    tags: ['selbstauskunft', 'bb-immo'],
+  };
 
-  // --- Token-Mapping. Variablen, die PandaDoc in das Template einsetzt.
-  // Mappt sa.* auf die im Template definierten Tokens (z.B. {{Antragsteller.Name}}).
-  // Diese Liste muss zum Template passen, das in PandaDoc hochgeladen wurde.
-  const tokens = [
-    { name: 'Antragsteller.Name', value: `${a.vorname || ''} ${a.name || ''}`.trim() },
-    { name: 'Antragsteller.Adresse', value: `${a.strasse || ''}, ${a.plz || ''} ${a.ort || ''}` },
-    { name: 'Antragsteller.Geburtsdatum', value: a.geburtsdatum || '' },
-    { name: 'Datum.Heute', value: new Date().toLocaleDateString('de-DE') }
-  ];
-  if (gemeinsam) {
-    tokens.push(
-      { name: 'Mitantragsteller.Name', value: `${m.vorname || ''} ${m.name || ''}`.trim() },
-      { name: 'Mitantragsteller.Adresse', value: `${m.strasse || ''}, ${m.plz || ''} ${m.ort || ''}` }
-    );
-  }
-
-  // --- 1) Dokument aus Template erzeugen
   let document;
   try {
-    const createResp = await fetch(`${PANDADOC_API}/documents`, {
+    const formBody = buildMultipart(dataJson, pdfBuffer, docName);
+    const createResp = await fetch(`${PANDADOC_API}/documents/`, {
       method: 'POST',
       headers: {
         'Authorization': `API-Key ${apiKey}`,
-        'Content-Type': 'application/json'
+        'Content-Type': `multipart/form-data; boundary=${formBody.boundary}`,
       },
-      body: JSON.stringify({
-        name: `Selbstauskunft – ${a.vorname || ''} ${a.name || ''}`.trim(),
-        template_uuid: templateId,
-        recipients,
-        tokens
-      })
+      body: formBody.body,
     });
     if (!createResp.ok) {
       const errText = await createResp.text();
-      return res.status(502).json({ error: 'PandaDoc-Create fehlgeschlagen', detail: errText });
+      return res.status(502).json({ error: 'PandaDoc-Create fehlgeschlagen', detail: errText, durationMs: Date.now() - startTs });
     }
     document = await createResp.json();
   } catch (e) {
-    return res.status(502).json({ error: 'PandaDoc nicht erreichbar', detail: e.message });
+    return res.status(502).json({ error: 'PandaDoc nicht erreichbar', detail: e.message, durationMs: Date.now() - startTs });
   }
 
-  // PandaDoc baut das Dokument asynchron. Wir müssen warten, bis Status = "document.draft".
-  // In der Praxis dauert das 1–5 Sekunden. Hier: kurzes Polling (max 10s).
   const docId = document.id;
+
+  // ----- 3) Auf document.draft warten (PandaDoc verarbeitet PDF + Tags async) -----
   let ready = false;
-  for (let i = 0; i < 10 && !ready; i++) {
-    await new Promise(r => setTimeout(r, 1000));
+  for (let i = 0; i < 12 && !ready; i++) {
+    await new Promise(r => setTimeout(r, 1500));
     try {
       const statusResp = await fetch(`${PANDADOC_API}/documents/${docId}`, {
         headers: { 'Authorization': `API-Key ${apiKey}` }
       });
       const statusData = await statusResp.json();
       if (statusData.status === 'document.draft') ready = true;
-    } catch { /* retry */ }
-  }
-  if (!ready) {
-    return res.status(202).json({
-      message: 'Dokument erstellt, aber noch nicht versandfertig. Bitte später erneut versenden.',
-      pandadocDocumentId: docId
-    });
+    } catch {}
   }
 
-  // --- 2) Versenden
+  // ----- 4) Hybrid-Workflow: Editor-URL zurückgeben, kein Auto-Send -----
+  // Analog zum Reservierungs-Endpoint: Vertriebler prüft im PandaDoc-Editor
+  // und klickt „Dokument senden" manuell.
+  const editorHost = process.env.PANDADOC_EDITOR_HOST || 'app.pandadoc.com';
+  const editorUrl = `https://${editorHost}/a/#/documents/${docId}`;
+
+  // PandaDoc-DocId in Kunden-Notizen vermerken
   try {
-    const sendResp = await fetch(`${PANDADOC_API}/documents/${docId}/send`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `API-Key ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        message: `Sehr geehrte/r ${a.vorname || ''} ${a.name || ''},\n\n` +
-          `anbei Ihre persönliche Selbstauskunft zur digitalen Unterschrift. ` +
-          `Bitte prüfen Sie die Angaben sorgfältig und unterzeichnen Sie das Dokument direkt online.\n\n` +
-          `Bei Rückfragen erreichen Sie uns unter ${BB_KONTAKT.email} oder ${BB_KONTAKT.telefon}.\n\n` +
-          `Mit freundlichen Grüßen\nB&B Immo GmbH`,
-        subject: 'Ihre Selbstauskunft – Bitte digital unterzeichnen',
-        silent: false
-      })
+    const oldNotizen = (kundeRec.fields && kundeRec.fields[KUNDEN_FIELDS.NOTIZEN]) || '';
+    const stempel = new Date().toISOString().substring(0, 16).replace('T', ' ');
+    const neueZeile = `[${stempel}] Selbstauskunft erstellt für ${a.email}${gemeinsam ? ` + ${m.email}` : ''} — PandaDoc-Doc: ${docId} (wartet auf manuellen Send)`;
+    const neueNotizen = oldNotizen ? `${oldNotizen}\n${neueZeile}` : neueZeile;
+    await airtable('update', TABLES.KUNDEN, {
+      recordId: kundeId,
+      fields: { [KUNDEN_FIELDS.NOTIZEN]: neueNotizen }
     });
-    if (!sendResp.ok) {
-      const errText = await sendResp.text();
-      return res.status(502).json({ error: 'PandaDoc-Send fehlgeschlagen', detail: errText });
-    }
   } catch (e) {
-    return res.status(502).json({ error: 'Versand fehlgeschlagen', detail: e.message });
+    // Notiz-Schreib-Fehler ist nicht tödlich
   }
 
-  // --- 3) Erfolg zurückgeben (Kunde-Phase könnte hier auf "Selbstauskunft versandt" gesetzt werden)
   return res.status(200).json({
-    message: 'Selbstauskunft versandt',
+    ok: true,
+    message: ready
+      ? 'Selbstauskunft erstellt — öffne PandaDoc und klick „Dokument senden"'
+      : 'Dokument wird im Hintergrund vorbereitet — öffne PandaDoc, dort steht es gleich versandbereit',
     pandadocDocumentId: docId,
-    recipients: recipients.map(r => r.email)
+    editorUrl,
+    recipients: recipients.map(r => r.email),
+    durationMs: Date.now() - startTs,
   });
 };
 
@@ -194,30 +206,34 @@ function parseSaJson(raw) {
   try { return JSON.parse(raw); } catch { return null; }
 }
 
-/*
- * =======================================================================================
- * VARIANTE B: PDF aus dem Browser hochladen (statt Template)
- * =======================================================================================
- *
- * Wenn Edgar das PDF lieber aus der Webapp generiert und 1:1 an PandaDoc weiterreicht
- * (statt PandaDoc-Templates zu pflegen), so funktioniert es:
- *
- * 1) Frontend: PDF.js generiert das HTML → window.print() ist NICHT scriptbar. Stattdessen
- *    nutzt man html2pdf.js / jspdf, um das HTML zu Base64-PDF zu konvertieren.
- *    Beispiel: const pdfBlob = await html2pdf().from(html).output('blob');
- *
- * 2) Frontend → Backend POST mit { kundeId, pdfBase64 }.
- *
- * 3) Backend: PandaDoc-API "Create document from PDF" verwenden:
- *      POST /v1/documents
- *      multipart/form-data:
- *        - file: <pdfBlob>
- *        - data: { name, recipients, fields: [{...positioniert per Text-Tag-Erkennung}] }
- *    PandaDoc erkennt die {{Signature1}}-Tags automatisch im PDF-Text (wenn im
- *    PandaDoc-Workspace "Text Tags" aktiviert ist: Settings → Workspace → Text Tags).
- *
- * Vorteil Variante B: Layout-Änderungen am PDF brauchen kein Template-Update.
- * Nachteil: PandaDoc rechnet pro Dokument-Upload (vs. Template = unlimited).
- *
- * Empfehlung: Erstmal Variante A (Template). Wenn Edgar das PDF oft ändert, auf B umstellen.
- */
+// Multipart/form-data Body Builder — schickt JSON-„data"-Part + PDF-„file"-Part
+// im Format das PandaDoc erwartet. Vermeidet eine extra form-data-Dependency.
+function buildMultipart(dataJson, pdfBuffer, filename) {
+  const boundary = '----BBImmo' + Math.random().toString(36).slice(2);
+  const CRLF = '\r\n';
+  const parts = [];
+
+  // Part 1: data (JSON)
+  parts.push(Buffer.from(
+    `--${boundary}${CRLF}` +
+    `Content-Disposition: form-data; name="data"${CRLF}` +
+    `Content-Type: application/json${CRLF}${CRLF}` +
+    JSON.stringify(dataJson) +
+    CRLF
+  ));
+
+  // Part 2: file (PDF)
+  const safeName = (filename || 'selbstauskunft').replace(/[^\w\-äöüÄÖÜß ]/g, '_') + '.pdf';
+  parts.push(Buffer.from(
+    `--${boundary}${CRLF}` +
+    `Content-Disposition: form-data; name="file"; filename="${safeName}"${CRLF}` +
+    `Content-Type: application/pdf${CRLF}${CRLF}`
+  ));
+  parts.push(pdfBuffer);
+  parts.push(Buffer.from(CRLF));
+
+  // Closing boundary
+  parts.push(Buffer.from(`--${boundary}--${CRLF}`));
+
+  return { boundary, body: Buffer.concat(parts) };
+}
