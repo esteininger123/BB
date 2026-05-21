@@ -3026,6 +3026,16 @@ function renderTabSelbstauskunft() {
   el.innerHTML = `
     <div class="card">
       <div class="card-title">Selbstauskunft <span class="text-tertiary text-small" style="font-weight:normal;">(Auto-Save aktiv)</span></div>
+
+      ${/* Iter 70 (21.05.2026): Einleitung mit Pflege-Logik für den Vertriebler */ ''}
+      <div class="sa-intro" style="background:#FAF6EE;border-left:3px solid #C9A961;padding:14px 18px;margin:8px 0 20px;border-radius:4px;font-size:14px;line-height:1.55;color:#3A2E13;">
+        <div style="font-weight:600;margin-bottom:8px;font-size:15px;">Wie diese Selbstauskunft funktioniert</div>
+        <p style="margin:0 0 8px;">Sie ist bewusst <strong>schlank</strong> gehalten — vier Bausteine: <strong>① Einnahmen, ② Ausgaben, ③ Vermögen, ④ Verbindlichkeiten</strong>. Pro Baustein gibt es die wichtigsten Pflichtfelder als Standard und einen <strong>Baukasten</strong> für alles Individuelle.</p>
+        <p style="margin:0 0 8px;">Im Baukasten kannst Du beliebig viele Positionen mit <strong>Titel + Notiz + Betrag</strong> anlegen. Damit bläht die SA nicht mit ungenutzten Feldern auf, deckt aber jeden Sonderfall ab.</p>
+        <p style="margin:0 0 8px;"><strong>Fonds-Logik (Cross-Reference):</strong> Wenn ein Fondssparplan bespart wird, leg ihn zweimal an — einmal in <em>② Ausgaben</em> mit der Mo-Rate, einmal in <em>③ Vermögen</em> mit dem aktuellen Bestand. <strong>Vergibst Du beide Mal den gleichen Titel</strong> („Fondssparplan Riester"), ist die Verknüpfung sichtbar — die Bank versteht: das Geld wird in diese Vermögensposition gespart.</p>
+        <p style="margin:0;"><strong>Checklisten</strong> in jedem Block erinnern Dich, was Du beim Kunden abfragen solltest. Bonität nur so gut wie das, was reinkommt.</p>
+      </div>
+
       <div class="flex gap-12 mb-16">
         <label for="sa-gemeinsam" class="sa-gemeinsam-toggle">
           <input type="checkbox" id="sa-gemeinsam" ${istGemeinsam ? 'checked' : ''}>
@@ -3078,16 +3088,15 @@ function renderTabSelbstauskunft() {
     btn.addEventListener('click', () => {
       // Vor Re-Render aktuelle DOM-Werte einlesen
       collectSaFromDOM();
-      const raw = btn.dataset.zusatzAdd; // "prefix.kategorie" oder "prefix.kategorie|sparplan"
-      const [pfadStr, variant] = raw.split('|');
+      const raw = btn.dataset.zusatzAdd; // "prefix.kategorie" oder "prefix.kategorie|variant"
+      const [pfadStr] = raw.split('|');
       const [prefix, kategorie] = pfadStr.split('.');
       const target = prefix === 'a' ? 'antragsteller' : 'mitantragsteller';
       if (!state._sa[target]) state._sa[target] = {};
       if (!Array.isArray(state._sa[target][kategorie])) state._sa[target][kategorie] = [];
-      const neu = variant === 'sparplan'
-        ? { titel: '', notiz: '', mo: null, wert: null }
-        : { titel: '', notiz: '', mo: null, wert: null };
-      state._sa[target][kategorie].push(neu);
+      // Iter 70: einheitliches Schema { titel, notiz, mo, wert } — Varianten benutzen
+      //   nur jeweils die relevanten Felder (mo oder wert oder beide).
+      state._sa[target][kategorie].push({ titel: '', notiz: '', mo: null, wert: null });
       renderTabSelbstauskunft();
       autoSaveSa();
     });
@@ -3335,22 +3344,29 @@ function saHerkunftEkHtml(h) {
 function saPersonHtml(prefix, p) {
   p = p || {};
 
-  // Iter 66 (20.05.2026): Baukasten-Helper für Zusatz-Positions-Listen.
-  // Variante "single": Titel + Notiz + 1 Betrag.
-  // Variante "sparplan": Titel + Notiz + Mo-Rate + Wert (fließt in Ausgaben UND Vermögen).
+  // Iter 70 (21.05.2026): Baukasten-Helper, vereinfacht.
+  // Varianten:
+  //   'mo'             → Titel + Notiz + €/Mo (Einnahmen, Ausgaben)
+  //   'wert'           → Titel + Notiz + € (Vermögen)
+  //   'mo-wert'        → Titel + Notiz + €/Mo + € (Verbindlichkeiten: mtl. Belastung + Restsaldo)
+  // Cross-Reference Ausgabe ↔ Vermögen: gleicher Titel signalisiert „bespart wird".
   // Inputs nutzen `data-sa-zusatz`, der von collectSaFromDOM separat verarbeitet wird.
-  function zusatzListeHtml(kategorie, summary, hint, einheit, variant) {
+  function zusatzListeHtml(kategorie, summary, hint, variant, addLabel) {
     const liste = Array.isArray(p[kategorie]) ? p[kategorie] : [];
-    const istSparplan = variant === 'sparplan';
-    const betragFeld = einheit === '€/Mo' ? 'mo' : 'wert';
+    const istDoppel = variant === 'mo-wert';
     const dz = (idx, feld) => `data-sa-zusatz="${prefix}.${kategorie}.${idx}.${feld}"`;
     const rows = liste.map((item, idx) => {
-      const inputs = istSparplan
-        ? `<input type="number" step="any" placeholder="€/Mo Rate" ${dz(idx, 'mo')} value="${item.mo !== undefined && item.mo !== null ? item.mo : ''}" class="sa-zusatz-mo">
-           <input type="number" step="any" placeholder="€ Bestand/Wert" ${dz(idx, 'wert')} value="${item.wert !== undefined && item.wert !== null ? item.wert : ''}" class="sa-zusatz-wert">`
-        : `<input type="number" step="any" placeholder="${esc(einheit)}" ${dz(idx, betragFeld)} value="${item[betragFeld] !== undefined && item[betragFeld] !== null ? item[betragFeld] : ''}" class="sa-zusatz-betrag">`;
+      let inputs;
+      if (istDoppel) {
+        inputs = `<input type="number" step="any" placeholder="€/Mo Belastung" ${dz(idx, 'mo')} value="${item.mo !== undefined && item.mo !== null ? item.mo : ''}" class="sa-zusatz-mo">
+                  <input type="number" step="any" placeholder="€ Restsaldo" ${dz(idx, 'wert')} value="${item.wert !== undefined && item.wert !== null ? item.wert : ''}" class="sa-zusatz-wert">`;
+      } else if (variant === 'mo') {
+        inputs = `<input type="number" step="any" placeholder="€/Mo" ${dz(idx, 'mo')} value="${item.mo !== undefined && item.mo !== null ? item.mo : ''}" class="sa-zusatz-betrag">`;
+      } else {
+        inputs = `<input type="number" step="any" placeholder="€" ${dz(idx, 'wert')} value="${item.wert !== undefined && item.wert !== null ? item.wert : ''}" class="sa-zusatz-betrag">`;
+      }
       return `
-        <div class="sa-zusatz-row" data-zusatz-row="${prefix}.${kategorie}.${idx}" style="display:grid;grid-template-columns:1.2fr 1.5fr ${istSparplan ? '1fr 1fr' : '1fr'} auto;gap:8px;align-items:center;margin-bottom:6px;">
+        <div class="sa-zusatz-row" data-zusatz-row="${prefix}.${kategorie}.${idx}" style="display:grid;grid-template-columns:1.2fr 1.5fr ${istDoppel ? '1fr 1fr' : '1fr'} auto;gap:8px;align-items:center;margin-bottom:6px;">
           <input type="text" placeholder="Titel (z.B. Fondssparplan Riester)" ${dz(idx, 'titel')} value="${esc(item.titel || '')}">
           <input type="text" placeholder="Notiz (optional)" ${dz(idx, 'notiz')} value="${esc(item.notiz || '')}">
           ${inputs}
@@ -3360,11 +3376,22 @@ function saPersonHtml(prefix, p) {
     return `
       <details class="sa-section${liste.length > 0 ? ' open' : ''}" ${liste.length > 0 ? 'open' : ''}>
         <summary>${esc(summary)} <span class="text-tertiary text-small" style="font-weight:normal;">(${liste.length})</span></summary>
-        ${hint ? `<div class="text-tertiary text-small mb-8">${esc(hint)}</div>` : ''}
+        ${hint ? `<div class="text-tertiary text-small mb-8">${hint}</div>` : ''}
         <div class="sa-zusatz-list">${rows || '<div class="text-tertiary text-small">Noch keine Position erfasst.</div>'}</div>
-        <button type="button" class="sa-zusatz-add secondary mt-8" data-zusatz-add="${prefix}.${kategorie}${istSparplan ? '|sparplan' : ''}">+ Position hinzufügen</button>
+        <button type="button" class="sa-zusatz-add secondary mt-8" data-zusatz-add="${prefix}.${kategorie}${istDoppel ? '|verbindlichkeit' : ''}">+ ${esc(addLabel || 'Position hinzufügen')}</button>
       </details>
     `;
+  }
+
+  // Checklisten-Infobox pro Block — erinnert den Vertriebler, was abgefragt werden sollte.
+  function checklistBox(titel, items) {
+    return `
+      <div class="sa-checklist" style="background:#FAF6EE;border-left:3px solid #C9A961;padding:10px 14px;margin:0 0 12px;border-radius:4px;font-size:13px;">
+        <div style="font-weight:600;color:#5C4922;margin-bottom:6px;">📋 Checkliste · ${esc(titel)}</div>
+        <ul style="margin:0;padding-left:18px;color:#5C4922;line-height:1.5;">
+          ${items.map(t => `<li>${t}</li>`).join('')}
+        </ul>
+      </div>`;
   }
   // Text-Feld
   const t = (label, key) => `
@@ -3480,66 +3507,83 @@ function saPersonHtml(prefix, p) {
       </div>
     </details>
 
+    ${/* Iter 70 (21.05.2026): SA-Struktur radikal vereinfacht — 4 Bausteine
+        (Einnahmen / Ausgaben / Vermögen / Verbindlichkeiten), je mit Standard-Pflichtfeldern
+        + Baukasten + Checklisten-Infobox. Sparpläne/Fonds laufen über Cross-Naming
+        zwischen Ausgabe-Baukasten und Vermögens-Baukasten (gleicher Titel → bespart). */ ''}
+
+    <!-- =================== BLOCK 1 · EINNAHMEN =================== -->
     <details class="sa-section" open>
-      <summary>Einkommen (monatlich)</summary>
+      <summary>① Einnahmen (monatlich)</summary>
+      ${checklistBox('Einnahmen — was abfragen', [
+        '<strong>Netto-Gehalt</strong> aus dem Lohnzettel + Anzahl Gehälter (12, 13, 14, …)',
+        '<strong>Mieteinnahmen</strong> aus vermieteten Bestandsimmobilien — Bank rechnet 80 % an',
+        '<strong>Unterhalt erhalten</strong> (z.B. nach Scheidung)',
+        '<strong>Kindergeld</strong> aktuell laufend',
+        '<strong>Selbstständige Honorare, Renten, BU-Renten</strong> → in den Baukasten unten',
+        '<strong>Bonus / Tantieme</strong> nur wenn regelmäßig (sonst in Notiz vermerken)',
+      ])}
       <div class="grid-2">
         ${n('Netto-Gehalt', 'nettoMo', '€/Mo')}
         ${n('Anzahl der Gehälter', 'anzahlGehaelter', '×', '0.5')}
         ${n('Vermietung & Verpachtung', 'vermietungMo', '€/Mo')}
-        ${n('Sonstige Einkommen', 'sonstigeMo', '€/Mo')}
         ${n('Unterhalt erhalten', 'unterhaltMo', '€/Mo')}
         ${n('Kindergeld', 'kindergeldMo', '€/Mo')}
         ${n('Zu versteuerndes Einkommen', 'zveJahr', '€/Jahr')}
       </div>
     </details>
+    ${zusatzListeHtml('zusatzEinnahmen', 'Sonstige Einnahmen (Baukasten)',
+      'Alles, was nicht in die Standard-Felder oben passt: Honorare, Renten, BAV-Auszahlungen, regelmäßige Zuwendungen. <strong>Tipp:</strong> Wenn die Position auch in Vermögen oder Verbindlichkeiten vorkommt — gleichen Titel verwenden, dann ist die Verknüpfung sichtbar.',
+      'mo', 'Einnahme hinzufügen')}
 
-    ${/* Iter 66 (20.05.2026): Baukasten — Sonstige Einnahmen (Mo) */ ''}
-    ${zusatzListeHtml('zusatzEinnahmen', 'Sonstige Einnahmen (Baukasten)', 'Zusätzliche monatliche Einnahmen, die nicht in den Standard-Feldern oben passen — z.B. nebenberufliche Honorare, Renten, regelmäßige Zuwendungen. Fließt voll in die Bonität ein.', '€/Mo')}
-
+    <!-- =================== BLOCK 2 · AUSGABEN =================== -->
     <details class="sa-section" open>
-      <summary>Monatliche Fixkosten</summary>
+      <summary>② Ausgaben (monatlich)</summary>
+      ${checklistBox('Ausgaben — was abfragen', [
+        '<strong>Miete eigene Wohnung</strong> inkl. NK (oder selbstgenutzte Immobilie raus aus dieser Frage)',
+        '<strong>Unterhaltszahlungen</strong> an Ex-Partner / Kinder',
+        '<strong>Private Krankenversicherung</strong> (nur PKV — GKV läuft über Brutto, also irrelevant)',
+        '<strong>Laufende Lebenshaltung</strong>: Essen, Auto-Sprit, Telefon, Strom — realistische Schätzung',
+        '<strong>Leasing-Raten</strong>: Auto, Möbel, Fahrrad',
+        '<strong>Sparplan-Raten</strong> (Fondssparplan, Riester, Rürup) → in Baukasten mit gleichem Titel wie in Vermögen',
+        '<strong>Vereinsbeiträge, Abos, Streaming</strong> → in den Baukasten',
+        '<strong>Tilgung von Verbindlichkeiten</strong> kommt im Block ④, nicht hier',
+      ])}
       <div class="grid-2">
         ${n('Miete inkl. NK (eigene Whg)', 'mieteMo', '€/Mo')}
         ${n('Unterhaltszahlungen', 'unterhaltZahlungMo', '€/Mo')}
         ${n('Beitrag private Krankenversicherung', 'pkvMo', '€/Mo')}
-        ${/* Iter 64 (20.05.2026): 3 neue Ausgaben-Felder aus Henry-Durchgang. */ ''}
         ${n('Laufende Lebenshaltung', 'lebenshaltungMo', '€/Mo')}
         ${n('Leasing-Raten', 'leasingMo', '€/Mo')}
-        ${n('Sonstige Ausgaben', 'sonstigeAusgabenMo', '€/Mo')}
       </div>
     </details>
+    ${zusatzListeHtml('zusatzAusgaben', 'Sonstige Ausgaben (Baukasten)',
+      'Sparplan-Raten, Vereinsbeiträge, Abos, Streaming etc. <strong>Fonds-Logik:</strong> Sparplan-Rate hier eintragen (z.B. „Fondssparplan Riester · 100 €/Mo") und im Vermögen-Baukasten den aktuellen Bestand mit <strong>gleichem Titel</strong> anlegen — dadurch ist sichtbar, dass die Ausgabe diese Position bespart.',
+      'mo', 'Ausgabe hinzufügen')}
 
-    ${/* Iter 66: Baukasten — Sonstige Ausgaben (Mo) */ ''}
-    ${zusatzListeHtml('zusatzAusgaben', 'Sonstige Ausgaben (Baukasten)', 'Weitere monatliche Belastungen außerhalb der Fixkosten oben — z.B. Vereinsbeiträge, Abos, Sparquoten. Fließt in die Fixkosten der Bonität ein.', '€/Mo')}
-
+    <!-- =================== BLOCK 3 · VERMÖGEN =================== -->
     <details class="sa-section" open>
-      <summary>Vermögen</summary>
+      <summary>③ Vermögen</summary>
+      ${checklistBox('Vermögen — was abfragen', [
+        '<strong>Bankguthaben</strong>: alle Giro-/Tagesgeld-/Sparkonten',
+        '<strong>Wertpapiere</strong>: aktueller Depotwert (Aktien, ETFs, Fonds)',
+        '<strong>Sparbücher</strong>: klassisch, Festgeld',
+        '<strong>Bausparguthaben / VWL</strong>: laufendes Guthaben',
+        '<strong>Fondsgebundene Versicherungen, Riester, Rürup, BAV-Bestand</strong> → Baukasten, gleichen Titel wie bei Ausgaben verwenden',
+        '<strong>Edelmetalle, Krypto, Oldtimer, Kunstwerke</strong> → Baukasten',
+        '<strong>Lebensversicherung Rückkaufwert</strong> → Baukasten („LV Rückkauf XYZ")',
+        '<strong>Bestandsimmobilien</strong>: getrennte Sektion unten (Immo 1 / Immo 2)',
+      ])}
       <div class="grid-2">
         ${n('Bankguthaben', 'bankguthaben', '€')}
         ${n('Wertpapiere (Kurswert)', 'wertpapiere', '€')}
-        ${n('Sparbücher', 'sparbuecher', '€')}
+        ${n('Sparbücher / Festgeld', 'sparbuecher', '€')}
         ${n('Bausparguthaben / VWL', 'bausparen', '€')}
-        ${n('Sonstige Vermögen', 'sonstigeVermoegen', '€')}
       </div>
     </details>
-
-    ${/* Iter 66: Baukasten — Sonstiges Vermögen (Einmalwert) */ ''}
-    ${zusatzListeHtml('zusatzVermoegen', 'Sonstiges Vermögen (Baukasten)', 'Weitere Vermögenspositionen, die nicht in die Standard-Felder oben passen — z.B. Edelmetalle, Krypto, Sachwerte. Fließt voll in das liquide Vermögen ein.', '€')}
-
-    ${/* Iter 66: Baukasten — Sparpläne mit Mo-Rate + Wert (fließt in BEIDE) */ ''}
-    ${zusatzListeHtml('zusatzSparplaene', 'Sparpläne / fondsgebundene Verträge', 'Z.B. Fondssparplan, fondsgebundene Altersvorsorge, Riester. Monatliche Rate läuft in die Ausgaben, der aktuelle Bestand/Wert ins Vermögen.', '€/Mo + €', 'sparplan')}
-
-    <details class="sa-section">
-      <summary>Versicherungs-Guthaben (optional)</summary>
-      <div class="grid-2">
-        ${sub('vers', 'art', 'text', 'Art (z.B. LV/RV)')}
-        ${sub('vers', 'beginn', 'date', 'Beginn')}
-        ${sub('vers', 'ende', 'date', 'Ende')}
-        ${sub('vers', 'summe', 'number', 'Versicherungssumme', '€')}
-        ${sub('vers', 'belastungMo', 'number', 'mtl. Belastung', '€/Mo')}
-        ${sub('vers', 'rueckkauf', 'number', 'Rückkaufwert', '€')}
-      </div>
-    </details>
+    ${zusatzListeHtml('zusatzVermoegen', 'Sonstiges Vermögen (Baukasten)',
+      'Sparpläne, fondsgebundene Verträge, Edelmetalle, Krypto, Sachwerte, LV-Rückkaufwerte. <strong>Fonds-Logik:</strong> Wenn die Position auch in Block ② Ausgaben bespart wird — gleichen Titel verwenden, dann zeigt das System die Verknüpfung.',
+      'wert', 'Vermögen hinzufügen')}
 
     <details class="sa-section">
       <summary>Immobilienvermögen — Immobilie 1 (optional)</summary>
@@ -3569,8 +3613,23 @@ function saPersonHtml(prefix, p) {
       </div>
     </details>
 
+    <!-- =================== BLOCK 4 · VERBINDLICHKEITEN =================== -->
+    <details class="sa-section" open>
+      <summary>④ Verbindlichkeiten</summary>
+      ${checklistBox('Verbindlichkeiten — was abfragen', [
+        '<strong>Baufinanzierungen</strong> für Bestandsimmobilien (Baufi 1 + 2 unten)',
+        '<strong>Autokredit, Möbelfinanzierung</strong> → Baukasten',
+        '<strong>Kreditkarten-Saldo, Dispo</strong> wenn dauerhaft im Minus → Baukasten',
+        '<strong>Studienkredite, KfW, Förderdarlehen</strong> → Baukasten',
+        '<strong>Privatdarlehen, P2P-Kredite</strong> → Baukasten',
+        '<strong>Bürgschaften</strong> als Notiz festhalten (auch wenn keine laufende Rate)',
+        '<strong>Tipp:</strong> Pro Position mtl. Belastung UND Restsaldo angeben — die Bank fragt beides ab.',
+      ])}
+      <div class="text-tertiary text-small mb-12">Baufinanzierungen für die im Block ③ aufgeführten Immobilien werden hier erfasst. Alles andere (Auto, Konsum, Privat) im Baukasten.</div>
+    </details>
+
     <details class="sa-section">
-      <summary>Verbindlichkeiten — Baufinanzierung 1 (optional)</summary>
+      <summary>Baufinanzierung 1 (optional)</summary>
       <div class="grid-2">
         ${sub('bf1', 'urspruenglich', 'number', 'urspr. Darlehenshöhe', '€')}
         ${sub('bf1', 'laufzeitBis', 'date', 'Laufzeit bis')}
@@ -3580,7 +3639,7 @@ function saPersonHtml(prefix, p) {
     </details>
 
     <details class="sa-section">
-      <summary>Verbindlichkeiten — Baufinanzierung 2 (optional)</summary>
+      <summary>Baufinanzierung 2 (optional)</summary>
       <div class="grid-2">
         ${sub('bf2', 'urspruenglich', 'number', 'urspr. Darlehenshöhe', '€')}
         ${sub('bf2', 'laufzeitBis', 'date', 'Laufzeit bis')}
@@ -3589,52 +3648,9 @@ function saPersonHtml(prefix, p) {
       </div>
     </details>
 
-    <details class="sa-section">
-      <summary>Sonstige Verbindlichkeit 1 (optional)</summary>
-      <div class="grid-2">
-        ${sub('kd1', 'zweck', 'text', 'Zweck (z.B. Autokredit, Möbel)')}
-        ${sub('kd1', 'urspruenglich', 'number', 'urspr. Höhe', '€')}
-        ${sub('kd1', 'laufzeitBis', 'date', 'Laufzeit bis')}
-        ${sub('kd1', 'belastungMo', 'number', 'mtl. Belastung', '€/Mo')}
-        ${sub('kd1', 'restsaldo', 'number', 'Restsaldo', '€')}
-      </div>
-    </details>
-
-    <details class="sa-section">
-      <summary>Sonstige Verbindlichkeit 2 (optional)</summary>
-      <div class="grid-2">
-        ${sub('kd2', 'zweck', 'text', 'Zweck (z.B. Kreditkarte, Dispo)')}
-        ${sub('kd2', 'urspruenglich', 'number', 'urspr. Höhe', '€')}
-        ${sub('kd2', 'laufzeitBis', 'date', 'Laufzeit bis')}
-        ${sub('kd2', 'belastungMo', 'number', 'mtl. Belastung', '€/Mo')}
-        ${sub('kd2', 'restsaldo', 'number', 'Restsaldo', '€')}
-      </div>
-    </details>
-
-    <details class="sa-section">
-      <summary>Sonstige Verbindlichkeit 3 (optional)</summary>
-      <div class="grid-2">
-        ${sub('kd3', 'zweck', 'text', 'Zweck')}
-        ${sub('kd3', 'urspruenglich', 'number', 'urspr. Höhe', '€')}
-        ${sub('kd3', 'laufzeitBis', 'date', 'Laufzeit bis')}
-        ${sub('kd3', 'belastungMo', 'number', 'mtl. Belastung', '€/Mo')}
-        ${sub('kd3', 'restsaldo', 'number', 'Restsaldo', '€')}
-      </div>
-    </details>
-
-    <details class="sa-section">
-      <summary>Sonstige Verbindlichkeit 4 (optional)</summary>
-      <div class="grid-2">
-        ${sub('kd4', 'zweck', 'text', 'Zweck')}
-        ${sub('kd4', 'urspruenglich', 'number', 'urspr. Höhe', '€')}
-        ${sub('kd4', 'laufzeitBis', 'date', 'Laufzeit bis')}
-        ${sub('kd4', 'belastungMo', 'number', 'mtl. Belastung', '€/Mo')}
-        ${sub('kd4', 'restsaldo', 'number', 'Restsaldo', '€')}
-      </div>
-    </details>
-
-    ${/* Iter 66: Baukasten — Zusätzliche Schulden (Restbetrag) */ ''}
-    ${zusatzListeHtml('zusatzSchulden', 'Zusätzliche Schulden (Baukasten)', 'Weitere offene Verbindlichkeiten, die nicht in die detaillierten Verbindlichkeits-Sektionen oben passen — z.B. offene Studienkredite, P2P-Kredite, private Schulden. Restsaldo einmalig; reduziert das Vermögen.', '€')}
+    ${zusatzListeHtml('zusatzVerbindlichkeiten', 'Sonstige Verbindlichkeiten (Baukasten)',
+      'Autokredit, Konsumkredit, Kreditkarte, Privatdarlehen, Studienkredit. Pro Position monatliche Belastung UND Restsaldo angeben.',
+      'mo-wert', 'Verbindlichkeit hinzufügen')}
   `;
 }
 

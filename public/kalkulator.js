@@ -409,13 +409,16 @@ function computeBonitaetDetailed(sa, gemeinsam) {
     return n;
   }
   function einkommen(p) {
+    // Iter 70 (21.05.2026): „Sonstige Einkommen" (sonstigeMo) entfernt — Edgar-Vorgabe.
+    //   Was nicht ins Standard-Set passt (Netto/Vermietung/Unterhalt/Kindergeld),
+    //   wandert in den Baukasten „zusatzEinnahmen".
     if (!p) return { netto: 0, vermAnr: 0, sonstigeAnr: 0, zusatz: 0, total: 0 };
     const netto = (parseFloat(p.nettoMo) || 0) * gehaelter(p) / 12;
     const vermBase = (parseFloat(p.vermietungMo) || 0)
       + (p.immo1 ? (parseFloat(p.immo1.mietenMo) || 0) : 0)
       + (p.immo2 ? (parseFloat(p.immo2.mietenMo) || 0) : 0);
     const vermAnr = vermBase * 0.8; // 80 % Mietanrechnung Bank-Standard
-    const sonst = (parseFloat(p.sonstigeMo) || 0) + (parseFloat(p.unterhaltMo) || 0) + (parseFloat(p.kindergeldMo) || 0);
+    const sonst = (parseFloat(p.unterhaltMo) || 0) + (parseFloat(p.kindergeldMo) || 0);
     const zusatz = sumZusatz(p, 'zusatzEinnahmen', 'mo');
     return { netto, vermAnr, sonstigeAnr: sonst, zusatz, total: netto + vermAnr + sonst + zusatz };
   }
@@ -433,9 +436,11 @@ function computeBonitaetDetailed(sa, gemeinsam) {
   const kinder = (parseInt(a.kinderAnzahl) || 0) + (gemeinsam ? (parseInt(m.kinderAnzahl) || 0) : 0);
   const haushaltPauschale = 0;
 
-  // ----- Fixkosten (Miete eig. Whg + Unterhalt + PKV + Lebenshaltung + Leasing + Sonstige + Baukasten) -----
-  // Iter 64: 3 fixe Ausgabe-Felder (lebenshaltungMo, leasingMo, sonstigeAusgabenMo)
-  // Iter 66: Baukasten — zusatzAusgaben[*].mo + zusatzSparplaene[*].mo
+  // ----- Fixkosten (monatliche Ausgaben) -----
+  // Iter 70 (21.05.2026): Strukturell vereinfacht — „Sonstige Ausgaben" (sonstigeAusgabenMo)
+  //   und Sparpläne-Baukasten (zusatzSparplaene) entfernt. Sparpläne werden über
+  //   den allgemeinen zusatzAusgaben-Baukasten gepflegt (Cross-Reference zum
+  //   Vermögens-Baukasten via gleichem Titel).
   function fixkosten(p) {
     if (!p) return 0;
     return (parseFloat(p.mieteMo) || 0)
@@ -443,32 +448,37 @@ function computeBonitaetDetailed(sa, gemeinsam) {
          + (parseFloat(p.pkvMo) || 0)
          + (parseFloat(p.lebenshaltungMo) || 0)
          + (parseFloat(p.leasingMo) || 0)
-         + (parseFloat(p.sonstigeAusgabenMo) || 0)
-         + sumZusatz(p, 'zusatzAusgaben', 'mo')
-         + sumZusatz(p, 'zusatzSparplaene', 'mo');
+         + sumZusatz(p, 'zusatzAusgaben', 'mo');
   }
   const fixA = fixkosten(a);
   const fixM = fixkosten(m);
   const fixkostenMo = fixA + fixM;
 
   // ----- Verbindlichkeiten (mtl. Belastung) -----
+  // Iter 70: kd1-kd4 (Sonstige Verbindlichkeit) und Versicherungs-Belastung raus.
+  //   Stattdessen: Baukasten „zusatzVerbindlichkeiten" mit Mo-Rate UND Restsaldo
+  //   pro Position. Baufi 1+2 bleiben als Standard.
   function verbindMo(p) {
     if (!p) return 0;
     let s = 0;
-    ['bf1','bf2','kd1','kd2'].forEach(k => {
+    ['bf1','bf2'].forEach(k => {
       if (p[k]) s += parseFloat(p[k].belastungMo) || 0;
     });
-    // Versicherungs-Belastung (z.B. Lebensversicherung mtl.)
-    if (p.vers) s += parseFloat(p.vers.belastungMo) || 0;
+    // Baukasten: monatliche Belastung der Zusatz-Verbindlichkeiten
+    s += sumZusatz(p, 'zusatzVerbindlichkeiten', 'mo');
+    // Legacy-Migration: alte SA-Datensätze mit zusatzSchulden (nur Restsaldo) — Mo-Wert dort meist null
+    s += sumZusatz(p, 'zusatzSchulden', 'mo');
     return s;
   }
   function verbindRest(p) {
     if (!p) return 0;
     let s = 0;
-    ['bf1','bf2','kd1','kd2'].forEach(k => {
+    ['bf1','bf2'].forEach(k => {
       if (p[k]) s += parseFloat(p[k].restsaldo) || 0;
     });
-    // Iter 66: Baukasten — zusätzliche Schulden (Restsaldo, einmalig)
+    // Baukasten: Restsaldo der Zusatz-Verbindlichkeiten
+    s += sumZusatz(p, 'zusatzVerbindlichkeiten', 'wert');
+    // Legacy-Migration: alte zusatzSchulden (nur Restsaldo)
     s += sumZusatz(p, 'zusatzSchulden', 'wert');
     return s;
   }
@@ -476,17 +486,17 @@ function computeBonitaetDetailed(sa, gemeinsam) {
   const verbindlichkeitenGesamt = verbindRest(a) + verbindRest(m);
 
   // ----- Liquides Vermögen (Bank-Sicht: "einsetzbar für neue Immobilie") -----
-  // Bestandsimmobilien zählen NICHT — sind im Beleihungsauslauf gebunden.
+  // Iter 70: „Sonstige Vermögen" (sonstigeVermoegen) und Versicherungs-Rückkaufwert raus.
+  //   Bestandsimmobilien zählen NICHT — sind im Beleihungsauslauf gebunden.
   function liquideVerm(p) {
     if (!p) return 0;
     let s = (parseFloat(p.bankguthaben) || 0)
       + (parseFloat(p.wertpapiere) || 0)
       + (parseFloat(p.sparbuecher) || 0)
-      + (parseFloat(p.bausparen) || 0)
-      + (parseFloat(p.sonstigeVermoegen) || 0);
-    if (p.vers) s += parseFloat(p.vers.rueckkauf) || 0;
-    // Iter 66: Baukasten — zusätzliches Vermögen + Sparplan-Werte
+      + (parseFloat(p.bausparen) || 0);
+    // Baukasten: zusätzliche Vermögenspositionen
     s += sumZusatz(p, 'zusatzVermoegen', 'wert');
+    // Legacy-Migration: alte zusatzSparplaene[*].wert mit aufaddieren
     s += sumZusatz(p, 'zusatzSparplaene', 'wert');
     return s;
   }

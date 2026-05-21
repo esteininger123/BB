@@ -513,30 +513,28 @@ function selbstauskunft(kunde, user) {
           ${row('Netto-Gehalt', fmtNum(a.nettoMo), fmtNum(m.nettoMo))}
           ${rowChk('Anzahl Gehälter', ['12','12,5','13','14'], a.anzahlGehaelter ? String(a.anzahlGehaelter).replace('.',',') : '', m.anzahlGehaelter ? String(m.anzahlGehaelter).replace('.',',') : '')}
           ${row('Vermietung & Verpachtung', fmtNum(a.vermietungMo), fmtNum(m.vermietungMo))}
-          ${row('Sonstige Einkommen', fmtNum(a.sonstigeMo), fmtNum(m.sonstigeMo))}
           ${row('Unterhalt', fmtNum(a.unterhaltMo), fmtNum(m.unterhaltMo))}
           ${row('Kindergeld', fmtNum(a.kindergeldMo), fmtNum(m.kindergeldMo))}
-          ${/* Iter 66 (20.05.2026): Baukasten-Zusatzeinnahmen */ ''}
+          ${/* Iter 70 (21.05.2026): „Sonstige Einkommen" raus — Baukasten übernimmt */ ''}
           ${zusatzRows('zusatzEinnahmen', 'mo')}
           ${(() => {
-            const sumA = (a.nettoMo || 0) + (a.vermietungMo || 0) + (a.sonstigeMo || 0) + (a.unterhaltMo || 0) + (a.kindergeldMo || 0);
-            const sumM = (m.nettoMo || 0) + (m.vermietungMo || 0) + (m.sonstigeMo || 0) + (m.unterhaltMo || 0) + (m.kindergeldMo || 0);
-            return `<tr><td class="sa-label" style="font-weight:600;">Gesamt</td><td style="font-weight:600;">${sumA > 0 ? fld(fmtNum(sumA)) : fld('')}</td><td style="font-weight:600;">${gemeinsam && sumM > 0 ? fld(fmtNum(sumM)) : (gemeinsam ? fld('') : '')}</td></tr>`;
+            const sumA = (a.nettoMo || 0) + (a.vermietungMo || 0) + (a.unterhaltMo || 0) + (a.kindergeldMo || 0);
+            const sumM = (m.nettoMo || 0) + (m.vermietungMo || 0) + (m.unterhaltMo || 0) + (m.kindergeldMo || 0);
+            return `<tr><td class="sa-label" style="font-weight:600;">Gesamt (ohne Baukasten)</td><td style="font-weight:600;">${sumA > 0 ? fld(fmtNum(sumA)) : fld('')}</td><td style="font-weight:600;">${gemeinsam && sumM > 0 ? fld(fmtNum(sumM)) : (gemeinsam ? fld('') : '')}</td></tr>`;
           })()}
           ${row('Zu versteuerndes Einkommen / Jahr', fmtNum(a.zveJahr), fmtNum(m.zveJahr))}
           ${rowChk('Kirchensteuerpflicht', ['ja','nein'], a.kirchensteuer, m.kirchensteuer)}
         </tbody>
-        <thead><tr><th class="sa-section-h">MONATLICHE FIXKOSTEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
+        <thead><tr><th class="sa-section-h">MONATLICHE AUSGABEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
         <tbody>
           ${row('Miete inkl. NK', fmtNum(a.mieteMo), fmtNum(m.mieteMo))}
           ${row('Unterhaltszahlungen', fmtNum(a.unterhaltZahlungMo), fmtNum(m.unterhaltZahlungMo))}
           ${row('Beitrag private Krankenversicherung', fmtNum(a.pkvMo), fmtNum(m.pkvMo))}
-          ${/* Iter 64 (20.05.2026) */ ''}
           ${row('Laufende Lebenshaltung', fmtNum(a.lebenshaltungMo), fmtNum(m.lebenshaltungMo))}
           ${row('Leasing-Raten', fmtNum(a.leasingMo), fmtNum(m.leasingMo))}
-          ${row('Sonstige Ausgaben', fmtNum(a.sonstigeAusgabenMo), fmtNum(m.sonstigeAusgabenMo))}
-          ${/* Iter 66: Baukasten-Zusatzausgaben + Sparplan-Raten (jede Sparplan-Rate ist Ausgabe) */ ''}
+          ${/* Iter 70: „Sonstige Ausgaben"-Feld raus — Baukasten übernimmt */ ''}
           ${zusatzRows('zusatzAusgaben', 'mo')}
+          ${/* Legacy: alte Sparpläne-Liste — wird noch ausgegeben, wenn vorhandene Datensätze sie haben */ ''}
           ${zusatzRows('zusatzSparplaene', 'mo')}
         </tbody>
       </table>
@@ -553,16 +551,11 @@ function selbstauskunft(kunde, user) {
         <tbody>
           ${row('Bankguthaben', fmtNum(a.bankguthaben), fmtNum(m.bankguthaben))}
           ${row('Wertpapiere (Kurswert)', fmtNum(a.wertpapiere), fmtNum(m.wertpapiere))}
-          ${row('Sparbücher', fmtNum(a.sparbuecher), fmtNum(m.sparbuecher))}
+          ${row('Sparbücher / Festgeld', fmtNum(a.sparbuecher), fmtNum(m.sparbuecher))}
           ${row('Bauspar / VWL', fmtNum(a.bausparen), fmtNum(m.bausparen))}
-          ${row('Sonstige Vermögen', fmtNum(a.sonstigeVermoegen), fmtNum(m.sonstigeVermoegen))}
-          ${/* Iter 66: Baukasten-Vermögen + Sparplan-Werte (jeder Sparplan-Bestand ist Vermögen) */ ''}
+          ${/* Iter 70: „Sonstige Vermögen" + Versicherungs-Block raus — Baukasten übernimmt */ ''}
           ${zusatzRows('zusatzVermoegen', 'wert')}
           ${zusatzRows('zusatzSparplaene', 'wert')}
-          <tr><td class="sa-label">Versicherung — Art</td><td>${fld(versA.art || '')}</td><td></td></tr>
-          <tr><td class="sa-label">Beginn / Ende</td><td>${fld(dt(versA.beginn))} &nbsp;/&nbsp; ${fld(dt(versA.ende))}</td><td></td></tr>
-          <tr><td class="sa-label">Versicherungssumme</td><td>${fld(fmtNum(versA.summe))}</td><td></td></tr>
-          <tr><td class="sa-label">mtl. Beitrag / Rückkaufwert</td><td>${fld(fmtNum(versA.belastungMo))} &nbsp;/&nbsp; ${fld(fmtNum(versA.rueckkauf))}</td><td></td></tr>
         </tbody>
         <thead><tr><th class="sa-section-h">IMMOBILIENVERMÖGEN</th><th>Immobilie 1</th><th>Immobilie 2</th></tr></thead>
         <tbody>
@@ -582,23 +575,38 @@ function selbstauskunft(kunde, user) {
           ${baufiRow('Restsaldo', 'restsaldo')}
         </tbody>
       </table>
-      <table class="sa-table sa-verb-table" style="margin-top:3mm;">
-        <thead><tr><th>SONSTIGE VERBINDLICHKEITEN</th><th>URSPR. HÖHE</th><th>LAUFZEIT BIS</th><th>MTL. BELASTUNG</th><th>RESTSALDO</th></tr></thead>
-        <tbody>
-          ${sonstVerbRow('kd1', 1)}
-          ${sonstVerbRow('kd2', 2)}
-          ${sonstVerbRow('kd3', 3)}
-          ${sonstVerbRow('kd4', 4)}
-        </tbody>
-      </table>
       ${(() => {
-        // Iter 66 (20.05.2026): Baukasten — Zusätzliche Schulden. Nur rendern wenn vorhanden.
-        const hasA = Array.isArray(a.zusatzSchulden) && a.zusatzSchulden.some(x => x && parseFloat(x.wert) > 0);
-        const hasM = gemeinsam && Array.isArray(m.zusatzSchulden) && m.zusatzSchulden.some(x => x && parseFloat(x.wert) > 0);
+        // Iter 70 (21.05.2026): kd1-kd4 (Sonstige Verbindlichkeit) raus. Stattdessen
+        //   Baukasten-Tabelle mit Mo-Belastung + Restsaldo. Nur rendern wenn Einträge vorhanden.
+        const hasPos = (liste) => Array.isArray(liste) && liste.some(x => x && (parseFloat(x.mo) > 0 || parseFloat(x.wert) > 0));
+        const hasA = hasPos(a.zusatzVerbindlichkeiten) || hasPos(a.zusatzSchulden);
+        const hasM = gemeinsam && (hasPos(m.zusatzVerbindlichkeiten) || hasPos(m.zusatzSchulden));
         if (!hasA && !hasM) return '';
+        // Verbindlichkeit-Baukasten: pro Position zwei Werte (Mo + Restsaldo) — in zwei Zeilen pro Eintrag
+        const verbRows = (liste, spalte) => {
+          if (!Array.isArray(liste)) return '';
+          let html = '';
+          liste.forEach(item => {
+            if (!item) return;
+            const mo = parseFloat(item.mo) || 0;
+            const wert = parseFloat(item.wert) || 0;
+            if (mo === 0 && wert === 0) return;
+            const titel = item.titel || 'Verbindlichkeit';
+            const notiz = item.notiz ? ` <span style="color:#777;font-size:9px;">— ${esc(item.notiz)}</span>` : '';
+            const moHtml = mo > 0 ? fmtNum(mo) + '/Mo' : '';
+            const wertHtml = wert > 0 ? fmtNum(wert) : '';
+            const combined = [moHtml, wertHtml].filter(Boolean).join(' · ');
+            const cellA = spalte === 'A' ? fld(combined) : '';
+            const cellM = spalte === 'M' && gemeinsam ? fld(combined) : (gemeinsam ? '' : '');
+            html += `<tr><td class="sa-label">${esc(titel)}${notiz}</td><td>${cellA}</td><td>${cellM}</td></tr>`;
+          });
+          return html;
+        };
+        const rowsA = verbRows(a.zusatzVerbindlichkeiten, 'A') + verbRows(a.zusatzSchulden, 'A');
+        const rowsM = gemeinsam ? verbRows(m.zusatzVerbindlichkeiten, 'M') + verbRows(m.zusatzSchulden, 'M') : '';
         return `<table class="sa-table" style="margin-top:3mm;">
-          <thead><tr><th class="sa-section-h">ZUSÄTZLICHE SCHULDEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
-          <tbody>${zusatzRows('zusatzSchulden', 'wert')}</tbody>
+          <thead><tr><th class="sa-section-h">SONSTIGE VERBINDLICHKEITEN <span style="font-weight:normal;font-size:9px;">(mtl. Belastung · Restsaldo)</span></th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
+          <tbody>${rowsA}${rowsM}</tbody>
         </table>`;
       })()}
       <div style="font-size:7.5px; color:#666; margin-top:1mm; font-style:italic;">Weitere Immobilien bzw. Verbindlichkeiten bitte als Anlage beifügen.</div>
