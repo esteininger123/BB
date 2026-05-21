@@ -239,9 +239,13 @@ module.exports = async (req, res) => {
       // - Mietsubvention.Block:        ganzer Satz, erscheint nur wenn Subvention existiert.
       //                                Edgar fügt einfach [Mietsubvention.Block] ins Template
       //                                ein — wenn keine Subvention da ist, bleibt der Platz leer.
-      { name: 'Mietsubvention.Total',             value: mietsubventionTotal > 0 ? formatEUR(mietsubventionTotal) : '' },
-      { name: 'Mietsubvention.Beschreibung',      value: mietsubventionBeschreibung },
-      { name: 'Mietsubvention.Block',             value: mietsubventionBlock },
+      //
+      // WICHTIG: Bei leerem Wert nutzen wir ein Zero-Width-Space (​). PandaDoc rendert
+      // leere String-Tokens NICHT (zeigt stattdessen den Roh-Tag wie "[Mietsubvention.Block]"),
+      // ein nicht-leerer String wird aber sauber ersetzt. Zero-Width-Space ist unsichtbar.
+      { name: 'Mietsubvention.Total',             value: mietsubventionTotal > 0 ? formatEUR(mietsubventionTotal) : '​' },
+      { name: 'Mietsubvention.Beschreibung',      value: mietsubventionBeschreibung || '​' },
+      { name: 'Mietsubvention.Block',             value: mietsubventionBlock || '​' },
     ];
 
     // --- 6. Recipients (sequenziell: Käufer zuerst, Vertriebler danach)
