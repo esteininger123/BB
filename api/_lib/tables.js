@@ -182,6 +182,11 @@ const KALK_STAMMDATEN_FIELDS = {
   // Henry/Vertrieb pflegt diese Felder NICHT manuell — sie sind Backend-Output.
   AUTO_SUBV_MO:    'fldLV8CC1wvrRSJ6x', // Currency €/Mo — Phase-1-Subv-Rate
   AUTO_SUBV_TOTAL: 'fld99AS9ebipT5TSO', // Currency € — Total über alle Phasen
+  // Iter-4: Vermarktungs-KP-Vorschlag inkl. Subv-Aufschlag. Formel kombiniert
+  // den klassischen 'KP-Vorschlag Wohnung'-Wert (Ertragswert-basiert, ohne Subv)
+  // mit dem Subv-Aufschlag: manueller Mietzuschuss × Laufzeit, sonst Auto-Subv-Total.
+  KP_VORSCHLAG_BASIS:        'fldaxnWdFP1mLYVtH', // alt — ohne Subv
+  KP_VORSCHLAG_INKL_SUBV:    'fldHKSqsRVmKPlY5t', // neu — mit Subv-Aufschlag
 };
 
 const KALK_STATUS_AKTIV    = 'Aktiv';
