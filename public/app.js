@@ -1357,8 +1357,9 @@ function kalkInputsThemenHtml(i) {
         ${slider('Steigerung pro Sprung / Jahr', 'steigerungProz', 0, 25, 0.5)}
         ${(() => {
           // Iter 41.16 (Audit-Fix #6): Datum statt Slider.
-          // Slider „Monate seit letzter Mieterhöhung" durch Datum-Input ersetzt.
-          // Read-only-Anzeige zeigt, wie viele Monate her das ist (live abgeleitet).
+          // Iter 78 (21.05.2026): Bei Tag-1-Override Hinweis im Label, damit der Vertriebler
+          //   sieht warum das Input-Feld leer ist (Datum wurde bewusst auf null gesetzt,
+          //   damit Phase 1 volle 36 Mo läuft).
           const datum = i.letzteMietsteigerung || '';
           let monateAnzeige = '—';
           if (datum) {
@@ -1373,9 +1374,22 @@ function kalkInputsThemenHtml(i) {
           const quelleLabel = quelle === 'kalk-stammdaten' ? 'aus Stammdaten' :
                               quelle === 'mietvertrag-vertragsbeginn' ? 'aus Mietvertrag (Vertragsbeginn)' :
                               quelle === 'mietvertrag' ? 'aus Mietvertrag' : '';
+          // Iter 78: Tag-1-Override-Hinweis (Vereinbarung oder Iter63-Annahme)
+          let tag1Hint = '';
+          if (state.kalk._subventionTag1Erhoehung) {
+            const altDate = state.kalk._letzteMietsteigerung;
+            const altStr = altDate ? (() => {
+              const d = new Date(altDate);
+              return isNaN(d.getTime()) ? '' : `${('0'+(d.getMonth()+1)).slice(-2)}/${d.getFullYear()}`;
+            })() : '';
+            const altSuffix = altStr ? ` · Original: ${altStr}` : '';
+            tag1Hint = state.kalk._subventionTag1Quelle === 'vereinbarung'
+              ? ` · <span style="color:#0f5132;">↑ Tag-1-Anhebung aus Vereinbarung${altSuffix}</span>`
+              : ` · <span style="color:#664d03;">↑ Tag-1-Anhebung (Annahme${altSuffix})</span>`;
+          }
           return `
             <div class="slider-row">
-              <label>Letzte Mieterhöhung <span class="slider-val">${esc(monateAnzeige)}${quelleLabel ? ' · ' + esc(quelleLabel) : ''}</span></label>
+              <label>Letzte Mieterhöhung <span class="slider-val">${esc(monateAnzeige)}${quelleLabel ? ' · ' + esc(quelleLabel) : ''}${tag1Hint}</span></label>
               <input data-kalk="letzteMietsteigerung" type="date" value="${esc(datum || '')}" style="padding:6px 10px; font-size:14px;">
             </div>
           `;
@@ -2128,14 +2142,31 @@ function renderStories(r) {
         })()}
         ${(() => {
           if (!r.ersteErhoehungMonat) return '';
-          const datum = state.kalk.letzteMietsteigerung || state.kalk._letzteMietsteigerung;
-          let datumLabel = '';
-          if (datum) {
-            const d = new Date(datum);
-            if (!isNaN(d.getTime())) {
-              datumLabel = ` (letzte Mieterhöhung: <strong>${('0'+(d.getMonth()+1)).slice(-2)}/${d.getFullYear()}</strong>)`;
-            }
+          // Iter 78 (21.05.2026): Text fallunterscheiden, sonst widerspricht er sich.
+          //   - Bei Tag-1-Erhöhung (Vereinbarung): Text zeigt nicht das alte Datum,
+          //     sondern verweist auf die Anhebung im Subv-Hinweis-Badge oberhalb.
+          //   - Bei Tag-1-Erhöhung (Iter63-Annahme): Text macht die Logik transparent
+          //     („nächste Erhöhung in Mo 36, weil letzte > 3 Jahre her war").
+          //   - Standard: wie bisher, aber OHNE Fallback auf _letzteMietsteigerung —
+          //     das war Ursache des Bugs „letzte Mietsteigerung: 03/2022" trotz Tag-1-Reset.
+          const tag1   = !!state.kalk._subventionTag1Erhoehung;
+          const quelle = state.kalk._subventionTag1Quelle;
+          const dStr = (raw) => {
+            if (!raw) return '';
+            const d = new Date(raw);
+            return isNaN(d.getTime()) ? '' : `${('0'+(d.getMonth()+1)).slice(-2)}/${d.getFullYear()}`;
+          };
+          if (tag1 && quelle === 'vereinbarung' && state.kalk._vereinbarung) {
+            return `<p>Nach der vereinbarten Anhebung (siehe Hinweis oben) greift die <strong>nächste</strong> Mieterhöhung in <strong>Monat ${r.ersteErhoehungMonat}</strong> (${esc(r.ersteErhoehungJahrLabel)}). Steigerung danach: <strong>${fmtPct(i.steigerungProz)}</strong>.</p>`;
           }
+          if (tag1) {
+            const altStr = dStr(state.kalk._letzteMietsteigerung);
+            const altInfo = altStr ? ` — die letzte echte Mietsteigerung war <strong>${altStr}</strong> (&gt; 3 Jahre her, daher Tag-1-Anhebung angenommen)` : '';
+            return `<p>Nach der Tag-1-Anhebung greift die <strong>nächste</strong> Mieterhöhung in <strong>Monat ${r.ersteErhoehungMonat}</strong> (${esc(r.ersteErhoehungJahrLabel)})${altInfo}. Steigerung danach: <strong>${fmtPct(i.steigerungProz)}</strong>.</p>`;
+          }
+          // Standard-Fall — kein Tag-1-Override aktiv. Datum nur zeigen wenn tatsächlich gesetzt.
+          const datumStr = dStr(state.kalk.letzteMietsteigerung);
+          const datumLabel = datumStr ? ` (letzte Mieterhöhung: <strong>${datumStr}</strong>)` : '';
           return `<p>Deine erste Mieterhöhung greift in <strong>Monat ${r.ersteErhoehungMonat}</strong> (${esc(r.ersteErhoehungJahrLabel)})${datumLabel}. Steigerung danach: <strong>${fmtPct(i.steigerungProz)}</strong>.</p>`;
         })()}
       </div>
@@ -3188,48 +3219,34 @@ function saAuswertungHtml() {
     return Math.round(v).toLocaleString('de-DE') + ' €';
   };
   const ueberschuss   = bon ? bon.ueberschussMo : null;
-  const gesamtVerm    = bon ? bon.gesamtVermoegen : null;
-  const liquide       = bon ? bon.liquidesVermoegen : null;
-  const immo          = bon ? bon.immobilienVermoegen : null;
+  const liquideBackend = bon ? bon.liquidesVermoegen : null;
   const einkAnr       = bon ? bon.einkommenAnrechenbarMo : null;
   const ausg          = bon ? bon.ausgabenGesamtMo : null;
   const haushalt      = bon ? bon.haushaltPauschale : null;
   const fix           = bon ? bon.fixkostenMo : null;
   const verbMo        = bon ? bon.verbindlichkeitenMo : null;
-  const verbGes       = bon ? bon.verbindlichkeitenGesamt : null;
 
-  const ueberschussCls = (ueberschuss !== null && ueberschuss < 0) ? 'kpi-negative' : 'kpi-positive';
-
-  return `
-    <div class="card sa-auswertung-card">
-      <div class="card-title">Auswertung Selbstauskunft <span class="text-tertiary text-small" style="font-weight:normal;">(Bank-Sicht, live)</span></div>
-
-      <div class="grid-3 mt-16">
-        <div class="kpi-box ${ueberschussCls}">
-          <div class="kpi-label">Anrechenbarer Überschuss</div>
-          <div class="kpi-value">${eur(ueberschuss)} <span style="font-size:13px;font-weight:400;color:var(--text-tertiary);">/ Monat</span></div>
-          <div class="kpi-hint">Einkommen anrechenbar (80% Miete) minus tatsächliche Fixkosten und Verbindlichkeiten aus der Selbstauskunft (Iter 69: keine pauschale Haushaltsannahme mehr)</div>
-        </div>
-        <div class="kpi-box">
-          <div class="kpi-label">Gesamtvermögen</div>
-          <div class="kpi-value">${eur(gesamtVerm)}</div>
-          <div class="kpi-hint">Liquide + Immobilien-Netto (Verkehrswert minus Hypotheken)</div>
-        </div>
-        <div class="kpi-box kpi-primary">
-          <div class="kpi-label">Einsetzbar für Immobilie</div>
-          <div class="kpi-value">${eur(liquide)}</div>
-          <div class="kpi-hint"><strong>Nur liquide Assets</strong> — Bestandsimmobilien zählen nicht (Beleihungsauslauf gebunden)</div>
-        </div>
-      </div>
-
-      ${(() => {
+  // Iter 77 (21.05.2026): Aufschlüsselung VOR der KPI-Box berechnen, damit die
+  //   KPI-Werte direkt aus der Bilanz-Aggregation kommen. Backend-asymmetrischer
+  //   gesamtVermoegen (ignoriert zusatzVerbindlichkeit-Salden) wird damit
+  //   überstimmt — Edgar's Bilanz-Optik (③ − ④) ist die wahre Vermögenslage.
+  //   Backend selbst bleibt unangetastet (kein Risiko für IRR/Bonität/Tests).
+  const aufschluss = (() => {
         // Iter 72 (21.05.2026): Volle Aufschlüsselung der 4 Bereiche — jede Position einzeln
         //   sichtbar, damit der Vertriebler nachvollziehen kann, woher die Summen kommen.
-        //   Immobilien fließen explizit als eigene Posten ein.
+        // Iter 77 (21.05.2026, Edgar-Vorgabe): Bilanz-Optik konsistent gemacht.
+        //   - Immobilie steht jetzt mit VOLLEM Verkehrswert in ③ Vermögen (statt Netto).
+        //   - Baufi-Restsaldo steht eigenständig in ④ Verbindlichkeiten (Saldo).
+        //   - Annuität/Mo-Rate der Verbindlichkeiten steht sichtbar in ② Ausgaben
+        //     (war schon Backend-Logik, aber UI-seitig versteckt → Drift zwischen
+        //      KPI-Box 1.217 € und Ausgaben-Summe 1.450 €). Jetzt: ① − ② = KPI.
+        //   - Zwei neue „Ergebnis"-Zeilen: ① − ② (Überschuss/Mo) und ③ − ④ (Gesamtvermögen).
+        //   - Footer zeigt explizit, wie „Einsetzbar für Immobilie" entsteht.
         const personen = sa.gemeinsam === true
           ? [['Antragsteller', sa.antragsteller || {}], ['Mit-Antragsteller', sa.mitantragsteller || {}]]
           : [['Antragsteller', sa.antragsteller || {}]];
         const eurNum = (v) => (v === null || v === undefined || !isFinite(v) || v === 0) ? '' : Math.round(v).toLocaleString('de-DE') + ' €';
+        const eurForce = (v) => (v === null || v === undefined || !isFinite(v)) ? '–' : Math.round(v).toLocaleString('de-DE') + ' €';
         const row = (label, val, klasse) => `<tr${klasse ? ' class="' + klasse + '"' : ''}><td>${label}</td><td class="num">${eurNum(val)}</td></tr>`;
 
         // ----- EINNAHMEN -----
@@ -3268,8 +3285,13 @@ function saAuswertungHtml() {
         });
 
         // ----- AUSGABEN -----
+        // Iter 77: Annuitäten (Baufi-Belastung + Verbindlichkeits-Raten) explizit
+        //   in den Ausgaben-Block. Sind im Backend (verbindlichkeitenMo) Teil von
+        //   ausgabenGesamtMo — Sichtbarmachen schließt die Drift zwischen
+        //   KPI „Überschuss" und Ausgaben-Summe.
         const ausgabenRows = [];
         let ausSum = 0;
+        let annuitaetSum = 0; // separat getrackt für Footer-Hinweis
         personen.forEach(([rolle, p]) => {
           const prefix = personen.length > 1 ? `<span class="text-tertiary text-small">[${esc(rolle.charAt(0))}]</span> ` : '';
           [['Miete eigene Whg','mieteMo'],['Laufende Lebenshaltung','lebenshaltungMo']].forEach(([label, k]) => {
@@ -3280,62 +3302,89 @@ function saAuswertungHtml() {
             const v = parseFloat(it && it.mo) || 0;
             if (v > 0) { ausgabenRows.push(`<tr><td>${prefix}${esc((it && it.titel) || 'Ausgabe')}</td><td class="num">${eurNum(v)}</td></tr>`); ausSum += v; }
           });
-          // Iter 73: Legacy raus — werden nicht mehr berechnet, nicht mehr angezeigt.
+          // Annuität Baufinanzierungen (pro Immobilie) — fließt in Ausgaben
+          (Array.isArray(p.immobilien) ? p.immobilien : []).forEach(immo => {
+            const mo = parseFloat(immo && immo.baufiBelastungMo) || 0;
+            if (mo > 0) {
+              ausgabenRows.push(`<tr><td>${prefix}Annuität · Baufi ${esc(immo.art || 'Immobilie')}${immo.anschrift ? ', ' + esc(immo.anschrift) : ''} <span class="text-tertiary text-small">(Zins + Tilgung)</span></td><td class="num">${eurNum(mo)}</td></tr>`);
+              ausSum += mo; annuitaetSum += mo;
+            }
+          });
+          // Raten sonstiger Verbindlichkeiten (Konsumkredit, Leasing etc.)
+          (Array.isArray(p.zusatzVerbindlichkeiten) ? p.zusatzVerbindlichkeiten : []).forEach(it => {
+            const mo = parseFloat(it && it.mo) || 0;
+            if (mo > 0) {
+              ausgabenRows.push(`<tr><td>${prefix}Rate · ${esc((it && it.titel) || 'Verbindlichkeit')}</td><td class="num">${eurNum(mo)}</td></tr>`);
+              ausSum += mo; annuitaetSum += mo;
+            }
+          });
         });
 
         // ----- VERMÖGEN -----
+        // Iter 77: Immobilien jetzt mit vollem Verkehrswert (statt Netto). Restsaldo
+        //   landet eigenständig in ④. Differenz ③ − ④ = gesamtVermoegen (unverändert).
         const vermoegenRows = [];
         let vermSum = 0;
+        let liquideUiSum = 0;       // Vermögen ohne Bestandsimmobilien — zeigt „Einsetzbar"
+        let immoVerkehrSum = 0;     // nur Verkehrswerte der Bestandsimmobilien
         personen.forEach(([rolle, p]) => {
           const prefix = personen.length > 1 ? `<span class="text-tertiary text-small">[${esc(rolle.charAt(0))}]</span> ` : '';
           const v = parseFloat(p.bankguthaben) || 0;
-          if (v > 0) { vermoegenRows.push(`<tr><td>${prefix}Bankguthaben</td><td class="num">${eurNum(v)}</td></tr>`); vermSum += v; }
+          if (v > 0) { vermoegenRows.push(`<tr><td>${prefix}Bankguthaben</td><td class="num">${eurNum(v)}</td></tr>`); vermSum += v; liquideUiSum += v; }
           (Array.isArray(p.zusatzVermoegen) ? p.zusatzVermoegen : []).forEach(it => {
             const w = parseFloat(it && it.wert) || 0;
-            if (w > 0) { vermoegenRows.push(`<tr><td>${prefix}${esc((it && it.titel) || 'Vermögen')}</td><td class="num">${eurNum(w)}</td></tr>`); vermSum += w; }
+            if (w > 0) { vermoegenRows.push(`<tr><td>${prefix}${esc((it && it.titel) || 'Vermögen')}</td><td class="num">${eurNum(w)}</td></tr>`); vermSum += w; liquideUiSum += w; }
           });
-          // Iter 74 (21.05.2026): Immobilien-Netto darf negativ sein (Underwater-Immobilie).
+          // Iter 77: Immobilie als Vollwert (Verkehrswert). Schulden separat in ④.
           (Array.isArray(p.immobilien) ? p.immobilien : []).forEach(immo => {
             const vk = parseFloat(immo && immo.verkehrswert) || 0;
-            const rest = parseFloat(immo && immo.baufiRestsaldo) || 0;
-            const netto = vk - rest;
-            if (netto !== 0 || vk > 0) {
-              const isNeg = netto < 0;
-              const nettoFormatted = isNeg
-                ? `<span style="color:#8E1010;font-weight:600;">−${Math.abs(Math.round(netto)).toLocaleString('de-DE')} €</span>`
-                : Math.round(netto).toLocaleString('de-DE') + ' €';
-              vermoegenRows.push(`<tr><td>${prefix}Immobilie · ${esc(immo.art || 'Immobilie')}${immo.anschrift ? ', ' + esc(immo.anschrift) : ''} <span class="text-tertiary text-small">(${vk.toLocaleString('de-DE')} − ${rest.toLocaleString('de-DE')} Restsaldo)</span></td><td class="num">${nettoFormatted}</td></tr>`);
-              vermSum += netto;
+            if (vk > 0) {
+              vermoegenRows.push(`<tr><td>${prefix}Immobilie · ${esc(immo.art || 'Immobilie')}${immo.anschrift ? ', ' + esc(immo.anschrift) : ''} <span class="text-tertiary text-small">(Verkehrswert)</span></td><td class="num">${eurNum(vk)}</td></tr>`);
+              vermSum += vk; immoVerkehrSum += vk;
             }
           });
-          // Iter 73: Legacy raus.
         });
 
         // ----- VERBINDLICHKEITEN -----
+        // Iter 77: Nur Salden in ④ — Mo-Raten sind in ② Ausgaben. Damit ist
+        //   ③ − ④ = Gesamtvermögen direkt ablesbar.
         const verbRows = [];
-        let verbMoSum = 0, verbRestSum = 0;
+        let verbRestSum = 0;
         personen.forEach(([rolle, p]) => {
           const prefix = personen.length > 1 ? `<span class="text-tertiary text-small">[${esc(rolle.charAt(0))}]</span> ` : '';
           (Array.isArray(p.zusatzVerbindlichkeiten) ? p.zusatzVerbindlichkeiten : []).forEach(it => {
             const mo = parseFloat(it && it.mo) || 0;
             const w = parseFloat(it && it.wert) || 0;
-            if (mo > 0 || w > 0) {
-              verbRows.push(`<tr><td>${prefix}${esc((it && it.titel) || 'Verbindlichkeit')}</td><td class="num">${mo > 0 ? eurNum(mo) + '/Mo' : ''} ${w > 0 ? '· ' + eurNum(w) + ' Saldo' : ''}</td></tr>`);
-              verbMoSum += mo; verbRestSum += w;
+            if (w > 0) {
+              const moHint = mo > 0 ? ` <span class="text-tertiary text-small">(Rate ${eurNum(mo)}/Mo in ②)</span>` : '';
+              verbRows.push(`<tr><td>${prefix}${esc((it && it.titel) || 'Verbindlichkeit')}${moHint}</td><td class="num">${eurNum(w)}</td></tr>`);
+              verbRestSum += w;
             }
           });
-          // Immobilien-Baufi
+          // Immobilien-Baufi — Restsaldo
           (Array.isArray(p.immobilien) ? p.immobilien : []).forEach(immo => {
             const mo = parseFloat(immo && immo.baufiBelastungMo) || 0;
             const w = parseFloat(immo && immo.baufiRestsaldo) || 0;
-            if (mo > 0 || w > 0) {
-              verbRows.push(`<tr><td>${prefix}Baufi · ${esc(immo.art || 'Immobilie')}${immo.anschrift ? ', ' + esc(immo.anschrift) : ''}</td><td class="num">${mo > 0 ? eurNum(mo) + '/Mo' : ''} ${w > 0 ? '· ' + eurNum(w) + ' Saldo' : ''}</td></tr>`);
-              verbMoSum += mo; verbRestSum += w;
+            if (w > 0) {
+              const moHint = mo > 0 ? ` <span class="text-tertiary text-small">(Annuität ${eurNum(mo)}/Mo in ②)</span>` : '';
+              verbRows.push(`<tr><td>${prefix}Baufi · ${esc(immo.art || 'Immobilie')}${immo.anschrift ? ', ' + esc(immo.anschrift) : ''}${moHint}</td><td class="num">${eurNum(w)}</td></tr>`);
+              verbRestSum += w;
             }
           });
         });
 
-        return `
+        // ----- ABLEITUNGEN -----
+        const ueberschussCalc = einSum - ausSum;   // sollte == bon.ueberschussMo sein
+        const vermoegenSaldo  = vermSum - verbRestSum; // sollte == bon.gesamtVermoegen sein
+        const ueberCls = ueberschussCalc < 0 ? 'pos-neg' : 'pos-pos';
+        const vermCls  = vermoegenSaldo  < 0 ? 'pos-neg' : 'pos-pos';
+        const ueberColor = ueberschussCalc < 0 ? '#8E1010' : '#1B5E20';
+        const vermColor  = vermoegenSaldo  < 0 ? '#8E1010' : '#1B5E20';
+        const einsetzbarHerleitung = immoVerkehrSum > 0
+          ? `${eurForce(vermSum)} (③ Summe) − ${eurForce(immoVerkehrSum)} (Bestandsimmobilien) = <strong>${eurForce(liquideUiSum)}</strong>`
+          : `Liquide Positionen aus ③: <strong>${eurForce(liquideUiSum)}</strong>`;
+
+        const html = `
         <details class="sa-aufschluss" open>
           <summary>Aufschlüsselung — woher kommen die Werte?</summary>
           <div class="grid-2 mt-12" style="gap:24px;">
@@ -3343,36 +3392,77 @@ function saAuswertungHtml() {
               <div style="font-weight:600;margin:8px 0 6px;color:#1B5E20;">↘ ① Einnahmen anrechenbar (Mo)</div>
               <table class="sa-aufschluss-table">
                 ${einnahmenRows.join('') || '<tr><td colspan="2" class="text-tertiary text-small">Keine Einnahmen erfasst.</td></tr>'}
-                <tr class="row-sum"><td>Summe</td><td class="num">${eurNum(einSum)}</td></tr>
+                <tr class="row-sum"><td>Summe ①</td><td class="num">${eurNum(einSum)}</td></tr>
               </table>
 
-              <div style="font-weight:600;margin:18px 0 6px;color:#8E1010;">↗ ② Ausgaben (Mo)</div>
+              <div style="font-weight:600;margin:18px 0 6px;color:#8E1010;">↗ ② Ausgaben (Mo) <span class="text-tertiary text-small" style="font-weight:normal;">inkl. Annuitäten</span></div>
               <table class="sa-aufschluss-table">
                 ${ausgabenRows.join('') || '<tr><td colspan="2" class="text-tertiary text-small">Keine Ausgaben erfasst.</td></tr>'}
-                <tr class="row-sum"><td>Summe</td><td class="num">${eurNum(ausSum)}</td></tr>
+                <tr class="row-sum"><td>Summe ②</td><td class="num">${eurNum(ausSum)}</td></tr>
+              </table>
+
+              <table class="sa-aufschluss-table sa-aufschluss-result" style="margin-top:8px;border-top:2px solid ${ueberColor};">
+                <tr><td style="padding-top:8px;"><strong>= Anrechenbarer Überschuss (① − ②)</strong></td><td class="num" style="padding-top:8px;color:${ueberColor};font-weight:700;font-size:15px;">${eurForce(ueberschussCalc)} <span style="font-size:12px;font-weight:400;color:var(--text-tertiary);">/ Monat</span></td></tr>
               </table>
             </div>
             <div>
-              <div style="font-weight:600;margin:8px 0 6px;color:#1B5E20;">↘ ③ Vermögen</div>
+              <div style="font-weight:600;margin:8px 0 6px;color:#1B5E20;">↘ ③ Vermögen <span class="text-tertiary text-small" style="font-weight:normal;">Verkehrswerte brutto</span></div>
               <table class="sa-aufschluss-table">
                 ${vermoegenRows.join('') || '<tr><td colspan="2" class="text-tertiary text-small">Kein Vermögen erfasst.</td></tr>'}
-                <tr class="row-sum"><td>Summe</td><td class="num">${eurNum(vermSum)}</td></tr>
+                <tr class="row-sum"><td>Summe ③</td><td class="num">${eurNum(vermSum)}</td></tr>
               </table>
 
-              <div style="font-weight:600;margin:18px 0 6px;color:#8E1010;">↗ ④ Verbindlichkeiten</div>
+              <div style="font-weight:600;margin:18px 0 6px;color:#8E1010;">↗ ④ Verbindlichkeiten <span class="text-tertiary text-small" style="font-weight:normal;">Restsalden</span></div>
               <table class="sa-aufschluss-table">
                 ${verbRows.join('') || '<tr><td colspan="2" class="text-tertiary text-small">Keine Verbindlichkeiten erfasst.</td></tr>'}
-                <tr class="row-sum"><td>Summe</td><td class="num">${eurNum(verbMoSum)}/Mo · ${eurNum(verbRestSum)} Saldo</td></tr>
+                <tr class="row-sum"><td>Summe ④</td><td class="num">${eurNum(verbRestSum)}</td></tr>
+              </table>
+
+              <table class="sa-aufschluss-table sa-aufschluss-result" style="margin-top:8px;border-top:2px solid ${vermColor};">
+                <tr><td style="padding-top:8px;"><strong>= Gesamtvermögen (③ − ④)</strong></td><td class="num" style="padding-top:8px;color:${vermColor};font-weight:700;font-size:15px;">${eurForce(vermoegenSaldo)}</td></tr>
               </table>
             </div>
           </div>
           <div class="footer-note">
-            Aus der Selbstauskunft direkt aggregiert — jede Zeile ist eine Position aus den Bausteinen ① bis ⑤.
-            <strong>Mieteinnahmen aus Immobilien</strong> werden zu 80 % angerechnet (Bank-Standard: Leerstands-/Mietausfallreserve).
-            <strong>Immobilien-Netto</strong> = Verkehrswert minus Baufi-Restsaldo derselben Immobilie. Legacy-Felder aus älteren SA-Versionen werden separat gekennzeichnet.
+            <div style="margin-bottom:6px;"><strong>Einsetzbar für Immobilie</strong> = ${einsetzbarHerleitung}</div>
+            <div style="margin-bottom:6px;">Bestandsimmobilien zählen <em>nicht</em> als Eigenkapital für eine neue Finanzierung — der Beleihungsauslauf der bestehenden Baufi bindet den Wert. Verkehrswert und Restsaldo stehen deshalb separat in ③/④, fließen aber nicht in „Einsetzbar".</div>
+            <div><strong>Mieteinnahmen aus Immobilien</strong> werden zu 80 % angerechnet (Bank-Standard: Leerstands-/Mietausfallreserve). <strong>Annuitäten</strong> (Zins + Tilgung) der Baufinanzierungen erscheinen in ② Ausgaben — der Restsaldo eigenständig in ④. Doppelzählung ist ausgeschlossen, weil Ausgaben (Mo) und Vermögensbilanz (€) auf unterschiedlichen Ebenen rechnen.</div>
           </div>
         </details>`;
-      })()}
+        return { html, einSum, ausSum, ueberschussCalc, vermSum, verbRestSum, vermoegenSaldo, liquideUiSum, immoVerkehrSum };
+      })();
+
+  // KPI-Box-Werte aus der UI-Bilanz statt vom Backend — Backend ist asymmetrisch
+  //   (gesamtVermoegen ignoriert zusatzVerbindlichkeit-Salden). Einsetzbar bleibt
+  //   Backend-Wert (computeBonitaetDetailed ist konsistent für liquide).
+  const gesamtVerm = aufschluss.vermoegenSaldo;
+  const liquide    = aufschluss.liquideUiSum != null ? aufschluss.liquideUiSum : liquideBackend;
+  const ueberschussCls = (ueberschuss !== null && ueberschuss < 0) ? 'kpi-negative' : 'kpi-positive';
+  const vermCls    = (gesamtVerm !== null && gesamtVerm < 0) ? 'kpi-negative' : '';
+
+  return `
+    <div class="card sa-auswertung-card">
+      <div class="card-title">Auswertung Selbstauskunft <span class="text-tertiary text-small" style="font-weight:normal;">(Bank-Sicht, live)</span></div>
+
+      <div class="grid-3 mt-16">
+        <div class="kpi-box ${ueberschussCls}">
+          <div class="kpi-label">Anrechenbarer Überschuss</div>
+          <div class="kpi-value">${eur(ueberschuss)} <span style="font-size:13px;font-weight:400;color:var(--text-tertiary);">/ Monat</span></div>
+          <div class="kpi-hint">① Einnahmen anrechenbar − ② Ausgaben (inkl. Annuitäten). Mieteinnahmen zu 80 % (Bank-Standard).</div>
+        </div>
+        <div class="kpi-box ${vermCls}">
+          <div class="kpi-label">Gesamtvermögen</div>
+          <div class="kpi-value">${eur(gesamtVerm)}</div>
+          <div class="kpi-hint">③ Vermögen (Verkehrswerte brutto) − ④ Verbindlichkeiten (Restsalden). Auch negativ möglich (underwater).</div>
+        </div>
+        <div class="kpi-box kpi-primary">
+          <div class="kpi-label">Einsetzbar für Immobilie</div>
+          <div class="kpi-value">${eur(liquide)}</div>
+          <div class="kpi-hint"><strong>Nur liquide Assets</strong> aus ③ — Bestandsimmobilien zählen nicht (Beleihungsauslauf gebunden).</div>
+        </div>
+      </div>
+
+      ${aufschluss.html}
     </div>
   `;
 }

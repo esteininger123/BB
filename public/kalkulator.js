@@ -868,7 +868,13 @@ function recalc(i) {
   // 'vermoegenNetto'  (alter Name) wird zu Vermögenszuwachs.
   // Wert für Vermögenszuwachs ist mathematisch identisch zur alten Netto-Berechnung —
   // nur Gesamtvermögen ist neu definiert (alt: nur Verkaufserlös, neu: + kumCFs).
-  const startwert = i.marktwertProQm > 0 ? i.marktwertProQm * i.qm : kpGesamt;
+  // Iter 76 (21.05.2026, Edgar-Bug): Marktwert war = marktwertProQm × qm — Stellplatz
+  //   komplett vergessen, obwohl er im Darlehen steckt. Schere zwischen Marktwert und
+  //   Restschuld war dadurch verschoben. Fix: wohnungMarktwert + stellplatzKp. Der
+  //   Stellplatz hat keinen separaten „Markt-Vorteil" — sein Marktwert ist sein Kaufpreis.
+  //   Beide wachsen mit der gleichen Wertsteigerung mit (siehe Math.pow unten).
+  const wohnungMarktwert = i.marktwertProQm > 0 ? i.marktwertProQm * i.qm : i.kaufpreis;
+  const startwert = wohnungMarktwert + (parseFloat(i.stellplatzKp) || 0);
   const vermoegen = [];
   for (let y = 0; y <= 10; y++) {
     const wert = startwert * Math.pow(1 + i.wertsteigerung, y);
