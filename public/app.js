@@ -2244,23 +2244,26 @@ function drawCharts(r) {
   const cfStVorteil = cf10.map(c => Math.round(c.stVorteilJahr || 0));                      // nur Steuervorteil
   const cfNachSt    = cf10.map(c => Math.round(c.cfJahr || 0));                              // gesamt = operativ + Steuervorteil
 
-  // Iter 43 (19.05.2026): 10 Jahresbalken — alle in €/Mo-Ø zur visuellen Vergleichbarkeit.
-  // Tooltip zeigt die 12 Monatsdetails (CF nach Steuern pro Monat im Jahr).
+  // Iter 75 (21.05.2026, Edgar-Bug J10): Chart liest jetzt aus r.cf[y] (Jahresdaten),
+  //   identisch zur KPI-Quelle. Vorher cfMonate-Aggregation → für J10 driftete der
+  //   Wert ~200 €/Mo gegen die KPI ab (Balken fehlte, Linie schoss auf +37 statt -137).
+  //   cfMonate bleibt nur für Tooltip-Monatsdetail erhalten.
   const cfMo        = Array.isArray(r.cfMonate) ? r.cfMonate : [];
   const MONATSKURZ = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
   const cfBarData = []; // 10 Einträge — je 1 pro Jahr
   for (let y = 1; y <= 10; y++) {
     const monatsBlock = cfMo.slice((y - 1) * 12, y * 12);
-    const sumNachSt   = monatsBlock.reduce((s, p) => s + (p.cfNachStM   || 0), 0);
-    const sumOperativ = monatsBlock.reduce((s, p) => s + (p.cfOperativM || 0), 0);
-    const sumStV      = monatsBlock.reduce((s, p) => s + (p.stVorteilM  || 0), 0);
+    const c = r.cf[y - 1] || {};
+    const operativJahr = (c.cfJahr || 0) - (c.stVorteilJahr || 0);
+    const stVorteilJahr = c.stVorteilJahr || 0;
+    const cfJahr = c.cfJahr || 0;
     cfBarData.push({
       label: 'J' + y,
-      operativ: Math.round(sumOperativ / 12),
-      stVorteil: Math.round(sumStV / 12),
-      nachSt: Math.round(sumNachSt / 12),
+      operativ: Math.round(operativJahr / 12),
+      stVorteil: Math.round(stVorteilJahr / 12),
+      nachSt: Math.round(cfJahr / 12),
       yearIdx: y,
-      jahresSumme: Math.round(sumNachSt),
+      jahresSumme: Math.round(cfJahr),
       monatsBlock,
     });
   }
