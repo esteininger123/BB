@@ -847,6 +847,25 @@ function renderTabKalkulator() {
                 </div>
               ` : ''}
               ${(() => {
+                // Iter 67 (20.05.2026): €/qm-Anker für den Vertriebler — sieht KP/qm, Miete/qm
+                // und Subv/qm auf einen Blick, damit er die Wohnung schnell ins Markt-Niveau
+                // einordnen kann. Bezieht sich nur auf die Wohnung (ohne Stellplatz).
+                const qm = parseFloat(i.qm) || 0;
+                if (qm <= 0) return '';
+                const kp = parseFloat(i.kaufpreis) || 0;
+                const mi = parseFloat(i.kaltmiete) || 0;
+                const sv = (Array.isArray(i.subventionPhasen) && i.subventionPhasen[0])
+                  ? (i.subventionPhasen[0].mo || 0)
+                  : (i.subventionMo || 0);
+                const fmtQm = (v) => v.toFixed(2).replace('.', ',');
+                const teile = [];
+                if (kp > 0) teile.push(`KP <strong>${fmtQm(kp / qm)} €/qm</strong>`);
+                if (mi > 0) teile.push(`Miete <strong>${fmtQm(mi / qm)} €/qm</strong>`);
+                if (sv > 0) teile.push(`Subv <strong>${fmtQm(sv / qm)} €/qm</strong>`);
+                if (teile.length === 0) return '';
+                return `<div class="we-qm-info text-small text-tertiary" style="margin-top:4px;letter-spacing:0.02em;">${teile.join(' · ')}</div>`;
+              })()}
+              ${(() => {
                 // Iter 54: Nur noch Warnungen anzeigen — der „aktiv"-Fall ist der Normalfall
                 // und braucht keine Pille. Tech-Hinweis „aus Airtable" raus aus Endkunden-Sicht.
                 if (!i._stammdatenQuelle || i._stammdatenQuelle === 'airtable-aktiv') return '';
@@ -1795,8 +1814,12 @@ function recalcAndRender() {
       'Was Dir monatlich in Jahr 1 aus der Tasche geht oder bleibt. Deine Mieten + Subvention − Annuität − Hausgeld − Hausverwaltung − Mietverwaltung + Dein Steuervorteil. Positiv = Cashflow positiv für Dich.', cls(r.belastungMo)),
     kpiCard('Deine EK-Rendite (IRR) 10 J.', fmtPct(r.irr),
       'Interner Zinsfuß auf Dein eingesetztes EK über 10 Jahre inkl. Exit-Erlös. Berücksichtigt: Dein eingesetztes EK, Deine jährlichen Cashflows, Dein Verkaufserlös nach §23-EStG-Frist.'),
-    kpiCard('Dein Gesamtvermögen 10 J.', fmt(r.vermoegenBrutto10),
-      'Dein Endstand nach 10 Jahren: Marktwert minus Deine Restschuld plus Deine kumulierten Cashflows. Das, was an Vermögen wirklich da ist (vor Abzug Deines eingesetzten EK).'),
+    // Iter 67 (20.05.2026): „Gesamtvermögen 10 J." raus, stattdessen Bruttorendite.
+    //   Formel: Käufer-Brutto-Mieteinnahme Jahr 1 (Kaltmiete + Stellplatzmiete + Subv-Aufschlag)
+    //   × 12 / Gesamtkaufpreis. Das ist die anfängliche Brutto-Rendite, die der Käufer in Jahr 1
+    //   sieht — inkl. der von B&B geleisteten Subventions-Aufstockung.
+    kpiCard('Deine Bruttorendite (Jahr 1)', fmtPct(r.bruttorendite || 0),
+      'Brutto-Mietrendite im ersten Jahr: (Deine Kaltmiete + Stellplatzmiete + B&B-Subvention) × 12 ÷ Gesamtkaufpreis. Bezieht die Mietsubvention voll ein — so wie Du sie wirklich kassierst.'),
     kpiCard('Dein Vermögenszuwachs 10 J.', fmt(r.vermoegenNetto10),
       'Deine ehrliche Vermögensbilanz: Gesamtvermögen 10 J. minus Dein eingesetztes Eigenkapital. Das ist Dein echter Zuwachs gegenüber Deinem Start.', 'positive'),
   ];
