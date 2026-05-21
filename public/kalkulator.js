@@ -974,6 +974,20 @@ function recalc(i) {
     mieteJ1Mo: cf1.mieteJahr / 12,
     ersteErhoehungMonat,
     ersteErhoehungJahrLabel,
+    // Iter 67 (20.05.2026): €/qm-Werte + Bruttorendite für Vertriebler-UI.
+    //   - kaufpreisWohnungProQm: nur Wohnung (ohne Stellplatz), damit der Vertriebler
+    //     die Wohnungs-Marktwert-Vergleich auf einen Blick hat.
+    //   - mieteWohnungProQm: Tag-1-Kaltmiete der Wohnung (ohne Stellplatz, ohne Subv).
+    //   - subventionProQm: Aufschlag aus Phase 1 / qm — was B&B effektiv pro qm draufpackt.
+    //   - bruttorendite: Käufer-Brutto-Mieteinnahme Jahr 1 inkl. Subv (kaltmiete + stellplatzMiete
+    //     + subv-Aufschlag) × 12 / Gesamtkaufpreis. Das ist die "ehrliche" Bruttorendite,
+    //     die der Käufer in Jahr 1 sieht — Edgar-Vorgabe 20.05.2026.
+    kaufpreisWohnungProQm: (i.qm > 0) ? (i.kaufpreis / i.qm) : 0,
+    mieteWohnungProQm: (i.qm > 0) ? (i.kaltmiete / i.qm) : 0,
+    subventionProQm: (i.qm > 0 && Array.isArray(i.subventionPhasen) && i.subventionPhasen[0])
+      ? ((i.subventionPhasen[0].mo || 0) / i.qm)
+      : ((i.qm > 0 && i.subventionMo) ? (i.subventionMo / i.qm) : 0),
+    bruttorendite: (kpGesamt > 0) ? (cf1.mieteJahr / kpGesamt) : 0,
   };
 }
 
@@ -1155,6 +1169,26 @@ function recalcPaket(weInputsArr, personSettings) {
     kaufpreisProQm: kpGesamt && results.reduce((s,r)=>s+(r.inputs.qm||0),0) > 0
       ? kpGesamt / results.reduce((s,r)=>s+(r.inputs.qm||0),0)
       : 0,
+    // Iter 67 (20.05.2026): Aggregierte €/qm-Werte + Bruttorendite für Paket-Modus.
+    kaufpreisWohnungProQm: (() => {
+      const totalQm = results.reduce((s,r)=>s+(r.inputs.qm||0),0);
+      const totalWohnungKp = results.reduce((s,r)=>s+(r.inputs.kaufpreis||0),0);
+      return totalQm > 0 ? (totalWohnungKp / totalQm) : 0;
+    })(),
+    mieteWohnungProQm: (() => {
+      const totalQm = results.reduce((s,r)=>s+(r.inputs.qm||0),0);
+      const totalKaltmiete = results.reduce((s,r)=>s+(r.inputs.kaltmiete||0),0);
+      return totalQm > 0 ? (totalKaltmiete / totalQm) : 0;
+    })(),
+    subventionProQm: (() => {
+      const totalQm = results.reduce((s,r)=>s+(r.inputs.qm||0),0);
+      const totalSubvMo = results.reduce((s,r)=>{
+        const ph = r.inputs.subventionPhasen;
+        return s + (Array.isArray(ph) && ph[0] ? (ph[0].mo||0) : (r.inputs.subventionMo||0));
+      }, 0);
+      return totalQm > 0 ? (totalSubvMo / totalQm) : 0;
+    })(),
+    bruttorendite: (kpGesamt > 0) ? (sum('mieteJ1Mo') * 12 / kpGesamt) : 0,
   };
 }
 
