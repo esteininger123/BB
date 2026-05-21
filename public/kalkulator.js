@@ -427,19 +427,16 @@ function computeBonitaetDetailed(sa, gemeinsam) {
     return n;
   }
   function einkommen(p) {
-    // Iter 71 (21.05.2026): Mieteinnahmen kommen jetzt ausschließlich aus dem
-    //   Immobilien-Baukasten (p.immobilien[]). Felder vermietungMo / immo1 / immo2
-    //   nur noch als Legacy berücksichtigt.
+    // Iter 73 (21.05.2026): Legacy-Felder (vermietungMo, immo1, immo2) komplett raus
+    //   aus der Berechnung. Mieteinnahmen kommen ausschließlich aus p.immobilien[].
+    //   Damit ist die Doppelzählung von Marcels SA (Immobilie + altes vermietungMo)
+    //   beseitigt.
     if (!p) return { netto: 0, vermAnr: 0, sonstigeAnr: 0, zusatz: 0, total: 0 };
     const netto = (parseFloat(p.nettoMo) || 0) * gehaelter(p) / 12;
     const immoMieten = Array.isArray(p.immobilien)
       ? p.immobilien.reduce((s, x) => s + (parseFloat(x && x.mietenMo) || 0), 0)
       : 0;
-    const vermBase = (parseFloat(p.vermietungMo) || 0)
-      + (p.immo1 ? (parseFloat(p.immo1.mietenMo) || 0) : 0)
-      + (p.immo2 ? (parseFloat(p.immo2.mietenMo) || 0) : 0)
-      + immoMieten;
-    const vermAnr = vermBase * 0.8; // 80 % Mietanrechnung Bank-Standard
+    const vermAnr = immoMieten * 0.8; // 80 % Mietanrechnung Bank-Standard
     const sonst = (parseFloat(p.unterhaltMo) || 0) + (parseFloat(p.kindergeldMo) || 0);
     const zusatz = sumZusatz(p, 'zusatzEinnahmen', 'mo');
     return { netto, vermAnr, sonstigeAnr: sonst, zusatz, total: netto + vermAnr + sonst + zusatz };
@@ -459,82 +456,54 @@ function computeBonitaetDetailed(sa, gemeinsam) {
   const haushaltPauschale = 0;
 
   // ----- Fixkosten (monatliche Ausgaben) -----
-  // Iter 71 (21.05.2026): PKV, Leasing und Unterhaltszahlungen sind keine Pflichtfelder
-  //   mehr — sie werden bei Bedarf im Baukasten als Position angelegt. Standard:
-  //   nur Miete eigene Wohnung + Laufende Lebenshaltung + Baukasten.
+  // Iter 73 (21.05.2026): Legacy-Felder (pkvMo, leasingMo, unterhaltZahlungMo) komplett
+  //   raus aus der Berechnung. Wenn der Kunde noch alte Werte hat, kann der Vertriebler
+  //   sie via „Legacy-Daten bereinigen"-Button im Stammdaten-Tab entfernen.
   function fixkosten(p) {
     if (!p) return 0;
     return (parseFloat(p.mieteMo) || 0)
          + (parseFloat(p.lebenshaltungMo) || 0)
-         + sumZusatz(p, 'zusatzAusgaben', 'mo')
-         // Legacy-Migration: alte Pflichtfelder werden noch ausgewertet, falls vorhanden
-         + (parseFloat(p.unterhaltZahlungMo) || 0)
-         + (parseFloat(p.pkvMo) || 0)
-         + (parseFloat(p.leasingMo) || 0);
+         + sumZusatz(p, 'zusatzAusgaben', 'mo');
   }
   const fixA = fixkosten(a);
   const fixM = fixkosten(m);
   const fixkostenMo = fixA + fixM;
 
   // ----- Verbindlichkeiten (mtl. Belastung) -----
-  // Iter 71: Baufi 1+2 (bf1/bf2) komplett raus — Baufinanzierungen werden pro
-  //   Immobilie im neuen Immobilien-Baukasten gepflegt. Aggregiert hier.
+  // Iter 73: Legacy-Felder (bf1, bf2, zusatzSchulden) raus.
   function verbindMo(p) {
     if (!p) return 0;
     let s = 0;
-    // Immobilien-Baufi: monatliche Belastungen aus dem Immobilien-Baukasten
     if (Array.isArray(p.immobilien)) {
-      p.immobilien.forEach(immo => {
-        if (immo) s += parseFloat(immo.baufiBelastungMo) || 0;
-      });
+      p.immobilien.forEach(immo => { if (immo) s += parseFloat(immo.baufiBelastungMo) || 0; });
     }
-    // Baukasten: sonstige Verbindlichkeiten (mtl. Belastung)
     s += sumZusatz(p, 'zusatzVerbindlichkeiten', 'mo');
-    // Legacy: alte bf1/bf2 + zusatzSchulden
-    ['bf1','bf2'].forEach(k => { if (p[k]) s += parseFloat(p[k].belastungMo) || 0; });
-    s += sumZusatz(p, 'zusatzSchulden', 'mo');
     return s;
   }
   function verbindRest(p) {
     if (!p) return 0;
     let s = 0;
-    // Immobilien-Baufi: Restsaldi
     if (Array.isArray(p.immobilien)) {
-      p.immobilien.forEach(immo => {
-        if (immo) s += parseFloat(immo.baufiRestsaldo) || 0;
-      });
+      p.immobilien.forEach(immo => { if (immo) s += parseFloat(immo.baufiRestsaldo) || 0; });
     }
-    // Baukasten: sonstige Verbindlichkeiten (Restsaldo)
     s += sumZusatz(p, 'zusatzVerbindlichkeiten', 'wert');
-    // Legacy
-    ['bf1','bf2'].forEach(k => { if (p[k]) s += parseFloat(p[k].restsaldo) || 0; });
-    s += sumZusatz(p, 'zusatzSchulden', 'wert');
     return s;
   }
   const verbindlichkeitenMo = verbindMo(a) + verbindMo(m);
   const verbindlichkeitenGesamt = verbindRest(a) + verbindRest(m);
 
   // ----- Liquides Vermögen (Bank-Sicht: "einsetzbar für neue Immobilie") -----
-  // Iter 71: Wertpapiere, Sparbücher und Bausparguthaben sind keine Pflichtfelder
-  //   mehr — wandern in den Baukasten. Standard: nur Bankguthaben + Baukasten.
+  // Iter 73: Legacy-Felder (wertpapiere, sparbuecher, bausparen, zusatzSparplaene) raus.
   function liquideVerm(p) {
     if (!p) return 0;
     let s = (parseFloat(p.bankguthaben) || 0);
-    // Baukasten: alle übrigen Vermögenspositionen (inkl. WP, Sparbücher, Bauspar)
     s += sumZusatz(p, 'zusatzVermoegen', 'wert');
-    // Legacy: alte Pflichtfelder + Sparpläne-Baukasten
-    s += (parseFloat(p.wertpapiere) || 0)
-      + (parseFloat(p.sparbuecher) || 0)
-      + (parseFloat(p.bausparen) || 0);
-    s += sumZusatz(p, 'zusatzSparplaene', 'wert');
     return s;
   }
   const liquidesVermoegen = liquideVerm(a) + liquideVerm(m);
 
   // ----- Immobilien-Vermögen (Verkehrswert minus Baufi-Restsaldo) -----
-  // Iter 71 (21.05.2026): Immobilien werden jetzt im Immobilien-Baukasten gepflegt
-  //   (p.immobilien[]). Pro Immobilie: Verkehrswert minus zugehörigem Baufi-Restsaldo.
-  //   Alte immo1/immo2-Felder als Legacy mit „hypotheken" als Hypothesen-Saldo.
+  // Iter 73 (21.05.2026): Legacy immo1/immo2 raus — nur noch p.immobilien[].
   function immoVerm(p) {
     if (!p) return 0;
     let s = 0;
@@ -546,14 +515,6 @@ function computeBonitaetDetailed(sa, gemeinsam) {
         s += Math.max(0, vk - sa);
       });
     }
-    // Legacy
-    ['immo1','immo2'].forEach(k => {
-      if (p[k]) {
-        const vk = parseFloat(p[k].verkehrswert) || 0;
-        const hy = parseFloat(p[k].hypotheken) || 0;
-        s += Math.max(0, vk - hy);
-      }
-    });
     return s;
   }
   const immobilienVermoegen = immoVerm(a) + immoVerm(m);

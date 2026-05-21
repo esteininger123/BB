@@ -3211,10 +3211,13 @@ function saAuswertungHtml() {
               einSum += anr;
             }
           });
-          // Legacy
-          ['vermietungMo','unterhaltMo','kindergeldMo'].forEach(k => {
+          // Iter 73 (21.05.2026): Unterhalt + Kindergeld werden weiterhin als Pflichtfelder
+          //   gezählt (auch wenn nicht mehr in der UI sichtbar) — gehört zum Einkommen.
+          //   Legacy vermietungMo wurde rausgeschmissen, war Quelle der Doppelzählung.
+          ['unterhaltMo','kindergeldMo'].forEach(k => {
             const v = parseFloat(p[k]) || 0;
-            if (v > 0) { einnahmenRows.push(`<tr><td>${prefix}<span class="text-tertiary text-small">${esc(k)} (Legacy)</span></td><td class="num">${eurNum(v)}</td></tr>`); einSum += v; }
+            const label = k === 'unterhaltMo' ? 'Unterhalt erhalten' : 'Kindergeld';
+            if (v > 0) { einnahmenRows.push(`<tr><td>${prefix}${esc(label)}</td><td class="num">${eurNum(v)}</td></tr>`); einSum += v; }
           });
         });
 
@@ -3231,15 +3234,7 @@ function saAuswertungHtml() {
             const v = parseFloat(it && it.mo) || 0;
             if (v > 0) { ausgabenRows.push(`<tr><td>${prefix}${esc((it && it.titel) || 'Ausgabe')}</td><td class="num">${eurNum(v)}</td></tr>`); ausSum += v; }
           });
-          // Legacy
-          ['pkvMo','leasingMo','unterhaltZahlungMo'].forEach(k => {
-            const v = parseFloat(p[k]) || 0;
-            if (v > 0) { ausgabenRows.push(`<tr><td>${prefix}<span class="text-tertiary text-small">${esc(k)} (Legacy)</span></td><td class="num">${eurNum(v)}</td></tr>`); ausSum += v; }
-          });
-          (Array.isArray(p.zusatzSparplaene) ? p.zusatzSparplaene : []).forEach(it => {
-            const v = parseFloat(it && it.mo) || 0;
-            if (v > 0) { ausgabenRows.push(`<tr><td>${prefix}<span class="text-tertiary text-small">${esc((it && it.titel) || 'Sparplan')} (Legacy)</span></td><td class="num">${eurNum(v)}</td></tr>`); ausSum += v; }
-          });
+          // Iter 73: Legacy raus — werden nicht mehr berechnet, nicht mehr angezeigt.
         });
 
         // ----- VERMÖGEN -----
@@ -3263,15 +3258,7 @@ function saAuswertungHtml() {
               vermSum += netto;
             }
           });
-          // Legacy
-          ['wertpapiere','sparbuecher','bausparen'].forEach(k => {
-            const w = parseFloat(p[k]) || 0;
-            if (w > 0) { vermoegenRows.push(`<tr><td>${prefix}<span class="text-tertiary text-small">${esc(k)} (Legacy)</span></td><td class="num">${eurNum(w)}</td></tr>`); vermSum += w; }
-          });
-          (Array.isArray(p.zusatzSparplaene) ? p.zusatzSparplaene : []).forEach(it => {
-            const w = parseFloat(it && it.wert) || 0;
-            if (w > 0) { vermoegenRows.push(`<tr><td>${prefix}<span class="text-tertiary text-small">${esc((it && it.titel) || 'Sparplan')} (Legacy)</span></td><td class="num">${eurNum(w)}</td></tr>`); vermSum += w; }
-          });
+          // Iter 73: Legacy raus.
         });
 
         // ----- VERBINDLICHKEITEN -----
@@ -3413,12 +3400,33 @@ function collectSaFromDOM() {
   return sa;
 }
 
+// Iter 73 (21.05.2026): Legacy-Felder beim Save aus dem SA-JSON entfernen — sonst tauchen
+//   sie nach jedem Lese-/Schreibzyklus wieder auf und führen perspektivisch zu Bugs
+//   (Doppelzählung bei Marcel). Wir löschen sie aktiv on save.
+const SA_LEGACY_FIELDS = [
+  'vermietungMo','sonstigeMo','immo1','immo2',
+  'pkvMo','leasingMo','unterhaltZahlungMo','sonstigeAusgabenMo',
+  'wertpapiere','sparbuecher','bausparen',
+  'bf1','bf2','kd1','kd2','kd3','kd4','vers',
+  'zusatzSparplaene','zusatzSchulden',
+];
+function cleanupLegacyFields(sa) {
+  if (!sa) return sa;
+  ['antragsteller','mitantragsteller'].forEach(rolle => {
+    const p = sa[rolle];
+    if (!p) return;
+    SA_LEGACY_FIELDS.forEach(k => { if (p.hasOwnProperty(k)) delete p[k]; });
+  });
+  return sa;
+}
+
 let _saAutoSaveTimer = null;
 async function autoSaveSa() {
   // Debounce: 600ms warten und einmalig speichern
   clearTimeout(_saAutoSaveTimer);
   _saAutoSaveTimer = setTimeout(async () => {
     const sa = collectSaFromDOM();
+    cleanupLegacyFields(sa); // Iter 73: alte Felder mit jedem Save mitlöschen
     sa.gemeinsam = document.getElementById('sa-gemeinsam') ? document.getElementById('sa-gemeinsam').checked : (sa.gemeinsam === true);
     // Iter 68 (21.05.2026): Bidirektionaler Mirror — wenn der Vertriebler in der SA
     //   die Antragsteller-Stammdaten ändert (Vorname, Name, E-Mail, Telefon,
