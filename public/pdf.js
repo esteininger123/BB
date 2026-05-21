@@ -579,7 +579,7 @@ function selbstauskunft(kunde, user) {
                 <thead><tr><th class="sa-section-h">IMMOBILIE ${idx + 1}${gemeinsam ? ' · ' + esc(rolle) : ''}</th><th colspan="2">${esc(immo.art || '')}${immo.anschrift ? ' · ' + esc(immo.anschrift) : ''}</th></tr></thead>
                 <tbody>
                   <tr><td class="sa-label">Anschrift</td><td colspan="2">${fld(immo.anschrift || '')}</td></tr>
-                  <tr><td class="sa-label">Baujahr / Erwerbsjahr</td><td colspan="2">${fld(immo.baujahr || '')} / ${fld(immo.erwerbsjahr || '')}</td></tr>
+                  <tr><td class="sa-label">Baujahr / Erwerbsjahr</td><td colspan="2" style="white-space:nowrap;"><span style="display:inline-block;min-width:90px;">${fld(immo.baujahr || '')}</span> &nbsp;/&nbsp; <span style="display:inline-block;min-width:90px;">${fld(immo.erwerbsjahr || '')}</span></td></tr>
                   <tr><td class="sa-label">Wohnfläche (m²)</td><td colspan="2">${fld(immo.wohnflaeche || '')}</td></tr>
                   <tr><td class="sa-label">Verkehrswert</td><td colspan="2">${fld(fmtNum(immo.verkehrswert))}</td></tr>
                   <tr><td class="sa-label">Mieteinnahmen pro Monat</td><td colspan="2">${fld(fmtNum(immo.mietenMo))}</td></tr>
@@ -622,24 +622,10 @@ function selbstauskunft(kunde, user) {
               verbZeilen.push({ rolle, titel: item.titel || 'Verbindlichkeit', notiz: item.notiz, mo, w });
             });
           }
-          // Legacy: zusatzSchulden + bf1/bf2
-          if (Array.isArray(person.zusatzSchulden)) {
-            person.zusatzSchulden.forEach(item => {
-              if (!item) return;
-              const mo = parseFloat(item.mo) || 0;
-              const w = parseFloat(item.wert) || 0;
-              if (mo === 0 && w === 0) return;
-              verbZeilen.push({ rolle, titel: item.titel || 'Schuld (Legacy)', mo, w });
-            });
-          }
-          ['bf1','bf2'].forEach((k, i) => {
-            const d = person[k];
-            if (!d) return;
-            const mo = parseFloat(d.belastungMo) || 0;
-            const w = parseFloat(d.restsaldo) || 0;
-            if (mo === 0 && w === 0) return;
-            verbZeilen.push({ rolle, titel: `Baufinanzierung ${i+1} (Legacy)`, mo, w });
-          });
+          // Iter 72 (21.05.2026): Legacy-Zeilen NICHT mehr im PDF anzeigen — Edgar will sie
+          //   sauber raus. In der Berechnung werden sie weiter mitgezählt, aber das PDF zeigt
+          //   nur noch das, was im neuen Schema gepflegt ist. Wenn ein Kunde noch alte bf1/bf2-
+          //   Daten hat, soll der Vertriebler sie in den neuen Baukasten umtragen.
         };
         collect('A', a);
         if (gemeinsam) collect('M', m);
