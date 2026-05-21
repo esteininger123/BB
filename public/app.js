@@ -944,7 +944,7 @@ function renderTabKalkulator() {
             <span class="chart-info-i" aria-hidden="true">i</span>
           </button>
         </div>
-        <div class="chart-info-popover" id="chart-info-popover" role="dialog" aria-hidden="true">
+        <div class="chart-info-popover" role="dialog" aria-hidden="true">
           <div class="chart-info-popover-title"></div>
           <div class="chart-info-popover-body"></div>
         </div>
@@ -956,11 +956,19 @@ function renderTabKalkulator() {
         <div class="card">
           <div class="card-title">Dein Cashflow · 10 Jahre</div>
           <div id="cf-werte-block" class="kalk-werte-block"></div>
+          <div class="chart-info-popover" role="dialog" aria-hidden="true">
+            <div class="chart-info-popover-title"></div>
+            <div class="chart-info-popover-body"></div>
+          </div>
           <div class="chart-container"><canvas id="chart-cashflow"></canvas></div>
         </div>
         <div class="card">
           <div class="card-title">Dein Eigenkapital · Anlage vs. Immobilie</div>
           <div id="spar-werte-block" class="kalk-werte-block"></div>
+          <div class="chart-info-popover" role="dialog" aria-hidden="true">
+            <div class="chart-info-popover-title"></div>
+            <div class="chart-info-popover-body"></div>
+          </div>
           <div class="chart-container"><canvas id="chart-sparen"></canvas></div>
           <div class="spar-zins-row">
             <span class="spar-zins-label">EK-Verzinsung:</span>
@@ -1211,7 +1219,7 @@ function kalkInputsThemenHtml(i) {
     <details class="kalk-section" ${sec('miete')} data-sec="miete" ontoggle="toggleKalkSection('miete', this)">
       <summary>2 · Miete</summary>
       <div class="grid-1">
-        ${sliderEur('Aktuelle Kaltmiete', 'kaltmiete', 200, 2000, 10, '€/Mo')}
+        ${sliderEur('Kaltmiete', 'kaltmiete', 200, 2000, 10, '€/Mo')}
         ${sliderEur('Stellplatz-Miete', 'stellplatzMiete', 0, 200, 5, '€/Mo')}
         ${(() => {
           // Iter 49 (Audit-Fix H4, 19.05.2026): Subventions-Status-Card —
@@ -2092,15 +2100,14 @@ function renderStories(r) {
   const sparenStory = story('07 — Dein Vergleich · Anlage vs. Immobilie', 'Dein Vermögen läuft mit Immobilie stärker', `
     <div class="story-grid">
       <table class="story-table">
-        <tr><td>Dein Startvermögen (verfügbar)</td><td class="num">${fmt(r.bonVermoegen || 0)}</td></tr>
-        <tr><td>− KNK „verbrannt" beim Kauf</td><td class="num">− ${fmt(r.ekBedarf)}</td></tr>
+        <tr><td>Dein eingesetztes EK (Tag 0)</td><td class="num">${fmt(r.ekBedarf)}</td></tr>
         <tr><td>Dein EK nur anlegen (Verzinsung ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a., 10 J.)</td><td class="num">${fmt(sparen10.nurSparen || 0)}</td></tr>
-        <tr><td>Dein EK in Immobilie (Spar-Rest + Vermögen + Cashflow)</td><td class="num pos">${fmt(sparen10.mitImmo || 0)}</td></tr>
+        <tr><td>Dein EK in Immobilie (Verkaufserlös + verzinster CF, 10 J.)</td><td class="num pos">${fmt(sparen10.mitImmo || 0)}</td></tr>
         <tr class="totalrow"><td><strong>Dein Vorteil durch die Immobilie</strong></td><td class="num pos"><strong>${fmt(r.sparenVsKaufenDelta)}</strong></td></tr>
       </table>
       <div class="story-explain">
-        Wenn Du Dein EK <strong>nur anlegst (${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a.)</strong>, kommst Du nach 10 J. auf <strong>${fmt(sparen10.nurSparen || 0)}</strong>. Wenn Du denselben Betrag <strong>als EK in diese Immobilie investierst</strong>, hast Du nach 10 J. <strong>${fmt(sparen10.mitImmo || 0)}</strong> — Dein Vorteil: <strong>${fmt(r.sparenVsKaufenDelta)}</strong>.<br><br>
-        <strong>Wichtig:</strong> Deine KNK sind <em>verbranntes Geld</em> (Grunderwerbsteuer, Notar, Grundbuch). Bei „KNK mitfinanziert" zahlst Du heute 0 € — dafür hast Du eine höhere Restschuld.
+        1:1-Vergleich Deines in die Immobilie eingebrachten EK (= Kaufnebenkosten): Wenn Du es <strong>nur anlegst (${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a.)</strong>, hast Du nach 10 J. <strong>${fmt(sparen10.nurSparen || 0)}</strong>. Wenn Du denselben Betrag <strong>als EK in diese Immobilie steckst</strong> (KNK weg, dafür 100 % fremdfinanzierte Wohnung), stehst Du nach 10 J. bei <strong>${fmt(sparen10.mitImmo || 0)}</strong> — Dein Vorteil: <strong>${fmt(r.sparenVsKaufenDelta)}</strong>.<br><br>
+        <strong>Wichtig:</strong> Im Immo-Pfad ist das EK als Kaufnebenkosten weg (Grunderwerbsteuer, Notar, Grundbuch). Der Hebel auf den vollen Kaufpreis macht den Unterschied.
       </div>
     </div>
   `);
@@ -2165,9 +2172,17 @@ function drawCharts(r) {
     const nachJ10 = cfNachSt[9] / 12;
     const fmtMo = (v) => (v >= 0 ? '+' : '−') + ' ' + Math.abs(Math.round(v)).toLocaleString('de-DE') + ' €/Mo';
     const cls   = (v) => v >= 0 ? 'positive' : 'negative';
-    const card = (title, j1, j10, hervorgehoben) => `
+    const infoBtn = (title, body) =>
+      `<button type="button" class="info-btn"
+               data-info-title="${esc(title)}"
+               data-info-body="${esc(body)}"
+               aria-label="Info zu ${esc(title)}">i</button>`;
+    const card = (title, j1, j10, hervorgehoben, infoTitle, infoBody) => `
       <div class="cf-detail-card${hervorgehoben ? ' primary' : ''}">
-        <div class="cf-detail-title">${esc(title)}</div>
+        <div class="cf-detail-title">
+          <span>${esc(title)}</span>
+          ${infoBtn(infoTitle, infoBody)}
+        </div>
         <div class="cf-detail-row">
           <span class="text-tertiary">Jahr 1</span><span class="${cls(j1)}">${fmtMo(j1)}</span>
         </div>
@@ -2176,9 +2191,15 @@ function drawCharts(r) {
         </div>
       </div>`;
     werteBlock.innerHTML =
-      card('Dein operativer CF',     opJ1,   opJ10,   false) +
-      card('Dein Steuervorteil',     stVJ1,  stVJ10,  false) +
-      card('★ Dein CF nach Steuern', nachJ1, nachJ10, true);
+      card('Dein operativer CF', opJ1, opJ10, false,
+        'Operativer Cashflow',
+        'Was monatlich aus der Immobilie übrig bleibt — VOR Steuern.\n\nFormel: Kaltmiete (inkl. Mietsubvention) − Annuität (Zins + Tilgung) − Hausgeld − Hausverwaltung\n\nStartet meist im Minus (Belastung > Miete), kippt über die Jahre ins Plus, sobald Mieten steigen und der Zinsanteil der Annuität sinkt.') +
+      card('Dein Steuervorteil', stVJ1, stVJ10, false,
+        'Steuervorteil',
+        'Wie viel Steuern Du Dir pro Monat sparst, weil die Immobilie steuerlich Verluste produziert.\n\nFormel: (Zinsanteil + AfA + Werbungskosten − Mieteinnahmen) × Dein Grenzsteuersatz\n\nSchrumpft über die Zeit: Zinsanteil sinkt mit Tilgung, Mieten steigen — der steuerliche Verlust wird kleiner, irgendwann kippt es ins Plus (= Du zahlst Steuern auf die Mieteinnahmen).') +
+      card('★ Dein CF nach Steuern', nachJ1, nachJ10, true,
+        'CF nach Steuern',
+        'Die wichtigste Zahl: was real auf Deinem Konto landet — nach allen Kosten UND nach Steuern.\n\nFormel: operativer CF + Steuervorteil\n\nIn den ersten Jahren oft leicht negativ oder bei Null. Steigt über 10 Jahre deutlich — durch Mietsteigerung + sinkenden Zinsanteil. Im Tooltip pro Bar siehst Du den Monatsverlauf des Jahres.');
   }
 
   // Sparen vs. Investieren: bleibt wie gehabt
@@ -2354,10 +2375,11 @@ function drawCharts(r) {
         tooltip: {
           mode: 'index',
           intersect: false,
+          position: 'nearest',
           backgroundColor: 'rgba(33,33,28,0.94)',
           titleFont: { size: 12, weight: '600' },
           bodyFont: { size: 11 },
-          padding: 12,
+          padding: 10,
           callbacks: {
             title: (items) => {
               if (!items.length) return '';
@@ -2369,15 +2391,17 @@ function drawCharts(r) {
               const lbl = ctx.dataset.label || '';
               return lbl + ': ' + fmtEUR(v) + '/Mo';
             },
+            // Iter 67: kompakter Footer — nur Spanne CF nach Steuern (min/max)
+            // statt aller 12 Monate. Vorher überdeckte der Tooltip halb den Chart.
             afterBody: (items) => {
               if (!items.length) return [];
               const d = cfBarData[items[0].dataIndex];
-              if (!d) return [];
-              const lines = ['', 'Monatsverlauf CF nach Steuern:'];
-              d.monatsBlock.forEach((md, idx) => {
-                lines.push('  ' + MONATSKURZ[idx] + '  ' + fmtEUR(md.cfNachStM) + '/Mo');
-              });
-              return lines;
+              if (!d || !d.monatsBlock || !d.monatsBlock.length) return [];
+              const vals = d.monatsBlock.map(m => m.cfNachStM);
+              const min  = Math.min(...vals);
+              const max  = Math.max(...vals);
+              if (Math.abs(max - min) < 1) return []; // konstant → keine Spanne nötig
+              return ['', 'Spanne im Jahr: ' + fmtEUR(min) + '/Mo … ' + fmtEUR(max) + '/Mo'];
             },
           }
         }
@@ -2398,16 +2422,30 @@ function drawCharts(r) {
     const delta      = immobil10 - anlage10;
     const fmtBig = (v) => (v >= 0 ? '' : '−') + Math.abs(Math.round(v)).toLocaleString('de-DE') + ' €';
     // Iter 50 Polish: Hex → CSS-Vars über `.spar-card`-Klasse (analog cf-detail-card).
-    const cardS = (title, value, sub, hervorgehoben) => `
+    const infoBtnS = (title, body) =>
+      `<button type="button" class="info-btn"
+               data-info-title="${esc(title)}"
+               data-info-body="${esc(body)}"
+               aria-label="Info zu ${esc(title)}">i</button>`;
+    const cardS = (title, value, sub, hervorgehoben, infoTitle, infoBody) => `
       <div class="spar-card${hervorgehoben ? ' primary' : ''}">
-        <div class="spar-card-title">${esc(title)}</div>
+        <div class="spar-card-title">
+          <span>${esc(title)}</span>
+          ${infoBtnS(infoTitle, infoBody)}
+        </div>
         <div class="spar-card-value">${fmtBig(value)}</div>
         <div class="spar-card-sub">${esc(sub)}</div>
       </div>`;
     sparWerteBlock.innerHTML =
-      cardS('Dein eingesetztes EK',         startEk,  'Start', false) +
-      cardS('Dein EK nur anlegen · 10 J',   anlage10, 'EK × Zinsen p.a.', false) +
-      cardS('★ Dein EK in Immobilie · 10 J', immobil10, (delta >= 0 ? '+ ' : '− ') + fmtBig(Math.abs(delta)).replace(' €','') + ' € ggü. Anlage', true);
+      cardS('Dein eingesetztes EK', startEk, 'Start', false,
+        'Eingesetztes EK',
+        'Das Geld, das Du am Tag 0 selbst aus der Tasche zahlst: die Kaufnebenkosten (Grunderwerbsteuer + Notar + Grundbuch).\n\nDer Kaufpreis selbst läuft komplett über die Bank. Wenn Du die KNK mitfinanzierst, ist hier 0.') +
+      cardS('Dein EK nur anlegen · 10 J', anlage10, 'EK × Zinsen p.a.', false,
+        'EK nur anlegen',
+        'Was aus Deinem eingesetzten EK geworden wäre, wenn Du es stattdessen nur angelegt hättest.\n\nFormel: eingesetztes EK × (1 + EK-Verzinsung)^10\n\nDen Zinssatz unten am Slider kannst Du frei wählen.') +
+      cardS('★ Dein EK in Immobilie · 10 J', immobil10, (delta >= 0 ? '+ ' : '− ') + fmtBig(Math.abs(delta)).replace(' €','') + ' € ggü. Anlage', true,
+        'EK in Immobilie',
+        'Was Dein eingesetztes EK über die Immobilie für Dich gearbeitet hat: der Verkaufserlös nach 10 J. (Marktwert − Restschuld) plus die Summe Deiner Cashflows aus der Mieteinnahme, ebenfalls mit dem Anlage-Zinssatz verzinst.\n\nFormel: (Marktwert − Restschuld) + verzinster kumulierter CF\n\nDas EK selbst ist als Kaufnebenkosten weg — der Hebel macht den Unterschied.');
   }
   if (chartS) chartS.destroy();
   chartS = new Chart(document.getElementById('chart-sparen'), {
@@ -3962,36 +4000,39 @@ window.addEventListener('load', async () => {
   render();
 });
 
-// ===== Info-Chips für Vermögensaufbau-Chart =====
+// ===== Info-Chips & Info-Buttons (Vermögensaufbau-, Cashflow-, Sparen-Charts) =====
 // Event-Delegation auf document, damit Re-Renders das Verhalten nicht zerstören.
+// Mehrfach nutzbar: jedes .card kann ein eigenes .chart-info-popover enthalten.
 (function () {
-  function closeInfoPopover() {
-    const pop = document.getElementById('chart-info-popover');
-    if (!pop) return;
-    pop.classList.remove('open');
-    pop.setAttribute('aria-hidden', 'true');
-    document.querySelectorAll('.chart-info-chip.active').forEach(b => b.classList.remove('active'));
+  function closeAllInfoPopovers() {
+    document.querySelectorAll('.chart-info-popover.open').forEach(p => {
+      p.classList.remove('open');
+      p.setAttribute('aria-hidden', 'true');
+    });
+    document.querySelectorAll('.chart-info-chip.active, .info-btn.active').forEach(b => b.classList.remove('active'));
   }
 
   document.addEventListener('click', (e) => {
-    const chip = e.target.closest('.chart-info-chip');
-    const pop  = document.getElementById('chart-info-popover');
+    const chip = e.target.closest('.chart-info-chip, .info-btn');
 
     // Außerhalb geklickt → schließen
     if (!chip) {
-      if (pop && pop.classList.contains('open') && !e.target.closest('#chart-info-popover')) {
-        closeInfoPopover();
-      }
+      if (!e.target.closest('.chart-info-popover')) closeAllInfoPopovers();
       return;
     }
-    if (!pop) return;
     e.preventDefault();
+
+    const card = chip.closest('.card');
+    const pop  = card && card.querySelector('.chart-info-popover');
+    if (!pop) return;
 
     // Gleicher Chip nochmal → toggle zu
     if (chip.classList.contains('active')) {
-      closeInfoPopover();
+      closeAllInfoPopovers();
       return;
     }
+
+    closeAllInfoPopovers();
 
     // Inhalt setzen
     const titleEl = pop.querySelector('.chart-info-popover-title');
@@ -3999,26 +4040,22 @@ window.addEventListener('load', async () => {
     if (titleEl) titleEl.textContent = chip.dataset.infoTitle || '';
     if (bodyEl)  bodyEl.textContent  = chip.dataset.infoBody  || '';
 
-    // Position relativ zum Chip — Popover hängt im Card, position: absolute
-    document.querySelectorAll('.chart-info-chip.active').forEach(b => b.classList.remove('active'));
     chip.classList.add('active');
 
-    const card = chip.closest('.card');
-    if (card) {
-      const cardRect = card.getBoundingClientRect();
-      const chipRect = chip.getBoundingClientRect();
-      // Pfeil zentriert unter dem Chip
-      const left = chipRect.left - cardRect.left + chipRect.width / 2;
-      const top  = chipRect.bottom - cardRect.top + 8;
-      pop.style.left = left + 'px';
-      pop.style.top  = top + 'px';
-    }
+    // Position relativ zum Chip im Card (position: absolute)
+    const cardRect = card.getBoundingClientRect();
+    const chipRect = chip.getBoundingClientRect();
+    const left = chipRect.left - cardRect.left + chipRect.width / 2;
+    const top  = chipRect.bottom - cardRect.top + 8;
+    pop.style.left = left + 'px';
+    pop.style.top  = top + 'px';
+
     pop.classList.add('open');
     pop.setAttribute('aria-hidden', 'false');
   });
 
   // ESC schließt
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeInfoPopover();
+    if (e.key === 'Escape') closeAllInfoPopovers();
   });
 })();

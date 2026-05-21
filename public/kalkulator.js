@@ -895,35 +895,34 @@ function recalc(i) {
   const bonVermoegenVsEk = bonVermoegen - ekBedarf;
   const bonVermoegenAusreichend = bonVermoegen >= ekBedarf;
 
-  // Iter 10: Sparen-vs-Investieren — KNK als verbranntes Geld.
-  // Sparen-Pfad: Verfügbares EK bleibt komplett auf Tagesgeld, monatlicher Überschuss (positiv aus CF)
-  //   würde theoretisch noch oben drauf — wir nehmen aber keine zusätzliche Sparrate an,
-  //   sondern nur das Basis-EK. Das entspricht der konservativen Sparer-Story.
-  // Investieren-Pfad: In Jahr 0 verbrennt der EK-Bedarf (= KNK, wenn nicht mitfin.) — er ist weg.
-  //   Tagesgeld-Rest = bonVermoegen - ekBedarf, der mit Sparzins wächst.
-  //   Dazu kommt: Vermögen brutto aus Immo + kumulierter Cashflow.
-  // KEIN nachträglicher Abzug von ekBedarf — der ist bereits am Tag 0 weg.
+  // Iter 67 (21.05.2026): Sparen-vs-Investieren auf eingesetztes EK umgestellt.
+  // Vorher: Vergleich des gesamten verfügbaren Vermögens (bonVermoegen).
+  // Jetzt: 1:1-Vergleich des in die Immobilie eingebrachten EK (= ekBedarf = KNK,
+  //   wenn nicht mitfinanziert). Frage: was würde aus diesem EK, wenn ich es
+  //   stattdessen nur anlege?
+  // Sparen-Pfad: ekBedarf wächst rein mit Sparzins.
+  // Investieren-Pfad: ekBedarf ist am Tag 0 als KNK weg. Stattdessen entstehen
+  //   die jährlichen Cashflows aus der Immobilie — die landen auf einem
+  //   Tagesgeldkonto und verzinsen sich dort. Endstand mit Immo = Verkaufserlös
+  //   (Marktwert − Restschuld) + verzinster kumulierter CF.
   const sparZins = (i.sparZins !== undefined && i.sparZins !== null) ? i.sparZins : SPAR_ZINS_DEFAULT;
   const sparen = [];
-  let nurSparenLauf = bonVermoegen;
-  let tagesgeldRest = Math.max(0, bonVermoegen - ekBedarf);
+  let nurSparenLauf = ekBedarf;
+  let tagesgeldRest = 0; // Immo-Pfad: EK ist als KNK weg, Konto leer am Tag 0
   sparen.push({
     y: 0,
     nurSparen: nurSparenLauf,
-    mitImmo: tagesgeldRest + 0, // Vermögen brutto = 0 in Jahr 0 (Wert = KP = Restschuld; sofern marktwertProQm = KP)
+    mitImmo: tagesgeldRest + 0,
     delta: tagesgeldRest - nurSparenLauf,
   });
   for (let y = 1; y <= 10; y++) {
     nurSparenLauf = nurSparenLauf * (1 + sparZins);
-    // Jahres-Cashflow (positiv addiert, negativ abgezogen)
     const cfJ = cf[y - 1].cfJahr;
     tagesgeldRest = tagesgeldRest * (1 + sparZins) + cfJ;
     const immoWert = vermoegen[y].wert;
     const immoRest = vermoegen[y].restschuld;
     const vermBrutto = immoWert - immoRest;
-    const mitImmo = Math.max(0, tagesgeldRest) + vermBrutto;
-    // wenn tagesgeldRest negativ wurde (= Cashflow hat alles aufgezehrt), zeigen wir den negativen Stand
-    // als Schulden-Effekt — pragmatisch: addieren ohne Floor
+    // tagesgeldRest kann negativ werden, wenn CFs negativ sind → ehrlich addieren
     const mitImmoEhrlich = tagesgeldRest + vermBrutto;
     sparen.push({
       y,
@@ -979,15 +978,24 @@ function recalc(i) {
     //     die Wohnungs-Marktwert-Vergleich auf einen Blick hat.
     //   - mieteWohnungProQm: Tag-1-Kaltmiete der Wohnung (ohne Stellplatz, ohne Subv).
     //   - subventionProQm: Aufschlag aus Phase 1 / qm — was B&B effektiv pro qm draufpackt.
-    //   - bruttorendite: Käufer-Brutto-Mieteinnahme Jahr 1 inkl. Subv (kaltmiete + stellplatzMiete
-    //     + subv-Aufschlag) × 12 / Gesamtkaufpreis. Das ist die "ehrliche" Bruttorendite,
-    //     die der Käufer in Jahr 1 sieht — Edgar-Vorgabe 20.05.2026.
-    kaufpreisWohnungProQm: (i.qm > 0) ? (i.kaufpreis / i.qm) : 0,
-    mieteWohnungProQm: (i.qm > 0) ? (i.kaltmiete / i.qm) : 0,
+    //   - bruttorendite: Tag-1-Brutto-Mieteinnahme inkl. Subv (Kaltmiete + Stellplatzmiete
+    //     + Phase-1-Aufschlag) × 12 / Gesamtkaufpreis. Bewusst Tag-1 statt CF-Jahr-1, damit
+    //     keine Staffel-Schritte schon eingerechnet sind — der Wert bleibt deterministisch
+    //     und nachvollziehbar. Edgar-Vorgabe 20.05.2026.
+    kaufpreisWohnungProQm: (i.qm > 0 && i.kaufpreis > 0) ? (i.kaufpreis / i.qm) : 0,
+    mieteWohnungProQm: (i.qm > 0 && i.kaltmiete > 0) ? (i.kaltmiete / i.qm) : 0,
     subventionProQm: (i.qm > 0 && Array.isArray(i.subventionPhasen) && i.subventionPhasen[0])
       ? ((i.subventionPhasen[0].mo || 0) / i.qm)
       : ((i.qm > 0 && i.subventionMo) ? (i.subventionMo / i.qm) : 0),
-    bruttorendite: (kpGesamt > 0) ? (cf1.mieteJahr / kpGesamt) : 0,
+    bruttorendite: (() => {
+      const kpG = (parseFloat(i.kaufpreis) || 0) + (parseFloat(i.stellplatzKp) || 0);
+      if (!(kpG > 0)) return 0;
+      const tag1Miete = (parseFloat(i.kaltmiete) || 0) + (parseFloat(i.stellplatzMiete) || 0);
+      const phase1Subv = (Array.isArray(i.subventionPhasen) && i.subventionPhasen[0])
+        ? (parseFloat(i.subventionPhasen[0].mo) || 0)
+        : (parseFloat(i.subventionMo) || 0);
+      return (tag1Miete + phase1Subv) * 12 / kpG;
+    })(),
   };
 }
 
@@ -1101,19 +1109,19 @@ function recalcPaket(weInputsArr, personSettings) {
   const irrValue = irr(irrSeries, 0.10);
 
   // 6. Sparen-vs-Investieren auf Paket-Ebene
-  const bonVermoegen = ps.bonVermoegen || 0;
+  // Iter 67 (21.05.2026): siehe kalkRecalc — 1:1-Vergleich des in die Immobilie
+  // eingebrachten EK (Paket-EK-Summe), nicht des gesamten verfügbaren Vermögens.
   const sparZins = (ps.sparZins !== undefined && ps.sparZins !== null) ? ps.sparZins : SPAR_ZINS_DEFAULT;
   const sparen = [];
-  let nurSparenLauf = bonVermoegen;
-  let tagesgeldRest = Math.max(0, bonVermoegen - ekBedarf);
+  let nurSparenLauf = ekBedarf;
+  let tagesgeldRest = 0;
   sparen.push({ y: 0, nurSparen: nurSparenLauf, mitImmo: tagesgeldRest, delta: tagesgeldRest - nurSparenLauf });
   for (let y = 1; y <= 10; y++) {
     nurSparenLauf = nurSparenLauf * (1 + sparZins);
     const cfJ = cf[y - 1].cfJahr;
     tagesgeldRest = tagesgeldRest * (1 + sparZins) + cfJ;
     // Verkaufserlös (Wert − Restschuld) ohne CFs — die kommen via tagesgeldRest rein,
-    // sonst Doppelzählung. (Gesamtvermögen wäre verkaufserloes + kumCf — das wäre
-    // hier falsch, weil tagesgeldRest die CFs schon enthält.)
+    // sonst Doppelzählung.
     const vermBrutto = vermoegen[y].verkaufserloes;
     const mitImmoEhrlich = tagesgeldRest + vermBrutto;
     sparen.push({ y, nurSparen: nurSparenLauf, mitImmo: mitImmoEhrlich, delta: mitImmoEhrlich - nurSparenLauf });
@@ -1121,6 +1129,7 @@ function recalcPaket(weInputsArr, personSettings) {
   const sparenVsKaufenDelta = sparen[10].mitImmo - sparen[10].nurSparen;
 
   // 7. Bonität (Paket-Summe) — einmal für gesamtes Paket
+  const bonVermoegen = ps.bonVermoegen || 0;
   let bonEinnahmen, bonAusgaben, bonDetail = null;
   if (ps.bonModus === 'detail' && ps.selbstauskunft) {
     bonDetail = computeBonitaetDetailed(ps.selbstauskunft, ps.saAntragGemeinsam !== false);
@@ -1188,7 +1197,22 @@ function recalcPaket(weInputsArr, personSettings) {
       }, 0);
       return totalQm > 0 ? (totalSubvMo / totalQm) : 0;
     })(),
-    bruttorendite: (kpGesamt > 0) ? (sum('mieteJ1Mo') * 12 / kpGesamt) : 0,
+    bruttorendite: (() => {
+      // Iter 67: Tag-1-Bruttorendite über das ganze Paket — analog zur Einzel-WE.
+      if (!(kpGesamt > 0)) return 0;
+      const tag1MieteSum = results.reduce((s, r) => {
+        const inp = r.inputs || {};
+        return s + (parseFloat(inp.kaltmiete) || 0) + (parseFloat(inp.stellplatzMiete) || 0);
+      }, 0);
+      const phase1SubvSum = results.reduce((s, r) => {
+        const inp = r.inputs || {};
+        const ph = inp.subventionPhasen;
+        return s + (Array.isArray(ph) && ph[0]
+          ? (parseFloat(ph[0].mo) || 0)
+          : (parseFloat(inp.subventionMo) || 0));
+      }, 0);
+      return (tag1MieteSum + phase1SubvSum) * 12 / kpGesamt;
+    })(),
   };
 }
 
