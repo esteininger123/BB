@@ -3603,29 +3603,70 @@ async function autoSaveSa() {
 // jeder Immobilienfinanzierung. Multi-Select + freie Erläuterung.
 function saHerkunftEkHtml(h) {
   h = h || {};
-  const chk = (key, label) => `
-    <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;cursor:pointer;user-select:none;font-weight:400;">
-      <input type="checkbox" data-sa="sa.herkunftEk.${key}" ${h[key] ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;">
-      <span>${esc(label)}</span>
-    </label>`;
+  // Iter 80 (21.05.2026): Branchen-Standard erweitert auf 10 Quellen + Beträge + Anbieter-Felder.
+  //   Pflicht-Sektion bei jeder Vermittler-SA (Dr.Klein, Hypovision). Bank-Sachbearbeiter
+  //   kann direkt aus dem PDF in sein System tippen — Eigenkapital-Herkunft ist die wichtigste
+  //   Vorab-Info nach § 8 + § 10 GwG.
+  const quelle = (key, label, hintHtml) => {
+    const istAktiv = !!h[key] || (parseFloat(h[key + 'Betrag']) || 0) > 0;
+    return `
+      <div style="display:grid;grid-template-columns:24px 1fr 140px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #F0EBDD;">
+        <label style="cursor:pointer;">
+          <input type="checkbox" data-sa="sa.herkunftEk.${key}" ${istAktiv ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;">
+        </label>
+        <div>
+          <div style="font-weight:500;">${esc(label)}</div>
+          ${hintHtml ? `<div style="font-size:11px;color:#777;margin-top:2px;">${hintHtml}</div>` : ''}
+        </div>
+        <div style="position:relative;">
+          <input type="number" step="any" placeholder="€" data-sa="sa.herkunftEk.${key}Betrag" value="${(parseFloat(h[key + 'Betrag']) || '') || ''}" style="width:100%;text-align:right;padding-right:24px;">
+          <span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);color:#999;pointer-events:none;">€</span>
+        </div>
+      </div>`;
+  };
   return `
-    <details class="sa-section" open>
-      <summary>Herkunft Eigenkapital (Bank-Pflichtfrage)</summary>
+    <details class="sa-section" open data-sec-state="sa-ek-herkunft" ${isSaSectionOpen('sa-ek-herkunft') ? 'open' : ''}>
+      <summary>Eigenkapital · Herkunft <span class="text-tertiary text-small" style="font-weight:normal;">(Bank-Pflichtfrage nach § 8 + § 10 GwG — banken-übliche 8 Quellen)</span></summary>
       <div class="text-tertiary text-small mb-12">
-        Die finanzierende Bank fragt bei jeder Immobilienfinanzierung nach der Herkunft des eingesetzten Eigenkapitals.
-        Mehrfachauswahl möglich. Bei "Schenkung" oder "Erbe" verlangt die Bank in der Regel eine zusätzliche Schenkungs- bzw. Erbschaftsbescheinigung.
+        Die finanzierende Bank fragt bei jeder Immobilienfinanzierung nach Herkunft + Betrag des eingesetzten Eigenkapitals.
+        Pro Quelle <strong>Häkchen setzen UND Betrag eintragen</strong>. Mehrfachauswahl. Bei <em>Schenkung/Erbschaft</em> und <em>Verkaufserlös</em>
+        verlangt die Bank zusätzliche Belege (Schenkungs-/Erbvertrag, Kaufvertrag).
       </div>
-      <div class="grid-3" style="gap:8px 24px;">
-        ${chk('ersparnisse', 'Eigene Ersparnisse')}
-        ${chk('wertpapier', 'Wertpapier-/Depot-Verkauf')}
-        ${chk('erbe', 'Erbschaft')}
-        ${chk('schenkung', 'Schenkung')}
-        ${chk('immobilien', 'Immobilienverkauf')}
-        ${chk('sonstiges', 'Sonstiges')}
+      <div style="background:#FAF7F0;padding:12px 16px;border-radius:4px;">
+        ${quelle('ersparnisse', 'Eigene Ersparnisse', 'aus Giro / Tagesgeld / Festgeld — nachweisbar aus Kontoauszügen')}
+        ${quelle('wertpapier', 'Wertpapier-/Depot-Verkauf', 'Verkaufsabrechnung + Verkaufserlös auf Konto')}
+        ${quelle('immobilien', 'Immobilienverkauf', 'Notarieller Kaufvertrag + Kaufpreis-Eingang')}
+        ${quelle('erbe', 'Erbschaft', 'Erbschein oder Testaments-Eröffnung')}
+        ${quelle('schenkung', 'Schenkung', 'Notariell beglaubigte Schenkungs-Urkunde')}
+        ${quelle('bauspar', 'Bausparvertrag (zuteilungsreif)', 'Zuteilungsbescheinigung der Bausparkasse')}
+        ${quelle('lv', 'Lebens-/Rentenversicherung (Auszahlung / Rückkauf)', 'Auszahlungs- oder Rückkaufs-Bescheinigung des Versicherers')}
+        ${quelle('eigenleistung', 'Eigenleistung / Muskelhypothek', 'Stunden-Kalkulation als Anlage (max. 10–15 % vom Beleihungswert)')}
+        ${quelle('darlehen', 'Arbeitgeber-/Familien-Darlehen', 'Darlehensvertrag mit Konditionen + Tilgungsplan')}
+        ${quelle('sonstiges', 'Sonstige Quelle', 'bitte unten erläutern')}
       </div>
+
+      <div class="grid-2 mt-12" style="gap:14px;">
+        <div>
+          <label>Bausparkasse (falls Bausparvertrag)</label>
+          <input type="text" data-sa="sa.herkunftEk.bauspKasse" placeholder="z.B. LBS Südwest, Schwäbisch Hall" value="${esc(h.bauspKasse || '')}">
+        </div>
+        <div>
+          <label>LV-Anbieter (falls Lebensversicherung)</label>
+          <input type="text" data-sa="sa.herkunftEk.lvAnbieter" placeholder="z.B. Allianz, R+V, Debeka" value="${esc(h.lvAnbieter || '')}">
+        </div>
+        <div>
+          <label>Darlehensgeber (falls AG-/Familien-Darlehen)</label>
+          <input type="text" data-sa="sa.herkunftEk.darlehGeber" placeholder="z.B. Arbeitgeber, Eltern" value="${esc(h.darlehGeber || '')}">
+        </div>
+        <div>
+          <label>Sonstige Quelle (Bezeichnung)</label>
+          <input type="text" data-sa="sa.herkunftEk.sonstQuelle" placeholder="z.B. Schmuck-Verkauf, Kunst" value="${esc(h.sonstQuelle || '')}">
+        </div>
+      </div>
+
       <div class="mt-12">
-        <label>Erläuterung (z.B. Schenker, Verkaufsobjekt, Verkaufsjahr)</label>
-        <input type="text" data-sa="sa.herkunftEk.erlaeuterung" value="${esc(h.erlaeuterung || '')}">
+        <label>Anmerkungen zur Mittelherkunft <span class="text-tertiary text-small">(Schenker, Verkaufsobjekt, Verkaufsjahr, andere Banken-relevante Hinweise)</span></label>
+        <textarea data-sa="sa.herkunftEk.erlaeuterung" rows="3" style="width:100%;font-family:inherit;font-size:14px;padding:10px;border:1px solid #D6D2C8;border-radius:4px;background:#FAF7F0;">${esc(h.erlaeuterung || '')}</textarea>
       </div>
     </details>
   `;
@@ -3837,10 +3878,12 @@ function saPersonHtml(prefix, p) {
       ${t('Geburtsname', 'geburtsname')}
       ${t('Vorname', 'vorname')}
       ${d('Geburtsdatum', 'geburtsdatum')}
+      ${t('Geburtsort', 'geburtsort')}
+      ${t('Staatsangehörigkeit', 'staatsangehoerigkeit')}
       ${t('Straße', 'strasse')}
       ${t('PLZ', 'plz')}
       ${t('Ort', 'ort')}
-      ${t('Staatsangehörigkeit', 'staatsangehoerigkeit')}
+      ${t('Wohnhaft seit (MM/JJJJ)', 'wohnhaftSeit')}
       ${t('Telefon privat', 'telefonPrivat')}
       ${t('Telefon geschäftlich', 'telefonGeschaeftlich')}
       ${t('E-Mail', 'email')}
@@ -3852,6 +3895,13 @@ function saPersonHtml(prefix, p) {
       ${s('Familienstand', 'familienstand', [
         {v:'ledig',l:'ledig'},{v:'verheiratet',l:'verheiratet'},
         {v:'geschieden',l:'geschieden'},{v:'verwitwet',l:'verwitwet'}
+      ])}
+      ${s('Güterstand (nur falls verheiratet)', 'gueterstand', [
+        {v:'',l:'—'},
+        {v:'Zugewinngemeinschaft',l:'Zugewinngemeinschaft (Standard)'},
+        {v:'Gütertrennung',l:'Gütertrennung'},
+        {v:'Gütergemeinschaft',l:'Gütergemeinschaft'},
+        {v:'Ehevertrag',l:'sonst. Ehevertrag'}
       ])}
       ${n('Kinder im Haushalt', 'kinderAnzahl')}
       ${t('Kinder Alter (Kommasep.)', 'kinderAlter')}
@@ -3905,19 +3955,31 @@ function saPersonHtml(prefix, p) {
   // Block-Inhalte als Strings — werden in blockContainer eingehängt.
   const einnahmenInhalt = `
     ${checklistBox('Einnahmen — was abfragen', [
-      '<strong>Netto-Gehalt</strong> + Anzahl Gehälter (12, 13, 14)',
+      '<strong>Brutto- UND Netto-Gehalt</strong> (Bank rechnet Verhältnis gegen Steuerklasse)',
+      '<strong>Anzahl Gehälter</strong> (12 = nur normal · 13 = mit Weihnachtsgeld · 14 = + Urlaubsgeld)',
+      '<strong>Steuerklasse</strong> (Pflicht bei gemeinsamem Antrag — III/V vs. IV/IV unterschiedlich bewertet)',
       '<strong>Unterhalt erhalten</strong> (z.B. nach Scheidung) → Baukasten',
       '<strong>Kindergeld</strong> aktuell laufend → Baukasten',
       '<strong>Renten</strong>: BU, gesetzliche Rente, BAV-Auszahlung → Baukasten',
-      '<strong>Selbstständige Honorare, Bonus, Tantieme</strong> nur wenn regelmäßig → Baukasten',
+      '<strong>Variable Vergütung / Bonus</strong> nur wenn regelmäßig (Vorjahres-Mittelwert) → Baukasten',
       '<strong>Mieteinnahmen</strong> werden pro Immobilie im <em>⑤ Immobilien-Block</em> erfasst',
     ])}
     <div class="grid-2">
+      ${n('Brutto-Gehalt', 'bruttoMo', '€/Mo')}
       ${n('Netto-Gehalt', 'nettoMo', '€/Mo')}
+      ${s('Steuerklasse', 'steuerklasse', [{v:'',l:'—'},{v:'I',l:'I'},{v:'II',l:'II'},{v:'III',l:'III'},{v:'IV',l:'IV'},{v:'V',l:'V'},{v:'VI',l:'VI'}])}
       ${n('Anzahl der Gehälter', 'anzahlGehaelter', '×', '0.5')}
     </div>
     ${zusatzListeInline('zusatzEinnahmen', 'Weitere Einnahmen (Baukasten)',
-      'Unterhalt, Kindergeld, Renten, BAV, Honorare, Bonus, kleine Vermietungen.',
+      `<strong>Banken-übliche Titel — bitte konsistent verwenden:</strong><br>
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Weihnachtsgeld ⌀/Mo</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Urlaubsgeld ⌀/Mo</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Variable Vergütung 2025 ⌀</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Unterhalt erhalten</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Rente gesetzlich</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">BU-Rente</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Selbst. Honorare ⌀</code>
+       <br><strong>Tipp:</strong> Sonderzahlungen (Weihnachts-/Urlaubsgeld, Bonus) als monatlichen Durchschnitt eintragen — Bank rechnet so automatisch korrekt mit.`,
       'mo', 'Einnahme hinzufügen')}
   `;
 
@@ -3936,7 +3998,15 @@ function saPersonHtml(prefix, p) {
       ${n('Laufende Lebenshaltung', 'lebenshaltungMo', '€/Mo')}
     </div>
     ${zusatzListeInline('zusatzAusgaben', 'Weitere Ausgaben (Baukasten)',
-      'PKV, Leasing, Unterhaltszahlungen, Sparpläne, Abos, Vereinsbeiträge. <strong>Fonds-Logik:</strong> Sparplan-Rate hier eintragen UND im Vermögen mit <strong>gleichem Titel</strong> den Bestand — Verknüpfung sichtbar.',
+      `<strong>Banken-übliche Titel — bitte konsistent verwenden:</strong><br>
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">PKV-Beitrag</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">GKV-Zusatzbeitrag</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Unterhaltszahlungen an [Name]</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Fondssparplan MSCI World</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Riester-Beitrag</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Rürup-Beitrag</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Leasing BMW X3</code>
+       <br><strong>Fonds-Logik:</strong> Sparplan-Rate hier eintragen UND im Vermögen mit <strong>gleichem Titel</strong> den Bestand — Verknüpfung sichtbar.`,
       'mo', 'Ausgabe hinzufügen')}
   `;
 
@@ -3955,7 +4025,18 @@ function saPersonHtml(prefix, p) {
       ${n('Bankguthaben', 'bankguthaben', '€')}
     </div>
     ${zusatzListeInline('zusatzVermoegen', 'Weiteres Vermögen (Baukasten)',
-      'Wertpapiere, Sparbücher, Bauspar/VWL, Sparpläne, fondsgebundene Verträge, Edelmetalle, Krypto, LV-Rückkaufwerte. <strong>Fonds-Logik:</strong> Gleichen Titel wie bei Ausgabe verwenden, wenn die Position bespart wird.',
+      `<strong>Banken-übliche Titel — bitte konsistent verwenden (PDF mappt automatisch in die Bank-Kategorien):</strong><br>
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Wertpapierdepot [Bank]</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">ETF MSCI World</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Tagesgeld [Bank]</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Sparbuch [Bank]</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Bausparvertrag LBS</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">VWL [Anbieter]</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">LV Rückkauf [Anbieter]</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Krypto BTC</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Edelmetalle</code>
+       <br><strong>Mapping:</strong> Titel mit „bauspar/vwl/riester" → Bausparen-Zeile · „aktie/etf/fonds/depot/wertpapier" → Wertpapier-Zeile · „lebensvers/rentenvers/rückkauf/rürup" → LV-Zeile · sonst Sonstige Wertgegenstände.
+       <br><strong>Fonds-Logik:</strong> Gleichen Titel wie bei Ausgabe verwenden, wenn die Position bespart wird.`,
       'wert', 'Vermögen hinzufügen')}
   `;
 
@@ -3970,7 +4051,15 @@ function saPersonHtml(prefix, p) {
       '<strong>Tipp:</strong> Pro Position mtl. Belastung UND Restsaldo angeben',
     ])}
     ${zusatzListeInline('zusatzVerbindlichkeiten', 'Verbindlichkeiten (Baukasten)',
-      'Autokredit, Konsumkredit, Kreditkarte, Privatdarlehen, Studienkredit. Pro Position monatliche Belastung UND Restsaldo angeben.',
+      `<strong>Banken-übliche Titel — bitte konsistent verwenden:</strong><br>
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Autokredit BMW</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Konsumkredit [Bank]</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Kreditkarte [Bank]</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Dispo [Bank]</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Studienkredit BAföG</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">KfW-Förderdarlehen</code> ·
+       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Privatdarlehen [Name]</code>
+       <br><strong>Pflicht:</strong> Pro Position monatliche Belastung <em>UND</em> Restsaldo angeben. <strong>Bürgschaften</strong> im Notizfeld festhalten (kein mtl. Betrag).`,
       'mo-wert', 'Verbindlichkeit hinzufügen')}
   `;
 

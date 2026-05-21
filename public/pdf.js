@@ -490,29 +490,40 @@ function selbstauskunft(kunde, user) {
           ${row('Vorname', a.vorname, m.vorname)}
           ${row('Straße', a.strasse, m.strasse)}
           ${row('PLZ/Ort', (a.plz || '') + (a.plz && a.ort ? ' ' : '') + (a.ort || ''), (m.plz || '') + (m.plz && m.ort ? ' ' : '') + (m.ort || ''))}
+          ${row('Wohnhaft seit (Monat/Jahr)', a.wohnhaftSeit, m.wohnhaftSeit)}
+          ${row('Vor-Anschrift (falls < 3 Jahre)', a.vorAnschrift, m.vorAnschrift)}
           ${row('Telefon privat', a.telefonPrivat, m.telefonPrivat)}
           ${row('Telefon geschäftlich', a.telefonGeschaeftlich, m.telefonGeschaeftlich)}
           ${row('E-Mail', a.email, m.email)}
           ${row('Geburtsdatum', dt(a.geburtsdatum), dt(m.geburtsdatum))}
+          ${row('Geburtsort', a.geburtsort, m.geburtsort)}
           ${row('Staatsangehörigkeit', a.staatsangehoerigkeit, m.staatsangehoerigkeit)}
           ${row('ausgeübter Beruf', a.beruf, m.beruf)}
           ${row('beschäftigt bei Firma', a.firma, m.firma)}
           ${row('beschäftigt seit', dt(a.beschaeftigtSeit), dt(m.beschaeftigtSeit))}
           ${rowChk('Befristung', ['unbefristet','befristet'], a.befristung, m.befristung)}
+          ${rowChk('Probezeit', ['nein','ja'], a.probezeit, m.probezeit)}
           ${row('Steuer-ID', a.steuerId, m.steuerId)}
           ${rowChk('Familienstand', ['ledig','verheiratet','geschieden','verwitwet'], a.familienstand, m.familienstand)}
+          ${rowChk('Güterstand (bei verheiratet)', ['Zugewinngemeinschaft','Gütertrennung','Gütergemeinschaft','Ehevertrag'], a.gueterstand, m.gueterstand)}
           ${row('Kinder im Haushalt', a.kinderAnzahl !== undefined && a.kinderAnzahl !== null ? `Anzahl: ${a.kinderAnzahl}${a.kinderAlter ? ' / Alter: ' + a.kinderAlter : ''}` : '', m.kinderAnzahl !== undefined && m.kinderAnzahl !== null ? `Anzahl: ${m.kinderAnzahl}${m.kinderAlter ? ' / Alter: ' + m.kinderAlter : ''}` : '')}
+          ${row('Davon unterhaltspflichtig', a.unterhaltspflichtig, m.unterhaltspflichtig)}
           ${rowChk('Kinder in Planung', ['ja','nein'], a.kinderPlanung, m.kinderPlanung)}
           ${row('KFZ Anzahl', a.kfzAnzahl, m.kfzAnzahl)}
           ${row('Bank', a.bank, m.bank)}
           ${row('IBAN', a.iban, m.iban)}
           ${row('BIC', a.bic, m.bic)}
         </tbody>
-        <thead><tr><th class="sa-section-h">EINKOMMEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
+        <thead><tr><th class="sa-section-h">EINKOMMEN <span style="font-weight:normal;font-size:9px;">(monatlich, falls nicht anders angegeben)</span></th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
         <tbody>
+          ${row('Brutto-Gehalt', fmtNum(a.bruttoMo), fmtNum(m.bruttoMo))}
           ${row('Netto-Gehalt', fmtNum(a.nettoMo), fmtNum(m.nettoMo))}
+          ${rowChk('Steuerklasse', ['I','II','III','IV','V','VI'], a.steuerklasse, m.steuerklasse)}
           ${rowChk('Anzahl Gehälter', ['12','12,5','13','14'], a.anzahlGehaelter ? String(a.anzahlGehaelter).replace('.',',') : '', m.anzahlGehaelter ? String(m.anzahlGehaelter).replace('.',',') : '')}
-          ${row('Unterhalt', fmtNum(a.unterhaltMo), fmtNum(m.unterhaltMo))}
+          ${(parseFloat(a.weihnachtsgeld)||0) > 0 || (parseFloat(m.weihnachtsgeld)||0) > 0 ? row('Weihnachtsgeld (p.a., einmalig)', fmtNum(a.weihnachtsgeld), fmtNum(m.weihnachtsgeld)) : ''}
+          ${(parseFloat(a.urlaubsgeld)||0) > 0 || (parseFloat(m.urlaubsgeld)||0) > 0 ? row('Urlaubsgeld (p.a., einmalig)', fmtNum(a.urlaubsgeld), fmtNum(m.urlaubsgeld)) : ''}
+          ${(parseFloat(a.variableMo)||0) > 0 || (parseFloat(m.variableMo)||0) > 0 ? row('Variable Vergütung / Boni (p.a.)', fmtNum(a.variableMo), fmtNum(m.variableMo)) : ''}
+          ${(parseFloat(a.unterhaltMo)||0) > 0 || (parseFloat(m.unterhaltMo)||0) > 0 ? row('Unterhalt', fmtNum(a.unterhaltMo), fmtNum(m.unterhaltMo)) : ''}
           ${row('Kindergeld', fmtNum(a.kindergeldMo), fmtNum(m.kindergeldMo))}
           ${zusatzRows('zusatzEinnahmen', 'mo')}
           ${/* Iter 71 (21.05.2026): Mieteinnahmen aus Immobilien-Baukasten → eigene Zeilen */ ''}
@@ -551,24 +562,133 @@ function selbstauskunft(kunde, user) {
     </div>
   `;
 
-  // === SEITE 2: VERMÖGEN + IMMOBILIEN + VERBINDLICHKEITEN ===
+  // === SEITE 2: VERMÖGEN → VERBINDLICHKEITEN → IMMOBILIEN ===
+  // Iter 81 (21.05.2026): Edgar-Feedback umgesetzt.
+  //   - Reihenfolge geändert: Vermögen → Verbindlichkeiten → Immobilien-Detail.
+  //     Banker sieht erst die Bilanz-Übersicht, dann das Detail pro Immobilie.
+  //   - Vermögens-Kategorien jetzt conditional: nur sichtbar wenn Wert > 0 ODER
+  //     Baukasten-Match. Pflicht bleibt nur Bankguthaben (jeder hat ein Konto).
+  //   - Doppelung Baufi/Verbindlichkeiten beseitigt: Verbindlichkeits-Tabelle zeigt
+  //     NUR zusatzVerbindlichkeiten (Konsumkredite). Baufi steht im Immobilien-Block.
   const seite2 = `
     <div class="pdf-page sa-page">
-      ${_saHeader(2, 4)}
+      ${_saHeader(2, 5)}
+      ${(() => {
+        // Klassifikation der Baukasten-Positionen nach Titel-Heuristik.
+        const isBauspar = (t) => /bauspar|vwl|riester|wohn[\- ]?riester/i.test(t || '');
+        const isWertpapier = (t) => /aktie|etf|fonds|depot|wertpapier|portfolio/i.test(t || '');
+        const isLV = (t) => /lebensvers|rentenvers|risiko[\- ]?lv|rürup|kapitallv|ru?ckkauf/i.test(t || '');
+        const isSparbuch = (t) => /sparbuch|festgeld|tagesgeld/i.test(t || '');
+        const sumByPredicate = (p, pred) => {
+          if (!p) return 0;
+          let s = 0;
+          (Array.isArray(p.zusatzVermoegen) ? p.zusatzVermoegen : []).forEach(it => {
+            if (!it) return;
+            const w = parseFloat(it.wert) || 0;
+            if (w > 0 && pred(it.titel)) s += w;
+          });
+          (Array.isArray(p.zusatzSparplaene) ? p.zusatzSparplaene : []).forEach(it => {
+            if (!it) return;
+            const w = parseFloat(it.wert) || 0;
+            if (w > 0 && pred(it.titel)) s += w;
+          });
+          return s;
+        };
+        const sonstigeListe = (p) => {
+          if (!p) return [];
+          const out = [];
+          [...(Array.isArray(p.zusatzVermoegen) ? p.zusatzVermoegen : []),
+           ...(Array.isArray(p.zusatzSparplaene) ? p.zusatzSparplaene : [])].forEach(it => {
+            if (!it) return;
+            const w = parseFloat(it.wert) || 0;
+            if (w <= 0) return;
+            const t = it.titel || '';
+            if (isBauspar(t) || isWertpapier(t) || isLV(t) || isSparbuch(t)) return;
+            out.push({ titel: t || 'Wertgegenstand', notiz: it.notiz, wert: w });
+          });
+          return out;
+        };
+        // Aggregierte Werte pro Kategorie (Pflichtfeld + Baukasten-Summe)
+        const wpA = (parseFloat(a.wertpapiere) || 0) + sumByPredicate(a, isWertpapier);
+        const wpM = (parseFloat(m.wertpapiere) || 0) + sumByPredicate(m, isWertpapier);
+        const sbA = (parseFloat(a.sparbuecher) || 0) + sumByPredicate(a, isSparbuch);
+        const sbM = (parseFloat(m.sparbuecher) || 0) + sumByPredicate(m, isSparbuch);
+        const bsA = (parseFloat(a.bausparen) || 0) + sumByPredicate(a, isBauspar);
+        const bsM = (parseFloat(m.bausparen) || 0) + sumByPredicate(m, isBauspar);
+        const lvA = (parseFloat(a.lvRueckkauf) || 0) + sumByPredicate(a, isLV);
+        const lvM = (parseFloat(m.lvRueckkauf) || 0) + sumByPredicate(m, isLV);
+        const sonstA = sonstigeListe(a);
+        const sonstM = gemeinsam ? sonstigeListe(m) : [];
+
+        // Sonstige als Einzelzeilen rendern — Banker sieht jede Position
+        const sonstRows = [];
+        sonstA.forEach(it => {
+          const notiz = it.notiz ? ` <span style="color:#777;font-size:9px;">— ${esc(it.notiz)}</span>` : '';
+          sonstRows.push(`<tr><td class="sa-label">${esc(it.titel)}${notiz}</td><td>${fld(fmtNum(it.wert))}</td><td>${gemeinsam ? '' : ''}</td></tr>`);
+        });
+        if (gemeinsam) sonstM.forEach(it => {
+          const notiz = it.notiz ? ` <span style="color:#777;font-size:9px;">— ${esc(it.notiz)}</span>` : '';
+          sonstRows.push(`<tr><td class="sa-label">${esc(it.titel)}${notiz}</td><td></td><td>${fld(fmtNum(it.wert))}</td></tr>`);
+        });
+
+        // Iter 81: Conditional rendering — nur Kategorien zeigen, die einen Wert haben.
+        const hasSparbuch = sbA > 0 || sbM > 0;
+        const hasWertpapier = wpA > 0 || wpM > 0;
+        const hasBauspar = bsA > 0 || bsM > 0;
+        const hasLv = lvA > 0 || lvM > 0;
+        const hasSonst = sonstRows.length > 0;
+
+        return `
       <table class="sa-table">
         <thead><tr><th class="sa-section-h">VERMÖGEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
         <tbody>
-          ${row('Bankguthaben', fmtNum(a.bankguthaben), fmtNum(m.bankguthaben))}
-          ${/* Iter 71 (21.05.2026): Wertpapiere/Sparbücher/Bauspar als Pflichtfelder raus — kommen aus Baukasten */ ''}
-          ${a.wertpapiere || m.wertpapiere ? row('Wertpapiere (Kurswert)', fmtNum(a.wertpapiere), fmtNum(m.wertpapiere)) : ''}
-          ${a.sparbuecher || m.sparbuecher ? row('Sparbücher / Festgeld', fmtNum(a.sparbuecher), fmtNum(m.sparbuecher)) : ''}
-          ${a.bausparen || m.bausparen ? row('Bauspar / VWL', fmtNum(a.bausparen), fmtNum(m.bausparen)) : ''}
-          ${zusatzRows('zusatzVermoegen', 'wert')}
-          ${zusatzRows('zusatzSparplaene', 'wert')}
+          ${row('Bankguthaben (Giro/Tagesgeld)', fmtNum(a.bankguthaben), fmtNum(m.bankguthaben))}
+          ${hasSparbuch ? row('Sparbücher / Festgeld', fmtNum(sbA || ''), fmtNum(sbM || '')) : ''}
+          ${hasWertpapier ? row('Wertpapiere / Depots (Kurswert)', fmtNum(wpA || ''), fmtNum(wpM || '')) : ''}
+          ${hasBauspar ? row('Bausparguthaben / VWL', fmtNum(bsA || ''), fmtNum(bsM || '')) : ''}
+          ${hasLv ? row('Lebens-/Rentenvers. (Rückkaufswert)', fmtNum(lvA || ''), fmtNum(lvM || '')) : ''}
+          ${hasLv && (a.lvLaufzeitBis || m.lvLaufzeitBis) ? row('— Ablauf/Auslauf', dt(a.lvLaufzeitBis), dt(m.lvLaufzeitBis)) : ''}
+          ${hasSonst ? '<tr><td class="sa-label" style="font-weight:600;padding-top:6px;">Sonstige Wertgegenstände</td><td colspan="2"></td></tr>' + sonstRows.join('') : ''}
         </tbody>
-      </table>
+      </table>`;
+      })()}
       ${(() => {
-        // Iter 71 (21.05.2026): Immobilien-Bausteine — beliebig viele, jede mit eigener Detail-Tabelle.
+        // Iter 81 (21.05.2026): NUR sonstige Verbindlichkeiten (Konsumkredite, Leasing, etc.).
+        //   Immobilien-Baufi steht im Immobilien-Block darunter — keine Doppelung mehr.
+        const verbZeilen = [];
+        const collect = (rolle, person) => {
+          if (!person) return;
+          if (Array.isArray(person.zusatzVerbindlichkeiten)) {
+            person.zusatzVerbindlichkeiten.forEach(item => {
+              if (!item) return;
+              const mo = parseFloat(item.mo) || 0;
+              const w = parseFloat(item.wert) || 0;
+              if (mo === 0 && w === 0) return;
+              verbZeilen.push({ rolle, titel: item.titel || 'Verbindlichkeit', notiz: item.notiz, mo, w });
+            });
+          }
+        };
+        collect('A', a);
+        if (gemeinsam) collect('M', m);
+        if (verbZeilen.length === 0) return '';
+        const rowsHtml = verbZeilen.map(z => {
+          const notiz = z.notiz ? ` <span style="color:#777;font-size:9px;">— ${esc(z.notiz)}</span>` : '';
+          const moHtml = z.mo > 0 ? fmtNum(z.mo) + '/Mo' : '';
+          const wertHtml = z.w > 0 ? fmtNum(z.w) : '';
+          const combined = [moHtml, wertHtml].filter(Boolean).join(' · ');
+          const cellA = z.rolle === 'A' ? fld(combined) : '';
+          const cellM = z.rolle === 'M' && gemeinsam ? fld(combined) : (gemeinsam ? '' : '');
+          return `<tr><td class="sa-label">${esc(z.titel)}${notiz}</td><td>${cellA}</td><td>${cellM}</td></tr>`;
+        }).join('');
+        return `<table class="sa-table" style="margin-top:3mm;">
+          <thead><tr><th class="sa-section-h">VERBINDLICHKEITEN <span style="font-weight:normal;font-size:9px;">(Konsumkredite / sonstige Schulden — Immobilien-Baufi siehe Immobilien-Block)</span></th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>`;
+      })()}
+      ${(() => {
+        // Iter 81 (21.05.2026): Immobilien-Detail jetzt NACH Verbindlichkeiten — Banker liest
+        //   erst die Bilanz-Übersicht, dann das Detail pro Immobilie (inkl. Baufi-Block,
+        //   der für jede Immobilie 1:1 sichtbar ist — also keine Doppelung zur Verbind-Liste).
         const renderImmoListe = (liste, rolle) => {
           if (!Array.isArray(liste) || liste.length === 0) return '';
           return liste.map((immo, idx) => {
@@ -597,54 +717,6 @@ function selbstauskunft(kunde, user) {
         return renderImmoListe(a.immobilien, 'Antragsteller') + (gemeinsam ? renderImmoListe(m.immobilien, 'Mit-Antragsteller') : '');
       })()}
       ${(() => {
-        // Iter 71 (21.05.2026): Konsolidierte Verbindlichkeits-Tabelle — Immobilien-Baufi
-        //   + Baukasten + Legacy-Daten. Pro Zeile: Titel + (mtl. Belastung · Restsaldo).
-        const verbZeilen = [];
-        const collect = (rolle, person) => {
-          if (!person) return;
-          // Immobilien-Baufi
-          if (Array.isArray(person.immobilien)) {
-            person.immobilien.forEach(immo => {
-              if (!immo) return;
-              const mo = parseFloat(immo.baufiBelastungMo) || 0;
-              const w = parseFloat(immo.baufiRestsaldo) || 0;
-              if (mo === 0 && w === 0) return;
-              verbZeilen.push({ rolle, titel: `Baufi · ${immo.art || 'Immobilie'}${immo.anschrift ? ', ' + immo.anschrift : ''}`, mo, w });
-            });
-          }
-          // Baukasten zusatzVerbindlichkeiten
-          if (Array.isArray(person.zusatzVerbindlichkeiten)) {
-            person.zusatzVerbindlichkeiten.forEach(item => {
-              if (!item) return;
-              const mo = parseFloat(item.mo) || 0;
-              const w = parseFloat(item.wert) || 0;
-              if (mo === 0 && w === 0) return;
-              verbZeilen.push({ rolle, titel: item.titel || 'Verbindlichkeit', notiz: item.notiz, mo, w });
-            });
-          }
-          // Iter 72 (21.05.2026): Legacy-Zeilen NICHT mehr im PDF anzeigen — Edgar will sie
-          //   sauber raus. In der Berechnung werden sie weiter mitgezählt, aber das PDF zeigt
-          //   nur noch das, was im neuen Schema gepflegt ist. Wenn ein Kunde noch alte bf1/bf2-
-          //   Daten hat, soll der Vertriebler sie in den neuen Baukasten umtragen.
-        };
-        collect('A', a);
-        if (gemeinsam) collect('M', m);
-        if (verbZeilen.length === 0) return '';
-        const rowsHtml = verbZeilen.map(z => {
-          const notiz = z.notiz ? ` <span style="color:#777;font-size:9px;">— ${esc(z.notiz)}</span>` : '';
-          const moHtml = z.mo > 0 ? fmtNum(z.mo) + '/Mo' : '';
-          const wertHtml = z.w > 0 ? fmtNum(z.w) : '';
-          const combined = [moHtml, wertHtml].filter(Boolean).join(' · ');
-          const cellA = z.rolle === 'A' ? fld(combined) : '';
-          const cellM = z.rolle === 'M' && gemeinsam ? fld(combined) : (gemeinsam ? '' : '');
-          return `<tr><td class="sa-label">${esc(z.titel)}${notiz}</td><td>${cellA}</td><td>${cellM}</td></tr>`;
-        }).join('');
-        return `<table class="sa-table" style="margin-top:3mm;">
-          <thead><tr><th class="sa-section-h">VERBINDLICHKEITEN <span style="font-weight:normal;font-size:9px;">(mtl. Belastung · Restsaldo)</span></th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>`;
-      })()}
-      ${(() => {
         // Iter 71: Allgemeines Notizfeld am Ende — nur rendern wenn gefüllt.
         const notA = (a.notizen || '').trim();
         const notM = gemeinsam ? (m.notizen || '').trim() : '';
@@ -661,10 +733,84 @@ function selbstauskunft(kunde, user) {
     </div>
   `;
 
-  // === SEITE 3: ERKLÄRUNGEN I–III (1:1 aus Hypovision, B&B-Wortlaut) ===
+  // === SEITE 3: EIGENKAPITAL FÜR DIE FINANZIERUNG ===
+  // Iter 81 (21.05.2026): Conditional Rendering — nur Quellen mit Wert anzeigen.
+  //   Wenn nichts ausgefüllt → kompakter „noch zu ergänzen"-Hinweis mit 3 leeren
+  //   handschriftlich-ausfüllbaren Zeilen, statt 10 leere Standardquellen.
+  const ek = sa.herkunftEk || {};
+  const ekQuellen = [
+    { k: 'ersparnisse', label: 'Eigene Ersparnisse', beleg: 'Giro / Tagesgeld / Festgeld — Kontoauszüge' },
+    { k: 'wertpapier', label: 'Wertpapier-/Depot-Verkauf', beleg: 'Verkaufsabrechnung Bank/Broker' },
+    { k: 'immobilien', label: 'Immobilienverkauf', beleg: 'Notarieller Kaufvertrag' },
+    { k: 'erbe', label: 'Erbschaft', beleg: 'Erbschein / Testaments-Eröffnung' },
+    { k: 'schenkung', label: 'Schenkung', beleg: 'Notariell beglaubigte Urkunde' },
+    { k: 'bauspar', label: 'Bausparvertrag (zuteilungsreif)', beleg: `Kasse: ${esc(ek.bauspKasse || '—')}` },
+    { k: 'lv', label: 'Lebens-/Rentenversicherung', beleg: `Versicherer: ${esc(ek.lvAnbieter || '—')}` },
+    { k: 'eigenleistung', label: 'Eigenleistung / Muskelhypothek', beleg: 'Stunden-Kalkulation als Anlage' },
+    { k: 'darlehen', label: 'Arbeitgeber-/Familien-Darlehen', beleg: `Darlehensgeber: ${esc(ek.darlehGeber || '—')}` },
+    { k: 'sonstiges', label: 'Sonstige Quelle', beleg: esc(ek.sonstQuelle || '—') },
+  ];
+  // Nur aktive Quellen (Checkbox gesetzt ODER Betrag > 0)
+  const aktiveQuellen = ekQuellen.filter(q =>
+    ek[q.k] === true || ek[q.k] === 'ja' || (parseFloat(ek[q.k + 'Betrag']) || 0) > 0
+  );
+  const ekGesamt = aktiveQuellen.reduce((s, q) => s + (parseFloat(ek[q.k + 'Betrag']) || 0), 0);
+
+  let seite3InhaltHtml;
+  if (aktiveQuellen.length === 0) {
+    // Fallback: kompakter Hinweis-Block mit 3 leeren handschriftlich-ausfüllbaren Zeilen
+    seite3InhaltHtml = `
+      <table class="sa-table">
+        <thead><tr><th class="sa-section-h">EIGENKAPITAL FÜR DIE FINANZIERUNG <span style="font-weight:normal;font-size:9px;">(noch zu ergänzen)</span></th><th>QUELLE</th><th>BETRAG (€)</th></tr></thead>
+        <tbody>
+          <tr><td class="sa-label">${fld('')}</td><td>${fld('')}</td><td>${fld('')}</td></tr>
+          <tr><td class="sa-label">${fld('')}</td><td>${fld('')}</td><td>${fld('')}</td></tr>
+          <tr><td class="sa-label">${fld('')}</td><td>${fld('')}</td><td>${fld('')}</td></tr>
+          <tr style="background:#FAF7F0;"><td class="sa-label" style="font-weight:700;">Gesamtes Eigenkapital</td><td style="color:#777;font-size:9px;">Summe aller Quellen</td><td>${fld('')}</td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:4mm;font-size:9.5px;color:#777;font-style:italic;">
+        Diese Sektion ist noch nicht ausgefüllt. Bitte vor Versand an die Bank ergänzen — Quellen z.B. Eigene Ersparnisse,
+        Schenkung, Verkaufserlös, Bausparvertrag, Lebensversicherung, Eigenleistung.
+      </div>`;
+  } else {
+    seite3InhaltHtml = `
+      <table class="sa-table">
+        <thead><tr><th class="sa-section-h">EIGENKAPITAL FÜR DIE FINANZIERUNG <span style="font-weight:normal;font-size:9px;">(Mittelherkunft nach § 8 GwG)</span></th><th>QUELLE / BELEG</th><th>BETRAG (€)</th></tr></thead>
+        <tbody>
+          ${aktiveQuellen.map(q =>
+            `<tr><td class="sa-label">${esc(q.label)}</td><td><span class="sa-chk on">☑</span> ${q.beleg}</td><td>${fld(fmtNum(parseFloat(ek[q.k + 'Betrag']) || ''))}</td></tr>`
+          ).join('')}
+          <tr style="background:#FAF7F0;"><td class="sa-label" style="font-weight:700;">Gesamtes Eigenkapital</td><td style="color:#777;font-size:9px;">Summe aller Quellen</td><td style="font-weight:700;">${ekGesamt > 0 ? fmtNum(ekGesamt) : fld('')}</td></tr>
+        </tbody>
+      </table>`;
+  }
+
   const seite3 = `
+    <div class="pdf-page sa-page">
+      ${_saHeader(3, 5)}
+      ${seite3InhaltHtml}
+
+      <div style="margin-top:5mm;font-size:10.5px;line-height:1.5;">
+        <strong>Anmerkungen zur Mittelherkunft</strong> <span style="color:#777;font-size:9px;">(z.B. Schenker, Verkaufsobjekt, Verkaufsjahr, Erbsfall-Datum, andere Banken-relevante Hinweise)</span>:
+      </div>
+      <div style="border:1px solid #999;min-height:18mm;margin-top:2mm;padding:3mm;font-size:10.5px;white-space:pre-wrap;">${esc(ek.erlaeuterung || '')}</div>
+
+      <div style="margin-top:6mm;font-size:9.5px;color:#555;line-height:1.45;">
+        <strong>Hinweis:</strong> Banken/Sparkassen sind nach § 8 i.V.m. § 10 GwG (Geldwäschegesetz) verpflichtet, die Herkunft des
+        eingesetzten Eigenkapitals zu prüfen. Die hier gemachten Angaben dienen der Vor-Identifizierung;
+        die finanzierende Bank kann ergänzende Belege (Kontoauszüge, Verträge, Steuerbescheide) anfordern.
+        Mit Unterschrift unter dieser Selbstauskunft (Seite 5) versichere ich/versichern wir, dass die Mittel
+        legal erworben wurden und nicht aus illegalen Quellen stammen.
+      </div>
+      ${_footer(user)}
+    </div>
+  `;
+
+  // === SEITE 4: ERKLÄRUNGEN I–III (1:1 aus Hypovision, B&B-Wortlaut) ===
+  const seite4_legal_I_III = `
     <div class="pdf-page sa-page sa-legal">
-      ${_saHeader(3, 4)}
+      ${_saHeader(4, 5)}
       <div style="font-size:11px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; margin-bottom:4mm;">Erklärung der Darlehensnehmer · Einwilligungserklärungen</div>
       <h2 class="legal-h">I. Darlehensvermittlung und Anschlussbetreuung</h2>
       <p class="legal-p">
@@ -714,10 +860,10 @@ function selbstauskunft(kunde, user) {
     </div>
   `;
 
-  // === SEITE 4: ERKLÄRUNGEN IV–VI + UNTERSCHRIFT ===
-  const seite4 = `
+  // === SEITE 5: ERKLÄRUNGEN IV–VI + UNTERSCHRIFT ===
+  const seite5_legal_IV_VI = `
     <div class="pdf-page sa-page sa-legal">
-      ${_saHeader(4, 4)}
+      ${_saHeader(5, 5)}
       <h2 class="legal-h">IV. Mitwirkungspflicht Steuer-Identifikationsnummer (Steuer-ID)</h2>
       <p class="legal-p">
         Mir/uns ist bekannt, dass ich/wir verpflichtet bin/sind, gemäß § 154 Abs. 2a der Abgabenordnung meine/unsere
@@ -768,7 +914,7 @@ function selbstauskunft(kunde, user) {
     </div>
   `;
 
-  _doPrint(seite1 + seite2 + seite3 + seite4, 'sa');
+  _doPrint(seite1 + seite2 + seite3 + seite4_legal_I_III + seite5_legal_IV_VI, 'sa');
 }
 
 window.PDF = { investitionsrechnung, reservierung, selbstauskunft };
