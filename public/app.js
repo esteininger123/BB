@@ -2173,12 +2173,20 @@ function renderStories(r) {
     </div>
   `);
 
+  // Iter 79 (21.05.2026): AfA-Bemessung jetzt inkl. Kaufnebenkosten (steuerrechtlich korrekt
+  //   gem. §7 EStG / §6 EStG). Aufschlüsselung in der Tabelle gemacht, damit der Vertriebler
+  //   und der Kunde sehen, woraus sich die AfA-Basis ergibt.
+  const gebAnteilPct = i.gebaeudeAnteil || 0.85;
+  const ankBetrag = r.anschaffungskosten || (r.kpGesamt + r.knk);
   const steuervorteil = story('03 — Dein Steuervorteil', 'AfA + Werbungskosten = Dein Cashflow-Hebel', `
     <div class="story-grid">
       <table class="story-table">
-        <tr><td>Deine AfA-Basis (Kaufpreis × Gebäude-Anteil ${fmtPct(i.gebaeudeAnteil || 0.8, 0)})</td><td class="num">${fmt(afaBemessung)}</td></tr>
-        <tr><td>AfA-Satz</td><td class="num">${fmtPct(i.afaSatz, 2)}</td></tr>
-        <tr><td><strong>Deine AfA pro Jahr (konstant)</strong></td><td class="num"><strong>${fmt(afaJahr)}</strong></td></tr>
+        <tr><td>Kaufpreis (inkl. Stellplatz)</td><td class="num">${fmt(r.kpGesamt)}</td></tr>
+        <tr><td>+ Kaufnebenkosten (GrESt + Notar + Grundbuch)</td><td class="num">${fmt(r.knk)}</td></tr>
+        <tr><td><strong>= Deine Anschaffungskosten</strong></td><td class="num"><strong>${fmt(ankBetrag)}</strong></td></tr>
+        <tr><td>× Gebäude-Anteil ${fmtPct(gebAnteilPct, 0)} (Grund &amp; Boden nicht abnutzbar)</td><td class="num">${fmt(afaBemessung)}</td></tr>
+        <tr><td>× AfA-Satz ${fmtPct(i.afaSatz, 2)}</td><td class="num"></td></tr>
+        <tr class="totalrow"><td><strong>= Deine AfA pro Jahr (konstant über die Haltedauer)</strong></td><td class="num"><strong>${fmt(afaJahr)}</strong></td></tr>
         <tr><td>+ Zinsen Jahr 1</td><td class="num">${fmt(zinsenJ1)}</td></tr>
         <tr><td>+ Mietverwaltung (SEV) Jahr 1</td><td class="num">${fmt(mvJ1)}</td></tr>
         <tr><td>+ Hausverwaltung (WEG) Jahr 1</td><td class="num">${fmt(hvJ1)}</td></tr>
@@ -2186,7 +2194,8 @@ function renderStories(r) {
         <tr class="totalrow"><td><strong>Dein Steuervorteil Jahr 1</strong></td><td class="num pos"><strong>${fmt(stVorteilJ1)}</strong></td></tr>
       </table>
       <div class="story-explain">
-        <strong>AfA-Satz frei wählbar</strong> — Standard 2,0 % (lineare AfA §7 Abs. 4 EStG), mit qualifiziertem Gutachten typisch 3,0–4,5 % möglich. <strong>Bemessungsgrundlage: Kaufpreis × Gebäude-Anteil</strong>.<br><br>
+        <strong>Bemessungsgrundlage der AfA</strong> = Anschaffungskosten = <strong>Kaufpreis + Kaufnebenkosten</strong>, multipliziert mit dem Gebäudeanteil (§7 EStG, §6 EStG). Grund und Boden ist nicht abnutzbar — wird vor der AfA herausgerechnet.<br><br>
+        <strong>AfA-Satz frei wählbar</strong> — Standard 2,0 % (lineare AfA §7 Abs. 4 EStG, Wohngebäude bis Baujahr 2022), 3,0 % ab Baujahr 2023 (§7 Abs. 4 Satz 1 Nr. 2a EStG), mit qualifiziertem Restnutzungsdauer-Gutachten typisch 3,0–4,5 % möglich.<br><br>
         <strong>Dein Steuervorteil sinkt über die Jahre</strong>: Zinsen sinken (Annuitäten-Mathematik), Mieten steigen, AfA bleibt konstant. Im Jahr 10: <strong>${fmt(stVorteilJ10)}</strong> (Jahr 1: ${fmt(stVorteilJ1)}).
       </div>
     </div>
@@ -2341,7 +2350,7 @@ function drawCharts(r) {
         'Was monatlich aus der Immobilie übrig bleibt — VOR Steuern.\n\nFormel: Kaltmiete (inkl. Mietsubvention) − Annuität (Zins + Tilgung) − Hausgeld − Hausverwaltung\n\nStartet meist im Minus (Belastung > Miete), kippt über die Jahre ins Plus, sobald Mieten steigen und der Zinsanteil der Annuität sinkt.') +
       card('Dein Steuervorteil', stVJ1, stVJ10, false,
         'Steuervorteil',
-        'Wie viel Steuern Du Dir pro Monat sparst, weil die Immobilie steuerlich Verluste produziert.\n\nFormel: (Zinsanteil + AfA + Werbungskosten − Mieteinnahmen) × Dein Grenzsteuersatz\n\nSchrumpft über die Zeit: Zinsanteil sinkt mit Tilgung, Mieten steigen — der steuerliche Verlust wird kleiner, irgendwann kippt es ins Plus (= Du zahlst Steuern auf die Mieteinnahmen).') +
+        'Wie viel Steuern Du Dir pro Monat sparst, weil die Immobilie steuerlich Verluste produziert.\n\nFormel: (Zinsanteil + AfA + Werbungskosten − Mieteinnahmen) × Dein Grenzsteuersatz\n\nAfA-Bemessung (§7 EStG): (Kaufpreis + Kaufnebenkosten) × Gebäudeanteil. Grund und Boden ist nicht abnutzbar.\n\nSchrumpft über die Zeit: Zinsanteil sinkt mit Tilgung, Mieten steigen — der steuerliche Verlust wird kleiner, irgendwann kippt es ins Plus (= Du zahlst Steuern auf die Mieteinnahmen).') +
       card('★ Dein CF nach Steuern', nachJ1, nachJ10, true,
         'CF nach Steuern',
         'Die wichtigste Zahl: was real auf Deinem Konto landet — nach allen Kosten UND nach Steuern.\n\nFormel: operativer CF + Steuervorteil\n\nIn den ersten Jahren oft leicht negativ oder bei Null. Steigt über 10 Jahre deutlich — durch Mietsteigerung + sinkenden Zinsanteil. Im Tooltip pro Bar siehst Du den Monatsverlauf des Jahres.');

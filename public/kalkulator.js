@@ -584,14 +584,22 @@ function recalc(i) {
     nper = Math.min(480, Math.ceil(-Math.log(ln1) / Math.log(1 + rateM)));
   }
 
-  // Iter 10: AfA-Bemessung immer auf den Kaufpreis (= das was im Vertrag steht).
-  //   Steuerrechtlich gilt: anteilig würden Notar/Grundbuch auf die Anschaffungs-
-  //   kosten aktiviert. Pragmatisch nicht — wir nehmen die Vertrags-Basis.
-  // AfA-Bemessung: Kaufpreis × Gebäude-Anteil (Boden-Anteil wird abgezogen — der ist nicht abschreibbar).
-  // Iter 61 (20.05.2026): Standard-Default 85 % Gebäude / 15 % Boden (Henry-Durchgang).
-  // Wenn die Kalk-Stammdaten in Airtable einen anderen Wert pflegen, gilt der.
+  // AfA-Bemessung (§7 EStG, §6 EStG):
+  //   Bemessungsgrundlage = Anschaffungskosten = Kaufpreis + Anschaffungsnebenkosten
+  //   (= Notar, Grunderwerbsteuer, Grundbuch, ggf. Maklergebühren).
+  //   Grund und Boden ist nicht abnutzbar → vor AfA herausrechnen (Gebäude-Anteil-Faktor).
+  //   KNK werden proportional auf Gebäude/Boden aufgeteilt — wir multiplizieren also
+  //   die gesamten Anschaffungskosten mit dem Gebäude-Anteil.
+  //
+  // Iter 61 (20.05.2026): Standard-Default 85 % Gebäude / 15 % Boden.
+  // Iter 79 (21.05.2026, Edgar als Steuer-Experte): KNK in die AfA-Bemessung integriert.
+  //   Vorher: nur `kpGesamt × Gebäudeanteil` — KNK fehlten komplett, das ist
+  //   steuerrechtlich falsch (BFH-Rechtsprechung: Anschaffungsnebenkosten gehören
+  //   zur Bemessungsgrundlage). Wirkung bei 7 % KNK + 85 % Geb-Anteil: ~6 % höhere
+  //   AfA-Bemessung → spürbarer Steuervorteil-Hebel.
   const gebaeudeAnteilFaktor = (i.gebaeudeAnteil !== undefined && i.gebaeudeAnteil !== null && isFinite(i.gebaeudeAnteil)) ? i.gebaeudeAnteil : BB_DEFAULTS.gebaeudeAnteil;
-  const afaBemessungBetrag = kpGesamt * gebaeudeAnteilFaktor;
+  const anschaffungskosten = kpGesamt + knk;
+  const afaBemessungBetrag = anschaffungskosten * gebaeudeAnteilFaktor;
   const afaJahr = afaBemessungBetrag * i.afaSatz;
   const afaMo = afaJahr / 12;
 
@@ -993,7 +1001,7 @@ function recalc(i) {
   return {
     inputs: i,
     kpGesamt, knk, investitionGesamt, ekBedarf, darlehen,
-    annuityMo, nper, afaMo, afaJahr, afaBemessungBetrag,
+    annuityMo, nper, afaMo, afaJahr, afaBemessungBetrag, anschaffungskosten, gebaeudeAnteilFaktor,
     cf, cfMonate, vermoegen, irr: irrValue,
     vermoegenBrutto10: vermoegen[10].vermoegenBrutto,
     vermoegenNetto10: vermoegen[10].vermoegenNetto,
