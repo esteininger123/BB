@@ -1117,3 +1117,15 @@ async function archiveOtherAktivForWE(weId, exceptId) {
     console.error('archiveOtherAktivForWE failed:', e.message);
   }
 }
+
+// Iter-4 (22.05.2026): Exports für refresh-all-Endpoint.
+// Vercel-Serverless-Pattern: module.exports ist die Handler-Function, aber wir
+// hängen die internen Helper als Properties dran, damit api/stammdaten/refresh-all.js
+// sie wiederverwenden kann — ohne Code-Dup.
+module.exports.computeAutoSubvention      = computeAutoSubvention;
+module.exports.loadKalkStammdatenForWE    = loadKalkStammdatenForWE;
+module.exports.loadMietvertragInfoForWE   = loadMietvertragInfoForWE;
+module.exports.kalkStammRecordToApi       = kalkStammRecordToApi;
+module.exports.resolveVermietungsstatusFromLookup = resolveVermietungsstatusFromLookup;
+module.exports.maybeWriteBackAutoSubv     = maybeWriteBackAutoSubv;
+module.exports.computeMarktpreisGemittelt = computeMarktpreisGemittelt;
