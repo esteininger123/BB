@@ -481,7 +481,7 @@ function selbstauskunft(kunde, user) {
   // === SEITE 1: PERSÖNLICHE VERHÄLTNISSE + EINKOMMEN + FIXKOSTEN ===
   const seite1 = `
     <div class="pdf-page sa-page">
-      ${_saHeader(1, 4)}
+      ${_saHeader(1, 5)}
       <table class="sa-table">
         <thead><tr><th class="sa-section-h">PERSÖNLICHE VERHÄLTNISSE</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER / EHEPARTNER' : ''}</th></tr></thead>
         <tbody>
@@ -653,8 +653,11 @@ function selbstauskunft(kunde, user) {
       </table>`;
       })()}
       ${(() => {
-        // Iter 81 (21.05.2026): NUR sonstige Verbindlichkeiten (Konsumkredite, Leasing, etc.).
+        // Iter 81: NUR sonstige Verbindlichkeiten (Konsumkredite, Leasing, etc.).
         //   Immobilien-Baufi steht im Immobilien-Block darunter — keine Doppelung mehr.
+        // Iter 82 (22.05.2026): Block IMMER anzeigen, auch wenn leer. Wenn keine Einträge:
+        //   einzeilige Bestätigung "Keine Verbindlichkeiten erfasst" — damit der Banker
+        //   sieht, dass wir die Sektion bewusst durchgegangen sind, nicht vergessen haben.
         const verbZeilen = [];
         const collect = (rolle, person) => {
           if (!person) return;
@@ -670,16 +673,17 @@ function selbstauskunft(kunde, user) {
         };
         collect('A', a);
         if (gemeinsam) collect('M', m);
-        if (verbZeilen.length === 0) return '';
-        const rowsHtml = verbZeilen.map(z => {
-          const notiz = z.notiz ? ` <span style="color:#777;font-size:9px;">— ${esc(z.notiz)}</span>` : '';
-          const moHtml = z.mo > 0 ? fmtNum(z.mo) + '/Mo' : '';
-          const wertHtml = z.w > 0 ? fmtNum(z.w) : '';
-          const combined = [moHtml, wertHtml].filter(Boolean).join(' · ');
-          const cellA = z.rolle === 'A' ? fld(combined) : '';
-          const cellM = z.rolle === 'M' && gemeinsam ? fld(combined) : (gemeinsam ? '' : '');
-          return `<tr><td class="sa-label">${esc(z.titel)}${notiz}</td><td>${cellA}</td><td>${cellM}</td></tr>`;
-        }).join('');
+        const rowsHtml = verbZeilen.length === 0
+          ? `<tr><td class="sa-label" style="color:#777;font-style:italic;">Keine Konsumkredite, Leasing-Verträge oder sonstige Schulden erfasst.</td><td></td><td>${gemeinsam ? '' : ''}</td></tr>`
+          : verbZeilen.map(z => {
+              const notiz = z.notiz ? ` <span style="color:#777;font-size:9px;">— ${esc(z.notiz)}</span>` : '';
+              const moHtml = z.mo > 0 ? fmtNum(z.mo) + '/Mo' : '';
+              const wertHtml = z.w > 0 ? fmtNum(z.w) : '';
+              const combined = [moHtml, wertHtml].filter(Boolean).join(' · ');
+              const cellA = z.rolle === 'A' ? fld(combined) : '';
+              const cellM = z.rolle === 'M' && gemeinsam ? fld(combined) : (gemeinsam ? '' : '');
+              return `<tr><td class="sa-label">${esc(z.titel)}${notiz}</td><td>${cellA}</td><td>${cellM}</td></tr>`;
+            }).join('');
         return `<table class="sa-table" style="margin-top:3mm;">
           <thead><tr><th class="sa-section-h">VERBINDLICHKEITEN <span style="font-weight:normal;font-size:9px;">(Konsumkredite / sonstige Schulden — Immobilien-Baufi siehe Immobilien-Block)</span></th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
           <tbody>${rowsHtml}</tbody>
@@ -734,21 +738,23 @@ function selbstauskunft(kunde, user) {
   `;
 
   // === SEITE 3: EIGENKAPITAL FÜR DIE FINANZIERUNG ===
-  // Iter 81 (21.05.2026): Conditional Rendering — nur Quellen mit Wert anzeigen.
-  //   Wenn nichts ausgefüllt → kompakter „noch zu ergänzen"-Hinweis mit 3 leeren
-  //   handschriftlich-ausfüllbaren Zeilen, statt 10 leere Standardquellen.
+  // Iter 82 (22.05.2026): UI auf 6 Quellen vereinfacht (Edgar: „nicht so Wichtigste in der App").
+  //   PDF zeigt entsprechend nur die 6 — alte 10er-Variante (wertpapier/immobilien/erbe/eigenleistung/darlehen)
+  //   bleibt als Backward-Compat im Render, falls Altdaten existieren.
   const ek = sa.herkunftEk || {};
   const ekQuellen = [
     { k: 'ersparnisse', label: 'Eigene Ersparnisse', beleg: 'Giro / Tagesgeld / Festgeld — Kontoauszüge' },
+    { k: 'schenkung', label: 'Schenkung / Erbschaft', beleg: ek.schenkGeber ? `Schenker / Erblasser: ${esc(ek.schenkGeber)}` : 'Notariell beglaubigte Urkunde / Erbschein' },
+    { k: 'verkauf', label: 'Verkaufserlös (Immobilie / Wertpapiere)', beleg: ek.verkaufObjekt ? `Objekt: ${esc(ek.verkaufObjekt)}` : 'Notarieller Kaufvertrag / Verkaufsabrechnung' },
+    { k: 'bauspar', label: 'Bausparvertrag (zuteilungsreif)', beleg: ek.bauspKasse ? `Kasse: ${esc(ek.bauspKasse)}` : 'Zuteilungsbescheinigung' },
+    { k: 'lv', label: 'Lebens-/Rentenversicherung', beleg: ek.lvAnbieter ? `Versicherer: ${esc(ek.lvAnbieter)}` : 'Auszahlungs-/Rückkaufs-Bescheinigung' },
+    { k: 'sonstiges', label: 'Sonstige Quelle', beleg: ek.sonstQuelle ? esc(ek.sonstQuelle) : 'siehe Anmerkung' },
+    // Backward-Compat: Altdaten-Keys werden weiterhin gerendert, wenn gepflegt
     { k: 'wertpapier', label: 'Wertpapier-/Depot-Verkauf', beleg: 'Verkaufsabrechnung Bank/Broker' },
     { k: 'immobilien', label: 'Immobilienverkauf', beleg: 'Notarieller Kaufvertrag' },
     { k: 'erbe', label: 'Erbschaft', beleg: 'Erbschein / Testaments-Eröffnung' },
-    { k: 'schenkung', label: 'Schenkung', beleg: 'Notariell beglaubigte Urkunde' },
-    { k: 'bauspar', label: 'Bausparvertrag (zuteilungsreif)', beleg: `Kasse: ${esc(ek.bauspKasse || '—')}` },
-    { k: 'lv', label: 'Lebens-/Rentenversicherung', beleg: `Versicherer: ${esc(ek.lvAnbieter || '—')}` },
     { k: 'eigenleistung', label: 'Eigenleistung / Muskelhypothek', beleg: 'Stunden-Kalkulation als Anlage' },
     { k: 'darlehen', label: 'Arbeitgeber-/Familien-Darlehen', beleg: `Darlehensgeber: ${esc(ek.darlehGeber || '—')}` },
-    { k: 'sonstiges', label: 'Sonstige Quelle', beleg: esc(ek.sonstQuelle || '—') },
   ];
   // Nur aktive Quellen (Checkbox gesetzt ODER Betrag > 0)
   const aktiveQuellen = ekQuellen.filter(q =>

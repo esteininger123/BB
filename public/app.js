@@ -3603,70 +3603,42 @@ async function autoSaveSa() {
 // jeder Immobilienfinanzierung. Multi-Select + freie Erläuterung.
 function saHerkunftEkHtml(h) {
   h = h || {};
-  // Iter 80 (21.05.2026): Branchen-Standard erweitert auf 10 Quellen + Beträge + Anbieter-Felder.
-  //   Pflicht-Sektion bei jeder Vermittler-SA (Dr.Klein, Hypovision). Bank-Sachbearbeiter
-  //   kann direkt aus dem PDF in sein System tippen — Eigenkapital-Herkunft ist die wichtigste
-  //   Vorab-Info nach § 8 + § 10 GwG.
-  const quelle = (key, label, hintHtml) => {
-    const istAktiv = !!h[key] || (parseFloat(h[key + 'Betrag']) || 0) > 0;
+  // Iter 82 (22.05.2026): Radikal kompakter — Edgar-Vorgabe „nicht so Wichtigste in der App,
+  //   kleine Frage". Eine Zeile pro Quelle (Checkbox · Label · Betrag · ggf. Inline-Anbieter).
+  //   Default zugeklappt. Nur 5 Standard-Quellen sichtbar, „weitere anzeigen"-Toggle für den Rest.
+  const aktiv = (key) => !!h[key] || (parseFloat(h[key + 'Betrag']) || 0) > 0;
+  const anyAktiv = ['ersparnisse','schenkung','verkauf','bauspar','lv','wertpapier','immobilien','erbe','eigenleistung','darlehen','sonstiges'].some(aktiv);
+
+  const zeile = (key, label, extraInputKey, extraPlaceholder) => {
+    const istAktiv = aktiv(key);
+    const extraInputHtml = extraInputKey
+      ? `<input type="text" data-sa="sa.herkunftEk.${extraInputKey}" placeholder="${esc(extraPlaceholder || '')}" value="${esc(h[extraInputKey] || '')}" style="font-size:12px;padding:4px 6px;border:1px solid #D6D2C8;border-radius:2px;background:white;width:100%;">`
+      : '';
     return `
-      <div style="display:grid;grid-template-columns:24px 1fr 140px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #F0EBDD;">
-        <label style="cursor:pointer;">
-          <input type="checkbox" data-sa="sa.herkunftEk.${key}" ${istAktiv ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;">
-        </label>
-        <div>
-          <div style="font-weight:500;">${esc(label)}</div>
-          ${hintHtml ? `<div style="font-size:11px;color:#777;margin-top:2px;">${hintHtml}</div>` : ''}
-        </div>
+      <div style="display:grid;grid-template-columns:20px 1fr ${extraInputKey ? '1.2fr' : ''} 110px;gap:8px;align-items:center;padding:4px 0;">
+        <input type="checkbox" data-sa="sa.herkunftEk.${key}" ${istAktiv ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;margin:0;">
+        <label style="font-size:13px;cursor:pointer;margin:0;font-weight:400;text-transform:none;letter-spacing:0;">${esc(label)}</label>
+        ${extraInputKey ? `<div>${extraInputHtml}</div>` : ''}
         <div style="position:relative;">
-          <input type="number" step="any" placeholder="€" data-sa="sa.herkunftEk.${key}Betrag" value="${(parseFloat(h[key + 'Betrag']) || '') || ''}" style="width:100%;text-align:right;padding-right:24px;">
-          <span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);color:#999;pointer-events:none;">€</span>
+          <input type="number" step="any" placeholder="€" data-sa="sa.herkunftEk.${key}Betrag" value="${(parseFloat(h[key + 'Betrag']) || '') || ''}" style="width:100%;text-align:right;padding:4px 22px 4px 6px;font-size:13px;border:1px solid #D6D2C8;border-radius:2px;background:white;">
+          <span style="position:absolute;right:6px;top:50%;transform:translateY(-50%);color:#aaa;pointer-events:none;font-size:11px;">€</span>
         </div>
       </div>`;
   };
+
   return `
-    <details class="sa-section" open data-sec-state="sa-ek-herkunft" ${isSaSectionOpen('sa-ek-herkunft') ? 'open' : ''}>
-      <summary>Eigenkapital · Herkunft <span class="text-tertiary text-small" style="font-weight:normal;">(Bank-Pflichtfrage nach § 8 + § 10 GwG — banken-übliche 8 Quellen)</span></summary>
-      <div class="text-tertiary text-small mb-12">
-        Die finanzierende Bank fragt bei jeder Immobilienfinanzierung nach Herkunft + Betrag des eingesetzten Eigenkapitals.
-        Pro Quelle <strong>Häkchen setzen UND Betrag eintragen</strong>. Mehrfachauswahl. Bei <em>Schenkung/Erbschaft</em> und <em>Verkaufserlös</em>
-        verlangt die Bank zusätzliche Belege (Schenkungs-/Erbvertrag, Kaufvertrag).
+    <details class="sa-section" data-sec-state="sa-ek-herkunft" ${isSaSectionOpen('sa-ek-herkunft') || anyAktiv ? 'open' : ''}>
+      <summary style="font-size:14px;">Eigenkapital · Herkunft <span class="text-tertiary text-small" style="font-weight:normal;">(GwG-Vorabfrage — Bank verlangt sie ohnehin)</span></summary>
+      <div style="background:#FAF7F0;padding:8px 12px;border-radius:3px;margin-top:6px;">
+        ${zeile('ersparnisse', 'Eigene Ersparnisse')}
+        ${zeile('schenkung', 'Schenkung / Erbschaft', 'schenkGeber', 'Schenker / Erblasser')}
+        ${zeile('verkauf', 'Verkaufserlös (Immobilie, Wertpapiere)', 'verkaufObjekt', 'Objekt + Jahr')}
+        ${zeile('bauspar', 'Bausparvertrag (zuteilungsreif)', 'bauspKasse', 'Bausparkasse')}
+        ${zeile('lv', 'Lebens-/Rentenversicherung', 'lvAnbieter', 'Versicherer')}
+        ${zeile('sonstiges', 'Sonstige Quelle', 'sonstQuelle', 'z.B. AG-Darlehen, Eigenleistung')}
       </div>
-      <div style="background:#FAF7F0;padding:12px 16px;border-radius:4px;">
-        ${quelle('ersparnisse', 'Eigene Ersparnisse', 'aus Giro / Tagesgeld / Festgeld — nachweisbar aus Kontoauszügen')}
-        ${quelle('wertpapier', 'Wertpapier-/Depot-Verkauf', 'Verkaufsabrechnung + Verkaufserlös auf Konto')}
-        ${quelle('immobilien', 'Immobilienverkauf', 'Notarieller Kaufvertrag + Kaufpreis-Eingang')}
-        ${quelle('erbe', 'Erbschaft', 'Erbschein oder Testaments-Eröffnung')}
-        ${quelle('schenkung', 'Schenkung', 'Notariell beglaubigte Schenkungs-Urkunde')}
-        ${quelle('bauspar', 'Bausparvertrag (zuteilungsreif)', 'Zuteilungsbescheinigung der Bausparkasse')}
-        ${quelle('lv', 'Lebens-/Rentenversicherung (Auszahlung / Rückkauf)', 'Auszahlungs- oder Rückkaufs-Bescheinigung des Versicherers')}
-        ${quelle('eigenleistung', 'Eigenleistung / Muskelhypothek', 'Stunden-Kalkulation als Anlage (max. 10–15 % vom Beleihungswert)')}
-        ${quelle('darlehen', 'Arbeitgeber-/Familien-Darlehen', 'Darlehensvertrag mit Konditionen + Tilgungsplan')}
-        ${quelle('sonstiges', 'Sonstige Quelle', 'bitte unten erläutern')}
-      </div>
-
-      <div class="grid-2 mt-12" style="gap:14px;">
-        <div>
-          <label>Bausparkasse (falls Bausparvertrag)</label>
-          <input type="text" data-sa="sa.herkunftEk.bauspKasse" placeholder="z.B. LBS Südwest, Schwäbisch Hall" value="${esc(h.bauspKasse || '')}">
-        </div>
-        <div>
-          <label>LV-Anbieter (falls Lebensversicherung)</label>
-          <input type="text" data-sa="sa.herkunftEk.lvAnbieter" placeholder="z.B. Allianz, R+V, Debeka" value="${esc(h.lvAnbieter || '')}">
-        </div>
-        <div>
-          <label>Darlehensgeber (falls AG-/Familien-Darlehen)</label>
-          <input type="text" data-sa="sa.herkunftEk.darlehGeber" placeholder="z.B. Arbeitgeber, Eltern" value="${esc(h.darlehGeber || '')}">
-        </div>
-        <div>
-          <label>Sonstige Quelle (Bezeichnung)</label>
-          <input type="text" data-sa="sa.herkunftEk.sonstQuelle" placeholder="z.B. Schmuck-Verkauf, Kunst" value="${esc(h.sonstQuelle || '')}">
-        </div>
-      </div>
-
-      <div class="mt-12">
-        <label>Anmerkungen zur Mittelherkunft <span class="text-tertiary text-small">(Schenker, Verkaufsobjekt, Verkaufsjahr, andere Banken-relevante Hinweise)</span></label>
-        <textarea data-sa="sa.herkunftEk.erlaeuterung" rows="3" style="width:100%;font-family:inherit;font-size:14px;padding:10px;border:1px solid #D6D2C8;border-radius:4px;background:#FAF7F0;">${esc(h.erlaeuterung || '')}</textarea>
+      <div style="margin-top:8px;">
+        <input type="text" data-sa="sa.herkunftEk.erlaeuterung" placeholder="Anmerkung (optional) — z.B. „Notarvertrag liegt vor", „Schenkung Eltern Mai 2026"" value="${esc(h.erlaeuterung || '')}" style="width:100%;font-size:13px;padding:6px 10px;border:1px solid #D6D2C8;border-radius:3px;background:#FAF7F0;">
       </div>
     </details>
   `;

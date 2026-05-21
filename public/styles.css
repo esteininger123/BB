@@ -447,6 +447,30 @@ input[type="range"].spar-zins-range::-moz-range-track {
   }
   .pdf-page:last-child { page-break-after: auto; }
 
+  /* Iter 82 (22.05.2026): SA-spezifisch — Daten-Sektionen fließen kompakt
+     untereinander statt jede auf eigene A4-Seite gezwungen zu werden.
+     Nur juristische Erklärungs-Seiten (sa-legal) haben harten Page-Break davor. */
+  .pdf-page.sa-page {
+    min-height: 0;
+    page-break-after: auto;
+  }
+  .pdf-page.sa-page.sa-legal {
+    page-break-before: always;
+  }
+  /* Innere Tabellen sollen nicht in der Mitte zerrissen werden */
+  .sa-page .sa-table { page-break-inside: avoid; }
+
+  /* SA: kein wiederholter sticky-Footer pro Sektion — der globale Bottom-Footer
+     im letzten .pdf-page reicht aus. Andere PDFs (Investitionsrechnung, Reservierung)
+     behalten ihr eigenes Footer-Verhalten. */
+  .sa-page .pdf-footer { display: none; }
+  .sa-page:last-child .pdf-footer { display: grid; }
+  /* Auf Folgeseiten Header optisch dezenter — Wiederholung kompakter */
+  .sa-page:not(:first-child) .sa-head {
+    padding-bottom: 2mm;
+    margin-bottom: 4mm;
+  }
+
   .pdf-footer {
     position: fixed;
     bottom: 0; left: 0; right: 0;
