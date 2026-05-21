@@ -75,7 +75,15 @@ module.exports = async (req, res) => {
       const docData = (ev.data) || {};
       const docId = docData.id || (ev.id) || '';
       const docName = docData.name || '';
-      const docStatus = docData.status || '';
+      // Iter-3 W2 (21.05.2026): docStatus kann je nach Event-Typ an verschiedenen Stellen
+      // liegen. Bei `document_state_changed` ist es `ev.data.status`. Bei `recipient_completed`
+      // ist `ev.data.status` typischerweise nicht gesetzt; wenn vorhanden, ist es im
+      // `ev.event_action`/`ev.data.recipient.has_completed`-Kontext. describeEvent fängt
+      // beide Fälle ab — wir reichen alle plausiblen Quellen durch.
+      const docStatus = docData.status
+                     || docData.document_status
+                     || ev.event_action
+                     || '';
 
       if (!docId) {
         ergebnisse.push({ event: evName, ok: false, reason: 'keine Doc-ID im Event' });
@@ -130,7 +138,35 @@ module.exports = async (req, res) => {
       const statusText = describeEvent(evName, docStatus, ev);
       const oldNotizen = (kunde.fields && kunde.fields[KUNDEN_FIELDS.NOTIZEN]) || '';
       const neueZeile = `[${stempel}] PandaDoc ${docId}: ${statusText}`;
-      const neueNotizen = oldNotizen ? `${oldNotizen}\n${neueZeile}` : neueZeile;
+
+      // Iter-3 W5 (21.05.2026): Idempotenz — wenn PandaDoc das gleiche Event retried
+      // (z.B. weil unser 200 nicht durchkam), nicht doppelt in die Notiz schreiben.
+      // Wir suchen den letzten Block vom gleichen DocId und vergleichen den Status-Text.
+      // Wenn der jüngste Eintrag identisch ist (gleicher Stempel auf die Minute genau
+      // oder gleicher Status-Text innerhalb der letzten Minute), überspringen wir.
+      const docMarkerRegex = new RegExp(`PandaDoc ${docId}: (.+)`, 'g');
+      const matches = [...oldNotizen.matchAll(docMarkerRegex)];
+      const letzterStatusZuDoc = matches.length > 0 ? matches[matches.length - 1][1].trim() : null;
+      if (letzterStatusZuDoc === statusText.trim()) {
+        ergebnisse.push({ event: evName, docId, kundeId: kunde.id, ok: true, status: statusText, skipped: 'duplicate' });
+        continue;
+      }
+
+      // Iter-3 W4 (21.05.2026): Notizen-Cutoff — Airtable Long-Text-Felder vertragen
+      // 100k Zeichen, aber das Frontend (Kunden-Detail-Notiz-Anzeige) wird bei großen
+      // Notizen unübersichtlich. Wir behalten nur die letzten 100 Zeilen. Ältere werden
+      // mit Hinweis abgeschnitten — Edgar kann die Snapshot-History eh primär in der
+      // Snapshot-Tabelle nachvollziehen.
+      const MAX_NOTIZ_ZEILEN = 100;
+      const kombinierte = oldNotizen ? `${oldNotizen}\n${neueZeile}` : neueZeile;
+      const zeilen = kombinierte.split('\n');
+      let neueNotizen;
+      if (zeilen.length > MAX_NOTIZ_ZEILEN) {
+        const cutoff = zeilen.length - MAX_NOTIZ_ZEILEN;
+        neueNotizen = `[… ${cutoff} ältere Einträge abgeschnitten …]\n` + zeilen.slice(cutoff).join('\n');
+      } else {
+        neueNotizen = kombinierte;
+      }
 
       await airtable('update', TABLES.KUNDEN, {
         recordId: kunde.id,

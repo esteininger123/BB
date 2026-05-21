@@ -108,6 +108,7 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
       fields: [
         MIETVERTRAG_FIELDS.WE_LINK,
         MIETVERTRAG_FIELDS.STELLPLATZ_LINK,
+        MIETVERTRAG_FIELDS.KALTMIETE,
         MIETVERTRAG_FIELDS.STELLPLATZMIETE,
         MIETVERTRAG_FIELDS.STATUS_LOOKUP,
         MIETVERTRAG_FIELDS.VERTRAGSBEGINN,
@@ -119,10 +120,14 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
     let stplMietsumme = 0;
     let stplMietsummeNominal = 0; // ohne Pro-rata — für Debug/Diff
     let vertraegeMitStellplatz = 0;
-    let jungsteMietsteigerung = null; // YYYY-MM-DD
-    let jungsterVertragsbeginn = null;
+    let jungsteMietsteigerung = null; // YYYY-MM-DD — letzte vergangene/aktuelle Erhöhung
+    let jungsterVertragsbeginn = null; // YYYY-MM-DD — letzter vergangener Vertragsbeginn
+    let aktuelleKaltmiete = null; // €/Mo — aus Vertrag mit jüngstem Datum ≤ heute
+    let aktuelleKaltmieteDatum = null; // YYYY-MM-DD — zugehöriges Datum
     let vertragVorhanden = false;
+    const zukunftsvertraege = []; // [{ datum, kaltmiete, quelle }] mit Datum > heute
     const useProRata = Array.isArray(weStpIds);
+    const heuteISO = new Date().toISOString().slice(0, 10);
 
     recs.forEach(r => {
       const f = r.fields || {};
@@ -132,6 +137,14 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
         return id === weId;
       });
       if (!linked) return;
+      // Archivierte Verträge nicht für Datum-/Kaltmiete-Erkennung nutzen, aber
+      // Stellplatzmiete-Aggregation bleibt unverändert (Backward-Compat).
+      const statusLookup = f[MIETVERTRAG_FIELDS.STATUS_LOOKUP];
+      const statusName = Array.isArray(statusLookup)
+        ? (statusLookup[0] && typeof statusLookup[0] === 'object' ? statusLookup[0].name : statusLookup[0])
+        : (statusLookup && typeof statusLookup === 'object' ? statusLookup.name : statusLookup);
+      const istArchiviert = typeof statusName === 'string' && /archiv/i.test(statusName);
+
       vertragVorhanden = true;
       const stpl = f[MIETVERTRAG_FIELDS.STELLPLATZ_LINK];
       const stplMiete = num(f[MIETVERTRAG_FIELDS.STELLPLATZMIETE]) || 0;
@@ -148,15 +161,61 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
         stplMietsummeNominal += stplMiete;
         vertraegeMitStellplatz += 1;
       }
-      const gueltig = f[MIETVERTRAG_FIELDS.GUELTIG_AB];
-      const beginn = f[MIETVERTRAG_FIELDS.VERTRAGSBEGINN];
-      if (gueltig && (!jungsteMietsteigerung || gueltig > jungsteMietsteigerung)) {
-        jungsteMietsteigerung = gueltig;
+      const gueltig = f[MIETVERTRAG_FIELDS.GUELTIG_AB] || null;
+      const beginn = f[MIETVERTRAG_FIELDS.VERTRAGSBEGINN] || null;
+      const kaltmiete = num(f[MIETVERTRAG_FIELDS.KALTMIETE]);
+      // Iter 76 (21.05.2026): Schenki legt bei einer einvernehmlich vereinbarten
+      // Mieterhöhung einen neuen Mietvertrag-Datensatz mit GUELTIG_AB (oder
+      // VERTRAGSBEGINN) in der Zukunft an. Wir trennen daher zwischen
+      //  - vergangenen/aktuellen Verträgen → tragen zu jungsteMietsteigerung +
+      //    aktuelleKaltmiete bei
+      //  - zukünftigen Verträgen → werden als geplante Erhöhung gesammelt.
+      const datumPrimary = gueltig || beginn; // GUELTIG_AB hat Vorrang
+      if (istArchiviert) {
+        return; // archivierte Verträge nicht für Datums-/Kaltmiete-Erkennung
       }
-      if (beginn && (!jungsterVertragsbeginn || beginn > jungsterVertragsbeginn)) {
-        jungsterVertragsbeginn = beginn;
+      if (datumPrimary && datumPrimary > heuteISO) {
+        // Zukünftiger Vertrag → potenziell geplante Erhöhung
+        if (kaltmiete && kaltmiete > 0) {
+          zukunftsvertraege.push({
+            datum: datumPrimary,
+            kaltmiete,
+            quelle: gueltig ? 'gueltig-ab' : 'vertragsbeginn',
+          });
+        }
+      } else {
+        // Vergangener/aktueller Vertrag
+        if (gueltig && gueltig <= heuteISO && (!jungsteMietsteigerung || gueltig > jungsteMietsteigerung)) {
+          jungsteMietsteigerung = gueltig;
+        }
+        if (beginn && beginn <= heuteISO && (!jungsterVertragsbeginn || beginn > jungsterVertragsbeginn)) {
+          jungsterVertragsbeginn = beginn;
+        }
+        // Aktuelle Kaltmiete = die mit dem jüngsten Datum ≤ heute
+        if (datumPrimary && kaltmiete && kaltmiete > 0
+            && (!aktuelleKaltmieteDatum || datumPrimary > aktuelleKaltmieteDatum)) {
+          aktuelleKaltmiete = kaltmiete;
+          aktuelleKaltmieteDatum = datumPrimary;
+        }
       }
     });
+
+    // Iter 76: Geplante Erhöhung = frühestes zukünftiges Datum (wenn mehrere
+    // gepflegt, ist das die nächste, die greift). Kaltmiete muss > aktuelle
+    // Kaltmiete sein, sonst Pflegelücke / Tippfehler.
+    zukunftsvertraege.sort((a, b) => a.datum.localeCompare(b.datum));
+    let geplanteErhoehung = null;
+    if (zukunftsvertraege.length > 0) {
+      const naechste = zukunftsvertraege[0];
+      const referenzMiete = aktuelleKaltmiete || 0;
+      if (naechste.kaltmiete > referenzMiete + 0.01) {
+        geplanteErhoehung = {
+          datum: naechste.datum,
+          kaltmiete: naechste.kaltmiete,
+          quelle: 'mietvertrag-' + naechste.quelle,
+        };
+      }
+    }
 
     return {
       stellplatzMietsumme: stplMietsumme,
@@ -164,9 +223,15 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
       stellplatzMieteProRata: useProRata && stplMietsummeNominal !== stplMietsumme,
       vertraegeMitStellplatz,
       vertragVorhanden,
-      // Iter 41.13: Vertragsbeginn ist verlässlicher gepflegt als 'Anpassung gültig ab'
+      // Iter 41.13: Vertragsbeginn ist verlässlicher gepflegt als 'Anpassung gültig ab'.
+      // Iter 76 (21.05.2026): nur Daten ≤ heute — zukünftige Verträge gehören
+      // in geplanteErhoehung, nicht in letzteMietsteigerung.
       letzteMietsteigerung: jungsterVertragsbeginn || jungsteMietsteigerung || null,
       jungsterVertragsbeginn,
+      aktuelleKaltmiete,
+      aktuelleKaltmieteDatum,
+      geplanteErhoehung, // { datum, kaltmiete, quelle } | null
+      zukunftsvertraegeCount: zukunftsvertraege.length,
     };
   } catch (e) {
     console.error('loadMietvertragInfoForWE failed:', e.message);
@@ -178,6 +243,10 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
       vertragVorhanden: false,
       letzteMietsteigerung: null,
       jungsterVertragsbeginn: null,
+      aktuelleKaltmiete: null,
+      aktuelleKaltmieteDatum: null,
+      geplanteErhoehung: null,
+      zukunftsvertraegeCount: 0,
     };
   }
 }
@@ -253,6 +322,9 @@ function kalkStammRecordToApi(rec) {
     // Iter 41.17 — Lookup „Miet-status (ist)" aus WE. Roher Wert wird in
     // resolveVermietungsstatus() normalisiert.
     weVermietungsstatusRaw: f[KALK_STAMMDATEN_FIELDS.WE_VERMIETUNGSSTATUS] || null,
+    // Iter 70 (21.05.2026) — Einvernehmliche Mieterhöhung vor Übergabe (siehe tables.js).
+    geplanteErhoehungDatum:     f[KALK_STAMMDATEN_FIELDS.GEPLANTE_ERHOEHUNG_DATUM] || null,
+    geplanteErhoehungKaltmiete: num(f[KALK_STAMMDATEN_FIELDS.GEPLANTE_ERHOEHUNG_KALTMIETE]),
   };
 }
 
@@ -391,11 +463,69 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   // angepasst wurde, hebt B&B die Mieter-Miete schon vor Übergabe auf MbV × (1+Kapp)
   // (durch Marktmiete gedeckelt). Der Mieter zahlt diesen Wert ab Tag 1. Danach läuft
   // der reguläre 2-Phasen-Zyklus (72 Monate) gegen die neue Basis.
+  //
+  // --- Iter 70 (21.05.2026): Vereinbarte Mieterhöhung hat Vorrang ---
+  // Wenn in den Stammdaten eine bereits einvernehmlich mit dem Mieter abgeschlossene
+  // Erhöhung gepflegt ist (Felder „Vereinbarte Erhöhung — gültig ab" + „— neue Kaltmiete"),
+  // und das Datum max. 12 Monate in der Zukunft oder bis zu 1 Monat in der Vergangenheit
+  // liegt, ersetzt diese die rechnerische Iter-63-Annahme. Wir simulieren die Vereinbarung
+  // als „ab Tag 1 wirksam" — pragmatische Vereinfachung, weil die Übergabe typischerweise
+  // in diesem Zeitfenster stattfindet. Bei Datum > 12 Mo in der Zukunft: nur Notiz, keine
+  // rechnerische Wirkung (Verkäufer trägt das Risiko der Lücke).
   let mbv = mbvRaw;
   let monateSeit = monateSeitRaw;
   let tag1Erhoehung = false;
   let tag1Anhebung = 0; // €/Mo, um den die Mieter-Miete vor Verkauf erhöht wird
-  if (monateSeitRaw !== null && monateSeitRaw > 36) {
+  let tag1Quelle = null; // 'iter63-annahme' | 'vereinbarung'
+  let vereinbarungInfo = null; // { datum, monateBisErhoehung, kaltmiete, anwendbar }
+
+  // (1) Vereinbarung prüfen — Quellen-Priorität:
+  //   (a) Stammdaten-Override (Felder „Vereinbarte Erhöhung — gültig ab / neue Kaltmiete"):
+  //       Edgar kann manuell überschreiben.
+  //   (b) Mietvertrag (Schenki legt bei unterschriebener Erhöhung einen neuen
+  //       Mietvertrag mit GUELTIG_AB in der Zukunft an — Default-Workflow).
+  //   Wenn (a) gepflegt: schlägt (b).
+  let geplDatumRaw = null;
+  let geplKaltmiete = null;
+  let geplQuelle = null; // 'stammdaten-override' | 'mietvertrag'
+  if (kalkApi.geplanteErhoehungDatum && kalkApi.geplanteErhoehungKaltmiete && kalkApi.geplanteErhoehungKaltmiete > 0) {
+    geplDatumRaw = kalkApi.geplanteErhoehungDatum;
+    geplKaltmiete = kalkApi.geplanteErhoehungKaltmiete;
+    geplQuelle = 'stammdaten-override';
+  } else if (vermietung && vermietung.geplanteErhoehung) {
+    geplDatumRaw = vermietung.geplanteErhoehung.datum;
+    geplKaltmiete = vermietung.geplanteErhoehung.kaltmiete;
+    geplQuelle = 'mietvertrag';
+  }
+
+  if (geplDatumRaw && geplKaltmiete && geplKaltmiete > 0) {
+    const geplDate = new Date(geplDatumRaw);
+    if (!isNaN(geplDate.getTime())) {
+      const heute = new Date();
+      // Monate bis zur Erhöhung (negativ = Vergangenheit)
+      const monateBisErhoehung = (geplDate.getFullYear() - heute.getFullYear()) * 12
+        + (geplDate.getMonth() - heute.getMonth());
+      const anwendbar = monateBisErhoehung >= -1 && monateBisErhoehung <= 12
+        && geplKaltmiete > mbvRaw + 0.01;
+      vereinbarungInfo = {
+        datum: geplDatumRaw,
+        monateBisErhoehung,
+        kaltmiete: geplKaltmiete,
+        quelle: geplQuelle, // 'stammdaten-override' | 'mietvertrag'
+        anwendbar,
+      };
+      if (anwendbar) {
+        tag1Erhoehung = true;
+        tag1Anhebung = geplKaltmiete - mbvRaw;
+        mbv = geplKaltmiete;
+        monateSeit = 0;
+        tag1Quelle = 'vereinbarung';
+      }
+    }
+  }
+
+  // (2) Wenn keine Vereinbarung greift: Iter-63-Annahme fällt zurück.
+  if (!tag1Erhoehung && monateSeitRaw !== null && monateSeitRaw > 36) {
     const mieterErhoehung = mbvRaw * kappPct;
     const mbvNeu = marktmiete > 0
       ? Math.min(mbvRaw + mieterErhoehung, marktmiete)
@@ -405,6 +535,7 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
       tag1Anhebung = mbvNeu - mbvRaw;
       mbv = mbvNeu;          // ab hier rechnet alles mit dem neuen MbV
       monateSeit = 0;        // Phase 1 läuft volle 36 Monate ab Übergabe
+      tag1Quelle = 'iter63-annahme';
     }
   }
 
@@ -418,13 +549,34 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   let xFinal = Math.min(xIdealOhneMarkt, xMaxMarkt);
 
   if (xFinal <= 0) {
+    // Iter 70 (21.05.2026): Erläuterung + Audit-Felder differenziert nach Quelle.
+    let erl;
+    if (tag1Quelle === 'vereinbarung' && vereinbarungInfo) {
+      const d = new Date(vereinbarungInfo.datum);
+      const datumStr = isNaN(d.getTime()) ? vereinbarungInfo.datum
+        : `${('0'+d.getDate()).slice(-2)}.${('0'+(d.getMonth()+1)).slice(-2)}.${d.getFullYear()}`;
+      erl = `Mit dem Mieter ist eine Mieterhöhung auf ${Math.round(mbv)} €/Mo ab ${datumStr} vereinbart — danach kein weiterer legaler Spielraum bis zur Marktmiete. Käufer-Miete bleibt durch den Marktmiete-Cap konstant.`;
+    } else if (tag1Erhoehung) {
+      erl = `Letzte Mietsteigerung war ${monateSeitRaw} Mo her — Mieter wird vor Verkauf auf ${Math.round(mbv)} €/Mo angehoben. Danach kein weiterer legaler Spielraum bis zur Marktmiete.`;
+    } else if (vereinbarungInfo && !vereinbarungInfo.anwendbar) {
+      const d = new Date(vereinbarungInfo.datum);
+      const datumStr = isNaN(d.getTime()) ? vereinbarungInfo.datum
+        : `${('0'+d.getDate()).slice(-2)}.${('0'+(d.getMonth()+1)).slice(-2)}.${d.getFullYear()}`;
+      erl = `Miete bei Verkauf ≥ Marktmiete — keine legale Erhöhung möglich. Hinweis: Mit dem Mieter ist eine Erhöhung auf ${Math.round(vereinbarungInfo.kaltmiete)} €/Mo ab ${datumStr} (${vereinbarungInfo.monateBisErhoehung} Mo Vorlauf) vereinbart, aber wegen langer Vorlaufzeit nicht in die Kalkulation übernommen.`;
+    } else {
+      erl = 'Miete bei Verkauf ≥ Marktmiete — keine legale Erhöhung möglich.';
+    }
     return Object.assign({}, empty, {
-      quelle: 'auto-kein-spielraum',
-      erlaeuterung: tag1Erhoehung
-        ? `Letzte Mietsteigerung war ${monateSeitRaw} Mo her — Mieter wird vor Verkauf auf ${Math.round(mbv)} €/Mo angehoben. Danach kein weiterer legaler Spielraum bis zur Marktmiete.`
-        : 'Miete bei Verkauf ≥ Marktmiete — keine legale Erhöhung möglich.',
+      quelle: tag1Quelle === 'vereinbarung' ? 'auto-vereinbart' : 'auto-kein-spielraum',
+      erlaeuterung: erl,
       tag1Erhoehung,
+      tag1Anhebung: Math.round(tag1Anhebung * 100) / 100,
+      tag1Quelle,
       kaltmieteAdjustiert: tag1Erhoehung ? Math.round(mbv * 100) / 100 : null,
+      vereinbarung: vereinbarungInfo,
+      // Iter 65: Marktmiete-Felder damit Frontend-Cap konsistent läuft
+      marktmieteEurQm,
+      marktmieteAbs: Math.round(marktmiete * 100) / 100,
     });
   }
 
@@ -498,7 +650,32 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   // Erläuterung an Dich (Du-Form, direkt an Endkunde).
   const hinweise = [];
   if (tag1Erhoehung) {
-    hinweise.push(`Letzte Mietsteigerung war ${monateSeitRaw} Monate her — wir heben die Miete vor Übergabe um ${Math.round(tag1Anhebung)} €/Mo auf ${Math.round(mbv)} €/Mo an. Danach laufen die regulären 2 Subv-Zyklen über 72 Monate.`);
+    if (tag1Quelle === 'vereinbarung' && vereinbarungInfo) {
+      // Iter 70: Echte Vereinbarung mit dem Mieter — pflegen wird konkret zitiert.
+      const datumStr = (() => {
+        const d = new Date(vereinbarungInfo.datum);
+        if (isNaN(d.getTime())) return vereinbarungInfo.datum;
+        return `${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}.${d.getFullYear()}`;
+      })();
+      const vorlaufHinweis = vereinbarungInfo.monateBisErhoehung > 1
+        ? ` (greift in ${vereinbarungInfo.monateBisErhoehung} Mo — wir rechnen vereinfachend ab Tag 1 mit der neuen Miete)`
+        : '';
+      hinweise.push(`Mit dem Mieter ist eine Mieterhöhung auf ${Math.round(mbv)} €/Mo ab ${datumStr} vereinbart${vorlaufHinweis}. Danach laufen die regulären 2 Subv-Zyklen über 72 Monate.`);
+    } else {
+      hinweise.push(`Letzte Mietsteigerung war ${monateSeitRaw} Monate her — wir heben die Miete vor Übergabe um ${Math.round(tag1Anhebung)} €/Mo auf ${Math.round(mbv)} €/Mo an. Danach laufen die regulären 2 Subv-Zyklen über 72 Monate.`);
+    }
+  } else if (vereinbarungInfo && !vereinbarungInfo.anwendbar) {
+    // Iter 70: Vereinbarung gepflegt aber nicht (mehr) anwendbar — als Notiz zeigen.
+    const datumStr = (() => {
+      const d = new Date(vereinbarungInfo.datum);
+      if (isNaN(d.getTime())) return vereinbarungInfo.datum;
+      return `${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}.${d.getFullYear()}`;
+    })();
+    if (vereinbarungInfo.monateBisErhoehung > 12) {
+      hinweise.push(`Hinweis: Mit dem Mieter ist eine Erhöhung auf ${Math.round(vereinbarungInfo.kaltmiete)} €/Mo ab ${datumStr} vereinbart (${vereinbarungInfo.monateBisErhoehung} Mo Vorlauf) — wegen langer Vorlaufzeit nicht in die Kalkulation übernommen.`);
+    } else if (vereinbarungInfo.kaltmiete <= mbvRaw + 0.01) {
+      hinweise.push(`Hinweis: Die gepflegte „Vereinbarte Erhöhung" (${Math.round(vereinbarungInfo.kaltmiete)} €/Mo) liegt nicht über der aktuellen Miete bei Verkauf — Pflege prüfen.`);
+    }
   }
   if (marktCapGreift) {
     // Iter 65 (20.05.2026): Marktmiete jetzt als €/qm gepflegt — für den Hinweis
@@ -526,6 +703,7 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   // Quelle-Label für Frontend-Anzeige
   let quelleLabel;
   if (capGreift) quelleLabel = 'auto-cap';
+  else if (tag1Quelle === 'vereinbarung') quelleLabel = 'auto-vereinbart';
   else if (tag1Erhoehung) quelleLabel = 'auto-tag1-erhoehung';
   else if (marktCapGreift) quelleLabel = 'auto-marktcap-p2';
   else if (p2Aktiv) quelleLabel = 'auto-2-phasen';
@@ -549,6 +727,9 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     // Iter 65: Marktmiete als €/qm + umgerechnet €/Mo für UI-Anzeige
     marktmieteEurQm,
     marktmieteAbs: Math.round(marktmiete * 100) / 100,
+    // Iter 70: Vereinbarte Mieterhöhung (für UI-Hinweis + Audit)
+    tag1Quelle, // null | 'vereinbarung' | 'iter63-annahme'
+    vereinbarung: vereinbarungInfo,
   };
 }
 
@@ -655,6 +836,11 @@ module.exports = async (req, res) => {
         vertragVorhanden:       vertragInfo.vertragVorhanden,
         letzteMietsteigerung,
         letzteMietsteigerungQuelle,
+        // Iter 76 (21.05.2026): Geplante Erhöhung aus Mietvertrag (Schenki pflegt
+        // bei einer unterschriebenen Vereinbarung einen neuen Mietvertrag mit
+        // zukünftigem GUELTIG_AB an).
+        geplanteErhoehung:      vertragInfo.geplanteErhoehung || null,
+        aktuelleKaltmiete:      vertragInfo.aktuelleKaltmiete || null,
       };
 
       // Subvention auto + Markt-Schnitt direkt vom Backend liefern
@@ -696,6 +882,9 @@ module.exports = async (req, res) => {
           marktmieteAbs:              subv.marktmieteAbs || 0,
           marktpreisGemittelt:        marktSchnitt.wert,
           marktpreisGemitteltQuelle:  marktSchnitt.quelle,
+          // Iter 70 (21.05.2026): Vereinbarte Mieterhöhung
+          subventionTag1Quelle:       subv.tag1Quelle || null, // null | 'vereinbarung' | 'iter63-annahme'
+          vereinbarung:               subv.vereinbarung || null, // { datum, monateBisErhoehung, kaltmiete, anwendbar } | null
         },
       });
     }

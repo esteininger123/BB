@@ -1660,6 +1660,9 @@ async function loadWeIntoKalk(weId) {
       state.kalk._subventionTag1Anhebung     = derived.subventionTag1Anhebung || 0;
       state.kalk._subventionMarktCapGreift   = !!derived.subventionMarktCapGreift;
       state.kalk._subventionKaltmieteAdjustiert = derived.subventionKaltmieteAdjustiert || null;
+      // Iter 70 (21.05.2026): Vereinbarte Mieterhöhung (echte Vereinbarung mit Mieter).
+      state.kalk._subventionTag1Quelle       = derived.subventionTag1Quelle || null; // 'vereinbarung' | 'iter63-annahme' | null
+      state.kalk._vereinbarung               = derived.vereinbarung || null; // { datum, monateBisErhoehung, kaltmiete, anwendbar }
       // Iter 65 (20.05.2026): Marktmiete jetzt als €/qm in Airtable gepflegt;
       //   das Backend liefert €/qm + umgerechneten €/Mo-Wert, damit die UI beides zeigen kann.
       state.kalk._marktmieteEurQm = derived.marktmieteEurQm || 0;
@@ -2063,7 +2066,35 @@ function renderStories(r) {
           const hinweise = [];
           if (state.kalk._subventionTag1Erhoehung) {
             const anhebung = Math.round(state.kalk._subventionTag1Anhebung || 0);
-            hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#fff3cd;border-left:3px solid #d39e00;padding:6px 10px;margin-top:6px;color:#664d03;font-size:13px;">⚠ <strong>Tag-1-Erhöhung aktiv:</strong> Die letzte Mietsteigerung war &gt; 3 Jahre her. Wir heben den Mieter vor Übergabe um ${anhebung} €/Mo an — Käufer bekommt die schon erhöhte Miete ab Tag 1, danach 2 reguläre Subv-Zyklen (72 Mo).</span>`);
+            // Iter 70 (21.05.2026): zwei Quellen unterscheiden — echte Vereinbarung mit
+            // Mieter (gepflegt in Stammdaten) vs. Iter-63-Annahme (rechnerisch).
+            if (state.kalk._subventionTag1Quelle === 'vereinbarung' && state.kalk._vereinbarung) {
+              const v = state.kalk._vereinbarung;
+              const datumStr = (() => {
+                const d = new Date(v.datum);
+                if (isNaN(d.getTime())) return v.datum;
+                return `${('0'+d.getDate()).slice(-2)}.${('0'+(d.getMonth()+1)).slice(-2)}.${d.getFullYear()}`;
+              })();
+              const vorlauf = v.monateBisErhoehung > 1
+                ? ` — greift offiziell in ${v.monateBisErhoehung} Mo, in der Kalkulation ab Tag 1`
+                : '';
+              // Iter 76: Quelle-Suffix zeigen, damit der Vertriebler weiß, woher der Wert kommt.
+              const quelleSuffix = v.quelle === 'mietvertrag' ? ' (aus Mietvertrag)'
+                : v.quelle === 'stammdaten-override' ? ' (Override in Stammdaten)'
+                : '';
+              hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#d1e7dd;border-left:3px solid #198754;padding:6px 10px;margin-top:6px;color:#0f5132;font-size:13px;">✓ <strong>Vereinbarung mit Mieter${quelleSuffix}:</strong> Erhöhung auf ${Math.round(state.kalk._subventionKaltmieteAdjustiert || 0)} €/Mo ab ${datumStr} (+${anhebung} €/Mo)${vorlauf}. Danach 2 reguläre Subv-Zyklen (72 Mo).</span>`);
+            } else {
+              hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#fff3cd;border-left:3px solid #d39e00;padding:6px 10px;margin-top:6px;color:#664d03;font-size:13px;">⚠ <strong>Tag-1-Erhöhung aktiv (rechnerisch):</strong> Die letzte Mietsteigerung war &gt; 3 Jahre her. Wir heben den Mieter vor Übergabe um ${anhebung} €/Mo an — Käufer bekommt die schon erhöhte Miete ab Tag 1, danach 2 reguläre Subv-Zyklen (72 Mo).</span>`);
+            }
+          } else if (state.kalk._vereinbarung && !state.kalk._vereinbarung.anwendbar) {
+            // Iter 70: Vereinbarung gepflegt aber wegen Vorlaufzeit/Wert nicht angewendet.
+            const v = state.kalk._vereinbarung;
+            const datumStr = (() => {
+              const d = new Date(v.datum);
+              if (isNaN(d.getTime())) return v.datum;
+              return `${('0'+d.getDate()).slice(-2)}.${('0'+(d.getMonth()+1)).slice(-2)}.${d.getFullYear()}`;
+            })();
+            hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#e2e3e5;border-left:3px solid #6c757d;padding:6px 10px;margin-top:6px;color:#41464b;font-size:13px;">ℹ <strong>Vereinbarung gepflegt, nicht in Kalkulation:</strong> Erhöhung auf ${Math.round(v.kaltmiete)} €/Mo ab ${datumStr} (${v.monateBisErhoehung} Mo Vorlauf) — wegen langer Vorlaufzeit nicht eingerechnet.</span>`);
           }
           if (state.kalk._subventionMarktCapGreift) {
             // Iter 65 (20.05.2026): Marktmiete als €/qm × qm = €/Mo zur Klarheit

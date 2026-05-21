@@ -237,6 +237,17 @@ module.exports = async (req, res) => {
       };
     });
 
+    // Iter-3 H6 (21.05.2026): Browser-Cache 60s. Der Endpoint lädt ~14k Records
+    // pro Aufruf (WEs + Stammdaten + Stellplätze + Mietverträge). Henry wechselt im
+    // Admin-Audit-Tab häufig zwischen Sichten — durch private/max-age=60 holt der
+    // Browser bei Tab-Wechseln innerhalb von 60 Sek nicht erneut. ETag wäre noch
+    // besser (Server-Side-Vergleich), aber private/max-age=60 ist Quick-Win mit
+    // großem Effekt für den Audit-Pflege-Run.
+    //
+    // private (kein CDN-Cache) ist wichtig, weil die Response Owner-spezifisch sein
+    // kann (Admin sieht andere Daten als Vertriebler — aktuell sehen sie das gleiche,
+    // aber wir wollen das nicht in einen geteilten Cache packen).
+    res.setHeader('Cache-Control', 'private, max-age=60, must-revalidate');
     return res.status(200).json(audit);
   } catch (e) {
     return sendError(res, e);

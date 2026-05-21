@@ -336,7 +336,11 @@ module.exports = async (req, res) => {
     // Polling auf document.draft ist nicht zwingend für den Editor — der Editor
     // wartet selbst. Wenn ready=false, weisen wir trotzdem auf den Editor hin.
 
-    const editorUrl = `https://app.pandadoc.com/a/#/documents/${docId}`;
+    // Iter-3 R3 (21.05.2026): EU-Tenant-Fallback. Default ist app.pandadoc.com (US),
+    // bei EU-Tenant `app.eu.pandadoc.com`. Edgars Account ist aktuell US, aber wenn
+    // Anthropic später auf EU-PandaDoc wechselt, reicht Env-Var PANDADOC_EDITOR_HOST.
+    const editorHost = process.env.PANDADOC_EDITOR_HOST || 'app.pandadoc.com';
+    const editorUrl = `https://${editorHost}/a/#/documents/${docId}`;
 
     // PandaDoc-DocId in Kunden-Notizen vermerken (Status: erstellt, manueller Send pendant)
     try {

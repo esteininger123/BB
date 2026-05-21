@@ -168,6 +168,13 @@ const KALK_STAMMDATEN_FIELDS = {
   // ab, was bei leerstehenden Einheiten zu falscher Mietsteigerungs-Logik führte
   // (alter Vertragsbeginn wurde als „letzte Mieterhöhung" weiterverwendet).
   WE_VERMIETUNGSSTATUS:  'fld22W6xF260RHuNv', // Lookup aus Wohneinheit: "vermietet" | "leerstehend"
+  // Iter 70 (21.05.2026) — Einvernehmlich mit dem Mieter VOR Übergabe vereinbarte
+  // Mieterhöhung. Pflegt Henry, wenn ein neuer Mietvertrags-Nachtrag mit Mieter
+  // unterschrieben ist (z.B. „ab 1.7. zahlt der Mieter 800 €/Mo"). Beide Felder
+  // zusammen pflegen — der App-Code rechnet erst, wenn Datum UND neue Kaltmiete
+  // gesetzt sind. Vorrang vor der automatischen Tag-1-Erhöhung (Iter 63).
+  GEPLANTE_ERHOEHUNG_DATUM:    'fldlgR66D0zzaQ1hA', // Date — ab wann gilt die vereinbarte Miete
+  GEPLANTE_ERHOEHUNG_KALTMIETE: 'fldg9Pmx9sfFowLl9', // Currency €/Mo — neue Kaltmiete laut Vereinbarung
 };
 
 const KALK_STATUS_AKTIV    = 'Aktiv';
