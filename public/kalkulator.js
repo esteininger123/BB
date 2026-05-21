@@ -503,7 +503,9 @@ function computeBonitaetDetailed(sa, gemeinsam) {
   const liquidesVermoegen = liquideVerm(a) + liquideVerm(m);
 
   // ----- Immobilien-Vermögen (Verkehrswert minus Baufi-Restsaldo) -----
-  // Iter 73 (21.05.2026): Legacy immo1/immo2 raus — nur noch p.immobilien[].
+  // Iter 74 (21.05.2026): Math.max(0, …)-Cap entfernt — wenn Restsaldo > Verkehrswert,
+  //   ist die Immobilie „underwater" und das negative Delta fließt ehrlich ins
+  //   Gesamtvermögen. Bei Marcel: 125k VW − 136k Saldo = −11.000 €.
   function immoVerm(p) {
     if (!p) return 0;
     let s = 0;
@@ -512,7 +514,7 @@ function computeBonitaetDetailed(sa, gemeinsam) {
         if (!immo) return;
         const vk = parseFloat(immo.verkehrswert) || 0;
         const sa = parseFloat(immo.baufiRestsaldo) || 0;
-        s += Math.max(0, vk - sa);
+        s += (vk - sa);
       });
     }
     return s;
@@ -686,13 +688,35 @@ function recalc(i) {
     return Math.pow(1 + i.steigerungProz, n);
   }
 
+  // Iter 70 (21.05.2026): Marktmiete-Cap auf die Kaltmiete-Projektion zurück.
+  //
+  // History: Iter 12 hat den Cap entfernt, weil damals der Verkaufswert €/qm
+  //   (z.B. 3.117 €/qm) fälschlich als Mieten-Cap interpretiert wurde → Cap-
+  //   Schwelle ~2 Mio €/Mo, griff faktisch nie. Iter 65 (20.05.2026) hat das
+  //   richtige Feld eingeführt: `marktmieteEurQm` = €/qm/Mo Kaltmiete (z.B. 12).
+  //   Iter 62/63 hat den Cap zwar in der Subv-Berechnung wieder eingebaut, aber
+  //   nicht in der Kaltmiete-Projektion selbst — Folge: Käufer-Miete in Jahr 10
+  //   stieg im Modell auf 20 €/qm bei einer Marktmiete von 12 €/qm. Mit dem
+  //   richtigen Feld kann der Cap jetzt sauber zurück.
+  //
+  // Cap = i.marktmieteEurQm × i.qm. Wenn eines der beiden fehlt → kein Cap
+  //   (Fallback altes Verhalten, Status-Card warnt separat über Pflegelücke).
+  const marktCapMo = (i.marktmieteEurQm > 0 && i.qm > 0)
+    ? i.marktmieteEurQm * i.qm
+    : Infinity;
+
+  function kaltmieteForMonth(m) {
+    const raw = i.kaltmiete * faktorFor(m);
+    return Math.min(raw, marktCapMo);
+  }
+
   // Iter 47/48: Globale Effektivmiete über alle Subv-Phasen konstant.
   // Ziel-Effektivmiete = MbV + Phase-1-Subv (die höchste). Solange wir in irgendeiner
   // Subv-Phase sind, gleichen wir die Subv so an, dass Effektivmiete = Ziel.
   // Damit gibt es kein Tal mehr zwischen Phase 1 und Phase 2 — Käufer sieht konstanten
   // Cashflow, bis alle Subv-Phasen durch sind UND die Bestandsmiete das Niveau erreicht hat.
   function subvForMonth(m) {
-    const kaltmieteM = i.kaltmiete * faktorFor(m);
+    const kaltmieteM = kaltmieteForMonth(m);
     if (Array.isArray(i.subventionPhasen) && i.subventionPhasen.length > 0) {
       const phase1Mo = (i.subventionPhasen[0] && i.subventionPhasen[0].mo) || 0;
       const effektivZielGlobal = i.kaltmiete + phase1Mo;
@@ -720,10 +744,8 @@ function recalc(i) {
     let kaltmieteMoEndJahr = 0;
     for (let monthOfYear = 1; monthOfYear <= 12; monthOfYear++) {
       const m = (y - 1) * 12 + monthOfYear; // Absoluter Monat 1..360
-      const faktor = faktorFor(m);
-      const geplanteMo = i.kaltmiete * faktor;
-      // Iter 12: Marktmieten-Cap entfernt — Mietsteigerung läuft nur noch über
-      // mietsteigerungsModus (sprung/index) und steigerungProz.
+      // Iter 70: Kaltmiete wird durch Marktmiete-Cap begrenzt (siehe kaltmieteForMonth).
+      const geplanteMo = kaltmieteForMonth(m);
       kaltmieteJahrSum += geplanteMo;
       kaltmieteMoEndJahr = geplanteMo; // letzter Monat des Jahres für CF-Anzeige
     }

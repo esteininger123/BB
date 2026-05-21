@@ -1664,6 +1664,9 @@ async function loadWeIntoKalk(weId) {
       //   das Backend liefert €/qm + umgerechneten €/Mo-Wert, damit die UI beides zeigen kann.
       state.kalk._marktmieteEurQm = derived.marktmieteEurQm || 0;
       state.kalk._marktmieteAbs   = derived.marktmieteAbs || 0;
+      // Iter 70 (21.05.2026): Marktmiete-Cap zurück in der Kaltmiete-Projektion (kalkulator.js).
+      //   Wir spiegeln den Wert in den Top-Level-State, damit recalc() ihn direkt sieht.
+      state.kalk.marktmieteEurQm = derived.marktmieteEurQm || 0;
       if (sd.afaGutachten !== null)          state.kalk.afaSatz = sd.afaGutachten;
       if (sd.wertsteigerung !== null)        state.kalk.wertsteigerung = sd.wertsteigerung;
       if (sd.grEst !== null)                 state.kalk.grEstPct = sd.grEst;
@@ -1679,9 +1682,18 @@ async function loadWeIntoKalk(weId) {
       //   Mietsteigerung > 3 Jahre her ist und die erste Erhöhung beim Käufer
       //   ab Tag 1 eingerechnet wird, überschreiben wir die Tag-1-Mieter-Miete
       //   mit dem angepassten Wert. Subv-Phasen rechnen dann gegen diese neue Basis.
+      // Iter 70 (21.05.2026): Bug-Fix — wir müssen zusätzlich `letzteMietsteigerung`
+      //   und `monateSeitMieterhoehung` resetten, sonst rechnet kalkulator.js mit
+      //   dem alten Vertragsbeginn-Datum (z.B. 116 Mo her) weiter, M1 fällt auf 1,
+      //   und die nächste Sprung-Erhöhung greift schon in Monat 1 statt Monat 36.
+      //   Folge bisher: Käufer-Miete springt in Jahr 4 ungebremst um 20 % nach oben,
+      //   und der versprochene konstante CF über 72 Mo war faktisch nicht eingehalten.
       if (state.kalk._subventionTag1Erhoehung && state.kalk._subventionKaltmieteAdjustiert) {
         state.kalk.kaltmiete = state.kalk._subventionKaltmieteAdjustiert;
         state.kalk._mieteBeiVerkaufActive = true;
+        // Tag-1-Erhöhung gilt als „gerade gemacht" → Phase 1 läuft volle 36 Mo ab jetzt.
+        state.kalk.letzteMietsteigerung = null;
+        state.kalk.monateSeitMieterhoehung = 0;
       }
       // Iter 41.9 — Markt-Schnitt (IS + HD)
       if (derived.marktpreisGemittelt && derived.marktpreisGemittelt > 0) {
@@ -3248,13 +3260,17 @@ function saAuswertungHtml() {
             const w = parseFloat(it && it.wert) || 0;
             if (w > 0) { vermoegenRows.push(`<tr><td>${prefix}${esc((it && it.titel) || 'Vermögen')}</td><td class="num">${eurNum(w)}</td></tr>`); vermSum += w; }
           });
-          // Immobilien-Netto (Verkehrswert − Restsaldo)
+          // Iter 74 (21.05.2026): Immobilien-Netto darf negativ sein (Underwater-Immobilie).
           (Array.isArray(p.immobilien) ? p.immobilien : []).forEach(immo => {
             const vk = parseFloat(immo && immo.verkehrswert) || 0;
             const rest = parseFloat(immo && immo.baufiRestsaldo) || 0;
-            const netto = Math.max(0, vk - rest);
-            if (netto > 0 || vk > 0) {
-              vermoegenRows.push(`<tr><td>${prefix}Immobilie · ${esc(immo.art || 'Immobilie')}${immo.anschrift ? ', ' + esc(immo.anschrift) : ''} <span class="text-tertiary text-small">(${vk.toLocaleString('de-DE')} − ${rest.toLocaleString('de-DE')} Restsaldo)</span></td><td class="num">${eurNum(netto)}</td></tr>`);
+            const netto = vk - rest;
+            if (netto !== 0 || vk > 0) {
+              const isNeg = netto < 0;
+              const nettoFormatted = isNeg
+                ? `<span style="color:#8E1010;font-weight:600;">−${Math.abs(Math.round(netto)).toLocaleString('de-DE')} €</span>`
+                : Math.round(netto).toLocaleString('de-DE') + ' €';
+              vermoegenRows.push(`<tr><td>${prefix}Immobilie · ${esc(immo.art || 'Immobilie')}${immo.anschrift ? ', ' + esc(immo.anschrift) : ''} <span class="text-tertiary text-small">(${vk.toLocaleString('de-DE')} − ${rest.toLocaleString('de-DE')} Restsaldo)</span></td><td class="num">${nettoFormatted}</td></tr>`);
               vermSum += netto;
             }
           });
