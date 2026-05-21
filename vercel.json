@@ -11,6 +11,16 @@
     }
   ],
   "cleanUrls": true,
+  "functions": {
+    "api/sa/send-for-signature.js": {
+      "memory": 3008,
+      "maxDuration": 60
+    },
+    "api/_spike/html-to-pdf.js": {
+      "memory": 3008,
+      "maxDuration": 60
+    }
+  },
   "crons": [
     {
       "path": "/api/stammdaten/refresh-all",
