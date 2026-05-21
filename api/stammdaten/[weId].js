@@ -358,10 +358,24 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
 
   // Iter 65 (20.05.2026): kalkApi.marktmiete enthält jetzt €/qm, nicht mehr €/Mo
   // absolut. Für die Subv-Berechnung wird der absolute Wert (€/Mo) gebraucht
-  // → mit WE.qm multiplizieren. Wenn qm fehlt, fällt der Code auf 0 zurück und
-  //   die Markt-Deckelung greift nicht (= konservativ wie ohne Marktmiete).
+  // → mit WE.qm multiplizieren.
   const marktmieteEurQm = kalkApi.marktmiete || 0;
   const marktmiete = marktmieteEurQm > 0 && weQm > 0 ? marktmieteEurQm * weQm : 0;
+
+  // Iter-2 Fix (21.05.2026, SK1): Edge-Case „MbV gepflegt, Marktmiete fehlt".
+  // Vorher lief der Code mit marktmiete=0 ungekappt durch — xMaxMarkt fiel auf
+  // xIdealOhneMarkt zurück, Phase 2 rechnete mit voller MbV×Kapp²-Steigerung und
+  // erzeugte eine optimistische Subv-Story, die rechtlich nicht belastbar war.
+  // Ab jetzt: Ohne gepflegte Marktmiete keine Subv-Berechnung — Status-Card warnt
+  // („Marktmiete pflegen"), und die Phase-2-Story bleibt aus. Der Vertriebler
+  // wird nicht mehr ungewollt zu einem Reservierungs-Klick verführt, der auf
+  // einer Pflegelücke beruht.
+  if (marktmiete <= 0) {
+    return Object.assign({}, empty, {
+      quelle: 'auto-marktmiete-fehlt',
+      erlaeuterung: 'Marktmiete in Stammdaten fehlt — ohne Marktanker keine seriöse Subventions-Story berechenbar. Bitte Marktmiete (€/qm) pflegen.',
+    });
+  }
 
   // Phase-1-Laufzeit aus letzter Mietsteigerung
   const letzte = (vermietung && vermietung.letzteMietsteigerung) || kalkApi.letzteMietsteigerung;

@@ -512,29 +512,38 @@ function selbstauskunft(kunde, user) {
         <tbody>
           ${row('Netto-Gehalt', fmtNum(a.nettoMo), fmtNum(m.nettoMo))}
           ${rowChk('Anzahl Gehälter', ['12','12,5','13','14'], a.anzahlGehaelter ? String(a.anzahlGehaelter).replace('.',',') : '', m.anzahlGehaelter ? String(m.anzahlGehaelter).replace('.',',') : '')}
-          ${row('Vermietung & Verpachtung', fmtNum(a.vermietungMo), fmtNum(m.vermietungMo))}
           ${row('Unterhalt', fmtNum(a.unterhaltMo), fmtNum(m.unterhaltMo))}
           ${row('Kindergeld', fmtNum(a.kindergeldMo), fmtNum(m.kindergeldMo))}
-          ${/* Iter 70 (21.05.2026): „Sonstige Einkommen" raus — Baukasten übernimmt */ ''}
           ${zusatzRows('zusatzEinnahmen', 'mo')}
+          ${/* Iter 71 (21.05.2026): Mieteinnahmen aus Immobilien-Baukasten → eigene Zeilen */ ''}
           ${(() => {
-            const sumA = (a.nettoMo || 0) + (a.vermietungMo || 0) + (a.unterhaltMo || 0) + (a.kindergeldMo || 0);
-            const sumM = (m.nettoMo || 0) + (m.vermietungMo || 0) + (m.unterhaltMo || 0) + (m.kindergeldMo || 0);
-            return `<tr><td class="sa-label" style="font-weight:600;">Gesamt (ohne Baukasten)</td><td style="font-weight:600;">${sumA > 0 ? fld(fmtNum(sumA)) : fld('')}</td><td style="font-weight:600;">${gemeinsam && sumM > 0 ? fld(fmtNum(sumM)) : (gemeinsam ? fld('') : '')}</td></tr>`;
+            const renderImmoMieten = (liste, spalte) => {
+              if (!Array.isArray(liste)) return '';
+              let html = '';
+              liste.forEach(immo => {
+                if (!immo) return;
+                const mo = parseFloat(immo.mietenMo) || 0;
+                if (mo <= 0) return;
+                const titel = `Miete · ${immo.art || 'Immobilie'}${immo.anschrift ? ', ' + immo.anschrift : ''}`;
+                const cellA = spalte === 'A' ? fld(fmtNum(mo)) : '';
+                const cellM = spalte === 'M' && gemeinsam ? fld(fmtNum(mo)) : (gemeinsam ? '' : '');
+                html += `<tr><td class="sa-label">${esc(titel)}</td><td>${cellA}</td><td>${cellM}</td></tr>`;
+              });
+              return html;
+            };
+            return renderImmoMieten(a.immobilien, 'A') + (gemeinsam ? renderImmoMieten(m.immobilien, 'M') : '');
           })()}
-          ${row('Zu versteuerndes Einkommen / Jahr', fmtNum(a.zveJahr), fmtNum(m.zveJahr))}
           ${rowChk('Kirchensteuerpflicht', ['ja','nein'], a.kirchensteuer, m.kirchensteuer)}
         </tbody>
         <thead><tr><th class="sa-section-h">MONATLICHE AUSGABEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
         <tbody>
           ${row('Miete inkl. NK', fmtNum(a.mieteMo), fmtNum(m.mieteMo))}
-          ${row('Unterhaltszahlungen', fmtNum(a.unterhaltZahlungMo), fmtNum(m.unterhaltZahlungMo))}
-          ${row('Beitrag private Krankenversicherung', fmtNum(a.pkvMo), fmtNum(m.pkvMo))}
           ${row('Laufende Lebenshaltung', fmtNum(a.lebenshaltungMo), fmtNum(m.lebenshaltungMo))}
-          ${row('Leasing-Raten', fmtNum(a.leasingMo), fmtNum(m.leasingMo))}
-          ${/* Iter 70: „Sonstige Ausgaben"-Feld raus — Baukasten übernimmt */ ''}
+          ${/* Iter 71: PKV / Leasing / Unterhaltszahlungen als Pflichtfelder raus — kommen aus Baukasten, wenn relevant */ ''}
+          ${a.pkvMo || m.pkvMo ? row('Beitrag private Krankenversicherung', fmtNum(a.pkvMo), fmtNum(m.pkvMo)) : ''}
+          ${a.leasingMo || m.leasingMo ? row('Leasing-Raten', fmtNum(a.leasingMo), fmtNum(m.leasingMo)) : ''}
+          ${a.unterhaltZahlungMo || m.unterhaltZahlungMo ? row('Unterhaltszahlungen', fmtNum(a.unterhaltZahlungMo), fmtNum(m.unterhaltZahlungMo)) : ''}
           ${zusatzRows('zusatzAusgaben', 'mo')}
-          ${/* Legacy: alte Sparpläne-Liste — wird noch ausgegeben, wenn vorhandene Datensätze sie haben */ ''}
           ${zusatzRows('zusatzSparplaene', 'mo')}
         </tbody>
       </table>
@@ -550,63 +559,115 @@ function selbstauskunft(kunde, user) {
         <thead><tr><th class="sa-section-h">VERMÖGEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
         <tbody>
           ${row('Bankguthaben', fmtNum(a.bankguthaben), fmtNum(m.bankguthaben))}
-          ${row('Wertpapiere (Kurswert)', fmtNum(a.wertpapiere), fmtNum(m.wertpapiere))}
-          ${row('Sparbücher / Festgeld', fmtNum(a.sparbuecher), fmtNum(m.sparbuecher))}
-          ${row('Bauspar / VWL', fmtNum(a.bausparen), fmtNum(m.bausparen))}
-          ${/* Iter 70: „Sonstige Vermögen" + Versicherungs-Block raus — Baukasten übernimmt */ ''}
+          ${/* Iter 71 (21.05.2026): Wertpapiere/Sparbücher/Bauspar als Pflichtfelder raus — kommen aus Baukasten */ ''}
+          ${a.wertpapiere || m.wertpapiere ? row('Wertpapiere (Kurswert)', fmtNum(a.wertpapiere), fmtNum(m.wertpapiere)) : ''}
+          ${a.sparbuecher || m.sparbuecher ? row('Sparbücher / Festgeld', fmtNum(a.sparbuecher), fmtNum(m.sparbuecher)) : ''}
+          ${a.bausparen || m.bausparen ? row('Bauspar / VWL', fmtNum(a.bausparen), fmtNum(m.bausparen)) : ''}
           ${zusatzRows('zusatzVermoegen', 'wert')}
           ${zusatzRows('zusatzSparplaene', 'wert')}
         </tbody>
-        <thead><tr><th class="sa-section-h">IMMOBILIENVERMÖGEN</th><th>Immobilie 1</th><th>Immobilie 2</th></tr></thead>
-        <tbody>
-          <tr><td class="sa-label">Art des Objekts</td><td>${fld((a.immo1 && a.immo1.art) || '')}</td><td>${fld((a.immo2 && a.immo2.art) || '')}</td></tr>
-          <tr><td class="sa-label">Anschrift</td><td>${fld((a.immo1 && a.immo1.anschrift) || '')}</td><td>${fld((a.immo2 && a.immo2.anschrift) || '')}</td></tr>
-          <tr><td class="sa-label">Baujahr / Erwerbsjahr</td><td>${fld((a.immo1 && a.immo1.baujahr) || '')} / ${fld((a.immo1 && a.immo1.erwerbsjahr) || '')}</td><td>${fld((a.immo2 && a.immo2.baujahr) || '')} / ${fld((a.immo2 && a.immo2.erwerbsjahr) || '')}</td></tr>
-          <tr><td class="sa-label">Wohnfläche (m²)</td><td>${fld((a.immo1 && a.immo1.wohnflaeche) || '')}</td><td>${fld((a.immo2 && a.immo2.wohnflaeche) || '')}</td></tr>
-          <tr><td class="sa-label">Verkehrswert</td><td>${fld(fmtNum(a.immo1 && a.immo1.verkehrswert))}</td><td>${fld(fmtNum(a.immo2 && a.immo2.verkehrswert))}</td></tr>
-          <tr><td class="sa-label">Hypotheken & Grundschulden</td><td>${fld(fmtNum(a.immo1 && a.immo1.hypotheken))}</td><td>${fld(fmtNum(a.immo2 && a.immo2.hypotheken))}</td></tr>
-          <tr><td class="sa-label">Mieteinnahmen pro Monat</td><td>${fld(fmtNum(a.immo1 && a.immo1.mietenMo))}</td><td>${fld(fmtNum(a.immo2 && a.immo2.mietenMo))}</td></tr>
-        </tbody>
-        <thead><tr><th class="sa-section-h">BAUFINANZIERUNGEN</th><th>BAUFINANZIERUNG 1</th><th>BAUFINANZIERUNG 2</th></tr></thead>
-        <tbody>
-          ${baufiRow('urspr. Darlehenshöhe', 'urspruenglich')}
-          ${baufiRow('Laufzeit bis', 'laufzeitBis')}
-          ${baufiRow('mtl. Belastung', 'belastungMo')}
-          ${baufiRow('Restsaldo', 'restsaldo')}
-        </tbody>
       </table>
       ${(() => {
-        // Iter 70 (21.05.2026): kd1-kd4 (Sonstige Verbindlichkeit) raus. Stattdessen
-        //   Baukasten-Tabelle mit Mo-Belastung + Restsaldo. Nur rendern wenn Einträge vorhanden.
-        const hasPos = (liste) => Array.isArray(liste) && liste.some(x => x && (parseFloat(x.mo) > 0 || parseFloat(x.wert) > 0));
-        const hasA = hasPos(a.zusatzVerbindlichkeiten) || hasPos(a.zusatzSchulden);
-        const hasM = gemeinsam && (hasPos(m.zusatzVerbindlichkeiten) || hasPos(m.zusatzSchulden));
-        if (!hasA && !hasM) return '';
-        // Verbindlichkeit-Baukasten: pro Position zwei Werte (Mo + Restsaldo) — in zwei Zeilen pro Eintrag
-        const verbRows = (liste, spalte) => {
-          if (!Array.isArray(liste)) return '';
-          let html = '';
-          liste.forEach(item => {
-            if (!item) return;
-            const mo = parseFloat(item.mo) || 0;
-            const wert = parseFloat(item.wert) || 0;
-            if (mo === 0 && wert === 0) return;
-            const titel = item.titel || 'Verbindlichkeit';
-            const notiz = item.notiz ? ` <span style="color:#777;font-size:9px;">— ${esc(item.notiz)}</span>` : '';
-            const moHtml = mo > 0 ? fmtNum(mo) + '/Mo' : '';
-            const wertHtml = wert > 0 ? fmtNum(wert) : '';
-            const combined = [moHtml, wertHtml].filter(Boolean).join(' · ');
-            const cellA = spalte === 'A' ? fld(combined) : '';
-            const cellM = spalte === 'M' && gemeinsam ? fld(combined) : (gemeinsam ? '' : '');
-            html += `<tr><td class="sa-label">${esc(titel)}${notiz}</td><td>${cellA}</td><td>${cellM}</td></tr>`;
-          });
-          return html;
+        // Iter 71 (21.05.2026): Immobilien-Bausteine — beliebig viele, jede mit eigener Detail-Tabelle.
+        const renderImmoListe = (liste, rolle) => {
+          if (!Array.isArray(liste) || liste.length === 0) return '';
+          return liste.map((immo, idx) => {
+            if (!immo) return '';
+            const baufiVorhanden = parseFloat(immo.baufiBelastungMo) > 0 || parseFloat(immo.baufiRestsaldo) > 0 || parseFloat(immo.baufiUrspruenglich) > 0;
+            return `
+              <table class="sa-table" style="margin-top:3mm;">
+                <thead><tr><th class="sa-section-h">IMMOBILIE ${idx + 1}${gemeinsam ? ' · ' + esc(rolle) : ''}</th><th colspan="2">${esc(immo.art || '')}${immo.anschrift ? ' · ' + esc(immo.anschrift) : ''}</th></tr></thead>
+                <tbody>
+                  <tr><td class="sa-label">Anschrift</td><td colspan="2">${fld(immo.anschrift || '')}</td></tr>
+                  <tr><td class="sa-label">Baujahr / Erwerbsjahr</td><td colspan="2">${fld(immo.baujahr || '')} / ${fld(immo.erwerbsjahr || '')}</td></tr>
+                  <tr><td class="sa-label">Wohnfläche (m²)</td><td colspan="2">${fld(immo.wohnflaeche || '')}</td></tr>
+                  <tr><td class="sa-label">Verkehrswert</td><td colspan="2">${fld(fmtNum(immo.verkehrswert))}</td></tr>
+                  <tr><td class="sa-label">Mieteinnahmen pro Monat</td><td colspan="2">${fld(fmtNum(immo.mietenMo))}</td></tr>
+                  ${baufiVorhanden ? `
+                    <tr><td class="sa-label" style="font-weight:600;padding-top:6px;">Baufinanzierung</td><td colspan="2"></td></tr>
+                    <tr><td class="sa-label">— urspr. Darlehenshöhe</td><td colspan="2">${fld(fmtNum(immo.baufiUrspruenglich))}</td></tr>
+                    <tr><td class="sa-label">— Laufzeit bis</td><td colspan="2">${fld(dt(immo.baufiLaufzeitBis))}</td></tr>
+                    <tr><td class="sa-label">— mtl. Belastung</td><td colspan="2">${fld(fmtNum(immo.baufiBelastungMo))}</td></tr>
+                    <tr><td class="sa-label">— Restsaldo</td><td colspan="2">${fld(fmtNum(immo.baufiRestsaldo))}</td></tr>
+                  ` : ''}
+                </tbody>
+              </table>`;
+          }).join('');
         };
-        const rowsA = verbRows(a.zusatzVerbindlichkeiten, 'A') + verbRows(a.zusatzSchulden, 'A');
-        const rowsM = gemeinsam ? verbRows(m.zusatzVerbindlichkeiten, 'M') + verbRows(m.zusatzSchulden, 'M') : '';
+        return renderImmoListe(a.immobilien, 'Antragsteller') + (gemeinsam ? renderImmoListe(m.immobilien, 'Mit-Antragsteller') : '');
+      })()}
+      ${(() => {
+        // Iter 71 (21.05.2026): Konsolidierte Verbindlichkeits-Tabelle — Immobilien-Baufi
+        //   + Baukasten + Legacy-Daten. Pro Zeile: Titel + (mtl. Belastung · Restsaldo).
+        const verbZeilen = [];
+        const collect = (rolle, person) => {
+          if (!person) return;
+          // Immobilien-Baufi
+          if (Array.isArray(person.immobilien)) {
+            person.immobilien.forEach(immo => {
+              if (!immo) return;
+              const mo = parseFloat(immo.baufiBelastungMo) || 0;
+              const w = parseFloat(immo.baufiRestsaldo) || 0;
+              if (mo === 0 && w === 0) return;
+              verbZeilen.push({ rolle, titel: `Baufi · ${immo.art || 'Immobilie'}${immo.anschrift ? ', ' + immo.anschrift : ''}`, mo, w });
+            });
+          }
+          // Baukasten zusatzVerbindlichkeiten
+          if (Array.isArray(person.zusatzVerbindlichkeiten)) {
+            person.zusatzVerbindlichkeiten.forEach(item => {
+              if (!item) return;
+              const mo = parseFloat(item.mo) || 0;
+              const w = parseFloat(item.wert) || 0;
+              if (mo === 0 && w === 0) return;
+              verbZeilen.push({ rolle, titel: item.titel || 'Verbindlichkeit', notiz: item.notiz, mo, w });
+            });
+          }
+          // Legacy: zusatzSchulden + bf1/bf2
+          if (Array.isArray(person.zusatzSchulden)) {
+            person.zusatzSchulden.forEach(item => {
+              if (!item) return;
+              const mo = parseFloat(item.mo) || 0;
+              const w = parseFloat(item.wert) || 0;
+              if (mo === 0 && w === 0) return;
+              verbZeilen.push({ rolle, titel: item.titel || 'Schuld (Legacy)', mo, w });
+            });
+          }
+          ['bf1','bf2'].forEach((k, i) => {
+            const d = person[k];
+            if (!d) return;
+            const mo = parseFloat(d.belastungMo) || 0;
+            const w = parseFloat(d.restsaldo) || 0;
+            if (mo === 0 && w === 0) return;
+            verbZeilen.push({ rolle, titel: `Baufinanzierung ${i+1} (Legacy)`, mo, w });
+          });
+        };
+        collect('A', a);
+        if (gemeinsam) collect('M', m);
+        if (verbZeilen.length === 0) return '';
+        const rowsHtml = verbZeilen.map(z => {
+          const notiz = z.notiz ? ` <span style="color:#777;font-size:9px;">— ${esc(z.notiz)}</span>` : '';
+          const moHtml = z.mo > 0 ? fmtNum(z.mo) + '/Mo' : '';
+          const wertHtml = z.w > 0 ? fmtNum(z.w) : '';
+          const combined = [moHtml, wertHtml].filter(Boolean).join(' · ');
+          const cellA = z.rolle === 'A' ? fld(combined) : '';
+          const cellM = z.rolle === 'M' && gemeinsam ? fld(combined) : (gemeinsam ? '' : '');
+          return `<tr><td class="sa-label">${esc(z.titel)}${notiz}</td><td>${cellA}</td><td>${cellM}</td></tr>`;
+        }).join('');
         return `<table class="sa-table" style="margin-top:3mm;">
-          <thead><tr><th class="sa-section-h">SONSTIGE VERBINDLICHKEITEN <span style="font-weight:normal;font-size:9px;">(mtl. Belastung · Restsaldo)</span></th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
-          <tbody>${rowsA}${rowsM}</tbody>
+          <thead><tr><th class="sa-section-h">VERBINDLICHKEITEN <span style="font-weight:normal;font-size:9px;">(mtl. Belastung · Restsaldo)</span></th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>`;
+      })()}
+      ${(() => {
+        // Iter 71: Allgemeines Notizfeld am Ende — nur rendern wenn gefüllt.
+        const notA = (a.notizen || '').trim();
+        const notM = gemeinsam ? (m.notizen || '').trim() : '';
+        if (!notA && !notM) return '';
+        return `<table class="sa-table" style="margin-top:3mm;">
+          <thead><tr><th class="sa-section-h">NOTIZEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
+          <tbody>
+            <tr><td class="sa-label">Allgemein</td><td style="white-space:pre-wrap;font-size:10px;">${esc(notA)}</td><td style="white-space:pre-wrap;font-size:10px;">${gemeinsam ? esc(notM) : ''}</td></tr>
+          </tbody>
         </table>`;
       })()}
       <div style="font-size:7.5px; color:#666; margin-top:1mm; font-style:italic;">Weitere Immobilien bzw. Verbindlichkeiten bitte als Anlage beifügen.</div>

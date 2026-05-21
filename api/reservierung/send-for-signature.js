@@ -387,11 +387,21 @@ function composeQmWeNr(qm, weNr, stellplaetze) {
     for (const s of stellplaetze) {
       if (!s) continue;
       const typ = s.typ || 'Stellplatz';
-      // Versuche eine Nummer/Bezeichnung aus dem Titel zu extrahieren
-      // Titel-Format z.B. "StPl: 207, 5, Garage" → wir nehmen die Zahl in der Mitte
+      // Iter-2 (21.05.2026): Stellplatz-Nummer aus Titel extrahieren — robuster als vorher.
+      // Erwartetes Hauptformat: "StPl: 207, 5, Garage" → "5".
+      // Fallback 1: "StPl: 207, 5/A, Garage" oder ähnliches → alles vor dem nächsten Komma.
+      // Fallback 2: Wenn kein "StPl:"-Prefix vorhanden ist, prüfe einfache Muster
+      // wie "Garage 5", "Stellplatz 12B", "Nr. 7" — Nummer/Bezeichnung am Ende.
+      // Wenn keiner greift, lassen wir die Nummer leer (besser kein Suffix als falsche Nummer).
       let nr = '';
-      const m = (s.titel || '').match(/StPl:\s*\d+,\s*(\S+?),/);
-      if (m) nr = m[1];
+      const titel = (s.titel || '').trim();
+      const m1 = titel.match(/StPl:\s*\d+,\s*([^,]+?)\s*,/);
+      if (m1) {
+        nr = m1[1].trim();
+      } else {
+        const m2 = titel.match(/(?:Nr\.?|Garage|Stellplatz|Platz)\s*([\w\/-]+)/i);
+        if (m2) nr = m2[1].trim();
+      }
       parts.push(`+ ${typ}${nr ? ' Nr. ' + nr : ''}`);
     }
   }

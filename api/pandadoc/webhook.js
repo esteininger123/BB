@@ -83,18 +83,45 @@ module.exports = async (req, res) => {
       }
 
       // 4. Kunde via Notizen-FIND finden (V1 — solange keine dedizierten Status-Felder existieren)
-      const formula = `FIND('${escapeFormulaString(docId)}', {${KUNDEN_FIELDS.NOTIZEN}}) > 0`;
+      //
+      // BUG-FIX 21.05.2026 (Iter-2): filterByFormula muss Field-NAMEN nutzen, NICHT Field-IDs.
+      // Vorher wurde KUNDEN_FIELDS.NOTIZEN (= 'fldtpjO65JHIbUecZ') in die Formel gepackt — das
+      // referenzierte ein nicht-existierendes Feld, Airtable lieferte 0 Treffer, und der
+      // Webhook verwarf still jede Statusmeldung. HMAC + 200 OK suggerierten "läuft".
+      // Lösung: erst Formula mit Field-NAME, bei 0 Treffern Fallback auf clientseitiges
+      // Filtern aller Kunden (paginiert). Wenn Henry den Field-Namen umbenennt, fällt der
+      // Schnellpfad aus, der Fallback fängt es ab — und wir loggen es deutlich.
+      const NOTIZEN_FIELDNAME = 'Notizen';
       let kundenRecs = [];
+      let usedFallback = false;
       try {
+        const formula = `FIND('${escapeFormulaString(docId)}', {${NOTIZEN_FIELDNAME}}) > 0`;
         kundenRecs = await listAll(TABLES.KUNDEN, {
           filterByFormula: formula,
           maxRecords: 1
         }, 1);
       } catch (e) {
-        // Falls Airtable die Formel nicht mag, leise weiter
+        // Formula-Pfad gescheitert — Fallback unten
+      }
+      if (!kundenRecs.length) {
+        // Fallback: alle Kunden laden, clientseitig nach docId in NOTIZEN-Field-ID filtern
+        try {
+          const alle = await listAll(TABLES.KUNDEN, {}, 1000);
+          kundenRecs = alle.filter(rec => {
+            const notizen = (rec.fields && rec.fields[KUNDEN_FIELDS.NOTIZEN]) || '';
+            return typeof notizen === 'string' && notizen.includes(docId);
+          });
+          if (kundenRecs.length) {
+            usedFallback = true;
+            console.warn(`[pandadoc-webhook] Field-Name-Pfad leer für ${docId}, Fallback hat ${kundenRecs.length} Kunden gefunden — Field-Name "${NOTIZEN_FIELDNAME}" prüfen.`);
+          }
+        } catch (e) {
+          // Auch der Fallback gescheitert → wird unten als "Kunde nicht gefunden" geloggt
+        }
       }
 
       if (!kundenRecs.length) {
+        console.warn(`[pandadoc-webhook] Kein Kunde mit DocId ${docId} gefunden (Event: ${evName}). Wenn das systematisch ist, prüfe Field-Name "${NOTIZEN_FIELDNAME}".`);
         ergebnisse.push({ event: evName, docId, ok: false, reason: 'Kunde zu Doc nicht gefunden' });
         continue;
       }

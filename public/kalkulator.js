@@ -122,7 +122,23 @@ const PROFILES = {
     bonEinnahmen: 8000, bonAusgaben: 3000, bonVermoegen: 20000,
   },
 };
-const SPAR_ZINS_DEFAULT = 0.025; // Default Tagesgeldzins p.a. (Vergleichsbasis Sparen vs. Investieren)
+
+/**
+ * Iter-2 (21.05.2026, F-6): zentrale Default-Konstante.
+ * Magic-Zahlen, die vorher an mehreren Stellen hardcoded standen, sind hier gebündelt.
+ * Wichtig: Diese Werte sind die Fallbacks, wenn aus Airtable-Stammdaten nichts kommt.
+ * Wenn Henry für eine WE z.B. Hausverwaltung 25 € pflegt, gilt die — diese 30 greifen nur,
+ * wenn das Feld in den Stammdaten leer ist (Iter 49 H1-Fix: kein stilles "0", sondern Default 30).
+ */
+const BB_DEFAULTS = Object.freeze({
+  hausverwaltungMo: 30,        // €/Mo — Default WEG-Hausverwaltung
+  mietverwaltungMo: 30,        // €/Mo — Default Mietverwaltung (in PRESETS einzeln gesetzt)
+  gebaeudeAnteil: 0.85,        // 85 % Gebäude / 15 % Boden (Henry-Durchgang 20.05.2026)
+  grEstPct: 0.05,              // 5 % GrESt — bundesweit häufigster Satz (BW = 5,0 %)
+  sparZinsPa: 0.025,           // 2,5 % p.a. — Tagesgeld-Vergleichszins
+});
+// Backward-Compat: ältere Stellen lesen evtl. noch SPAR_ZINS_DEFAULT
+const SPAR_ZINS_DEFAULT = BB_DEFAULTS.sparZinsPa;
 
 function applyProfile(state, profile) {
   Object.assign(state, JSON.parse(JSON.stringify(profile)));
@@ -151,7 +167,9 @@ const PRESETS = {
     monateSeitMieterhoehung: 0,
     hausgeld: 60.65, hgInflation: 0, mietverwaltung: 30, hausverwaltung: 30,
     zins: 0.045,
-    afaSatz: 0.02, gebaeudeAnteil: 1.0, afaBemessung: 'kaufpreis',
+    // Iter-2 (21.05.2026, N-4): vorher gebaeudeAnteil:1.0 (Test-Daten-Rest aus V1-Excel).
+    // Auf den neuen Standard-Default 0.85 gebracht — einheitlich mit allen anderen PRESETS.
+    afaSatz: 0.02, gebaeudeAnteil: 0.85, afaBemessung: 'kaufpreis',
     wertsteigerung: 0.03,
   },
   we8: {
@@ -409,14 +427,18 @@ function computeBonitaetDetailed(sa, gemeinsam) {
     return n;
   }
   function einkommen(p) {
-    // Iter 70 (21.05.2026): „Sonstige Einkommen" (sonstigeMo) entfernt — Edgar-Vorgabe.
-    //   Was nicht ins Standard-Set passt (Netto/Vermietung/Unterhalt/Kindergeld),
-    //   wandert in den Baukasten „zusatzEinnahmen".
+    // Iter 71 (21.05.2026): Mieteinnahmen kommen jetzt ausschließlich aus dem
+    //   Immobilien-Baukasten (p.immobilien[]). Felder vermietungMo / immo1 / immo2
+    //   nur noch als Legacy berücksichtigt.
     if (!p) return { netto: 0, vermAnr: 0, sonstigeAnr: 0, zusatz: 0, total: 0 };
     const netto = (parseFloat(p.nettoMo) || 0) * gehaelter(p) / 12;
+    const immoMieten = Array.isArray(p.immobilien)
+      ? p.immobilien.reduce((s, x) => s + (parseFloat(x && x.mietenMo) || 0), 0)
+      : 0;
     const vermBase = (parseFloat(p.vermietungMo) || 0)
       + (p.immo1 ? (parseFloat(p.immo1.mietenMo) || 0) : 0)
-      + (p.immo2 ? (parseFloat(p.immo2.mietenMo) || 0) : 0);
+      + (p.immo2 ? (parseFloat(p.immo2.mietenMo) || 0) : 0)
+      + immoMieten;
     const vermAnr = vermBase * 0.8; // 80 % Mietanrechnung Bank-Standard
     const sonst = (parseFloat(p.unterhaltMo) || 0) + (parseFloat(p.kindergeldMo) || 0);
     const zusatz = sumZusatz(p, 'zusatzEinnahmen', 'mo');
@@ -437,48 +459,55 @@ function computeBonitaetDetailed(sa, gemeinsam) {
   const haushaltPauschale = 0;
 
   // ----- Fixkosten (monatliche Ausgaben) -----
-  // Iter 70 (21.05.2026): Strukturell vereinfacht — „Sonstige Ausgaben" (sonstigeAusgabenMo)
-  //   und Sparpläne-Baukasten (zusatzSparplaene) entfernt. Sparpläne werden über
-  //   den allgemeinen zusatzAusgaben-Baukasten gepflegt (Cross-Reference zum
-  //   Vermögens-Baukasten via gleichem Titel).
+  // Iter 71 (21.05.2026): PKV, Leasing und Unterhaltszahlungen sind keine Pflichtfelder
+  //   mehr — sie werden bei Bedarf im Baukasten als Position angelegt. Standard:
+  //   nur Miete eigene Wohnung + Laufende Lebenshaltung + Baukasten.
   function fixkosten(p) {
     if (!p) return 0;
     return (parseFloat(p.mieteMo) || 0)
+         + (parseFloat(p.lebenshaltungMo) || 0)
+         + sumZusatz(p, 'zusatzAusgaben', 'mo')
+         // Legacy-Migration: alte Pflichtfelder werden noch ausgewertet, falls vorhanden
          + (parseFloat(p.unterhaltZahlungMo) || 0)
          + (parseFloat(p.pkvMo) || 0)
-         + (parseFloat(p.lebenshaltungMo) || 0)
-         + (parseFloat(p.leasingMo) || 0)
-         + sumZusatz(p, 'zusatzAusgaben', 'mo');
+         + (parseFloat(p.leasingMo) || 0);
   }
   const fixA = fixkosten(a);
   const fixM = fixkosten(m);
   const fixkostenMo = fixA + fixM;
 
   // ----- Verbindlichkeiten (mtl. Belastung) -----
-  // Iter 70: kd1-kd4 (Sonstige Verbindlichkeit) und Versicherungs-Belastung raus.
-  //   Stattdessen: Baukasten „zusatzVerbindlichkeiten" mit Mo-Rate UND Restsaldo
-  //   pro Position. Baufi 1+2 bleiben als Standard.
+  // Iter 71: Baufi 1+2 (bf1/bf2) komplett raus — Baufinanzierungen werden pro
+  //   Immobilie im neuen Immobilien-Baukasten gepflegt. Aggregiert hier.
   function verbindMo(p) {
     if (!p) return 0;
     let s = 0;
-    ['bf1','bf2'].forEach(k => {
-      if (p[k]) s += parseFloat(p[k].belastungMo) || 0;
-    });
-    // Baukasten: monatliche Belastung der Zusatz-Verbindlichkeiten
+    // Immobilien-Baufi: monatliche Belastungen aus dem Immobilien-Baukasten
+    if (Array.isArray(p.immobilien)) {
+      p.immobilien.forEach(immo => {
+        if (immo) s += parseFloat(immo.baufiBelastungMo) || 0;
+      });
+    }
+    // Baukasten: sonstige Verbindlichkeiten (mtl. Belastung)
     s += sumZusatz(p, 'zusatzVerbindlichkeiten', 'mo');
-    // Legacy-Migration: alte SA-Datensätze mit zusatzSchulden (nur Restsaldo) — Mo-Wert dort meist null
+    // Legacy: alte bf1/bf2 + zusatzSchulden
+    ['bf1','bf2'].forEach(k => { if (p[k]) s += parseFloat(p[k].belastungMo) || 0; });
     s += sumZusatz(p, 'zusatzSchulden', 'mo');
     return s;
   }
   function verbindRest(p) {
     if (!p) return 0;
     let s = 0;
-    ['bf1','bf2'].forEach(k => {
-      if (p[k]) s += parseFloat(p[k].restsaldo) || 0;
-    });
-    // Baukasten: Restsaldo der Zusatz-Verbindlichkeiten
+    // Immobilien-Baufi: Restsaldi
+    if (Array.isArray(p.immobilien)) {
+      p.immobilien.forEach(immo => {
+        if (immo) s += parseFloat(immo.baufiRestsaldo) || 0;
+      });
+    }
+    // Baukasten: sonstige Verbindlichkeiten (Restsaldo)
     s += sumZusatz(p, 'zusatzVerbindlichkeiten', 'wert');
-    // Legacy-Migration: alte zusatzSchulden (nur Restsaldo)
+    // Legacy
+    ['bf1','bf2'].forEach(k => { if (p[k]) s += parseFloat(p[k].restsaldo) || 0; });
     s += sumZusatz(p, 'zusatzSchulden', 'wert');
     return s;
   }
@@ -486,31 +515,43 @@ function computeBonitaetDetailed(sa, gemeinsam) {
   const verbindlichkeitenGesamt = verbindRest(a) + verbindRest(m);
 
   // ----- Liquides Vermögen (Bank-Sicht: "einsetzbar für neue Immobilie") -----
-  // Iter 70: „Sonstige Vermögen" (sonstigeVermoegen) und Versicherungs-Rückkaufwert raus.
-  //   Bestandsimmobilien zählen NICHT — sind im Beleihungsauslauf gebunden.
+  // Iter 71: Wertpapiere, Sparbücher und Bausparguthaben sind keine Pflichtfelder
+  //   mehr — wandern in den Baukasten. Standard: nur Bankguthaben + Baukasten.
   function liquideVerm(p) {
     if (!p) return 0;
-    let s = (parseFloat(p.bankguthaben) || 0)
-      + (parseFloat(p.wertpapiere) || 0)
+    let s = (parseFloat(p.bankguthaben) || 0);
+    // Baukasten: alle übrigen Vermögenspositionen (inkl. WP, Sparbücher, Bauspar)
+    s += sumZusatz(p, 'zusatzVermoegen', 'wert');
+    // Legacy: alte Pflichtfelder + Sparpläne-Baukasten
+    s += (parseFloat(p.wertpapiere) || 0)
       + (parseFloat(p.sparbuecher) || 0)
       + (parseFloat(p.bausparen) || 0);
-    // Baukasten: zusätzliche Vermögenspositionen
-    s += sumZusatz(p, 'zusatzVermoegen', 'wert');
-    // Legacy-Migration: alte zusatzSparplaene[*].wert mit aufaddieren
     s += sumZusatz(p, 'zusatzSparplaene', 'wert');
     return s;
   }
   const liquidesVermoegen = liquideVerm(a) + liquideVerm(m);
 
-  // ----- Immobilien-Vermögen (Verkehrswert minus Hypotheken) -----
+  // ----- Immobilien-Vermögen (Verkehrswert minus Baufi-Restsaldo) -----
+  // Iter 71 (21.05.2026): Immobilien werden jetzt im Immobilien-Baukasten gepflegt
+  //   (p.immobilien[]). Pro Immobilie: Verkehrswert minus zugehörigem Baufi-Restsaldo.
+  //   Alte immo1/immo2-Felder als Legacy mit „hypotheken" als Hypothesen-Saldo.
   function immoVerm(p) {
     if (!p) return 0;
     let s = 0;
+    if (Array.isArray(p.immobilien)) {
+      p.immobilien.forEach(immo => {
+        if (!immo) return;
+        const vk = parseFloat(immo.verkehrswert) || 0;
+        const sa = parseFloat(immo.baufiRestsaldo) || 0;
+        s += Math.max(0, vk - sa);
+      });
+    }
+    // Legacy
     ['immo1','immo2'].forEach(k => {
       if (p[k]) {
         const vk = parseFloat(p[k].verkehrswert) || 0;
         const hy = parseFloat(p[k].hypotheken) || 0;
-        s += Math.max(0, vk - hy); // Netto-Immobilienvermögen (Wert minus Schulden)
+        s += Math.max(0, vk - hy);
       }
     });
     return s;
@@ -556,7 +597,7 @@ function recalc(i) {
   // Kaufnebenkosten: GrESt (variabel pro Bundesland) + Notar 1,5 % + Grundbuch 0,5 %.
   // Keine Maklerprovision — B&B verkauft direkt. GrESt kommt aus Airtable-Stammdaten
   // (i.grEstPct), Fallback 5 % (BaWü).
-  const grEstPct = (i.grEstPct !== undefined && i.grEstPct !== null && isFinite(i.grEstPct)) ? i.grEstPct : 0.05;
+  const grEstPct = (i.grEstPct !== undefined && i.grEstPct !== null && isFinite(i.grEstPct)) ? i.grEstPct : BB_DEFAULTS.grEstPct;
   const knkPct = grEstPct + 0.015 + 0.005;
   const knk = kpGesamt * knkPct;
   const investitionGesamt = kpGesamt + knk;
@@ -586,7 +627,7 @@ function recalc(i) {
   // AfA-Bemessung: Kaufpreis × Gebäude-Anteil (Boden-Anteil wird abgezogen — der ist nicht abschreibbar).
   // Iter 61 (20.05.2026): Standard-Default 85 % Gebäude / 15 % Boden (Henry-Durchgang).
   // Wenn die Kalk-Stammdaten in Airtable einen anderen Wert pflegen, gilt der.
-  const gebaeudeAnteilFaktor = (i.gebaeudeAnteil !== undefined && i.gebaeudeAnteil !== null && isFinite(i.gebaeudeAnteil)) ? i.gebaeudeAnteil : 0.85;
+  const gebaeudeAnteilFaktor = (i.gebaeudeAnteil !== undefined && i.gebaeudeAnteil !== null && isFinite(i.gebaeudeAnteil)) ? i.gebaeudeAnteil : BB_DEFAULTS.gebaeudeAnteil;
   const afaBemessungBetrag = kpGesamt * gebaeudeAnteilFaktor;
   const afaJahr = afaBemessungBetrag * i.afaSatz;
   const afaMo = afaJahr / 12;
@@ -765,7 +806,7 @@ function recalc(i) {
     // leer geladen wurde (z.B. Karlsruhe WE 7 in Pre-Flight 19.05.). Sonst null/undefined → 0,
     // und Belastung Jahr 1 wäre ~21 €/Mo zu optimistisch (= Werbungskostenausfall WEG).
     // Default analog zum we6-Preset (alle aktiven Presets nutzen 25 oder 30).
-    const hausverw = (i.hausverwaltung == null || !isFinite(i.hausverwaltung)) ? 30 : i.hausverwaltung;
+    const hausverw = (i.hausverwaltung == null || !isFinite(i.hausverwaltung)) ? BB_DEFAULTS.hausverwaltungMo : i.hausverwaltung;
     const hgJahr = (i.hausgeld + i.mietverwaltung + hausverw) * 12 * hgFaktor;
     const mvJahr = i.mietverwaltung * 12 * hgFaktor;
     const hvJahr = hausverw * 12 * hgFaktor;
@@ -816,7 +857,7 @@ function recalc(i) {
     // HG + MV + HV pro Monat (jährliche Inflation)
     const hgFaktorM = Math.pow(1 + (i.hgInflation || 0), y - 1);
     // Audit-Fix Iter 49: gleicher Default-30-Pfad wie oben (siehe Kommentar bei `hausverw`).
-    const hausverwBase = (i.hausverwaltung == null || !isFinite(i.hausverwaltung)) ? 30 : i.hausverwaltung;
+    const hausverwBase = (i.hausverwaltung == null || !isFinite(i.hausverwaltung)) ? BB_DEFAULTS.hausverwaltungMo : i.hausverwaltung;
     const hausverwM = hausverwBase * hgFaktorM;
     const mvM = (i.mietverwaltung || 0) * hgFaktorM;
     const hgM = (i.hausgeld || 0) * hgFaktorM + mvM + hausverwM;
@@ -902,7 +943,7 @@ function recalc(i) {
   // Detail-Modus (Iter 11): zusätzlich HG + HV bank-konservativ.
   const bonHgMo = (i.hausgeld || 0);
   // Audit-Fix Iter 49: gleicher Default-30-Pfad — Bank-Bonität würde sonst optimistisch sein.
-  const bonHvMo = (i.hausverwaltung == null || !isFinite(i.hausverwaltung)) ? 30 : i.hausverwaltung;
+  const bonHvMo = (i.hausverwaltung == null || !isFinite(i.hausverwaltung)) ? BB_DEFAULTS.hausverwaltungMo : i.hausverwaltung;
   const bonDelta = (i.bonModus === 'detail')
     ? (bonMieteAnr - bonAnnuMo - bonHgMo - bonHvMo)
     : (bonMieteAnr - bonAnnuMo);
@@ -1237,6 +1278,6 @@ function recalcPaket(weInputsArr, personSettings) {
 window.Kalk = {
   recalc, recalcPaket, irr, computeBonitaetDetailed,
   fmtEur, fmtEurMo, fmtEurMoDec, fmtPct, fmtEurQm,
-  PROFILES, PRESETS, SPAR_ZINS_DEFAULT,
+  PROFILES, PRESETS, BB_DEFAULTS, SPAR_ZINS_DEFAULT,
   getDefaults, applyProfile,
 };
