@@ -727,6 +727,19 @@ function recalc(i) {
 
   function kaltmieteForMonth(m) {
     const raw = i.kaltmiete * faktorFor(m);
+    // Iter 91.5 (22.05.2026): Im Sprung-Modus den Marktmiete-Cap zwischen
+    // den Sprüngen einfrieren — sonst überlagert der jährlich wachsende
+    // Cap (Iter 77) die Sprung-Logik und die effektive Miete steigt jährlich
+    // statt alle 3 Jahre. Edgar-Befund: Belastung J7-J10 sollte konstant
+    // bleiben (Sprung-Periode), stieg aber +20 €/Mo pro Jahr durch
+    // jährliches Cap-Wachstum.
+    if (i.mietsteigerungsModus === 'sprung') {
+      const n = nSprungeSprung(m);
+      // Cap am letzten Sprung-Übergang einfrieren; vor dem ersten Sprung
+      // gilt der Cap am Anfang (m=1).
+      const lastSprungM = (n > 0) ? (M1 + (n - 1) * 36) : 1;
+      return Math.min(raw, marktCapForMonth(lastSprungM));
+    }
     return Math.min(raw, marktCapForMonth(m));
   }
 
