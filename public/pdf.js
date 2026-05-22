@@ -147,7 +147,11 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
 
   const pdfCStyle = `
     <style>
-      .pdf-c-page{position:relative;page-break-after:always;page-break-inside:avoid;background:#FBFAF7;color:#1A1A17;font-family:'Inter','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;padding:22mm 20mm 22mm 20mm;min-height:297mm;display:flex;flex-direction:column;box-sizing:border-box}
+      /* Iter 90 (22.05.2026): @page-Margin auf 0 + Padding voll in der Page.
+         Verhindert die leere Folge-Seite, die durch
+         @page-Margin + min-height: 297mm + Padding entstand (Summe > 297mm). */
+      @media print { @page { size: A4; margin: 0; } }
+      .pdf-c-page{position:relative;page-break-after:always;page-break-inside:avoid;background:#FBFAF7;color:#1A1A17;font-family:'Inter','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;padding:16mm 16mm 22mm 16mm;height:297mm;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden}
       .pdf-c-page:last-child{page-break-after:auto}
       .pdf-c-page *{box-sizing:border-box}
       .pdf-c-num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
@@ -157,24 +161,24 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       .pdf-c-section-num{font-size:8.5pt;letter-spacing:.22em;text-transform:uppercase;color:#8E6E3D;font-weight:500}
       .pdf-c-section-title{font-size:22pt;font-weight:200;letter-spacing:-.015em;line-height:1.15;margin-top:4mm;color:#1A1A17;max-width:18ch}
       .pdf-c-lead{font-size:11.5pt;line-height:1.65;color:#3A3A35;font-weight:400;margin-top:4mm}
-      .pdf-c-page-foot{position:absolute;bottom:10mm;left:20mm;right:20mm;display:flex;justify-content:space-between;font-size:8pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500}
+      .pdf-c-page-foot{position:absolute;bottom:8mm;left:16mm;right:16mm;display:flex;justify-content:space-between;font-size:7.5pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500}
       .pdf-c-page-num{color:#7A7A72}
       .pdf-c-pos{color:#2D6E47}
       .pdf-c-neg{color:#9A3E33}
       .pdf-c-accent{color:#8E6E3D}
 
       /* Cover */
-      .pdf-c-cover{padding:0;display:flex;flex-direction:column;justify-content:space-between;min-height:297mm}
-      .pdf-c-cover-top{padding:28mm 20mm 0 20mm;display:flex;justify-content:space-between;align-items:flex-start}
+      .pdf-c-cover{padding:0;display:flex;flex-direction:column;justify-content:space-between;height:297mm;overflow:hidden}
+      .pdf-c-cover-top{padding:24mm 16mm 0 16mm;display:flex;justify-content:space-between;align-items:flex-start}
       .pdf-c-cover-logo{width:180px}
       .pdf-c-cover-meta{font-size:9pt;letter-spacing:.16em;text-transform:uppercase;color:#7A7A72;text-align:right;line-height:1.7;font-weight:500}
       .pdf-c-cover-meta strong{color:#1A1A17;font-weight:500}
-      .pdf-c-cover-middle{padding:0 20mm;margin:auto 0}
+      .pdf-c-cover-middle{padding:0 16mm;margin:auto 0}
       .pdf-c-cover-kicker{font-size:10pt;letter-spacing:.28em;text-transform:uppercase;color:#8E6E3D;font-weight:500;margin-bottom:8mm}
       .pdf-c-cover-address{font-size:16pt;font-weight:300;letter-spacing:-.005em;color:#3A3A35;line-height:1.4;margin-bottom:12mm}
       .pdf-c-cover-headline{font-size:38pt;font-weight:200;letter-spacing:-.025em;line-height:1.05;color:#1A1A17;max-width:14ch}
       .pdf-c-cover-headline .pdf-c-num-accent{color:#8E6E3D;font-weight:300}
-      .pdf-c-cover-bottom{padding:0 20mm 24mm 20mm;border-top:.5px solid #B08A4D;padding-top:6mm;display:flex;justify-content:space-between;align-items:flex-end}
+      .pdf-c-cover-bottom{padding:0 16mm 22mm 16mm;border-top:.5px solid #B08A4D;padding-top:6mm;display:flex;justify-content:space-between;align-items:flex-end}
       .pdf-c-cover-bottom .meta{font-size:9pt;letter-spacing:.14em;text-transform:uppercase;color:#7A7A72;font-weight:500;line-height:1.8}
       .pdf-c-cover-bottom .meta strong{color:#1A1A17;font-weight:500}
       .pdf-c-cover-bottom .date{font-size:9pt;letter-spacing:.14em;text-transform:uppercase;color:#7A7A72;font-weight:500;text-align:right}

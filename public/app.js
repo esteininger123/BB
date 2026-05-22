@@ -2359,9 +2359,15 @@ function renderStoryPremium(r) {
     ? `Aus zunächst negativem Nettovermögen wird ab Jahr ${nettoCrossoverJahr} der Pfad nach oben sichtbar`
     : `Der Pfad zum positiven Nettovermögen braucht in diesem Profil mehr als 10 Jahre`;
 
-  // 84-%-Selbsttragung (Miete + Steuervorteil / Annuität)
-  const selbsttragungPct = r.annuityMo > 0
-    ? Math.round(((r.mieteJ1Mo || 0) + (r.stVorteilJ1Mo || 0)) / r.annuityMo * 100)
+  // Selbsttragung: Wie viel Prozent der gesamten laufenden Kosten
+  // (Annuität + HG + HV + MV) deckst Du aus Miete + Steuervorteil?
+  // Iter 90: vorher gegen Annuität allein gerechnet → konnte > 100 % zeigen,
+  // obwohl Belastung negativ war. Jetzt gegen alle laufenden Kosten.
+  const laufendeKostenMo = (r.annuityMo || 0) + (r.hausgeldNurMo || 0)
+    + (r.hausverwaltungMo || 0) + (r.mietverwaltungMo || 0);
+  const einnahmenMo = (r.mieteJ1Mo || 0) + (r.stVorteilJ1Mo || 0);
+  const selbsttragungPct = laufendeKostenMo > 0
+    ? Math.min(100, Math.round(einnahmenMo / laufendeKostenMo * 100))
     : 0;
 
   // KNK-Berechnung (= EK-Bedarf wenn KNK nicht mitfinanziert)
@@ -2456,6 +2462,60 @@ function renderStoryPremium(r) {
           Die Kaufnebenkosten sind kein Verlust — sie sind der einmalige Eintrittspreis in den Sachwert. Mit diesem Einsatz sicherst Du Dir Zugang zu allen Vorteilen, die auf den nächsten Abschnitten folgen.
         </p>
       </div>
+
+      ${(r.mietsubventionGesamt && r.mietsubventionGesamt > 0) ? `
+      <div class="kalk-c-einsatz-block" style="margin-top:24px;background:var(--positive-bg);">
+        <div class="kalk-c-einsatz-head">Was wir dazu legen — Mietsubvention vom Verkäufer</div>
+        <div class="kalk-c-einsatz-grid">
+          <div class="kalk-c-einsatz-cell">
+            <div class="kalk-c-einsatz-label">Subvention gesamt</div>
+            <div class="kalk-c-einsatz-value kalk-c-accent-color">${Math.round(r.mietsubventionGesamt).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></div>
+            <div class="kalk-c-einsatz-sub">${(() => {
+              const p = Array.isArray(i.subventionPhasen) ? i.subventionPhasen : [];
+              if (p.length >= 2) return `${p[0].monate} + ${p[1].monate} Mo (2 Phasen)`;
+              if (p.length === 1) return `${p[0].monate} Mo`;
+              if (i.subventionMonate) return `${i.subventionMonate} Mo`;
+              return 'wirkt in der Anlaufphase';
+            })()}</div>
+          </div>
+          ${(() => {
+            const p = Array.isArray(i.subventionPhasen) ? i.subventionPhasen : [];
+            if (p.length >= 2) {
+              return `
+                <div class="kalk-c-einsatz-cell">
+                  <div class="kalk-c-einsatz-label">Phase 1</div>
+                  <div class="kalk-c-einsatz-value">${Math.round(p[0].mo).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
+                  <div class="kalk-c-einsatz-sub">${p[0].monate} Monate · sichert die Anlaufphase</div>
+                </div>
+                <div class="kalk-c-einsatz-cell">
+                  <div class="kalk-c-einsatz-label">Phase 2</div>
+                  <div class="kalk-c-einsatz-value">${Math.round(p[1].mo).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
+                  <div class="kalk-c-einsatz-sub">${p[1].monate} Monate · Übergang zur Marktmiete</div>
+                </div>`;
+            } else if (p.length === 1) {
+              return `
+                <div class="kalk-c-einsatz-cell">
+                  <div class="kalk-c-einsatz-label">Pro Monat</div>
+                  <div class="kalk-c-einsatz-value">${Math.round(p[0].mo).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
+                  <div class="kalk-c-einsatz-sub">${p[0].monate} Monate · sichert die Anlaufphase</div>
+                </div>
+                <div class="kalk-c-einsatz-cell"></div>`;
+            } else if (i.subventionMo > 0) {
+              return `
+                <div class="kalk-c-einsatz-cell">
+                  <div class="kalk-c-einsatz-label">Pro Monat</div>
+                  <div class="kalk-c-einsatz-value">${Math.round(i.subventionMo).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
+                  <div class="kalk-c-einsatz-sub">${i.subventionMonate || 0} Monate</div>
+                </div>
+                <div class="kalk-c-einsatz-cell"></div>`;
+            }
+            return '<div class="kalk-c-einsatz-cell"></div><div class="kalk-c-einsatz-cell"></div>';
+          })()}
+        </div>
+        <p class="kalk-c-einsatz-note">
+          Die Mietsubvention ist Teil unseres Brot-&amp;-Butter-Konzepts: Wir fangen Deine Anlaufphase ab und glätten die Belastung über die ersten Jahre. Sie ist in den Cashflow-Werten unten bereits enthalten — und wird für die Bank wie Miete angerechnet.
+        </p>
+      </div>` : ''}
     </section>
     <hr class="kalk-c-rule" />
   `;
@@ -2479,8 +2539,10 @@ function renderStoryPremium(r) {
         </div>
         <div class="kalk-c-col-text">
           <p class="kalk-c-lead">Eine Annuität von ${fmtEurMo(r.annuityMo)} steht Mieteinnahmen von ${fmtEurMo(r.mieteJ1Mo)} gegenüber. Dein Steuervorteil und in den ersten Jahren eine vereinbarte Mietsubvention glätten die Anlaufphase.</p>
-          <p>Die Wohnung trägt sich zu rund ${selbsttragungPct} % selbst — Miete plus Steuervorteil decken den Großteil der Annuität.</p>
-          <p>${crossoverSatz}: Die Wohnung beginnt, einen monatlichen Überschuss zu liefern, während Deine Annuität konstant bleibt.</p>
+          <p>${r.belastungMo >= 0
+            ? `Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst — Miete und Steuervorteil decken alle laufenden Kosten und liefern einen monatlichen Überschuss von ${fmtEurMo(r.belastungMo)}.`
+            : `Die Wohnung trägt sich zu rund ${selbsttragungPct} % selbst — Miete plus Steuervorteil decken den Großteil der laufenden Kosten (Annuität + Hausgeld + Verwaltung). Den Rest leistest Du als monatliche Eigenleistung.`}</p>
+          ${r.belastungMo < 0 ? `<p>${crossoverSatz}: Die Wohnung beginnt, einen monatlichen Überschuss zu liefern, während Deine Annuität konstant bleibt.</p>` : ''}
           <div class="kalk-c-meta-line">Annuität ${fmtEurMo(r.annuityMo)} · Steuervorteil ${fmtEurMo(r.stVorteilJ1Mo)}</div>
         </div>
       </div>
@@ -2489,12 +2551,23 @@ function renderStoryPremium(r) {
   `;
 
   // ===== SECTION 3 · Aussicht =====
+  // Iter 90: bei 110%-Finanzierung (EK=0) IRR nicht zeigen — mathematisch undefiniert.
+  const ekIstNull = !r.ekBedarf || r.ekBedarf <= 100;
+  const ekHeadline = ekIstNull
+    ? `In zehn Jahren baust Du <span style="color:var(--accent-dark)">${fmt(r.vermoegenNetto10)}</span> Nettovermögen auf — ohne Eigenkapital-Einsatz.`
+    : `Aus ${fmt(r.ekBedarf)} Eigenkapital werden ${fmt(r.vermoegenNetto10)} Nettovermögen.`;
+  const renditeSatz = ekIstNull
+    ? `Da Du kein eigenes Kapital einsetzt, gibt es keine klassische Eigenkapital-Rendite — der gesamte Vermögenszuwachs entsteht aus Restschuld-Abbau und Wertsteigerung.`
+    : `Dein Nettowert — Marktwert abzüglich Restschuld und kumulierter Eigenleistung — erreicht im Jahr 10 die genannten ${fmt(r.vermoegenNetto10)}. Das ist nach 10 Jahren ein interner Zinsfuß von <strong>${fmtPct(r.irr)}</strong>.`;
+  const metaLine3 = ekIstNull
+    ? `Brutto-Vermögen J10 · ${fmt(v10.vermoegenBrutto || (v10.wert - v10.restschuld))} &nbsp;·&nbsp; ohne EK-Einsatz`
+    : `IRR 10 J · ${fmtPct(r.irr)} &nbsp;·&nbsp; Brutto-Vermögen J10 · ${fmt(v10.vermoegenBrutto || (v10.wert - v10.restschuld))}`;
   const SECTION_3 = `
     <section class="kalk-c-section">
       <div class="kalk-c-section-head">
         <div class="kalk-c-left">
           <div class="kalk-c-section-num">03 · Vermögenszuwachs</div>
-          <h2 class="kalk-c-section-title">Aus ${fmt(r.ekBedarf)} Eigenkapital werden ${fmt(r.vermoegenNetto10)} Nettovermögen.</h2>
+          <h2 class="kalk-c-section-title">${ekHeadline}</h2>
         </div>
         <div class="kalk-c-right">
           Dein Vermögensaufbau speist sich aus zwei Quellen: dem laufenden Tilgungsanteil Deiner Annuität und einer moderat gerechneten Wertsteigerung des Sachwerts.
@@ -2504,8 +2577,8 @@ function renderStoryPremium(r) {
         <div class="kalk-c-col-text">
           <p class="kalk-c-lead">${nettoCrossoverSatz} — getragen von zwei Kräften: Restschuld-Abbau und Wertentwicklung.</p>
           <p>Der Bruttomarktwert Deiner Wohnung wächst nach konservativer Rechnung auf rund ${fmt(v10.wert)} im Jahr 10. Parallel sinkt Deine Restschuld auf ${fmt(v10.restschuld)}.</p>
-          <p>Dein Nettowert — Marktwert abzüglich Restschuld und kumulierter Eigenleistung — erreicht im Jahr 10 die genannten ${fmt(r.vermoegenNetto10)}. Das ist nach 10 Jahren ein interner Zinsfuß von <strong>${fmtPct(r.irr)}</strong>.</p>
-          <div class="kalk-c-meta-line">IRR 10 J · ${fmtPct(r.irr)} &nbsp;·&nbsp; Brutto-Vermögen J10 · ${fmt(v10.vermoegenBrutto || (v10.wert - v10.restschuld))}</div>
+          <p>${renditeSatz}</p>
+          <div class="kalk-c-meta-line">${metaLine3}</div>
         </div>
         <div class="kalk-c-col-chart">
           <div class="kalk-c-chart-frame"><canvas id="chart-c-vermoegen-magazin"></canvas></div>
@@ -2517,7 +2590,23 @@ function renderStoryPremium(r) {
   `;
 
   // ===== SECTION 4 · Vergleich =====
-  const SECTION_4 = `
+  // Iter 90: bei 110%-Finanzierung (EK=0) den Sparbuch-Vergleich umformulieren —
+  // "0 € auf 0 € gewachsen" macht keinen Sinn. Stattdessen die reine Sachwert-Story.
+  const SECTION_4 = ekIstNull ? `
+    <section class="kalk-c-section">
+      <div class="kalk-c-section-head" style="justify-content:center;text-align:center;flex-direction:column;align-items:center;gap:0;margin-bottom:48px">
+        <div class="kalk-c-left" style="text-align:center">
+          <div class="kalk-c-section-num">04 · Der Hebel</div>
+          <h2 class="kalk-c-section-title" style="max-width:24ch;margin:14px auto 0">Ohne Eigenkapital-Einsatz zum Sachwert.</h2>
+        </div>
+      </div>
+      <div class="kalk-c-compare">
+        <div class="kalk-c-compare-headline"><span class="kalk-c-delta">${fmt(r.vermoegenNetto10)}</span> &nbsp;Vermögensaufbau</div>
+        <div class="kalk-c-compare-sub">Bei 110-%-Finanzierung setzt Du kein eigenes Kapital ein. Trotzdem baust Du in 10 Jahren ${fmt(r.vermoegenNetto10)} Nettovermögen auf — getragen von Tilgung und Wertentwicklung. Der Hebel kommt aus dem Sachwert, nicht aus Deinem Sparbuch.</div>
+      </div>
+    </section>
+    <hr class="kalk-c-rule" />
+  ` : `
     <section class="kalk-c-section">
       <div class="kalk-c-section-head" style="justify-content:center;text-align:center;flex-direction:column;align-items:center;gap:0;margin-bottom:48px">
         <div class="kalk-c-left" style="text-align:center">
