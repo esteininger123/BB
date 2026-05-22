@@ -3,6 +3,8 @@
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
 const cookie = require('cookie');
+const { airtable } = require('./airtable');
+const { TABLES, VERTRIEBLER_FIELDS } = require('./tables');
 
 const COOKIE_NAME = 'bbk_session';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 Tage
@@ -63,7 +65,10 @@ function verifySession(req) {
     const cookies = cookie.parse(raw);
     const token = cookies[COOKIE_NAME];
     if (!token) return null;
-    const decoded = jwt.verify(token, getJwtSecret());
+    // QA-Fix 2026-05-22 (Audit-D E5): Algorithmen explizit hardcoden — schützt
+    // gegen künftige Lib-Updates die andere Algos zulassen würden. jsonwebtoken
+    // v9 ist zwar schon strikt, aber explicit > implicit.
+    const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
     if (!decoded || !decoded.vertrieblerId) return null;
     return decoded;
   } catch (e) {
@@ -116,6 +121,35 @@ function requireAdmin(req, res) {
   return session;
 }
 
+// QA-Fix 2026-05-22 (Audit-D B2): synchroner Admin-Recheck gegen Airtable.
+// Verhindert privilege-escalation via forged JWT — payload sagt "Admin", aber
+// die DB ist die Wahrheit. Für mutierende Admin-Routes (PUT/DELETE/POST).
+// Performance: 1 Airtable-Roundtrip (~80-150ms). Acceptable für selten genutzte
+// Admin-Endpoints. Bei häufigem Use → 30s-In-Memory-Cache pro vertrieblerId.
+async function requireAdminVerified(req, res) {
+  const session = requireAdmin(req, res);
+  if (!session) return null;
+  try {
+    const rec = await airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId });
+    if (!rec || !rec.fields) {
+      res.status(403).json({ error: 'Vertriebler nicht gefunden' });
+      return null;
+    }
+    const rolleRaw = rec.fields[VERTRIEBLER_FIELDS.ROLLE];
+    const rolle = (rolleRaw && typeof rolleRaw === 'object') ? rolleRaw.name : (rolleRaw || '');
+    const statusRaw = rec.fields[VERTRIEBLER_FIELDS.STATUS];
+    const status = (statusRaw && typeof statusRaw === 'object') ? statusRaw.name : (statusRaw || '');
+    if (rolle !== 'Admin' || status !== 'Aktiv') {
+      res.status(403).json({ error: 'Admin-Rechte revoked oder Status inaktiv' });
+      return null;
+    }
+    return session;
+  } catch (e) {
+    res.status(503).json({ error: 'Admin-Verify failed', detail: String(e.message || e) });
+    return null;
+  }
+}
+
 // Hilfsmittel für Routes: prüft, ob die env-Whitelist (ADMIN_EMAILS) eine Email enthält.
 function isAdminByEmailWhitelist(email) {
   const list = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -131,5 +165,6 @@ module.exports = {
   clearSessionCookie,
   requireAuth,
   requireAdmin,
+  requireAdminVerified,
   isAdminByEmailWhitelist
 };

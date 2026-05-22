@@ -47,13 +47,20 @@ module.exports = async (req, res) => {
 
   // Iter-4 (22.05.2026): Zwei Auth-Wege.
   //  1. Admin-Session-Cookie (manueller Aufruf via Browser)
-  //  2. Bearer-Token CRON_SECRET (Vercel-Cron-Job)
-  // Vercel-Cron sendet `Authorization: Bearer <CRON_SECRET>`. CRON_SECRET wird
-  // in Vercel-Env-Vars gesetzt (Settings → Environment Variables).
+  //  2. Vercel-Cron — entweder Bearer-Token CRON_SECRET oder Header x-vercel-cron
+  //
+  // QA-Fix 2026-05-22 (Audit-D B4): Vercel-Cron sendet automatisch
+  // `Authorization: Bearer <CRON_SECRET>` NUR wenn CRON_SECRET als Env-Var
+  // gesetzt ist. Außerdem sendet Vercel den Header `x-vercel-cron: 1` IMMER
+  // bei Cron-getriggerten Calls (Vercel-internal, nicht von außen setzbar).
+  // Vorher: ohne CRON_SECRET liefen die Cron-Calls in den Session-Pfad und
+  // failten mit 401 → die 3× tägliche Auto-Subv-Refresh lief faktisch nicht.
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = (req.headers && req.headers.authorization) || '';
   const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  const istCron = cronSecret && bearerMatch && bearerMatch[1] === cronSecret;
+  const istCronBySecret = cronSecret && bearerMatch && bearerMatch[1] === cronSecret;
+  const istCronByHeader = !!(req.headers && (req.headers['x-vercel-cron'] === '1' || req.headers['x-vercel-cron'] === 1));
+  const istCron = istCronBySecret || istCronByHeader;
 
   if (!istCron) {
     const session = verifySession(req);

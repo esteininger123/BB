@@ -1921,6 +1921,13 @@ input[type="range"].spar-zins-range::-moz-range-track {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+  /* QA-Fix 2026-05-22 (Audit-C E1): wenn ein Drilldown-Modal beim Cmd+P offen ist,
+     wurde das Modal auf alle Druckseiten überlagernd gerendert. Modal-Backdrop
+     + Toast-Container im Print weg, App-Header weg, Magazin sichtbar lassen. */
+  .kalk-c-modal-backdrop,
+  .kalk-c-modal-backdrop.kalk-c-open,
+  #toast-container,
+  #app-header { display: none !important; }
 }
 
 /* =====================================================================

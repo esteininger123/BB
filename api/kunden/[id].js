@@ -2,7 +2,7 @@
 // PUT    /api/kunden/:id  — Kunden aktualisieren (Vertriebler nur eigene, Admin alle)
 // DELETE /api/kunden/:id  — Vertriebler: löscht eigene; Admin: NICHT (stattdessen Phase auf Abgebrochen setzen)
 
-const { verifySession } = require('../_lib/auth');
+const { verifySession, requireAdminVerified } = require('../_lib/auth');
 const { airtable, listAll } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { TABLES, KUNDEN_FIELDS, VERTRIEBLER_FIELDS } = require('../_lib/tables');
@@ -80,6 +80,10 @@ module.exports = async (req, res) => {
           hint: 'Nutze den Archivieren-Button. Admin kann den Kunden später endgültig löschen.'
         });
       }
+      // QA-Fix 2026-05-22 (Audit-D B2): DB-Recheck vor harter Lösch-Operation —
+      // forged JWT mit rolle: "Admin" wird hier gefangen.
+      const verified = await requireAdminVerified(req, res);
+      if (!verified) return;
       let rec;
       try { rec = await airtable('get', TABLES.KUNDEN, { recordId: id }); }
       catch (e) {

@@ -123,7 +123,11 @@ module.exports = async (req, res) => {
     // nach WE_LINK — filterByFormula mit Field-IDs greift nicht zuverlässig.
     let stellplaetze = [];
     try {
-      const allStpl = await listAll(TABLES.STELLPLATZ, {}, 500);
+      // QA-Fix 2026-05-22 (Audit-B B5): Cap von 500 auf 5000 erhöht.
+      // Spechtweg-Deal hat 114 WE × bis zu 2-3 Stellplätze + andere Projekte
+      // → der 500er-Cap war im realistischen Lastraum eng. listAll iteriert
+      // ohnehin clientseitig — kein Risiko ausser etwas mehr Speicher.
+      const allStpl = await listAll(TABLES.STELLPLATZ, {}, 5000);
       stellplaetze = allStpl
         .filter(rec => {
           const links = (rec.fields && rec.fields[STELLPLATZ_FIELDS.WE_LINK]) || [];

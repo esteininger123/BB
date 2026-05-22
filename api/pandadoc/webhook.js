@@ -151,7 +151,14 @@ module.exports = async (req, res) => {
       // Wir suchen den letzten Block vom gleichen DocId und vergleichen den Status-Text.
       // Wenn der jüngste Eintrag identisch ist (gleicher Stempel auf die Minute genau
       // oder gleicher Status-Text innerhalb der letzten Minute), überspringen wir.
-      const docMarkerRegex = new RegExp(`PandaDoc ${docId}: (.+)`, 'g');
+      //
+      // QA-Fix 2026-05-22 (Audit-B B4): Regex hat den Iter-84-docTypSuffix
+      // („ (Selbstauskunft)" / „ (Reservierung)") nicht berücksichtigt. Bei Retries
+      // wurden Notizen-Einträge doppelt geschrieben. Regex erlaubt jetzt optional
+      // den Suffix vor dem Doppelpunkt. Außerdem: docId wird escaped, weil PandaDoc-
+      // IDs zwar alphanumerisch sind, defensiv aber sicher.
+      const escId = String(docId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const docMarkerRegex = new RegExp(`PandaDoc ${escId}(?:\\s*\\([^)]+\\))?: (.+)`, 'g');
       const matches = [...oldNotizen.matchAll(docMarkerRegex)];
       const letzterStatusZuDoc = matches.length > 0 ? matches[matches.length - 1][1].trim() : null;
       if (letzterStatusZuDoc === statusText.trim()) {

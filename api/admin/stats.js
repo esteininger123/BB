@@ -1,6 +1,6 @@
 // GET /api/admin/stats — Statistik über alle Vertriebler/Kunden/Phasen (Admin only).
 
-const { requireAdmin } = require('../_lib/auth');
+const { requireAdminVerified } = require('../_lib/auth');
 const { listAll } = require('../_lib/airtable');
 const { methodNotAllowed, sendError } = require('../_lib/http');
 const { TABLES, KUNDEN_FIELDS, VERTRIEBLER_FIELDS } = require('../_lib/tables');
@@ -20,8 +20,10 @@ const PHASEN = [
 module.exports = async (req, res) => {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
 
-  const session = requireAdmin(req, res);
-  if (!session) return; // requireAdmin hat schon geantwortet
+  // QA-Fix 2026-05-22 (Audit-D B2): DB-Recheck statt nur JWT-Payload — schützt
+  // gegen forged JWT mit `rolle: "Admin"`.
+  const session = await requireAdminVerified(req, res);
+  if (!session) return;
 
   try {
     const [vertriebler, kunden] = await Promise.all([

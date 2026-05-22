@@ -90,11 +90,16 @@ function toast(msg, type) {
   const c = document.getElementById('toast-container');
   const el = document.createElement('div');
   el.className = 'toast';
-  if (type === 'error') el.style.background = 'var(--negative)';
+  // QA-Fix 2026-05-22: warning + info Typen ergänzt für Snapshot-Aktualitäts-Hinweis.
+  // Warning bleibt 8s sichtbar (statt 3.5s), damit Vertriebler die Info erfasst.
+  if (type === 'error')   el.style.background = 'var(--negative)';
   if (type === 'success') el.style.background = 'var(--positive)';
+  if (type === 'warning') { el.style.background = '#B08A4D'; el.style.color = '#fff'; }
+  if (type === 'info')    { el.style.background = '#3A3A35'; el.style.color = '#fff'; }
   el.textContent = msg;
   c.appendChild(el);
-  setTimeout(() => el.remove(), 3500);
+  const lifeMs = (type === 'warning' || type === 'info') ? 8000 : 3500;
+  setTimeout(() => el.remove(), lifeMs);
 }
 
 /* ============================== HELPERS ============================== */
@@ -5139,8 +5144,31 @@ function loadSnapshot(id) {
     if (typeof state.kalk.saSteuersatz !== 'number') {
       state.kalk.saSteuersatz = (typeof state.kalk.steuersatz === 'number') ? state.kalk.steuersatz : 0.30;
     }
+    // QA-Fix 2026-05-22 (Audit-A B1): gebaeudeAnteil-Auto-Promote bei alten Snapshots.
+    // Default wurde 20.05.2026 von 0.80 auf 0.85 angehoben (Iter 61, Henry-Durchgang).
+    // 26/30 Live-Snapshots haben noch 0.80 eingefroren — Engine rechnet dann mit dem
+    // alten Wert und der Vertriebler sieht ~6 % zu niedrige AfA-Bemessung im Vergleich
+    // zur Neu-Rechnung. Wir promoten beim Load automatisch + zeigen Hinweis.
+    let _promoted = false;
+    if (typeof state.kalk.gebaeudeAnteil === 'number' && state.kalk.gebaeudeAnteil < 0.85) {
+      const old = state.kalk.gebaeudeAnteil;
+      state.kalk.gebaeudeAnteil = 0.85;
+      state.kalk._gebaeudeAnteilOld = old;
+      _promoted = true;
+    }
     setTab('kalkulator');
-    toast('Snapshot "' + (s.bezeichnung || '—') + '" geladen', 'success');
+    // QA-Fix 2026-05-22 (Audit-A B2): Aktualitäts-Hinweis. Snapshots sind eingefrorene
+    // Konserven (Marktmiete, Subv-Phasen, Stammdaten zum Speicher-Zeitpunkt). Vertriebler
+    // soll wissen: "vorsicht, das ist eine alte Rechnung". Wenn er Live-Stammdaten will,
+    // muss er die WE neu aus dem Dropdown laden.
+    const datumStr = s.createdAt ? new Date(s.createdAt).toLocaleDateString('de-DE') : null;
+    if (_promoted && datumStr) {
+      toast('Snapshot vom ' + datumStr + ' geladen — Gebäude-Anteil auto-angepasst (0,80→0,85, Iter 61). Stammdaten sind eingefroren; für Live-Werte WE neu wählen.', 'warning');
+    } else if (datumStr) {
+      toast('Snapshot vom ' + datumStr + ' geladen — Werte sind eingefroren. Für aktuelle Stammdaten WE neu aus Dropdown wählen.', 'info');
+    } else {
+      toast('Snapshot "' + (s.bezeichnung || '—') + '" geladen', 'success');
+    }
   } catch (e) {
     console.error('loadSnapshot error:', e, 'snapshot:', s);
     toast('Snapshot konnte nicht geladen werden: ' + e.message, 'error');
