@@ -466,10 +466,28 @@ input[type="range"].spar-zins-range::-moz-range-track {
      behalten ihr eigenes Footer-Verhalten. */
   .sa-page .pdf-footer { display: none; }
   .sa-page:last-child .pdf-footer { display: grid; }
-  /* Auf Folgeseiten Header optisch dezenter — Wiederholung kompakter */
+  /* Iter 91.6 (22.05.2026): Folgeseiten-Header KOMPLETT ausblenden.
+     Vorher waren die Headers nur „kompakter", aber das Problem ist nicht
+     die Größe — sondern dass sie mittendrin auf der physischen Seite
+     erscheinen, weil Iter 82 die SA-Sektionen fließend ohne harten
+     Page-Break macht. Sichtbar wird der Header damit nur einmal ganz
+     oben auf der ersten physischen Seite. Edgar-Befund: "PDF verschoben". */
   .sa-page:not(:first-child) .sa-head {
-    padding-bottom: 2mm;
-    margin-bottom: 4mm;
+    display: none;
+  }
+  /* Mini-Wasserzeichen unten links auf Folgeseiten — Branding bleibt
+     dezent erhalten, ohne im Inhalt aufzutauchen. */
+  .sa-page:not(:first-child)::before {
+    content: 'BROT & BUTTER · SELBSTAUSKUNFT · VERTRAULICH';
+    position: fixed;
+    bottom: 4mm;
+    left: 12mm;
+    font-size: 7px;
+    letter-spacing: 1.8px;
+    color: #B08A4D;
+    font-weight: 500;
+    opacity: 0.7;
+    pointer-events: none;
   }
 
   .pdf-footer {
