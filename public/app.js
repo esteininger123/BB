@@ -144,10 +144,13 @@ function renderHeader() {
   um.innerHTML = `
     <a href="#/dashboard" style="font-size:14px;color:var(--text-secondary);">Dashboard</a>
     ${isAdmin ? '<a href="#/admin" style="font-size:14px;color:var(--text-secondary);">Admin</a>' : ''}
+    <button type="button" class="bbk-help-btn" onclick="startTour()" title="Tour starten — wie funktioniert der Kalkulator?">?</button>
     <div class="user-name">${esc(state.user.name)}</div>
     <div class="avatar">${esc(initialen(state.user.name))}</div>
     <button class="secondary" onclick="doLogout()" title="Abmelden">Logout</button>
   `;
+  // QA-Sprint 2026-05-23: Auto-Start der Tour beim ersten Login (localStorage-Check).
+  if (typeof maybeStartTourOnFirstLogin === 'function') maybeStartTourOnFirstLogin();
 }
 
 async function doLogout() {
@@ -5664,3 +5667,170 @@ window.addEventListener('load', async () => {
     if (e.key === 'Escape') closeAllInfoPopovers();
   });
 })();
+
+/* ============================== VERTRIEBLER-TOUR ============================== */
+/* QA-Sprint 2026-05-23: Interaktive Tour-Erklärung. Edgar's Auftrag aus dem
+   Anfänger-Audit — neue Vertriebler brauchen eine Hand am Anfang. Tour erscheint
+   automatisch beim ersten Login (localStorage-Key `bbk_tour_v1_seen`) und kann
+   jederzeit via Help-Button im Header wieder gestartet werden.
+
+   Design: schlankes Overlay mit Backdrop, Schritt-Card oben rechts, Target-
+   Highlight via Bronze-Ring um das angesprochene Element. 10 Schritte, jederzeit
+   überspringbar.
+*/
+
+const TOUR_VERSION = 'v1';
+const TOUR_STORAGE_KEY = 'bbk_tour_' + TOUR_VERSION + '_seen';
+
+const TOUR_STEPS = [
+  {
+    title: 'Willkommen im B&B Kalkulator',
+    text: 'Kurze Tour in 9 Schritten — zeigt Dir das Tool. Jederzeit überspringbar (Esc). Wieder aufrufbar über das ?-Symbol oben rechts.',
+    target: null,
+  },
+  {
+    title: 'Dein Dashboard',
+    text: 'Hier siehst Du Deine Kunden. Klick "+ Neuer Kunde" um einen anzulegen. Owner-Logik: Du siehst nur Deine eigenen Kunden, Admin sieht alle.',
+    target: 'nav a[href="#/dashboard"], button.primary',
+  },
+  {
+    title: 'Kunde anlegen',
+    text: 'Pflichtfelder: Vorname, Nachname, Email. Geburtsdatum hilft später bei der Bonität. Notizen kannst Du jederzeit nachpflegen.',
+    target: null,
+  },
+  {
+    title: 'Wohneinheit wählen',
+    text: 'Im Kunden-Detail wechsle in den "Kalkulator"-Tab. Dropdown oben: Projekt → WE. Nur WEs mit Status "Vermarktung" und vollständigen Stammdaten sind sichtbar.',
+    target: '#tab-kalkulator, .tab[data-tab="kalkulator"]',
+  },
+  {
+    title: 'Hero — die wichtigste Zahl',
+    text: 'Was der Kunde in 10 Jahren aufgebaut hat. Direkt darunter: PDF-Button und Snapshot-Speichern. Tipp: Snapshot speichern bevor Du Werte änderst.',
+    target: '.kalk-c-hero-headline, .kalk-c-hero-actions',
+  },
+  {
+    title: 'Section 1 — Eckdaten + Markt-Anker',
+    text: 'Kaufpreis, Markt-Schnitt (ImmoScout + Homeday), Markteinkauf-Vorteil. Hover auf "Marktpreis je qm" zeigt die Quellen. Kaufnebenkosten + Eigenkapital = Was der Kunde wirklich einsetzt.',
+    target: '.kalk-c-objekt-list, .kalk-c-einsatz-block',
+  },
+  {
+    title: 'Section 2 — Belastung Jahr 1',
+    text: 'Annuität · Miete · Steuervorteil = effektive Belastung. Bei Subvention: 2-Phasen-Modell glättet die Anlaufphase. Chart zeigt Cashflow Monat für Monat über 10 Jahre.',
+    target: '#chart-c-belastung',
+  },
+  {
+    title: 'Section 3 — Vermögensaufbau',
+    text: '"Modellwert J10" = Marktwert hochgerechnet. "Mein Anteil J10" = Verkaufserlös + kumulierte Cashflows. Toggle "Restschuld einblenden" zeigt die Bank-Seite.',
+    target: '#chart-c-vermoegen-magazin, .kalk-c-vermoegen-toggle',
+  },
+  {
+    title: 'Section 5 — Drilldowns',
+    text: 'Vier Detail-Modals: Bonität (so rechnet die Bank), Cashflow (Jahr für Jahr), Vermögen (Tabelle), Annahmen (alle Parameter inkl. Sparzins-Slider). PDF unten oder via Hero-Button.',
+    target: '.kalk-c-drill-links',
+  },
+];
+
+let _tourActive = false;
+let _tourStep = 0;
+
+function startTour(opts) {
+  _tourStep = (opts && typeof opts.step === 'number') ? opts.step : 0;
+  _tourActive = true;
+  _renderTour();
+  document.addEventListener('keydown', _tourKeyHandler);
+}
+window.startTour = startTour;
+
+function endTour(markSeen) {
+  _tourActive = false;
+  const ov = document.getElementById('bbk-tour-overlay');
+  if (ov) ov.remove();
+  document.querySelectorAll('.bbk-tour-highlight').forEach(el => el.classList.remove('bbk-tour-highlight'));
+  document.removeEventListener('keydown', _tourKeyHandler);
+  if (markSeen) {
+    try { localStorage.setItem(TOUR_STORAGE_KEY, '1'); } catch (e) {}
+  }
+}
+window.endTour = endTour;
+
+function _tourKeyHandler(e) {
+  if (!_tourActive) return;
+  if (e.key === 'Escape') { endTour(true); return; }
+  if (e.key === 'ArrowRight') { _tourNext(); return; }
+  if (e.key === 'ArrowLeft')  { _tourPrev(); return; }
+}
+
+function _tourNext() {
+  if (_tourStep < TOUR_STEPS.length - 1) {
+    _tourStep++;
+    _renderTour();
+  } else {
+    endTour(true);
+  }
+}
+
+function _tourPrev() {
+  if (_tourStep > 0) {
+    _tourStep--;
+    _renderTour();
+  }
+}
+
+function _renderTour() {
+  // Backdrop + Card neu rendern
+  let ov = document.getElementById('bbk-tour-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'bbk-tour-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(26,26,23,0.55);backdrop-filter:blur(2px);display:flex;align-items:flex-start;justify-content:flex-end;padding:80px 32px 32px 32px;pointer-events:none;font-family:inherit;';
+    document.body.appendChild(ov);
+  }
+  // Highlight altes Target entfernen
+  document.querySelectorAll('.bbk-tour-highlight').forEach(el => el.classList.remove('bbk-tour-highlight'));
+
+  const step = TOUR_STEPS[_tourStep];
+  const last = _tourStep === TOUR_STEPS.length - 1;
+  const first = _tourStep === 0;
+
+  ov.innerHTML = `
+    <div style="pointer-events:auto;background:#FBFAF7;border-radius:14px;max-width:380px;width:100%;padding:24px 28px;box-shadow:0 30px 80px rgba(0,0,0,0.25);border:1px solid #C9A572;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+        <span style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#8E6E3D;font-weight:600;">Tour — Schritt ${_tourStep + 1} / ${TOUR_STEPS.length}</span>
+        <button type="button" onclick="endTour(true)" style="background:transparent;border:none;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#7A7A72;cursor:pointer;font-family:inherit;">Überspringen ×</button>
+      </div>
+      <h3 style="font-size:20px;font-weight:300;letter-spacing:-.01em;margin:0 0 12px 0;color:#1A1A17;line-height:1.25;">${step.title}</h3>
+      <p style="font-size:14px;line-height:1.6;color:#3A3A35;margin:0 0 24px 0;">${step.text}</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <button type="button" onclick="window._tourPrev()" ${first ? 'disabled' : ''} style="background:transparent;border:1px solid #E8E6DD;color:${first ? '#C9C9C0' : '#1A1A17'};font-family:inherit;font-size:13px;padding:8px 16px;border-radius:18px;cursor:${first ? 'not-allowed' : 'pointer'};">← Zurück</button>
+        <div style="display:flex;gap:5px;">
+          ${TOUR_STEPS.map((_, idx) => `<span style="width:6px;height:6px;border-radius:50%;background:${idx === _tourStep ? '#8E6E3D' : '#E8E6DD'};display:inline-block;"></span>`).join('')}
+        </div>
+        <button type="button" onclick="window._tourNext()" style="background:#8E6E3D;color:#fff;border:none;font-family:inherit;font-size:13px;padding:8px 18px;border-radius:18px;cursor:pointer;font-weight:500;">${last ? 'Fertig ✓' : 'Weiter →'}</button>
+      </div>
+    </div>
+  `;
+
+  // Target hervorheben falls vorhanden + scrollen
+  if (step.target) {
+    setTimeout(() => {
+      const el = document.querySelector(step.target);
+      if (el) {
+        el.classList.add('bbk-tour-highlight');
+        try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { el.scrollIntoView(); }
+      }
+    }, 50);
+  }
+}
+window._tourNext = _tourNext;
+window._tourPrev = _tourPrev;
+
+// Auto-Start beim ersten Login (wenn noch nicht gesehen)
+function maybeStartTourOnFirstLogin() {
+  try {
+    const seen = localStorage.getItem(TOUR_STORAGE_KEY);
+    if (!seen) {
+      setTimeout(() => startTour(), 1200);
+    }
+  } catch (e) { /* localStorage disabled — skip */ }
+}
+window.maybeStartTourOnFirstLogin = maybeStartTourOnFirstLogin;

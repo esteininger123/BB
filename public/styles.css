@@ -128,6 +128,32 @@ label {
   font-weight: 600; color: var(--accent-dark);
   font-size: 13px;
 }
+/* QA-Sprint 2026-05-23: Help-Button im Header startet die Tour */
+.bbk-help-btn {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-family: inherit; font-size: 14px; font-weight: 500;
+  color: var(--accent-dark); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background 0.15s ease;
+}
+.bbk-help-btn:hover { background: var(--bg-cream); }
+
+/* Tour-Target-Highlight */
+.bbk-tour-highlight {
+  outline: 3px solid #C9A572 !important;
+  outline-offset: 4px !important;
+  border-radius: 4px;
+  position: relative;
+  z-index: 10000;
+  box-shadow: 0 0 0 9999px rgba(26,26,23,0.55);
+  animation: bbk-tour-pulse 1.5s ease-in-out infinite alternate;
+}
+@keyframes bbk-tour-pulse {
+  from { outline-color: #C9A572; }
+  to   { outline-color: #8E6E3D; }
+}
 
 /* ============================== MAIN ============================== */
 .main {
