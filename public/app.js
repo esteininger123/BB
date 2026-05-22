@@ -1254,13 +1254,18 @@ function kalkInputsThemenHtml(i) {
           // Iter 50 (Audit-Fix B-50.1, 19.05.2026): vorher griff `endsWith('-fehlt')`
           // nicht bei `auto-kein-spielraum` — obwohl der Fall in der pflegeMap drin ist.
           // Jetzt explizit alle gepflegt-Pflege-Quellen prüfen.
-          const istLuecke = ['auto-mbv-fehlt','auto-kappung-fehlt','auto-modus-fehlt','auto-kein-spielraum'].includes(quelle);
+          // QA-Fix 2026-05-22 (Prüfer-2 B1): `auto-marktmiete-fehlt` (Backend Z.524)
+          // fehlte hier — Folge: Vertriebler sah neutrale graue Card „Keine Mietsubvention"
+          // statt roter Warn-Card. Glaubwürdigkeits-Falle (Henry: „keine Subv" sagt er
+          // dem Kunden, später kommt raus dass Marktmiete einfach nicht gepflegt war).
+          const istLuecke = ['auto-mbv-fehlt','auto-kappung-fehlt','auto-modus-fehlt','auto-kein-spielraum','auto-marktmiete-fehlt'].includes(quelle);
           if (istLuecke) {
             const pflegeMap = {
-              'auto-mbv-fehlt':       'Miete bei Verkauf',
-              'auto-kappung-fehlt':   'Kappungsgrenze',
-              'auto-modus-fehlt':     'Vermietungs-Modus',
-              'auto-kein-spielraum':  'Marktmiete (liegt aktuell ≤ Miete bei Verkauf)',
+              'auto-mbv-fehlt':         'Miete bei Verkauf',
+              'auto-kappung-fehlt':     'Kappungsgrenze',
+              'auto-modus-fehlt':       'Vermietungs-Modus',
+              'auto-kein-spielraum':    'Marktmiete (liegt aktuell ≤ Miete bei Verkauf)',
+              'auto-marktmiete-fehlt':  'Marktmiete (€/qm)',
             };
             const fehlend = pflegeMap[quelle] || quelle;
             return `
@@ -2700,13 +2705,13 @@ function renderStoryPremium(r) {
             ${r.bonModus === 'detail' ? `
             <div class="kalk-c-row"><span>− Hausgeld (bank-konservativ)</span><span class="kalk-c-neg">− ${fmtEurMo(r.hausgeldNurMo || 0)}</span></div>
             <div class="kalk-c-row"><span>− Hausverwaltung</span><span class="kalk-c-neg">− ${fmtEurMo(r.hausverwaltungMo || 0)}</span></div>` : ''}
-            <div class="kalk-c-row kalk-c-total"><span>Nach Investment</span><span class="kalk-c-accent">${fmtEurMo(r.bonNach || 0)}</span></div>
+            <div class="kalk-c-row kalk-c-total"><span>Nach Investment</span><span class="${(r.bonNach || 0) < 0 ? 'kalk-c-neg' : 'kalk-c-accent'}">${fmtEurMo(r.bonNach || 0)}</span></div>
           </div>
           <div class="kalk-c-saldo-card">
             <div class="kalk-c-label">Freies Eigenkapital</div>
             <div class="kalk-c-row"><span>Vor Erwerb</span><span>${fmt(r.bonVermoegen || 0)}</span></div>
             <div class="kalk-c-row"><span>Einsatz Erwerb (EK + KNK)</span><span class="kalk-c-neg">− ${fmt(r.ekBedarf)}</span></div>
-            <div class="kalk-c-row kalk-c-total"><span>Nach Erwerb</span><span class="kalk-c-accent">${fmt(r.bonVermoegenVsEk || 0)}</span></div>
+            <div class="kalk-c-row kalk-c-total"><span>Nach Erwerb</span><span class="${(r.bonVermoegenVsEk || 0) < 0 ? 'kalk-c-neg' : 'kalk-c-accent'}">${fmt(r.bonVermoegenVsEk || 0)}</span></div>
           </div>
         </div>
       </div>

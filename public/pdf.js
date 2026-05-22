@@ -313,7 +313,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           ${marktQm > 0 ? `<div class="pdf-c-obj-row"><span class="k">Markt je qm</span><span class="v">${Math.round(marktQm).toLocaleString('de-DE')}<span class="unit">€</span></span></div>` : ''}
 
           <h4>Dein Einsatz</h4>
-          <div class="pdf-c-obj-row"><span class="k">Kaufnebenkosten</span><span class="v">${Math.round(knk).toLocaleString('de-DE')}<span class="unit">€</span></span></div>
+          <div class="pdf-c-obj-row"><span class="k">Kaufnebenkosten</span><span class="v">${Math.round(knk).toLocaleString('de-DE')}<span class="unit">€${i.knkMitfinanziert ? ' · mitfinanziert' : ''}</span></span></div>
           <div class="pdf-c-obj-row"><span class="k">Eigenkapital</span><span class="v">${Math.round(r.ekBedarf).toLocaleString('de-DE')}<span class="unit">€</span></span></div>
         </div>
         <div class="pdf-c-p2-right">
@@ -412,11 +412,11 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           ${r.bonModus === 'detail' ? `
           <div class="pdf-c-saldo-row"><span>− Hausgeld (konservativ)</span><span class="pdf-c-neg">− ${fmtMo(r.hausgeldNurMo || 0)}</span></div>
           <div class="pdf-c-saldo-row"><span>− Hausverwaltung</span><span class="pdf-c-neg">− ${fmtMo(r.hausverwaltungMo || 0)}</span></div>` : ''}
-          <div class="pdf-c-saldo-row tot"><span>Nach Investment</span><span>${fmtMo(r.bonNach || 0)}</span></div>
+          <div class="pdf-c-saldo-row tot"><span>Nach Investment</span><span class="${(r.bonNach || 0) < 0 ? 'pdf-c-neg' : ''}">${fmtMo(r.bonNach || 0)}</span></div>
           <h5>Freies Eigenkapital</h5>
           <div class="pdf-c-saldo-row"><span>Vor Erwerb</span><span>${fmt(r.bonVermoegen || 0)}</span></div>
           <div class="pdf-c-saldo-row"><span>Einsatz Erwerb (EK + KNK)</span><span class="pdf-c-neg">− ${fmt(r.ekBedarf)}</span></div>
-          <div class="pdf-c-saldo-row tot"><span>Nach Erwerb</span><span>${fmt(r.bonVermoegenVsEk || 0)}</span></div>
+          <div class="pdf-c-saldo-row tot"><span>Nach Erwerb</span><span class="${(r.bonVermoegenVsEk || 0) < 0 ? 'pdf-c-neg' : ''}">${fmt(r.bonVermoegenVsEk || 0)}</span></div>
           <p style="font-size:7.5pt;color:#7A7A72;margin-top:3mm;line-height:1.55">Die Mietsubvention wird bei richtiger Gestaltung wie Miete angesetzt — sie geht zu 80 % in die anrechenbare Miete ein.</p>
         </div>
 
@@ -530,10 +530,24 @@ function reservierung(kunde, kalkInputs, user) {
   const verkaeuferName = u.name || 'Edgar Steininger';
 
   // Objekt-Block: "PLZ Ort, Straße mit Wohnung X mit Y qm zum Kaufpreis von Z € plus W € für eine Garage."
+  // QA-Fix 2026-05-22 (Prüfer-3 B1): bei leerer Lage entsteht kein doppeltes Leerzeichen
+  // mehr ("  mit Wohnung 5 ..."). Wenn auch lage leer ist, beginnt der Satz mit
+  // "Wohnung X" oder "Objekt" als Fallback.
   const garageText = spKp > 0 ? ` plus ${fmt(spKp)} für einen Stellplatz/Garage` : '';
-  const wohnungText = weNr ? ` mit Wohnung ${weNr}` : '';
+  const lageEsc = esc(lage || '');
+  const wohnungSuffix = weNr ? `Wohnung ${esc(weNr)}` : '';
   const qmText = qm > 0 ? ` mit ${fmtQm(qm)}` : '';
-  const objektZeile = `${esc(lage)}${esc(wohnungText)}${esc(qmText)} zum Kaufpreis von ${fmt(kp)}${esc(garageText)}.`;
+  let objektPrefix;
+  if (lageEsc && wohnungSuffix) {
+    objektPrefix = `${lageEsc} mit ${wohnungSuffix}`;
+  } else if (lageEsc) {
+    objektPrefix = lageEsc;
+  } else if (wohnungSuffix) {
+    objektPrefix = wohnungSuffix;
+  } else {
+    objektPrefix = 'Objekt (Adresse separat angegeben)';
+  }
+  const objektZeile = `${objektPrefix}${esc(qmText)} zum Kaufpreis von ${fmt(kp)}${esc(garageText)}.`;
 
   const html = `
     <div class="pdf-page reservierung-page">
