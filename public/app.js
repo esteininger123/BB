@@ -2473,6 +2473,27 @@ function renderStoryPremium(r) {
         <div class="kalk-c-col-chart">
           <div class="kalk-c-chart-frame"><canvas id="chart-c-belastung"></canvas></div>
           <div class="kalk-c-chart-caption">Cashflow nach Steuern, je Monat · Annuität konstant</div>
+          <div class="kalk-c-modus-toggle" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+            <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-tertiary);font-weight:500;margin-bottom:10px">Mietsteigerungs-Modus</div>
+            <div class="kalk-c-modus-buttons" style="display:flex;gap:0;border:1px solid var(--border);border-radius:2px;overflow:hidden">
+              ${(() => {
+                const modi = [
+                  {v:'sprung',  l:'Bestand · alle 3 J'},
+                  {v:'staffel', l:'Staffel · jährlich'},
+                  {v:'index',   l:'Index · jährlich'},
+                  {v:'keine',   l:'Keine'}
+                ];
+                return modi.map((opt, idx) => {
+                  const aktiv = i.mietsteigerungsModus === opt.v;
+                  const borderR = idx < modi.length - 1 ? 'border-right:1px solid var(--border);' : '';
+                  return `<button type="button" data-modus="${opt.v}" style="flex:1;padding:9px 8px;background:${aktiv ? 'var(--accent)' : 'transparent'};color:${aktiv ? 'var(--on-accent)' : 'var(--text-secondary)'};border:none;${borderR}font-family:inherit;font-size:11.5px;font-weight:${aktiv ? '500' : '400'};cursor:pointer;letter-spacing:.02em;transition:background .15s ease,color .15s ease">${opt.l}</button>`;
+                }).join('');
+              })()}
+            </div>
+            <div style="margin-top:8px;font-size:11px;color:var(--text-tertiary);line-height:1.5">
+              Bestandsmiete: Sprünge alle 36 Monate (gesetzliche Kappung). Staffel/Index: jährliche Steigerung. <strong style="color:var(--text-secondary)">Aktiv:</strong> ${(() => { const m = {sprung:'Sprung alle 3 Jahre',staffel:'Staffelmiete jährlich',index:'Indexmiete jährlich',keine:'keine Steigerung'}[i.mietsteigerungsModus] || '—'; return m + (i.mietsteigerungsModus !== 'keine' ? ` · +${(((i.steigerungProz || 0) * 100).toFixed(1).replace('.', ','))} %` : ''); })()}
+            </div>
+          </div>
         </div>
         <div class="kalk-c-col-text">
           <p class="kalk-c-lead">Eine Annuität von ${fmtEurMo(r.annuityMo)} steht Mieteinnahmen von ${fmtEurMo(r.mieteJ1Mo)} gegenüber. Dein Steuervorteil und in den ersten Jahren eine vereinbarte Mietsubvention glätten die Anlaufphase.</p>
@@ -2944,6 +2965,19 @@ function _bindCPremiumInteractions() {
   // hier neu nach jedem renderStoryPremium-Aufruf, weil der Modal-HTML
   // bei jedem Re-Render neu erzeugt wird.
   if (typeof bindSparZinsSlider === 'function') bindSparZinsSlider();
+
+  // Iter 91.1: Mietsteigerungs-Modus-Toggle in Section 2 — klick wechselt
+  // state.kalk.mietsteigerungsModus und löst Recalc aus. Sichtbar damit
+  // Edgar sofort sieht ob Sprung-Modus (alle 3 J) oder jährlich aktiv ist.
+  document.querySelectorAll('.kalk-c-modus-buttons button[data-modus]').forEach(btn => {
+    btn.onclick = () => {
+      const v = btn.getAttribute('data-modus');
+      if (state.kalk && v) {
+        state.kalk.mietsteigerungsModus = v;
+        if (typeof recalcAndRender === 'function') recalcAndRender();
+      }
+    };
+  });
 }
 function _closeAllCModals() {
   document.querySelectorAll('.kalk-c-modal-backdrop.kalk-c-open').forEach(m => m.classList.remove('kalk-c-open'));
