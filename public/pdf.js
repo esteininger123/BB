@@ -656,6 +656,67 @@ function _buildSelbstauskunftBody(kunde, user) {
 
   const versA = a.vers || {};
 
+  // === SA-Redesign (22.05.2026): Bonitäts-Zusammenfassung ===
+  // Banker liest in der echten Reihenfolge: Saldo Einnahmen ./. Ausgaben.
+  // 80%-Mietanrechnung wie in computeBonitaetDetailed (Bank-Standard).
+  function _saSumPerson(p) {
+    if (!p) return { ein: 0, aus: 0 };
+    let ein = 0, aus = 0;
+    ein += parseFloat(p.nettoMo) || 0;
+    ein += parseFloat(p.kindergeldMo) || 0;
+    ein += parseFloat(p.unterhaltMo) || 0;
+    // Sonderzahlungen aus Pflichtfeldern (p.a. → /12)
+    ein += ((parseFloat(p.weihnachtsgeld)||0) + (parseFloat(p.urlaubsgeld)||0) + (parseFloat(p.variableMo)||0)) / 12;
+    // Baukasten zusatzEinnahmen (mo-Werte)
+    (Array.isArray(p.zusatzEinnahmen) ? p.zusatzEinnahmen : []).forEach(it => {
+      if (it) ein += parseFloat(it.mo) || 0;
+    });
+    // Mieten aus Immobilien-Baukasten — 80% Bank-Anrechnung
+    (Array.isArray(p.immobilien) ? p.immobilien : []).forEach(immo => {
+      if (immo) ein += 0.8 * (parseFloat(immo.mietenMo) || 0);
+    });
+    aus += parseFloat(p.mieteMo) || 0;
+    aus += parseFloat(p.lebenshaltungMo) || 0;
+    (Array.isArray(p.zusatzAusgaben) ? p.zusatzAusgaben : []).forEach(it => {
+      if (it) aus += parseFloat(it.mo) || 0;
+    });
+    (Array.isArray(p.zusatzSparplaene) ? p.zusatzSparplaene : []).forEach(it => {
+      if (it) aus += parseFloat(it.mo) || 0;
+    });
+    (Array.isArray(p.zusatzVerbindlichkeiten) ? p.zusatzVerbindlichkeiten : []).forEach(it => {
+      if (it) aus += parseFloat(it.mo) || 0;
+    });
+    (Array.isArray(p.immobilien) ? p.immobilien : []).forEach(immo => {
+      if (immo) aus += parseFloat(immo.baufiBelastungMo) || 0;
+    });
+    return { ein, aus };
+  }
+  const bonA = _saSumPerson(a);
+  const bonM = gemeinsam ? _saSumPerson(m) : { ein: 0, aus: 0 };
+  const bonEin = bonA.ein + bonM.ein;
+  const bonAus = bonA.aus + bonM.aus;
+  const bonSaldo = bonEin - bonAus;
+  const bonSaldoClass = bonSaldo >= 0 ? 'positiv' : 'negativ';
+  const bonSaldoSign = bonSaldo >= 0 ? '+ ' : '− ';
+  const fmtBonE = (v) => Math.round(v).toLocaleString('de-DE') + ' €';
+  const bonitaetBoxHtml = `
+    <div class="sa-bonitaet-box">
+      <div class="sa-bonitaet-cell">
+        <div class="sa-bonitaet-label">Einnahmen anr. Mo</div>
+        <div class="sa-bonitaet-value">${fmtBonE(bonEin)}</div>
+      </div>
+      <div class="sa-bonitaet-cell">
+        <div class="sa-bonitaet-label">Ausgaben Mo</div>
+        <div class="sa-bonitaet-value">${fmtBonE(bonAus)}</div>
+      </div>
+      <div class="sa-bonitaet-cell">
+        <div class="sa-bonitaet-label">Saldo Mo</div>
+        <div class="sa-bonitaet-value saldo-${bonSaldoClass}">${bonSaldoSign}${fmtBonE(Math.abs(bonSaldo))}</div>
+      </div>
+    </div>
+    <div class="sa-bonitaet-note">Vom Antragsteller selbst ermittelt — Bank validiert vor Auszahlung. Mieten mit 80% angerechnet (Bank-Standard).</div>
+  `;
+
   // === SEITE 1: PERSÖNLICHE VERHÄLTNISSE + EINKOMMEN + FIXKOSTEN ===
   const seite1 = `
     <div class="pdf-page sa-page">
@@ -750,8 +811,9 @@ function _buildSelbstauskunftBody(kunde, user) {
   //   - Doppelung Baufi/Verbindlichkeiten beseitigt: Verbindlichkeits-Tabelle zeigt
   //     NUR zusatzVerbindlichkeiten (Konsumkredite). Baufi steht im Immobilien-Block.
   const seite2 = `
-    <div class="pdf-page sa-page">
+    <div class="pdf-page sa-page${gemeinsam ? '' : ' single-applicant'}">
       ${_saHeader(2, 5)}
+      ${bonitaetBoxHtml}
       ${(() => {
         // Klassifikation der Baukasten-Positionen nach Titel-Heuristik.
         const isBauspar = (t) => /bauspar|vwl|riester|wohn[\- ]?riester/i.test(t || '');
@@ -1132,46 +1194,65 @@ function selbstauskunftHtmlForPandaDoc(kunde, user) {
 // Inline-CSS für PandaDoc-Render. Untermenge aus styles.css — alle Regeln die für
 // die SA-PDF-Darstellung wirklich gebraucht werden. Wird beim Backend-Upload ins HTML
 // eingebettet, weil PandaDoc kein externes CSS fetched.
+// SA-Redesign (22.05.2026):
+//  - Schwarzer Header-Streifen → Cream-Background + Bronze-Border-Top, schwarzer Text
+//  - Header-Underline → Bronze 1.5px statt Schwarz 0.3px
+//  - Tabellen-Borders 0.3px → 0.5px (Print-Sicherheit auf SW-Laser bei 600dpi)
+//  - Footer auf JEDER Seite (war: nur letzte)
+//  - Bei Einzel-Antragsteller: .single-applicant ↦ leere M-Spalte ausblenden
+//  - Bonitäts-Box auf Seite 2 oben (3 Zellen: Einnahmen / Ausgaben / Saldo)
 const _SA_INLINE_CSS = `
   body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1B1B1B; margin: 0; padding: 0; background: #fff; }
   .pdf-template { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #fff; color: #1B1B1B; font-size: 11px; line-height: 1.4; }
   .pdf-page.sa-page { padding: 14mm 12mm 14mm 12mm; position: relative; page-break-after: auto; }
   .pdf-page.sa-page.sa-legal { page-break-before: always; }
-  /* Iter 85: page-break-inside: avoid für sa-table ENTFERNT — Persönliche-Verhältnisse-Tabelle ist größer als A4 und wurde komplett auf Folgeseite verschoben (Seite 1 leer). */
-  .sa-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 7mm; padding-bottom: 4mm; border-bottom: 0.3px solid #000; }
-  .sa-head .sa-logo { height: 9mm !important; width: auto !important; max-width: 55mm; display: block; }
+  /* Iter 85: page-break-inside: avoid für sa-table ENTFERNT — Persönliche-Verhältnisse-Tabelle ist größer als A4. */
+  .sa-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 7mm; padding-bottom: 4mm; border-bottom: 1.5px solid #B08A4D; }
+  .sa-head .sa-logo { height: 10mm !important; width: auto !important; max-width: 55mm; display: block; }
   .sa-head .sa-title-block { text-align: right; line-height: 1.15; }
-  .sa-title { font-size: 13px; font-weight: 600; letter-spacing: 2.5px; color: #000; text-transform: uppercase; }
-  .sa-title .sa-title-sub { font-weight: 300; font-size: 9.5px; letter-spacing: 3px; margin-left: 2mm; color: #333; }
-  .sa-page-num { font-size: 7.5px; font-weight: 300; color: #888; letter-spacing: 2px; margin-top: 2mm; text-transform: uppercase; }
+  .sa-title { font-size: 12px; font-weight: 500; letter-spacing: 2px; color: #1B1B1B; text-transform: uppercase; }
+  .sa-title .sa-title-sub { font-weight: 300; font-size: 9px; letter-spacing: 2.5px; margin-left: 2mm; color: #B08A4D; }
+  .sa-page-num { font-size: 8px; font-weight: 300; color: #888; letter-spacing: 1.5px; margin-top: 2mm; text-transform: uppercase; }
   .sa-table { width: 100%; border-collapse: collapse; margin: 0; }
-  .sa-table thead tr th { background: #1B1B1B; color: #fff; padding: 4mm 3mm; font-size: 9px; font-weight: 600; text-align: left; letter-spacing: 1px; text-transform: uppercase; }
-  .sa-table tbody tr td { padding: 2.5mm 3mm; font-size: 10px; border-bottom: 0.3px solid #D6D6D6; vertical-align: top; }
-  .sa-table tbody tr td.sa-label { color: #555; width: 30%; }
+  .sa-table thead tr th { background: #FAF7F0; color: #1B1B1B; padding: 3.5mm 3mm 3mm 3mm; font-size: 9.5px; font-weight: 600; text-align: left; letter-spacing: 1.5px; text-transform: uppercase; border-top: 1.5px solid #B08A4D; border-bottom: 0.5px solid #1B1B1B; }
+  .sa-table thead tr th .section-sub { font-weight: 400; font-size: 8.5px; color: #777; letter-spacing: 0.3px; text-transform: none; margin-left: 2mm; }
+  .sa-table tbody tr td { padding: 2.5mm 3mm; font-size: 10px; border-bottom: 0.5px solid #D6D6D6; vertical-align: top; }
+  .sa-table tbody tr td.sa-label { color: #555; width: 32%; font-weight: 400; }
   .sa-table tbody tr:last-child td { border-bottom: none; }
   .sa-section-h { font-weight: 700; }
+  /* Einzel-Antragsteller: leere Mit-Spalte ausblenden, mehr Platz für A-Spalte */
+  .pdf-page.sa-page.single-applicant .sa-table tbody tr td.sa-label { width: 38%; }
+  .pdf-page.sa-page.single-applicant .sa-table tbody tr td:nth-child(2) { width: 62%; }
+  .pdf-page.sa-page.single-applicant .sa-table tbody tr td:nth-child(3),
+  .pdf-page.sa-page.single-applicant .sa-table thead tr th:nth-child(3) { display: none; }
   .sa-fld { display: inline-block; min-width: 40mm; padding: 0; border: 0; }
   .sa-fld-filled { font-weight: 500; color: #1B1B1B; }
-  input.sa-fld { border-bottom: 0.3px solid #000; }
+  input.sa-fld { border-bottom: 0.5px solid #1B1B1B; }
   .sa-chk { display: inline-block; font-size: 11px; line-height: 1; }
   .sa-chk.on { font-weight: 700; }
+  /* Bonitäts-Box (NEU, oben Seite 2) — Banker findet seinen Saldo sofort */
+  .sa-bonitaet-box { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4mm; background: #FAF7F0; border-left: 3px solid #B08A4D; padding: 4mm 5mm; margin-bottom: 4mm; }
+  .sa-bonitaet-cell { display: flex; flex-direction: column; gap: 1mm; }
+  .sa-bonitaet-label { font-size: 8px; text-transform: uppercase; letter-spacing: 1.2px; color: #777; font-weight: 500; }
+  .sa-bonitaet-value { font-size: 14px; font-weight: 600; color: #1B1B1B; letter-spacing: -0.2px; }
+  .sa-bonitaet-value.saldo-positiv { color: #1B1B1B; }
+  .sa-bonitaet-value.saldo-negativ { color: #8E2C2C; }
+  .sa-bonitaet-note { font-size: 8px; color: #888; margin-bottom: 6mm; font-style: italic; letter-spacing: 0.2px; }
   .footer-note { font-size: 9px; color: #777; margin-top: 4mm; line-height: 1.4; }
-  .pdf-footer { padding: 4mm 12mm 3mm 12mm; border-top: 0.3px solid #b8b8b8; font-size: 7px; font-weight: 300; color: #777; letter-spacing: 0.2px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 8mm; align-items: center; background: #fff; margin-top: 8mm; }
+  /* Footer: auf JEDER Seite — Banker erwartet Vertriebler + Datum auf jedem Blatt */
+  .pdf-footer { padding: 4mm 12mm 3mm 12mm; border-top: 0.5px solid #B08A4D; font-size: 7px; font-weight: 300; color: #777; letter-spacing: 0.2px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 8mm; align-items: center; background: #fff; margin-top: 8mm; }
   .pdf-footer .pdf-footer-l { text-align: left; }
   .pdf-footer .pdf-footer-c { text-align: center; }
   .pdf-footer .pdf-footer-r { text-align: right; }
-  .sa-page:not(:last-child) .pdf-footer { display: none; }
-  .sa-page:last-child .pdf-footer { display: grid; }
-  .legal-h { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 5mm 0 2mm; }
+  .sa-page .pdf-footer { display: grid; }
+  .legal-h { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 5mm 0 2mm; color: #1B1B1B; }
+  .legal-h .roman { color: #B08A4D; font-weight: 700; margin-right: 2mm; }
   .legal-p { font-size: 9px; line-height: 1.45; text-align: justify; margin: 0 0 3mm; color: #1B1B1B; }
   .sa-sigblock { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; margin-top: 14mm; }
   .sa-sigblock .sig-col { display: flex; flex-direction: column; }
-  .sa-sigblock .sig-line { border-bottom: 0.5px solid #000; min-height: 12mm; padding: 2mm 0; }
+  .sa-sigblock .sig-line { border-bottom: 0.5px solid #000; min-height: 10mm; padding: 2mm 0; }
   .sa-sigblock .sig-meta { font-size: 8.5px; color: #555; margin-top: 1mm; }
-  /* Iter 87 (22.05.2026): Tag-Farbe = Hintergrund-Weiß (unsichtbar im finalen Doc).
-     PandaDoc-Doku empfiehlt das explizit: "match the font color of the field tags
-     with the document's background color so it is not visible through the fields."
-     Tags müssen weiß sein, sonst sieht der Empfänger sie im signierten PDF. */
+  /* Iter 87 (22.05.2026): Tag-Farbe = Hintergrund-Weiß (unsichtbar im finalen Doc). */
   .sa-sigblock .sig-tag { color: #ffffff; font-size: 9px; user-select: none; }
 `;
 

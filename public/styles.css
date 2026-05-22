@@ -1112,17 +1112,17 @@ input[type="range"].spar-zins-range::-moz-range-track {
   color: #000;
   position: relative;
 }
-/* Header: B&B-Schriftzug links, Titel + Seite rechts. Dezenter, mit Hairline-Trennlinie. */
+/* Header: B&B-Schriftzug links, Titel + Seite rechts. Bronze-Akzent statt Schwarz. */
 .pdf-template .sa-head {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
   margin-bottom: 7mm;
   padding-bottom: 4mm;
-  border-bottom: 0.3px solid #000;
+  border-bottom: 1.5px solid #B08A4D;
 }
 .pdf-template .sa-head .sa-logo {
-  height: 9mm !important;
+  height: 10mm !important;
   width: auto !important;
   max-width: 55mm;
   display: block;
@@ -1132,24 +1132,24 @@ input[type="range"].spar-zins-range::-moz-range-track {
   line-height: 1.15;
 }
 .pdf-template .sa-title {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 2.5px;
-  color: #000;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  color: #1B1B1B;
   text-transform: uppercase;
 }
 .pdf-template .sa-title .sa-title-sub {
   font-weight: 300;
-  font-size: 9.5px;
-  letter-spacing: 3px;
+  font-size: 9px;
+  letter-spacing: 2.5px;
   margin-left: 2mm;
-  color: #333;
+  color: #B08A4D;
 }
 .pdf-template .sa-page-num {
-  font-size: 7.5px;
+  font-size: 8px;
   font-weight: 300;
   color: #888;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
   margin-top: 2mm;
   text-transform: uppercase;
 }
@@ -1159,18 +1159,41 @@ input[type="range"].spar-zins-range::-moz-range-track {
   margin: 0;
 }
 .pdf-template .sa-table thead th {
-  background: #000;
-  color: #fff;
-  font-size: 8.5px;
-  font-weight: 700;
+  background: #FAF7F0;
+  color: #1B1B1B;
+  font-size: 9.5px;
+  font-weight: 600;
   text-align: left;
-  padding: 4px 8px;
-  letter-spacing: 0.6px;
+  padding: 3.5mm 3mm 3mm 3mm;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
-  border: none;
+  border-top: 1.5px solid #B08A4D;
+  border-bottom: 0.5px solid #1B1B1B;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
+/* Bonitäts-Box (NEU, oben Seite 2) */
+.pdf-template .sa-bonitaet-box {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4mm;
+  background: #FAF7F0;
+  border-left: 3px solid #B08A4D;
+  padding: 4mm 5mm;
+  margin-bottom: 4mm;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.pdf-template .sa-bonitaet-cell { display: flex; flex-direction: column; gap: 1mm; }
+.pdf-template .sa-bonitaet-label { font-size: 8px; text-transform: uppercase; letter-spacing: 1.2px; color: #777; font-weight: 500; }
+.pdf-template .sa-bonitaet-value { font-size: 14px; font-weight: 600; color: #1B1B1B; letter-spacing: -0.2px; }
+.pdf-template .sa-bonitaet-value.saldo-negativ { color: #8E2C2C; }
+.pdf-template .sa-bonitaet-note { font-size: 8px; color: #888; margin-bottom: 6mm; font-style: italic; letter-spacing: 0.2px; }
+/* Bei Einzel-Antragsteller: leere M-Spalte ausblenden */
+.pdf-template .pdf-page.sa-page.single-applicant .sa-table tbody td.sa-label { width: 38%; }
+.pdf-template .pdf-page.sa-page.single-applicant .sa-table tbody td:nth-child(2) { width: 62%; }
+.pdf-template .pdf-page.sa-page.single-applicant .sa-table tbody td:nth-child(3),
+.pdf-template .pdf-page.sa-page.single-applicant .sa-table thead th:nth-child(3) { display: none; }
 .pdf-template .sa-table thead th.sa-section-h {
   width: 32%;
 }
