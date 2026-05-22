@@ -905,15 +905,15 @@ function _buildSelbstauskunftBody(kunde, user) {
       </p>
       <div class="sa-sigblock">
         <div class="sig-col">
-          <div class="sig-line"><span class="sig-tag" style="color:#888;font-size:9px;">[signature:Antragsteller_______________]</span></div>
+          <div class="sig-line"><span class="sig-tag">{signature_______________}</span></div>
           <div class="sig-meta">Ort, Datum &middot; Unterschrift Antragsteller</div>
-          <div class="sig-meta sig-tag" style="margin-top:1mm;color:#888;font-size:9px;">[date:Antragsteller________]</div>
+          <div class="sig-meta sig-tag" style="margin-top:1mm;">{date________}</div>
         </div>
         ${gemeinsam ? `
         <div class="sig-col">
-          <div class="sig-line"><span class="sig-tag" style="color:#888;font-size:9px;">[signature:Mitantragsteller_______________]</span></div>
+          <div class="sig-line"><span class="sig-tag">{signature_______________}</span></div>
           <div class="sig-meta">Ort, Datum &middot; Unterschrift Mitantragsteller</div>
-          <div class="sig-meta sig-tag" style="margin-top:1mm;color:#888;font-size:9px;">[date:Mitantragsteller________]</div>
+          <div class="sig-meta sig-tag" style="margin-top:1mm;">{date________}</div>
         </div>` : '<div></div>'}
       </div>
       ${_footer(user)}
@@ -989,7 +989,11 @@ const _SA_INLINE_CSS = `
   .sa-sigblock .sig-col { display: flex; flex-direction: column; }
   .sa-sigblock .sig-line { border-bottom: 0.5px solid #000; min-height: 12mm; padding: 2mm 0; }
   .sa-sigblock .sig-meta { font-size: 8.5px; color: #555; margin-top: 1mm; }
-  .sa-sigblock .sig-tag { color: #888; font-size: 9px; }  /* Iter 85: Tags lesbar als hellgrauer Text — versteckter Text wurde von PandaDoc evtl. ignoriert */
+  /* Iter 87 (22.05.2026): Tag-Farbe = Hintergrund-Weiß (unsichtbar im finalen Doc).
+     PandaDoc-Doku empfiehlt das explizit: "match the font color of the field tags
+     with the document's background color so it is not visible through the fields."
+     Tags müssen weiß sein, sonst sieht der Empfänger sie im signierten PDF. */
+  .sa-sigblock .sig-tag { color: #ffffff; font-size: 9px; user-select: none; }
 `;
 
 window.PDF = { investitionsrechnung, reservierung, selbstauskunft, selbstauskunftHtmlForPandaDoc };
