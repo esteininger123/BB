@@ -686,8 +686,10 @@ function _buildSelbstauskunftBody(kunde, user) {
           ${rowChk('Güterstand (bei verheiratet)', ['Zugewinngemeinschaft','Gütertrennung','Gütergemeinschaft','Ehevertrag'], a.gueterstand, m.gueterstand)}
           ${row('Kinder im Haushalt', a.kinderAnzahl !== undefined && a.kinderAnzahl !== null ? `Anzahl: ${a.kinderAnzahl}${a.kinderAlter ? ' / Alter: ' + a.kinderAlter : ''}` : '', m.kinderAnzahl !== undefined && m.kinderAnzahl !== null ? `Anzahl: ${m.kinderAnzahl}${m.kinderAlter ? ' / Alter: ' + m.kinderAlter : ''}` : '')}
           ${row('Davon unterhaltspflichtig', a.unterhaltspflichtig, m.unterhaltspflichtig)}
-          ${rowChk('Kinder in Planung', ['ja','nein'], a.kinderPlanung, m.kinderPlanung)}
-          ${row('KFZ Anzahl', a.kfzAnzahl, m.kfzAnzahl)}
+          ${/* SA-Redesign (22.05.2026): kinderPlanung raus (DSGVO-Risiko), kfzAnzahl raus (nicht Bank-relevant), kirchensteuer raus (Bank ermittelt via Steuer-ID) */ ''}
+          ${row('Wohnsituation', a.wohnsituation ? (a.wohnsituation === 'eigentum' ? 'Eigentum' : a.wohnsituation === 'miete' ? 'zur Miete' : 'mietfrei') : '', m.wohnsituation ? (m.wohnsituation === 'eigentum' ? 'Eigentum' : m.wohnsituation === 'miete' ? 'zur Miete' : 'mietfrei') : '')}
+          ${(a.wohnsituation === 'miete' || m.wohnsituation === 'miete') ? row('Vermieter', a.vermieter, m.vermieter) : ''}
+          ${(a.vorAnschrift || m.vorAnschrift) ? row('Vor-Anschrift (<3 J)', a.vorAnschrift, m.vorAnschrift) : ''}
           ${row('Bank', a.bank, m.bank)}
           ${row('IBAN', a.iban, m.iban)}
           ${row('BIC', a.bic, m.bic)}
@@ -722,7 +724,6 @@ function _buildSelbstauskunftBody(kunde, user) {
             };
             return renderImmoMieten(a.immobilien, 'A') + (gemeinsam ? renderImmoMieten(m.immobilien, 'M') : '');
           })()}
-          ${rowChk('Kirchensteuerpflicht', ['ja','nein'], a.kirchensteuer, m.kirchensteuer)}
         </tbody>
         <thead><tr><th class="sa-section-h">MONATLICHE AUSGABEN</th><th>ANTRAGSTELLER</th><th>${gemeinsam ? 'MITANTRAGSTELLER' : ''}</th></tr></thead>
         <tbody>

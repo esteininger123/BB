@@ -3884,14 +3884,18 @@ function saCoverage(sa, gemeinsam) {
   if (!sa) return { pct: 0, sektionen: [] };
   // Pflichtfelder pro Person — daraus baut sich die Coverage. Auswahl basiert auf
   // dem typischen Hypovision-Bogen + GwG-Pflicht + Banken-Erfahrungswerten.
+  // SA-Redesign (22.05.2026): bruttoMo + steuerklasse rein (Bank rechnet Brutto gegen
+  //   Steuerklasse für Netto-Plausibilisierung). probezeit + vorAnschrift waren bisher
+  //   nur im PDF erfassbar — Frontend↔PDF-Drift geschlossen.
   const pflichtPro = [
     { sek: 'Person',          felder: ['vorname','name','geburtsdatum','strasse','plz','ort','staatsangehoerigkeit','telefonPrivat','email','steuerId','familienstand'] },
-    { sek: 'Beruf',           felder: ['beruf','firma','beschaeftigtSeit','befristung'] },
-    { sek: 'Einkommen',       felder: ['nettoMo','anzahlGehaelter'] },
+    { sek: 'Beruf',           felder: ['beruf','firma','beschaeftigtSeit','befristung','probezeit'] },
+    { sek: 'Einkommen',       felder: ['bruttoMo','nettoMo','steuerklasse','anzahlGehaelter'] },
     { sek: 'Fixkosten',       felder: ['mieteMo'] },
     { sek: 'Vermögen',        felder: ['bankguthaben'] },
     { sek: 'GwG-Identität',   felder: ['gwg.ausweisArt','gwg.ausweisNr','gwg.ausweisGueltig'] },
     { sek: 'PEP-Status',      felder: ['pep'] },
+    { sek: 'Wohnsituation',   felder: ['wohnsituation'] },
   ];
   const personen = gemeinsam ? [['Antragsteller 1', sa.antragsteller || {}], ['Antragsteller 2', sa.mitantragsteller || {}]]
                               : [['Antragsteller',  sa.antragsteller || {}]];
@@ -4789,6 +4793,9 @@ function saPersonHtml(prefix, p) {
       ${t('PLZ', 'plz')}
       ${t('Ort', 'ort')}
       ${t('Wohnhaft seit (MM/JJJJ)', 'wohnhaftSeit')}
+      ${t('Vor-Anschrift (falls < 3 Jahre)', 'vorAnschrift')}
+      ${s('Wohnsituation', 'wohnsituation', [{v:'',l:'—'},{v:'eigentum',l:'Eigentum'},{v:'miete',l:'zur Miete'},{v:'mietfrei',l:'mietfrei (bei Eltern u. ä.)'}])}
+      ${t('Vermieter (Name, falls zur Miete)', 'vermieter')}
       ${t('Telefon privat', 'telefonPrivat')}
       ${t('Telefon geschäftlich', 'telefonGeschaeftlich')}
       ${t('E-Mail', 'email')}
@@ -4797,6 +4804,8 @@ function saPersonHtml(prefix, p) {
       ${t('Beschäftigt bei Firma', 'firma')}
       ${d('Beschäftigt seit', 'beschaeftigtSeit')}
       ${s('Befristung', 'befristung', [{v:'unbefristet',l:'unbefristet'},{v:'befristet',l:'befristet'}])}
+      ${s('Probezeit', 'probezeit', [{v:'',l:'—'},{v:'nein',l:'nein'},{v:'ja',l:'ja'}])}
+      ${n('Unterhaltspflichtige Personen', 'unterhaltspflichtig')}
       ${s('Familienstand', 'familienstand', [
         {v:'ledig',l:'ledig'},{v:'verheiratet',l:'verheiratet'},
         {v:'geschieden',l:'geschieden'},{v:'verwitwet',l:'verwitwet'}
@@ -4810,9 +4819,8 @@ function saPersonHtml(prefix, p) {
       ])}
       ${n('Kinder im Haushalt', 'kinderAnzahl')}
       ${t('Kinder Alter (Kommasep.)', 'kinderAlter')}
-      ${s('Kinder in Planung', 'kinderPlanung', [{v:'',l:'—'},{v:'nein',l:'nein'},{v:'ja',l:'ja, in den nächsten 2 Jahren'}])}
-      ${s('Kirchensteuerpflicht', 'kirchensteuer', [{v:'',l:'—'},{v:'nein',l:'nein'},{v:'ja',l:'ja'}])}
-      ${n('KFZ Anzahl', 'kfzAnzahl')}
+      ${/* SA-Redesign (22.05.2026): kirchensteuer raus (Bank ermittelt via Steuer-ID), kfzAnzahl raus (nicht Bank-relevant). kinderPlanung bleibt als Berater-interne Notiz, NICHT im PDF. */ ''}
+      ${s('Kinder geplant (interne Notiz, nicht im PDF)', 'kinderPlanung', [{v:'',l:'—'},{v:'nein',l:'nein'},{v:'ja',l:'ja, in den nächsten 2 Jahren'}])}
       ${t('Hausbank', 'bank')}
       ${t('IBAN', 'iban')}
       ${t('BIC', 'bic')}
