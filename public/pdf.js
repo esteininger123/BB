@@ -905,15 +905,15 @@ function _buildSelbstauskunftBody(kunde, user) {
       </p>
       <div class="sa-sigblock">
         <div class="sig-col">
-          <div class="sig-line"><span class="sig-tag">{signature_______________}</span></div>
+          <div class="sig-line"><span class="sig-tag">[signature:Antragsteller____]</span></div>
           <div class="sig-meta">Ort, Datum &middot; Unterschrift Antragsteller</div>
-          <div class="sig-meta sig-tag" style="margin-top:1mm;">{date________}</div>
+          <div class="sig-meta sig-tag" style="margin-top:1mm;">[date:Antragsteller____]</div>
         </div>
         ${gemeinsam ? `
         <div class="sig-col">
-          <div class="sig-line"><span class="sig-tag">{signature_______________}</span></div>
+          <div class="sig-line"><span class="sig-tag">[signature:Mitantragsteller____]</span></div>
           <div class="sig-meta">Ort, Datum &middot; Unterschrift Mitantragsteller</div>
-          <div class="sig-meta sig-tag" style="margin-top:1mm;">{date________}</div>
+          <div class="sig-meta sig-tag" style="margin-top:1mm;">[date:Mitantragsteller____]</div>
         </div>` : '<div></div>'}
       </div>
       ${_footer(user)}
