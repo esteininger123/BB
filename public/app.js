@@ -849,40 +849,42 @@ function renderTabKalkulator() {
   const wesImProjekt = aktivesProjekt && wesByProjekt[aktivesProjekt] ? wesByProjekt[aktivesProjekt] : [];
 
   el.innerHTML = `
-    <div class="card">
-      <div class="card-title">Objekt &amp; Wohneinheit</div>
-      <div class="flex gap-12 mb-12" style="align-items:center;">
-        <label style="text-transform:none;letter-spacing:0;display:flex;align-items:center;gap:6px;">
-          <input type="radio" name="we-mode" value="single" ${!isPaket ? 'checked' : ''} onclick="setWeMode('single')"> Einzel-WE
+    <div class="card kalk-input-minimal we-picker">
+      <div class="card-title">${isPaket ? 'Welches Paket darf es sein?' : 'Welche Wohnung darf es sein?'}</div>
+      <div class="we-picker-mode" style="display:flex;gap:6px;margin-bottom:24px;border:1px solid var(--border);border-radius:2px;overflow:hidden;width:fit-content">
+        <label class="we-picker-mode-btn" style="padding:8px 18px;background:${!isPaket ? 'var(--accent)' : 'transparent'};color:${!isPaket ? 'var(--on-accent)' : 'var(--text-secondary)'};cursor:pointer;font-size:12px;font-weight:${!isPaket ? '500' : '400'};letter-spacing:.04em;transition:all .15s ease;border-right:1px solid var(--border);text-transform:none;margin:0;">
+          <input type="radio" name="we-mode" value="single" ${!isPaket ? 'checked' : ''} onclick="setWeMode('single')" style="display:none"> Einzelne Wohnung
         </label>
-        <label style="text-transform:none;letter-spacing:0;display:flex;align-items:center;gap:6px;">
-          <input type="radio" name="we-mode" value="paket" ${isPaket ? 'checked' : ''} onclick="setWeMode('paket')"> Paket (mehrere)
+        <label class="we-picker-mode-btn" style="padding:8px 18px;background:${isPaket ? 'var(--accent)' : 'transparent'};color:${isPaket ? 'var(--on-accent)' : 'var(--text-secondary)'};cursor:pointer;font-size:12px;font-weight:${isPaket ? '500' : '400'};letter-spacing:.04em;transition:all .15s ease;text-transform:none;margin:0;">
+          <input type="radio" name="we-mode" value="paket" ${isPaket ? 'checked' : ''} onclick="setWeMode('paket')" style="display:none"> Paket aus mehreren
         </label>
       </div>
-      <div class="grid-3">
-        <div>
-          <label>1. Objekt / Projekt</label>
+      <div class="grid-3 we-picker-grid">
+        <div class="we-picker-step">
+          <span class="we-picker-step-num">01</span>
+          <label>Objekt</label>
           <select id="projekt-select">
-            <option value="">— Projekt wählen —</option>
+            <option value="">Projekt wählen</option>
             ${projektNames.map(p => `
-              <option value="${esc(p)}" ${aktivesProjekt === p ? 'selected' : ''}>${esc(p)} (${wesByProjekt[p].length} WE)</option>
+              <option value="${esc(p)}" ${aktivesProjekt === p ? 'selected' : ''}>${esc(p)} · ${wesByProjekt[p].length} WE</option>
             `).join('')}
           </select>
-          <div class="text-tertiary text-small mt-4">${projektNames.length} Projekt${projektNames.length === 1 ? '' : 'e'} in Vermarktung</div>
+          <div class="we-picker-hint">${projektNames.length} ${projektNames.length === 1 ? 'Projekt' : 'Projekte'} aktuell in Vermarktung</div>
         </div>
-        <div>
+        <div class="we-picker-step">
+          <span class="we-picker-step-num">02</span>
           ${isPaket ? `
-            <label>2. Wohneinheiten im Paket</label>
+            <label>Wohneinheiten im Paket</label>
             <select id="we-paket-select" multiple size="8" style="height:auto;" ${!aktivesProjekt ? 'disabled' : ''}>
               ${wesImProjekt.map(w => `
                 <option value="${esc(w.id)}" ${state.kalk._paketWeIds.includes(w.id) ? 'selected' : ''}>${esc(weLabel(w))}</option>
               `).join('')}
             </select>
-            <div class="text-tertiary text-small mt-4">${!aktivesProjekt ? 'Erst Projekt wählen.' : 'Ctrl/Cmd + Klick für mehrere. Aktuell: ' + state.kalk._paketWeIds.length + ' WE'}</div>
+            <div class="we-picker-hint">${!aktivesProjekt ? 'Erst ein Projekt wählen.' : 'Ctrl/Cmd + Klick für mehrere · aktuell ' + state.kalk._paketWeIds.length + ' ausgewählt'}</div>
           ` : `
-            <label>2. Wohneinheit</label>
+            <label>Wohneinheit</label>
             <select id="we-select" ${!aktivesProjekt ? 'disabled' : ''}>
-              <option value="">${aktivesProjekt ? '— WE wählen —' : '— Erst Projekt wählen —'}</option>
+              <option value="">${aktivesProjekt ? 'Wohneinheit wählen' : 'Erst ein Projekt wählen'}</option>
               ${wesImProjekt.map(w => `
                 <option value="${esc(w.id)}" ${i._weId === w.id ? 'selected' : ''}>${esc(weLabel(w))}</option>
               `).join('')}
