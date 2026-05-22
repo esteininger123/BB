@@ -1881,3 +1881,160 @@ input[type="range"].spar-zins-range::-moz-range-track {
     print-color-adjust: exact;
   }
 }
+
+/* =====================================================================
+   Iter 89: Premium-Reduktion Magazin-View (Variante C)
+   ---------------------------------------------------------------------
+   Alle Klassen namespaced mit .kalk-c-* damit sie nicht mit den alten
+   .story-card-Klassen kollidieren. Wird in #story-container von
+   renderStoryPremium(r) gerendert (app.js).
+   ===================================================================== */
+
+.kalk-c-magazine{max-width:1180px;margin:0 auto;padding:0}
+.kalk-c-rule{height:1px;background:var(--accent);opacity:.55;width:100%;margin:0}
+
+/* Hero */
+.kalk-c-hero{padding:48px 0 96px;display:flex;flex-direction:column;justify-content:space-between}
+.kalk-c-hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:48px}
+.kalk-c-hero-meta{text-align:right;font-size:12px;line-height:1.7;color:var(--text-tertiary)}
+.kalk-c-hero-meta .kalk-c-label{font-weight:500;color:var(--text-secondary);letter-spacing:.04em}
+.kalk-c-hero-body{margin-top:auto;padding-top:64px}
+.kalk-c-hero-address{font-size:13px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:var(--accent-dark)}
+.kalk-c-hero-headline{margin-top:28px;font-size:60px;font-weight:200;line-height:1.04;letter-spacing:-.025em;color:var(--text-primary);max-width:14ch}
+.kalk-c-hero-headline .kalk-c-num-accent{color:var(--accent-dark);font-weight:300}
+.kalk-c-hero-sub{margin-top:24px;font-size:17px;font-weight:400;line-height:1.6;color:var(--text-secondary);max-width:52ch}
+.kalk-c-hero-strip{margin-top:72px;display:grid;grid-template-columns:repeat(3,1fr);gap:48px;padding-top:28px;border-top:1px solid rgba(176,138,77,.55)}
+.kalk-c-strip-cell .kalk-c-strip-label{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--text-tertiary);font-weight:500}
+.kalk-c-strip-cell .kalk-c-strip-value{margin-top:10px;font-size:28px;font-weight:300;letter-spacing:-.01em;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.kalk-c-strip-cell .kalk-c-strip-value .kalk-c-unit{font-size:13px;font-weight:400;color:var(--text-tertiary);margin-left:4px;letter-spacing:0}
+
+/* Sections */
+.kalk-c-section{padding:96px 0}
+.kalk-c-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:64px;margin-bottom:64px}
+.kalk-c-section-head .kalk-c-left{flex:0 0 auto}
+.kalk-c-section-head .kalk-c-right{flex:1;max-width:48ch;color:var(--text-secondary);font-size:15px;line-height:1.75;font-weight:400}
+.kalk-c-section-num{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent-dark);font-weight:500}
+.kalk-c-section-title{margin-top:16px;font-size:40px;font-weight:200;letter-spacing:-.02em;line-height:1.1;color:var(--text-primary);max-width:14ch}
+
+/* Two-column */
+.kalk-c-two-col{display:grid;grid-template-columns:3fr 2fr;gap:64px;align-items:center}
+.kalk-c-two-col.kalk-c-reverse{grid-template-columns:2fr 3fr}
+.kalk-c-col-text p{font-size:15px;line-height:1.8;color:var(--text-secondary);font-weight:400;margin-bottom:18px}
+.kalk-c-col-text .kalk-c-lead{font-size:22px;line-height:1.45;font-weight:300;color:var(--text-primary);letter-spacing:-.01em;margin-bottom:24px}
+.kalk-c-col-text .kalk-c-meta-line{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-tertiary);margin-top:24px;font-weight:500}
+.kalk-c-col-chart{position:relative}
+.kalk-c-col-chart .kalk-c-chart-frame{position:relative;width:100%;height:340px}
+.kalk-c-col-chart .kalk-c-chart-caption{margin-top:16px;font-size:11px;color:var(--text-tertiary);letter-spacing:.02em;line-height:1.6}
+
+/* Section 1 — Objekt-Liste */
+.kalk-c-objekt-list{display:grid;grid-template-columns:1fr 1fr;gap:0 64px}
+.kalk-c-objekt-row{display:flex;justify-content:space-between;align-items:baseline;padding:14px 0;border-bottom:1px solid var(--border)}
+.kalk-c-objekt-row .kalk-c-k{font-size:13px;color:var(--text-tertiary);font-weight:400}
+.kalk-c-objekt-row .kalk-c-v{font-size:16px;color:var(--text-primary);font-weight:400;font-variant-numeric:tabular-nums}
+.kalk-c-objekt-row .kalk-c-v .kalk-c-unit{font-size:11px;color:var(--text-tertiary);margin-left:4px}
+
+/* Einsatz-Block */
+.kalk-c-einsatz-block{margin-top:64px;padding:40px 48px;background:var(--bg-section);border-radius:2px}
+.kalk-c-einsatz-head{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:28px;font-weight:500}
+.kalk-c-einsatz-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:40px}
+.kalk-c-einsatz-cell{display:flex;flex-direction:column;gap:8px}
+.kalk-c-einsatz-label{font-size:12px;color:var(--text-tertiary);font-weight:400}
+.kalk-c-einsatz-value{font-size:32px;font-weight:200;letter-spacing:-.02em;color:var(--text-primary);font-variant-numeric:tabular-nums}
+.kalk-c-einsatz-value.kalk-c-accent-color{color:var(--accent-dark)}
+.kalk-c-einsatz-value .kalk-c-unit{font-size:13px;color:var(--text-tertiary);margin-left:6px;font-weight:400}
+.kalk-c-einsatz-sub{font-size:11px;color:var(--text-tertiary);line-height:1.5;font-weight:400}
+.kalk-c-einsatz-note{margin-top:32px;padding-top:24px;border-top:1px solid var(--border);font-size:13px;line-height:1.7;color:var(--text-secondary);max-width:70ch}
+
+/* Section 4 · Vergleich */
+.kalk-c-compare{display:grid;grid-template-columns:1fr;gap:48px;align-items:center;max-width:920px;margin:0 auto}
+.kalk-c-compare-headline{font-size:48px;font-weight:200;letter-spacing:-.025em;line-height:1.05;text-align:center;color:var(--text-primary)}
+.kalk-c-compare-headline .kalk-c-delta{color:var(--accent-dark);font-weight:300}
+.kalk-c-compare-sub{text-align:center;font-size:16px;line-height:1.7;color:var(--text-secondary);max-width:60ch;margin:0 auto;font-weight:400}
+.kalk-c-compare-chart-wrap{height:260px;position:relative;max-width:640px;margin:0 auto;width:100%}
+
+/* Section 5 · Drilldowns */
+.kalk-c-drill-section{padding:96px 0 120px}
+.kalk-c-drill-head{text-align:center;max-width:60ch;margin:0 auto 48px}
+.kalk-c-drill-head .kalk-c-section-num{display:block;margin-bottom:16px}
+.kalk-c-drill-head h2{font-size:32px;font-weight:200;letter-spacing:-.02em;line-height:1.2;color:var(--text-primary)}
+.kalk-c-drill-head p{margin-top:18px;font-size:15px;line-height:1.7;color:var(--text-secondary)}
+.kalk-c-drill-links{display:flex;justify-content:center;flex-wrap:wrap;gap:0;padding-top:32px;border-top:1px solid rgba(176,138,77,.55)}
+.kalk-c-drill-link{flex:1 1 0;min-width:180px;padding:28px 20px;text-align:center;text-decoration:none;color:var(--text-primary);font-size:14px;font-weight:400;letter-spacing:.02em;border-right:1px solid var(--border);transition:background .2s ease,color .2s ease;cursor:pointer;background:transparent;border-top:none;border-bottom:none;border-left:none;font-family:inherit}
+.kalk-c-drill-link:last-child{border-right:none}
+.kalk-c-drill-link .kalk-c-arrow{display:block;font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--text-tertiary);margin-top:8px;transition:color .2s ease}
+.kalk-c-drill-link:hover{color:var(--accent-dark)}
+.kalk-c-drill-link:hover .kalk-c-arrow{color:var(--accent)}
+
+/* Section 6 · Weg */
+.kalk-c-weg-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0}
+.kalk-c-weg-step{display:grid;grid-template-columns:72px 1fr;gap:28px;align-items:start;padding:28px 0;border-bottom:1px solid var(--border)}
+.kalk-c-weg-step:last-child{border-bottom:none}
+.kalk-c-weg-num{font-size:38px;font-weight:200;letter-spacing:-.02em;color:var(--accent-dark);line-height:1;font-variant-numeric:tabular-nums}
+.kalk-c-weg-body{padding-top:6px}
+.kalk-c-weg-title{font-size:19px;font-weight:400;color:var(--text-primary);margin-bottom:10px;letter-spacing:-.005em}
+.kalk-c-weg-desc{font-size:14px;line-height:1.7;color:var(--text-secondary);font-weight:400;max-width:64ch}
+
+/* Section 7 · Brot & Butter */
+.kalk-c-bub-section .kalk-c-right{max-width:32ch}
+.kalk-c-bub-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:36px;margin-top:8px}
+.kalk-c-bub-cell{display:flex;flex-direction:column;gap:16px}
+.kalk-c-bub-step{font-size:22px;font-weight:300;letter-spacing:-.01em;color:var(--accent-dark);padding-bottom:16px;border-bottom:1px solid var(--accent-light)}
+.kalk-c-bub-body{font-size:13px;line-height:1.7;color:var(--text-secondary);font-weight:400}
+.kalk-c-bub-foot{margin-top:48px;display:grid;grid-template-columns:1fr 1fr;gap:40px;padding-top:32px;border-top:1px solid var(--border)}
+.kalk-c-bub-foot-item{font-size:13px;line-height:1.7;color:var(--text-secondary)}
+.kalk-c-bub-foot-item strong{color:var(--text-primary);font-weight:500;display:block;margin-bottom:6px}
+
+/* Closing */
+.kalk-c-closing{padding:64px 0 80px;border-top:1px solid var(--border);text-align:center}
+.kalk-c-closing .kalk-c-signature{font-size:13px;color:var(--text-secondary);line-height:1.8}
+.kalk-c-closing .kalk-c-signature strong{font-weight:500;color:var(--text-primary)}
+.kalk-c-closing .kalk-c-disclaimer{margin-top:32px;font-size:10.5px;color:var(--text-tertiary);line-height:1.7;max-width:70ch;margin-left:auto;margin-right:auto}
+
+/* Modal */
+.kalk-c-modal-backdrop{position:fixed;inset:0;background:rgba(26,26,23,.45);backdrop-filter:blur(4px);display:none;align-items:flex-start;justify-content:center;z-index:100;padding:60px 24px;overflow-y:auto}
+.kalk-c-modal-backdrop.kalk-c-open{display:flex}
+.kalk-c-modal{background:var(--bg-primary);max-width:880px;width:100%;border-radius:0;padding:56px 64px;position:relative;box-shadow:0 30px 80px rgba(0,0,0,.18)}
+.kalk-c-modal-close{position:absolute;top:24px;right:28px;background:none;border:none;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--text-tertiary);cursor:pointer;font-family:inherit;font-weight:500}
+.kalk-c-modal-close:hover{color:var(--accent-dark)}
+.kalk-c-modal .kalk-c-eyebrow{margin-bottom:14px;font-size:10.5px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--text-tertiary)}
+.kalk-c-modal h3{font-size:28px;font-weight:200;letter-spacing:-.02em;margin-bottom:8px;color:var(--text-primary)}
+.kalk-c-modal .kalk-c-sub{font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:32px;max-width:60ch}
+.kalk-c-modal table{width:100%;border-collapse:collapse;font-size:13px}
+.kalk-c-modal table th{text-align:left;padding:10px 0;font-weight:500;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-tertiary);border-bottom:1px solid var(--border)}
+.kalk-c-modal table th.kalk-c-r{text-align:right}
+.kalk-c-modal table td{padding:12px 0;border-bottom:1px solid var(--border);color:var(--text-primary);font-variant-numeric:tabular-nums}
+.kalk-c-modal table td.kalk-c-r{text-align:right}
+.kalk-c-modal table tr:last-child td{border-bottom:none}
+.kalk-c-modal table tr.kalk-c-total td{font-weight:500;color:var(--text-primary);padding-top:14px;border-top:1px solid var(--accent);border-bottom:none}
+.kalk-c-modal .kalk-c-pos{color:var(--positive)}
+.kalk-c-modal .kalk-c-neg{color:var(--negative)}
+.kalk-c-modal .kalk-c-accent{color:var(--accent-dark)}
+.kalk-c-saldo-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:8px}
+.kalk-c-saldo-card .kalk-c-label{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-tertiary);font-weight:500;margin-bottom:14px}
+.kalk-c-saldo-card .kalk-c-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;font-variant-numeric:tabular-nums}
+.kalk-c-saldo-card .kalk-c-row.kalk-c-total{border-bottom:none;border-top:1px solid var(--accent);padding-top:12px;margin-top:4px;font-weight:500}
+.kalk-c-assumptions{display:grid;grid-template-columns:1fr 1fr;gap:24px 56px;margin-top:8px}
+.kalk-c-assumptions .kalk-c-ass-row{display:flex;justify-content:space-between;font-size:13px;padding:8px 0;border-bottom:1px dotted var(--border);font-variant-numeric:tabular-nums}
+.kalk-c-assumptions .kalk-c-ass-row .kalk-c-k{color:var(--text-tertiary)}
+.kalk-c-assumptions .kalk-c-ass-row .kalk-c-v{color:var(--text-primary)}
+
+@media (max-width:900px){
+  .kalk-c-hero-headline{font-size:40px}
+  .kalk-c-hero-strip{grid-template-columns:repeat(2,1fr);gap:28px;margin-top:48px}
+  .kalk-c-section-head{flex-direction:column;align-items:flex-start;gap:20px}
+  .kalk-c-section-title{font-size:28px}
+  .kalk-c-two-col,.kalk-c-two-col.kalk-c-reverse{grid-template-columns:1fr;gap:40px}
+  .kalk-c-objekt-list{grid-template-columns:1fr}
+  .kalk-c-compare-headline{font-size:32px}
+  .kalk-c-drill-links{flex-direction:column}
+  .kalk-c-drill-link{border-right:none;border-bottom:1px solid var(--border)}
+  .kalk-c-drill-link:last-child{border-bottom:none}
+  .kalk-c-modal{padding:32px 24px}
+  .kalk-c-saldo-grid,.kalk-c-assumptions{grid-template-columns:1fr}
+  .kalk-c-einsatz-block{padding:28px 24px}
+  .kalk-c-einsatz-grid{grid-template-columns:1fr;gap:28px}
+  .kalk-c-weg-step{grid-template-columns:42px 1fr;gap:18px}
+  .kalk-c-weg-num{font-size:28px}
+  .kalk-c-bub-grid{grid-template-columns:1fr;gap:28px}
+  .kalk-c-bub-foot{grid-template-columns:1fr;gap:20px}
+}

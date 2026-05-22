@@ -1987,8 +1987,9 @@ function recalcAndRender() {
   // Charts
   drawCharts(r);
 
-  // Story-Sektionen
-  renderStories(r);
+  // Story-Sektionen — Iter 89: Premium-Reduktion Magazin-View (Variante C).
+  // Alte renderStories(r) bleibt im Code als Sicherheits-Anker für schnellen Rollback.
+  renderStoryPremium(r);
 }
 
 // Rendert 7 Story-Sektionen mit ausführlichen Erklärungen — Vertriebs-Story der Kalkulation.
@@ -2305,6 +2306,607 @@ function renderStories(r) {
   `);
 
   el.innerHTML = (markteinkauf || markteinkaufHint) + cashflowHeute + steuervorteil + dreiHebel + exit10 + bonStory + sparenStory;
+}
+
+/* ============================================================
+   Iter 89: Premium-Reduktion Magazin-View (Variante C)
+   ============================================================
+   Rendert in #story-container den Magazin-Flow:
+   Hero · Section 1 (Objekt+Einsatz) · Section 2 (Plan) ·
+   Section 3 (Aussicht) · Section 4 (Vergleich) · Section 5
+   (Drilldowns mit Modals) · Section 6 (Weg) · Section 7 (B&B).
+
+   Math-Engine wird NICHT angefasst — alle Werte aus r und i.
+   Alte renderStories() bleibt im Code als Sicherheits-Anker.
+   Aktiviert über renderStoryPremium-Aufruf in recalcAndRender().
+   ============================================================ */
+let _cMagazinCharts = { belastung: null, vermoegen: null, compare: null };
+
+function renderStoryPremium(r) {
+  const el = document.getElementById('story-container');
+  if (!el) return;
+  const fmt = window.Kalk.fmtEur;
+  const fmtPct = window.Kalk.fmtPct;
+  const fmtEurMo = window.Kalk.fmtEurMo;
+  const i = state.kalk || {};
+  const k = state.kunde || {};
+  const u = state.user || {};
+
+  // Daten-Anker
+  const v10 = r.vermoegen[10] || {};
+  const sparen10 = r.sparen[10] || {};
+  const kpQm = r.kaufpreisProQm || 0;
+  const marktQm = parseFloat(i.marktwertProQm) || 0;
+  const heute = new Date().toLocaleDateString('de-DE');
+
+  // Personalisierung
+  const displayName = k.name || ((k.vorname || '') + ' ' + (k.nachname || '')).trim() || '—';
+
+  // Adresse-Anker
+  const adresseZeile = (state.kalk._projektName ? esc(state.kalk._projektName) + ' · ' : '')
+    + (state.kalk._weNr ? 'Wohneinheit ' + esc(state.kalk._weNr) : esc(state.kalk._weLage || ''));
+
+  // Dynamische Texte
+  const crossoverIdx = r.cf.findIndex(c => c.cfJahr > 0);
+  const crossoverJahr = crossoverIdx >= 0 ? (crossoverIdx + 1) : null;
+  const crossoverSatz = crossoverJahr
+    ? `Ab Jahr <span class="positive">${crossoverJahr}</span> dreht die Belastung ins Plus`
+    : `Über die 10 Jahre bleibt Deine Belastung im negativen Bereich`;
+
+  const nettoCrossoverIdx = r.vermoegen.findIndex(v => v.vermoegenNetto > 0);
+  const nettoCrossoverJahr = nettoCrossoverIdx >= 0 ? nettoCrossoverIdx : null;
+  const nettoCrossoverSatz = nettoCrossoverJahr
+    ? `Aus zunächst negativem Nettovermögen wird ab Jahr ${nettoCrossoverJahr} der Pfad nach oben sichtbar`
+    : `Der Pfad zum positiven Nettovermögen braucht in diesem Profil mehr als 10 Jahre`;
+
+  // 84-%-Selbsttragung (Miete + Steuervorteil / Annuität)
+  const selbsttragungPct = r.annuityMo > 0
+    ? Math.round(((r.mieteJ1Mo || 0) + (r.stVorteilJ1Mo || 0)) / r.annuityMo * 100)
+    : 0;
+
+  // KNK-Berechnung (= EK-Bedarf wenn KNK nicht mitfinanziert)
+  const knk = i.knkMitfinanziert ? 0 : r.ekBedarf;
+
+  // ===== HERO =====
+  const HERO = `
+    <header class="kalk-c-hero">
+      <div class="kalk-c-hero-top">
+        <div class="kalk-c-hero-meta">
+          <div><span class="kalk-c-label">Investitionsanalyse</span></div>
+          <div>${esc(heute)}</div>
+          <div>für ${esc(displayName)}</div>
+        </div>
+      </div>
+      <div class="kalk-c-hero-body">
+        <div class="kalk-c-hero-address">${adresseZeile}</div>
+        <h1 class="kalk-c-hero-headline">
+          In zehn Jahren hast Du <span class="kalk-c-num-accent">${fmt(r.vermoegenNetto10)}</span> aufgebaut.
+        </h1>
+        <p class="kalk-c-hero-sub">
+          ${i.qm ? 'Eine ' + i.qm.toString().replace('.', ',') + '-qm-Wohnung' : 'Eine Wohnung'} im Bestand. Die folgende Analyse zeigt Deinen Vermögensaufbau, Deine monatliche Belastung und den Vergleich zur klassischen Sparbuch-Alternative.
+        </p>
+        <div class="kalk-c-hero-strip">
+          <div class="kalk-c-strip-cell">
+            <div class="kalk-c-strip-label">Wohnfläche</div>
+            <div class="kalk-c-strip-value">${(i.qm || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">qm</span></div>
+          </div>
+          <div class="kalk-c-strip-cell">
+            <div class="kalk-c-strip-label">Gesamtinvestition</div>
+            <div class="kalk-c-strip-value">${Math.round(r.kpGesamt).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></div>
+          </div>
+          <div class="kalk-c-strip-cell">
+            <div class="kalk-c-strip-label">Miete kalt</div>
+            <div class="kalk-c-strip-value">${Math.round(r.mieteJ1Mo || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
+          </div>
+        </div>
+      </div>
+    </header>
+    <hr class="kalk-c-rule" />
+  `;
+
+  // ===== SECTION 1 · Objekt + Einsatz =====
+  const SECTION_1 = `
+    <section class="kalk-c-section">
+      <div class="kalk-c-section-head">
+        <div class="kalk-c-left">
+          <div class="kalk-c-section-num">01 · Das Objekt</div>
+          <h2 class="kalk-c-section-title">Eckdaten und Markt-Anker.</h2>
+        </div>
+        <div class="kalk-c-right">
+          Bestandswohnung in vermarktungsfähigem Zustand. Verkaufsmiete, Hausgeld und Verwaltungs-Setup sind unten aufgeschlüsselt — der Markt-Anker zeigt den Einkaufsvorteil zu Tag 1.
+        </div>
+      </div>
+      <div class="kalk-c-objekt-list">
+        <div>
+          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Adresse</span><span class="kalk-c-v">${esc(state.kalk._projektName || state.kalk._weLage || '—')}</span></div>
+          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Wohneinheit</span><span class="kalk-c-v">${esc(state.kalk._weNr || '—')}</span></div>
+          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Wohnfläche</span><span class="kalk-c-v">${(i.qm || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">qm</span></span></div>
+          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaufpreis Wohnung</span><span class="kalk-c-v">${Math.round(i.kaufpreis || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></span></div>
+          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Stellplatz</span><span class="kalk-c-v">${Math.round(i.stellplatzKp || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></span></div>
+        </div>
+        <div>
+          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaufpreis je qm</span><span class="kalk-c-v">${Math.round(kpQm).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></span></div>
+          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Marktpreis je qm</span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') : '—'}<span class="kalk-c-unit">€</span></span></div>
+          ${r.markteinkaufVorteil ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">Markteinkauf-Vorteil</span><span class="kalk-c-v">${fmt(r.markteinkaufVorteil)}</span></div>` : ''}
+          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaltmiete</span><span class="kalk-c-v">${Math.round(i.kaltmiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>
+          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Stellplatz-Miete</span><span class="kalk-c-v">${Math.round(i.stellplatzMiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>
+          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Hausgeld · HV · MV</span><span class="kalk-c-v">${Math.round(i.hausgeld || 0)} / ${Math.round(i.hausverwaltung || 0)} / ${Math.round(i.mietverwaltung || 0)}<span class="kalk-c-unit">€/Mo</span></span></div>
+        </div>
+      </div>
+      <div class="kalk-c-einsatz-block">
+        <div class="kalk-c-einsatz-head">Was Du einsetzt — Dein Eintritt in den Sachwert</div>
+        <div class="kalk-c-einsatz-grid">
+          <div class="kalk-c-einsatz-cell">
+            <div class="kalk-c-einsatz-label">Kaufpreis gesamt</div>
+            <div class="kalk-c-einsatz-value">${Math.round(r.kpGesamt).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></div>
+            <div class="kalk-c-einsatz-sub">über das Darlehen finanziert</div>
+          </div>
+          <div class="kalk-c-einsatz-cell">
+            <div class="kalk-c-einsatz-label">Kaufnebenkosten</div>
+            <div class="kalk-c-einsatz-value">${Math.round(knk).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></div>
+            <div class="kalk-c-einsatz-sub">Grunderwerbsteuer · Notar · Grundbuch${i.knkMitfinanziert ? ' (mitfinanziert)' : ''}</div>
+          </div>
+          <div class="kalk-c-einsatz-cell">
+            <div class="kalk-c-einsatz-label">Dein Eigenkapital-Einsatz</div>
+            <div class="kalk-c-einsatz-value kalk-c-accent-color">${Math.round(r.ekBedarf).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></div>
+            <div class="kalk-c-einsatz-sub">${i.knkMitfinanziert ? 'KNK ist im Darlehen enthalten' : 'deckt die Nebenkosten · Kaufpreis voll finanziert'}</div>
+          </div>
+        </div>
+        <p class="kalk-c-einsatz-note">
+          Die Kaufnebenkosten sind kein Verlust — sie sind der einmalige Eintrittspreis in den Sachwert. Mit diesem Einsatz sicherst Du Dir Zugang zu allen Vorteilen, die auf den nächsten Abschnitten folgen.
+        </p>
+      </div>
+    </section>
+    <hr class="kalk-c-rule" />
+  `;
+
+  // ===== SECTION 2 · Der Plan =====
+  const SECTION_2 = `
+    <section class="kalk-c-section">
+      <div class="kalk-c-section-head">
+        <div class="kalk-c-left">
+          <div class="kalk-c-section-num">02 · Die nächsten zehn Jahre</div>
+          <h2 class="kalk-c-section-title">Effektive Belastung im ersten Jahr: ${fmtEurMo(r.belastungMo)}.</h2>
+        </div>
+        <div class="kalk-c-right">
+          Die Wohnung trägt sich nahezu selbst. Was bleibt, ist eine kalkulierte monatliche Eigenleistung, die mit der Zeit kleiner wird.
+        </div>
+      </div>
+      <div class="kalk-c-two-col">
+        <div class="kalk-c-col-chart">
+          <div class="kalk-c-chart-frame"><canvas id="chart-c-belastung"></canvas></div>
+          <div class="kalk-c-chart-caption">Cashflow nach Steuern, je Monat · Annuität konstant</div>
+        </div>
+        <div class="kalk-c-col-text">
+          <p class="kalk-c-lead">Eine Annuität von ${fmtEurMo(r.annuityMo)} steht Mieteinnahmen von ${fmtEurMo(r.mieteJ1Mo)} gegenüber. Dein Steuervorteil und in den ersten Jahren eine vereinbarte Mietsubvention glätten die Anlaufphase.</p>
+          <p>Die Wohnung trägt sich zu rund ${selbsttragungPct} % selbst — Miete plus Steuervorteil decken den Großteil der Annuität.</p>
+          <p>${crossoverSatz}: Die Wohnung beginnt, einen monatlichen Überschuss zu liefern, während Deine Annuität konstant bleibt.</p>
+          <div class="kalk-c-meta-line">Annuität ${fmtEurMo(r.annuityMo)} · Steuervorteil ${fmtEurMo(r.stVorteilJ1Mo)}</div>
+        </div>
+      </div>
+    </section>
+    <hr class="kalk-c-rule" />
+  `;
+
+  // ===== SECTION 3 · Aussicht =====
+  const SECTION_3 = `
+    <section class="kalk-c-section">
+      <div class="kalk-c-section-head">
+        <div class="kalk-c-left">
+          <div class="kalk-c-section-num">03 · Vermögenszuwachs</div>
+          <h2 class="kalk-c-section-title">Aus ${fmt(r.ekBedarf)} Eigenkapital werden ${fmt(r.vermoegenNetto10)} Nettovermögen.</h2>
+        </div>
+        <div class="kalk-c-right">
+          Dein Vermögensaufbau speist sich aus zwei Quellen: dem laufenden Tilgungsanteil Deiner Annuität und einer moderat gerechneten Wertsteigerung des Sachwerts.
+        </div>
+      </div>
+      <div class="kalk-c-two-col kalk-c-reverse">
+        <div class="kalk-c-col-text">
+          <p class="kalk-c-lead">${nettoCrossoverSatz} — getragen von zwei Kräften: Restschuld-Abbau und Wertentwicklung.</p>
+          <p>Der Bruttomarktwert Deiner Wohnung wächst nach konservativer Rechnung auf rund ${fmt(v10.wert)} im Jahr 10. Parallel sinkt Deine Restschuld auf ${fmt(v10.restschuld)}.</p>
+          <p>Dein Nettowert — Marktwert abzüglich Restschuld und kumulierter Eigenleistung — erreicht im Jahr 10 die genannten ${fmt(r.vermoegenNetto10)}. Das ist nach 10 Jahren ein interner Zinsfuß von <strong>${fmtPct(r.irr)}</strong>.</p>
+          <div class="kalk-c-meta-line">IRR 10 J · ${fmtPct(r.irr)} &nbsp;·&nbsp; Brutto-Vermögen J10 · ${fmt(v10.vermoegenBrutto || (v10.wert - v10.restschuld))}</div>
+        </div>
+        <div class="kalk-c-col-chart">
+          <div class="kalk-c-chart-frame"><canvas id="chart-c-vermoegen-magazin"></canvas></div>
+          <div class="kalk-c-chart-caption">Nettovermögen kumuliert · Wertsteigerung ${fmtPct(i.wertsteigerung || 0.03)} p.a.</div>
+        </div>
+      </div>
+    </section>
+    <hr class="kalk-c-rule" />
+  `;
+
+  // ===== SECTION 4 · Vergleich =====
+  const SECTION_4 = `
+    <section class="kalk-c-section">
+      <div class="kalk-c-section-head" style="justify-content:center;text-align:center;flex-direction:column;align-items:center;gap:0;margin-bottom:48px">
+        <div class="kalk-c-left" style="text-align:center">
+          <div class="kalk-c-section-num">04 · Die Alternative</div>
+          <h2 class="kalk-c-section-title" style="max-width:24ch;margin:14px auto 0">Wäre Dein Eigenkapital auf einem Sparbuch geblieben.</h2>
+        </div>
+      </div>
+      <div class="kalk-c-compare">
+        <div class="kalk-c-compare-headline">+ <span class="kalk-c-delta">${fmt(r.sparenVsKaufenDelta)}</span> &nbsp;Mehrgewinn</div>
+        <div class="kalk-c-compare-sub">${fmt(r.ekBedarf)} auf einem Sparbuch zu ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a. wären in zehn Jahren auf etwa ${fmt(sparen10.nurSparen)} gewachsen. Dasselbe Eigenkapital im Sachwert Immobilie kommt auf ${fmt(sparen10.mitImmo)} — die Differenz von ${fmt(r.sparenVsKaufenDelta)} ist der reine Sachwert-Vorteil.</div>
+        <div class="kalk-c-compare-chart-wrap"><canvas id="chart-c-compare"></canvas></div>
+      </div>
+    </section>
+    <hr class="kalk-c-rule" />
+  `;
+
+  // ===== SECTION 5 · Drilldowns (Trigger) =====
+  const SECTION_5 = `
+    <section class="kalk-c-drill-section">
+      <div class="kalk-c-drill-head">
+        <div class="kalk-c-section-num">05 · Detail</div>
+        <h2>Wenn Du tiefer schauen willst.</h2>
+        <p>Diese Analyse stützt sich auf dokumentierte Annahmen. Du kannst jeden Wert nachvollziehen — Cashflow-Reihen, Vermögensaufstellung, Bonität nach Erwerb sowie die zugrunde liegenden Rechen-Parameter.</p>
+      </div>
+      <div class="kalk-c-drill-links">
+        <button type="button" class="kalk-c-drill-link" data-kalk-c-modal="bonitaet">Bonitäts-Saldo<span class="kalk-c-arrow">Vor &amp; nach Erwerb</span></button>
+        <button type="button" class="kalk-c-drill-link" data-kalk-c-modal="cashflow">Cashflow J1–J10<span class="kalk-c-arrow">Monat · Jahr</span></button>
+        <button type="button" class="kalk-c-drill-link" data-kalk-c-modal="vermoegen">Vermögen J1–J10<span class="kalk-c-arrow">Brutto · netto</span></button>
+        <button type="button" class="kalk-c-drill-link" data-kalk-c-modal="annahmen">Annahmen<span class="kalk-c-arrow">Parameter &amp; Disclaimer</span></button>
+      </div>
+    </section>
+    <hr class="kalk-c-rule" />
+  `;
+
+  // ===== SECTION 6 · Der Weg =====
+  const SECTION_6 = `
+    <section class="kalk-c-section">
+      <div class="kalk-c-section-head">
+        <div class="kalk-c-left">
+          <div class="kalk-c-section-num">06 · Wie es weitergeht</div>
+          <h2 class="kalk-c-section-title">Sechs Schritte bis zum Notartermin.</h2>
+        </div>
+        <div class="kalk-c-right">
+          Wir beurkunden den Kauf erst dann, wenn drei Voraussetzungen sauber erfüllt sind: Deine Finanzierung steht, die Objektunterlagen passen zu dem, was Du hier siehst, und Du hast die Wohnung besichtigt. Fehlt einer dieser Punkte — kein Notartermin.
+        </div>
+      </div>
+      <ol class="kalk-c-weg-list">
+        <li class="kalk-c-weg-step"><div class="kalk-c-weg-num">1</div><div class="kalk-c-weg-body"><div class="kalk-c-weg-title">Selbstauskunft vollständig ausfüllen</div><div class="kalk-c-weg-desc">Bonität-Grundlage für die Bank — wir helfen Dir durch jedes Feld. Dauert in der Regel 20–30 Minuten.</div></div></li>
+        <li class="kalk-c-weg-step"><div class="kalk-c-weg-num">2</div><div class="kalk-c-weg-body"><div class="kalk-c-weg-title">Wohneinheit sichern</div><div class="kalk-c-weg-desc">Reservierung. Die Wohneinheiten gehen unter Marktwert weg — die Reservierung schützt Dich davor, dass sie an einen anderen Interessenten geht, während Du die nächsten Schritte gehst.</div></div></li>
+        <li class="kalk-c-weg-step"><div class="kalk-c-weg-num">3</div><div class="kalk-c-weg-body"><div class="kalk-c-weg-title">Objektunterlagen prüfen</div><div class="kalk-c-weg-desc">Du bekommst Teilungserklärung, Protokolle, Wirtschaftsplan, Energieausweis. Damit prüfst Du selbst — oder mit Deinem Berater — dass die Unterlagen exakt das wiedergeben, was wir Dir hier gezeigt haben.</div></div></li>
+        <li class="kalk-c-weg-step"><div class="kalk-c-weg-num">4</div><div class="kalk-c-weg-body"><div class="kalk-c-weg-title">Finanzierungszusage erhalten</div><div class="kalk-c-weg-desc">Mit der vollständigen Selbstauskunft und den Objektunterlagen geht es zur Bank. Sobald die schriftliche Finanzierungszusage da ist, schaltet die nächste Stufe frei.</div></div></li>
+        <li class="kalk-c-weg-step"><div class="kalk-c-weg-num">5</div><div class="kalk-c-weg-body"><div class="kalk-c-weg-title">Besichtigung vor Ort</div><div class="kalk-c-weg-desc">Du siehst die Wohnung mit eigenen Augen — Lage, Substanz, Treppenhaus, Umfeld. Erst wenn das passt, machen wir den letzten Schritt.</div></div></li>
+        <li class="kalk-c-weg-step"><div class="kalk-c-weg-num">6</div><div class="kalk-c-weg-body"><div class="kalk-c-weg-title">Notartermin</div><div class="kalk-c-weg-desc">Beurkundung des Kaufvertrags. Wir beurkunden nur, wenn die drei Voraussetzungen Finanzierung, Objektunterlagen und Besichtigung sauber erfüllt sind.</div></div></li>
+      </ol>
+    </section>
+    <hr class="kalk-c-rule" />
+  `;
+
+  // ===== SECTION 7 · Brot & Butter =====
+  const SECTION_7 = `
+    <section class="kalk-c-section kalk-c-bub-section">
+      <div class="kalk-c-section-head">
+        <div class="kalk-c-left">
+          <div class="kalk-c-section-num">07 · Wer wir sind</div>
+          <h2 class="kalk-c-section-title">Brot &amp; Butter.</h2>
+        </div>
+        <div class="kalk-c-right">
+          Unser Name ist unser Geschäftsmodell. Wir kaufen die großen Brote und veredeln sie mit Butter — bevor wir scheibenweise an Dich weitergeben.
+        </div>
+      </div>
+      <div class="kalk-c-bub-grid">
+        <div class="kalk-c-bub-cell"><div class="kalk-c-bub-step">Brot</div><div class="kalk-c-bub-body">Wir kaufen bei großen Immobiliengesellschaften ganze Bestände zu Preisen, die für Einzelkäufer nie sichtbar werden. Volumen schafft den Einkaufsvorteil — das ist das Leibbrot.</div></div>
+        <div class="kalk-c-bub-cell"><div class="kalk-c-bub-step">Teilen</div><div class="kalk-c-bub-body">Aus dem Bestand werden einzelne Scheiben — einzelne Wohneinheiten, die wir vermarktungsfähig machen. Jede Einheit bekommt ihren eigenen Pfad.</div></div>
+        <div class="kalk-c-bub-cell"><div class="kalk-c-bub-step">Butter</div><div class="kalk-c-bub-body">Veredelung. Bevor eine Wohnung zu Dir kommt, machen wir den Hausverwaltungs-Wechsel, prüfen die Rücklage, setzen notwendige Maßnahmen an und begutachten den Zustand sehr genau.</div></div>
+        <div class="kalk-c-bub-cell"><div class="kalk-c-bub-step">Weitergabe</div><div class="kalk-c-bub-body">Portionsgerecht. Nicht jeder kann ein Mehrfamilienhaus kaufen — eine einzelne Wohnung schon. So machen wir den Sachwert für Privatanleger zugänglich.</div></div>
+      </div>
+      <div class="kalk-c-bub-foot">
+        <div class="kalk-c-bub-foot-item"><strong>Keine Vertriebsprovision.</strong> Du zahlst keinen Vermittler-Aufschlag. Unser Geld verdienen wir im Einkauf, nicht am Verkauf.</div>
+        <div class="kalk-c-bub-foot-item"><strong>Skin in the Game.</strong> Wir behalten regelmäßig Einheiten im eigenen Bestand. Auch die Gesellschafter kaufen privat — wir investieren in das, was wir Dir anbieten.</div>
+      </div>
+    </section>
+  `;
+
+  // ===== CLOSING =====
+  const CLOSING = `
+    <footer class="kalk-c-closing">
+      <div class="kalk-c-signature">
+        <strong>${esc(u.name || 'Edgar Steininger')}</strong>${u.name ? '' : ' · B&amp;B Immo GmbH'}<br>
+        ${esc(u.email || '')}${u.telefon ? ' · ' + esc(u.telefon) : ''}
+      </div>
+      <p class="kalk-c-disclaimer">
+        Diese Investitionsrechnung beruht auf den dokumentierten Annahmen. Keine Anlageberatung im Sinne des WpHG. Verbindlich ist ausschließlich der notarielle Kaufvertrag. Steuerliche Aspekte sind mit Deinem Steuerberater abzustimmen.
+      </p>
+    </footer>
+  `;
+
+  // ===== Modals =====
+  // Bonitäts-Saldo (mit Anrechenbarer Miete + Subv)
+  const bonModal = `
+    <div class="kalk-c-modal-backdrop" data-kalk-c-modal-id="bonitaet">
+      <div class="kalk-c-modal">
+        <button class="kalk-c-modal-close" data-kalk-c-close>Schließen ×</button>
+        <div class="kalk-c-eyebrow">05 · Detail · Bonitäts-Saldo</div>
+        <h3>So rechnet die Bank das durch</h3>
+        <div class="kalk-c-sub">Wirkung der Investition auf Deine monatliche Liquidität und Dein freies Eigenkapital. Die Mietsubvention wird bei richtiger Gestaltung wie Miete angesetzt (80 % anrechenbar).</div>
+        <div class="kalk-c-saldo-grid">
+          <div class="kalk-c-saldo-card">
+            <div class="kalk-c-label">Frei verfügbares Einkommen — Bank-Sicht</div>
+            <div class="kalk-c-row"><span>Vor Investment</span><span>${fmtEurMo(r.bonVor || 0)}</span></div>
+            <div class="kalk-c-row"><span>+ Anrechenbare Miete (80 %)</span><span class="kalk-c-pos">+ ${fmtEurMo(r.bonMieteAnr || 0)}</span></div>
+            <div class="kalk-c-row"><span>− Annuität</span><span class="kalk-c-neg">− ${fmtEurMo(r.bonAnnuMo || 0)}</span></div>
+            ${r.bonModus === 'detail' ? `
+            <div class="kalk-c-row"><span>− Hausgeld (bank-konservativ)</span><span class="kalk-c-neg">− ${fmtEurMo(r.hausgeldNurMo || 0)}</span></div>
+            <div class="kalk-c-row"><span>− Hausverwaltung</span><span class="kalk-c-neg">− ${fmtEurMo(r.hausverwaltungMo || 0)}</span></div>` : ''}
+            <div class="kalk-c-row kalk-c-total"><span>Nach Investment</span><span class="kalk-c-accent">${fmtEurMo(r.bonNach || 0)}</span></div>
+          </div>
+          <div class="kalk-c-saldo-card">
+            <div class="kalk-c-label">Freies Eigenkapital</div>
+            <div class="kalk-c-row"><span>Vor Erwerb</span><span>${fmt(r.bonVermoegen || 0)}</span></div>
+            <div class="kalk-c-row"><span>Einsatz Erwerb (EK + KNK)</span><span class="kalk-c-neg">− ${fmt(r.ekBedarf)}</span></div>
+            <div class="kalk-c-row kalk-c-total"><span>Nach Erwerb</span><span class="kalk-c-accent">${fmt(r.bonVermoegenVsEk || 0)}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Cashflow J1-J10
+  const cashflowRows = r.cf.slice(0, 10).map((c, idx) => {
+    const mo = Math.round(c.cfJahr / 12);
+    const cls = mo >= 0 ? 'kalk-c-pos' : 'kalk-c-neg';
+    const jahressumme = Math.round(c.cfJahr);
+    const summe_cls = jahressumme >= 0 ? 'kalk-c-pos' : 'kalk-c-neg';
+    return `<tr><td>${c.y}</td><td class="kalk-c-r ${cls}">${mo > 0 ? '+' : ''}${mo}</td><td class="kalk-c-r ${summe_cls}">${jahressumme > 0 ? '+' : ''}${jahressumme.toLocaleString('de-DE')}</td></tr>`;
+  }).join('');
+  const cfSumme = Math.round(r.cf.slice(0, 10).reduce((s, c) => s + c.cfJahr, 0));
+  const cashflowModal = `
+    <div class="kalk-c-modal-backdrop" data-kalk-c-modal-id="cashflow">
+      <div class="kalk-c-modal">
+        <button class="kalk-c-modal-close" data-kalk-c-close>Schließen ×</button>
+        <div class="kalk-c-eyebrow">05 · Detail · Cashflow</div>
+        <h3>Monatlicher Saldo, Jahr 1 bis Jahr 10</h3>
+        <div class="kalk-c-sub">Effektive Belastung je Monat nach Miete, Hausgeld, Annuität, Steuervorteil und in der Anlaufphase Mietsubvention.</div>
+        <table>
+          <thead><tr><th>Jahr</th><th class="kalk-c-r">Belastung €/Mo</th><th class="kalk-c-r">Jahres-Summe €</th></tr></thead>
+          <tbody>
+            ${cashflowRows}
+            <tr class="kalk-c-total"><td>Summe</td><td class="kalk-c-r"></td><td class="kalk-c-r kalk-c-accent">${cfSumme > 0 ? '+' : ''}${cfSumme.toLocaleString('de-DE')}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  // Vermögen J1-J10
+  const vermoegenRows = r.vermoegen.slice(1, 11).map(v => {
+    const netto = Math.round(v.vermoegenNetto || 0);
+    const netto_cls = netto >= 0 ? 'kalk-c-pos' : 'kalk-c-neg';
+    return `<tr><td>${v.y}</td><td class="kalk-c-r">${Math.round(v.wert).toLocaleString('de-DE')}</td><td class="kalk-c-r">${Math.round(v.restschuld).toLocaleString('de-DE')}</td><td class="kalk-c-r ${netto_cls}">${netto > 0 ? '+' : ''}${netto.toLocaleString('de-DE')}</td></tr>`;
+  }).join('');
+  const vermoegenModal = `
+    <div class="kalk-c-modal-backdrop" data-kalk-c-modal-id="vermoegen">
+      <div class="kalk-c-modal">
+        <button class="kalk-c-modal-close" data-kalk-c-close>Schließen ×</button>
+        <div class="kalk-c-eyebrow">05 · Detail · Vermögen</div>
+        <h3>Brutto- und Nettovermögen, Jahr 1 bis Jahr 10</h3>
+        <div class="kalk-c-sub">Marktwert, Restschuld und Nettovermögen kumuliert. Wertsteigerung ${fmtPct(i.wertsteigerung || 0.03)} p.a. konservativ angesetzt.</div>
+        <table>
+          <thead><tr><th>Jahr</th><th class="kalk-c-r">Marktwert</th><th class="kalk-c-r">Restschuld</th><th class="kalk-c-r">Netto kumuliert</th></tr></thead>
+          <tbody>${vermoegenRows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  // Annahmen
+  // Subv-Phasen-Anzeige (aus pdf.js-Logik portiert)
+  let subvText = '—';
+  const phasen = Array.isArray(i.subventionPhasen) ? i.subventionPhasen : [];
+  if (phasen.length >= 2) {
+    subvText = `Phase 1: ${fmtEurMo(phasen[0].mo)} × ${phasen[0].monate} Mo · Phase 2: ${fmtEurMo(phasen[1].mo)} × ${phasen[1].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
+  } else if (phasen.length === 1) {
+    subvText = `${fmtEurMo(phasen[0].mo)} × ${phasen[0].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
+  } else if (i.subventionMo > 0) {
+    subvText = `${fmtEurMo(i.subventionMo)} × ${i.subventionMonate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
+  }
+  const annahmenModal = `
+    <div class="kalk-c-modal-backdrop" data-kalk-c-modal-id="annahmen">
+      <div class="kalk-c-modal">
+        <button class="kalk-c-modal-close" data-kalk-c-close>Schließen ×</button>
+        <div class="kalk-c-eyebrow">05 · Detail · Annahmen</div>
+        <h3>Rechen-Parameter und Disclaimer</h3>
+        <div class="kalk-c-sub">Alle Werte in der Analyse leiten sich aus den nachfolgenden Annahmen ab. Abweichungen verändern Deinen tatsächlichen Verlauf.</div>
+        <div class="kalk-c-assumptions">
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Kaufpreis gesamt</span><span class="kalk-c-v">${fmt(r.kpGesamt)}</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Kaufnebenkosten</span><span class="kalk-c-v">${fmt(knk)}${i.knkMitfinanziert ? ' (mitfinanziert)' : ''}</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Eigenkapital-Einsatz</span><span class="kalk-c-v">${fmt(r.ekBedarf)}</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Annuität pro Monat</span><span class="kalk-c-v">${fmtEurMo(r.annuityMo)}</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Zinssatz Darlehen</span><span class="kalk-c-v">${fmtPct(i.zins || 0)} p.a.</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Anfangstilgung</span><span class="kalk-c-v">${fmtPct(i.tilgung || 0)} p.a.</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Wertsteigerung</span><span class="kalk-c-v">${fmtPct(i.wertsteigerung || 0.03)} p.a.</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Mietsteigerung</span><span class="kalk-c-v">${fmtPct(i.steigerungProz || 0.02)} p.a.</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Steuersatz</span><span class="kalk-c-v">${fmtPct(i.steuersatz || 0.3)}</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">AfA-Satz</span><span class="kalk-c-v">${fmtPct(i.afaSatz || 0.02)} linear</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Mietsubvention</span><span class="kalk-c-v">${subvText}</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Sparbuch-Vergleich</span><span class="kalk-c-v">${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a.</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Marktpreis je qm Ref.</span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') + ' €' : '—'}</span></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // ===== Concat + Render =====
+  el.innerHTML = '<div class="kalk-c-magazine">'
+    + HERO
+    + SECTION_1
+    + SECTION_2
+    + SECTION_3
+    + SECTION_4
+    + SECTION_5
+    + SECTION_6
+    + SECTION_7
+    + CLOSING
+    + '</div>'
+    + bonModal
+    + cashflowModal
+    + vermoegenModal
+    + annahmenModal;
+
+  // Charts rendern (async-frei wegen animation: false)
+  _drawCMagazinCharts(r);
+
+  // Modal-Bindings (idempotent — onclick statt addEventListener)
+  _bindCPremiumInteractions();
+}
+
+/* Hilfsfunktion: Magazin-Charts rendern */
+function _drawCMagazinCharts(r) {
+  if (!window.Chart) return;
+
+  const accent = '#B08A4D';
+  const accentDark = '#8E6E3D';
+  const tertiary = '#7A7A72';
+  const positive = '#2D6E47';
+  const negative = '#9A3E33';
+  const border = '#E8E6DD';
+  const bgPrimary = '#FBFAF7';
+
+  // Chart 1 — Belastung €/Mo über 10 J
+  const cBel = document.getElementById('chart-c-belastung');
+  if (cBel) {
+    if (_cMagazinCharts.belastung) _cMagazinCharts.belastung.destroy();
+    const belastungJe = r.cf.slice(0, 10).map(c => Math.round(c.cfJahr / 12));
+    _cMagazinCharts.belastung = new Chart(cBel, {
+      type: 'line',
+      data: {
+        labels: ['J1','J2','J3','J4','J5','J6','J7','J8','J9','J10'],
+        datasets: [{
+          label: 'Belastung €/Mo',
+          data: belastungJe,
+          borderColor: accent,
+          backgroundColor: 'rgba(176,138,77,.08)',
+          borderWidth: 2,
+          fill: true,
+          pointBackgroundColor: belastungJe.map(v => v >= 0 ? positive : negative),
+          pointBorderColor: bgPrimary,
+          pointBorderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          tension: 0.32
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { display: false }, tooltip: {
+          callbacks: { label: ctx => (ctx.parsed.y > 0 ? '+' : '') + ctx.parsed.y + ' €/Mo' }
+        }},
+        scales: {
+          x: { ticks: { color: tertiary, font: { size: 10 } }, grid: { display: false } },
+          y: {
+            ticks: { color: tertiary, font: { size: 10 }, callback: v => (v > 0 ? '+' : '') + v + ' €' },
+            grid: { color: ctx => ctx.tick.value === 0 ? '#1A1A17' : border, lineWidth: ctx => ctx.tick.value === 0 ? 1.2 : 1 }
+          }
+        }
+      }
+    });
+  }
+
+  // Chart 2 — Vermögen Netto + Brutto-Verkaufserlös (gestrichelt)
+  const cVer = document.getElementById('chart-c-vermoegen-magazin');
+  if (cVer) {
+    if (_cMagazinCharts.vermoegen) _cMagazinCharts.vermoegen.destroy();
+    const labels = ['J1','J2','J3','J4','J5','J6','J7','J8','J9','J10'];
+    const netto = r.vermoegen.slice(1, 11).map(v => Math.round(v.vermoegenNetto || 0));
+    const brutto = r.vermoegen.slice(1, 11).map(v => Math.round((v.verkaufserloes !== undefined ? v.verkaufserloes : (v.wert - v.restschuld))));
+    _cMagazinCharts.vermoegen = new Chart(cVer, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Nettovermögen', data: netto,
+            borderColor: accent, backgroundColor: 'rgba(176,138,77,.08)',
+            borderWidth: 2.2, fill: true, tension: 0.32, pointRadius: 0, pointHoverRadius: 4
+          },
+          {
+            label: 'Brutto-Vermögen (Verkaufserlös)', data: brutto,
+            borderColor: tertiary, borderDash: [4, 4], backgroundColor: 'transparent',
+            borderWidth: 1.5, fill: false, tension: 0.32, pointRadius: 0, pointHoverRadius: 4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { display: true, position: 'bottom', labels: { color: tertiary, font: { size: 10 }, boxWidth: 12 } },
+          tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('de-DE') + ' €' } }
+        },
+        scales: {
+          x: { ticks: { color: tertiary, font: { size: 10 } }, grid: { display: false } },
+          y: { ticks: { color: tertiary, font: { size: 10 }, callback: v => v.toLocaleString('de-DE') + ' €' }, grid: { color: border } }
+        }
+      }
+    });
+  }
+
+  // Chart 3 — Compare Sparen vs. Immo
+  const cCmp = document.getElementById('chart-c-compare');
+  if (cCmp) {
+    if (_cMagazinCharts.compare) _cMagazinCharts.compare.destroy();
+    const sparen10 = r.sparen[10] || {};
+    _cMagazinCharts.compare = new Chart(cCmp, {
+      type: 'bar',
+      data: {
+        labels: ['Sparbuch (2,5 % p.a.)', 'Sachwert Immobilie'],
+        datasets: [{
+          data: [Math.round(sparen10.nurSparen || 0), Math.round(sparen10.mitImmo || 0)],
+          backgroundColor: [tertiary, accentDark],
+          borderRadius: 3,
+          barPercentage: 0.55
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { display: false }, tooltip: {
+          callbacks: { label: ctx => ctx.parsed.y.toLocaleString('de-DE') + ' €' }
+        }},
+        scales: {
+          x: { ticks: { color: tertiary, font: { size: 11 } }, grid: { display: false } },
+          y: { ticks: { color: tertiary, font: { size: 10 }, callback: v => v.toLocaleString('de-DE') + ' €' }, grid: { color: border } }
+        }
+      }
+    });
+  }
+}
+
+/* Hilfsfunktion: Modal-Open/Close + ESC + Backdrop-Klick (idempotent) */
+function _bindCPremiumInteractions() {
+  const triggers = document.querySelectorAll('.kalk-c-drill-link[data-kalk-c-modal]');
+  triggers.forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.getAttribute('data-kalk-c-modal');
+      const m = document.querySelector('.kalk-c-modal-backdrop[data-kalk-c-modal-id="' + id + '"]');
+      if (m) { m.classList.add('kalk-c-open'); document.body.style.overflow = 'hidden'; }
+    };
+  });
+  const closes = document.querySelectorAll('.kalk-c-modal-backdrop [data-kalk-c-close]');
+  closes.forEach(btn => {
+    btn.onclick = () => _closeAllCModals();
+  });
+  document.querySelectorAll('.kalk-c-modal-backdrop').forEach(bk => {
+    bk.onclick = (e) => { if (e.target === bk) _closeAllCModals(); };
+  });
+  // ESC: einmalig binden (global)
+  if (!window._cPremiumEscBound) {
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') _closeAllCModals();
+    });
+    window._cPremiumEscBound = true;
+  }
+}
+function _closeAllCModals() {
+  document.querySelectorAll('.kalk-c-modal-backdrop.kalk-c-open').forEach(m => m.classList.remove('kalk-c-open'));
+  document.body.style.overflow = '';
 }
 
 function drawCharts(r) {

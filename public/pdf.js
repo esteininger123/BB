@@ -79,7 +79,12 @@ function _doPrint(html, mode) {
 }
 
 /* ====================================================================
-   INVESTITIONSRECHNUNG
+   INVESTITIONSRECHNUNG — Iter 89: Premium-Reduktion (Variante C)
+   ====================================================================
+   7 A4-Seiten: Cover · Eckdaten+Plan · Aussicht · Vergleich · Detail
+   · Wie es weitergeht · Brot & Butter.
+   Math-Engine bleibt unverändert — alle Werte aus kalkResult und
+   kalkInputs.
    ==================================================================== */
 function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   if (!kalkResult) {
@@ -88,212 +93,374 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   }
   const r = kalkResult;
   const k = kunde || {};
+  const i = kalkInputs || {};
+  const u = user || {};
   const displayName = k.name || ((k.vorname || '') + ' ' + (k.nachname || '')).trim() || '—';
-  const we = kalkInputs._weLage || '—';
   const fmt = window.Kalk.fmtEur, fmtPct = window.Kalk.fmtPct, fmtMo = window.Kalk.fmtEurMo;
-
   const datum = new Date().toLocaleDateString('de-DE');
-  // ===== SEITE 1: Kennzahlen + Bonität (Verkaufs-Story) =====
+
+  // Adresse-Zeile
+  const projekt = i._projektName || '';
+  const weBez = i._weNr ? 'Wohneinheit ' + i._weNr : (i._weLage || '');
+  const adresseZeile = projekt ? (projekt + ' · ' + weBez) : weBez;
+
+  // KNK
+  const knk = i.knkMitfinanziert ? 0 : r.ekBedarf;
+
+  // Dynamische Texte
+  const crossoverIdx = r.cf.findIndex(c => c.cfJahr > 0);
+  const crossoverJahr = crossoverIdx >= 0 ? (crossoverIdx + 1) : null;
+  const nettoCrossoverIdx = r.vermoegen.findIndex(v => v.vermoegenNetto > 0);
+  const nettoCrossoverJahr = nettoCrossoverIdx >= 0 ? nettoCrossoverIdx : null;
+  const v10 = r.vermoegen[10] || {};
+  const sparen10 = r.sparen[10] || {};
+  const selbsttragungPct = r.annuityMo > 0
+    ? Math.round(((r.mieteJ1Mo || 0) + (r.stVorteilJ1Mo || 0)) / r.annuityMo * 100)
+    : 0;
+  const marktQm = parseFloat(i.marktwertProQm) || 0;
+  const kpQm = r.kaufpreisProQm || 0;
+
+  // Subv-Phasen-Text
+  let subvText = '—';
+  const phasen = Array.isArray(i.subventionPhasen) ? i.subventionPhasen : [];
+  if (phasen.length >= 2) {
+    subvText = `Phase 1 ${fmtMo(phasen[0].mo)} × ${phasen[0].monate} Mo · Phase 2 ${fmtMo(phasen[1].mo)} × ${phasen[1].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
+  } else if (phasen.length === 1) {
+    subvText = `${fmtMo(phasen[0].mo)} × ${phasen[0].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
+  } else if (i.subventionMo > 0) {
+    subvText = `${fmtMo(i.subventionMo)} × ${i.subventionMonate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
+  }
+
+  // Vertriebler-Block für Cover/Footer
+  const vertrieblerBlock = `${esc(u.name || 'Edgar Steininger')} · B&amp;B Immo GmbH<br>${esc(u.email || '')}${u.telefon ? ' · ' + esc(u.telefon) : ''}`;
+
+  // Gemeinsamer kleiner Seitenkopf
+  const ph = (pageNum, totalPages) => `
+    <div class="pdf-c-ph">
+      ${_bubLogo('pdf-c-logo')}
+      <div class="pdf-c-ph-meta">
+        ${esc(adresseZeile || '—')}<br>
+        für ${esc(displayName)} · ${esc(datum)}
+      </div>
+    </div>
+  `;
+
+  const pdfCStyle = `
+    <style>
+      .pdf-c-page{position:relative;page-break-after:always;page-break-inside:avoid;background:#FBFAF7;color:#1A1A17;font-family:'Inter','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;padding:22mm 20mm 22mm 20mm;min-height:297mm;display:flex;flex-direction:column;box-sizing:border-box}
+      .pdf-c-page:last-child{page-break-after:auto}
+      .pdf-c-page *{box-sizing:border-box}
+      .pdf-c-num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+      .pdf-c-ph{display:flex;justify-content:space-between;align-items:center;padding-bottom:6mm;border-bottom:.5px solid #B08A4D;margin-bottom:10mm}
+      .pdf-c-logo{width:110px;height:auto;display:block}
+      .pdf-c-ph-meta{font-size:8.5pt;letter-spacing:.14em;text-transform:uppercase;color:#7A7A72;font-weight:500;text-align:right;line-height:1.55}
+      .pdf-c-section-num{font-size:8.5pt;letter-spacing:.22em;text-transform:uppercase;color:#8E6E3D;font-weight:500}
+      .pdf-c-section-title{font-size:22pt;font-weight:200;letter-spacing:-.015em;line-height:1.15;margin-top:4mm;color:#1A1A17;max-width:18ch}
+      .pdf-c-lead{font-size:11.5pt;line-height:1.65;color:#3A3A35;font-weight:400;margin-top:4mm}
+      .pdf-c-page-foot{position:absolute;bottom:10mm;left:20mm;right:20mm;display:flex;justify-content:space-between;font-size:8pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500}
+      .pdf-c-page-num{color:#7A7A72}
+      .pdf-c-pos{color:#2D6E47}
+      .pdf-c-neg{color:#9A3E33}
+      .pdf-c-accent{color:#8E6E3D}
+
+      /* Cover */
+      .pdf-c-cover{padding:0;display:flex;flex-direction:column;justify-content:space-between;min-height:297mm}
+      .pdf-c-cover-top{padding:28mm 20mm 0 20mm;display:flex;justify-content:space-between;align-items:flex-start}
+      .pdf-c-cover-logo{width:180px}
+      .pdf-c-cover-meta{font-size:9pt;letter-spacing:.16em;text-transform:uppercase;color:#7A7A72;text-align:right;line-height:1.7;font-weight:500}
+      .pdf-c-cover-meta strong{color:#1A1A17;font-weight:500}
+      .pdf-c-cover-middle{padding:0 20mm;margin:auto 0}
+      .pdf-c-cover-kicker{font-size:10pt;letter-spacing:.28em;text-transform:uppercase;color:#8E6E3D;font-weight:500;margin-bottom:8mm}
+      .pdf-c-cover-address{font-size:16pt;font-weight:300;letter-spacing:-.005em;color:#3A3A35;line-height:1.4;margin-bottom:12mm}
+      .pdf-c-cover-headline{font-size:38pt;font-weight:200;letter-spacing:-.025em;line-height:1.05;color:#1A1A17;max-width:14ch}
+      .pdf-c-cover-headline .pdf-c-num-accent{color:#8E6E3D;font-weight:300}
+      .pdf-c-cover-bottom{padding:0 20mm 24mm 20mm;border-top:.5px solid #B08A4D;padding-top:6mm;display:flex;justify-content:space-between;align-items:flex-end}
+      .pdf-c-cover-bottom .meta{font-size:9pt;letter-spacing:.14em;text-transform:uppercase;color:#7A7A72;font-weight:500;line-height:1.8}
+      .pdf-c-cover-bottom .meta strong{color:#1A1A17;font-weight:500}
+      .pdf-c-cover-bottom .date{font-size:9pt;letter-spacing:.14em;text-transform:uppercase;color:#7A7A72;font-weight:500;text-align:right}
+
+      /* Page 2 grid */
+      .pdf-c-p2-grid{display:grid;grid-template-columns:1fr 1.4fr;gap:14mm;margin-top:6mm;flex:1}
+      .pdf-c-obj h4{font-size:8pt;letter-spacing:.2em;text-transform:uppercase;color:#7A7A72;font-weight:500;margin:5mm 0 2mm 0}
+      .pdf-c-obj h4:first-child{margin-top:0}
+      .pdf-c-obj-row{display:flex;justify-content:space-between;align-items:baseline;padding:2mm 0;border-bottom:.4px solid #E8E6DD;font-size:10pt;font-variant-numeric:tabular-nums}
+      .pdf-c-obj-row .k{color:#7A7A72;font-weight:400}
+      .pdf-c-obj-row .v{color:#1A1A17;font-weight:400}
+      .pdf-c-obj-row .v .unit{font-size:8pt;color:#7A7A72;margin-left:3px}
+      .pdf-c-p2-right .hero-line{font-size:14pt;font-weight:300;letter-spacing:-.005em;line-height:1.4;color:#1A1A17;margin-bottom:5mm}
+      .pdf-c-p2-right .narrative{font-size:10pt;line-height:1.65;color:#3A3A35;font-weight:400;margin-bottom:4mm}
+      .pdf-c-p2-belastung-table{width:100%;border-collapse:collapse;font-size:9pt;font-variant-numeric:tabular-nums;margin-top:4mm}
+      .pdf-c-p2-belastung-table th{padding:2mm 1mm;font-size:7.5pt;letter-spacing:.16em;text-transform:uppercase;color:#7A7A72;font-weight:500;text-align:left;border-bottom:.5px solid #E8E6DD}
+      .pdf-c-p2-belastung-table th.r{text-align:right}
+      .pdf-c-p2-belastung-table td{padding:2mm 1mm;border-bottom:.4px solid #E8E6DD}
+      .pdf-c-p2-belastung-table td.r{text-align:right}
+
+      /* Page 3 */
+      .pdf-c-p3-bottom{display:grid;grid-template-columns:repeat(3,1fr);gap:10mm;margin-top:6mm;border-top:.5px solid #B08A4D;padding-top:6mm}
+      .pdf-c-p3-bottom .cell .label{font-size:8pt;letter-spacing:.2em;text-transform:uppercase;color:#7A7A72;font-weight:500}
+      .pdf-c-p3-bottom .cell .v{font-size:17pt;font-weight:300;color:#1A1A17;font-variant-numeric:tabular-nums;margin-top:2mm}
+      .pdf-c-p3-bottom .cell .v .unit{font-size:9pt;color:#7A7A72;margin-left:3px;font-weight:400}
+      .pdf-c-p3-vermoegen-table{width:100%;border-collapse:collapse;font-size:9pt;font-variant-numeric:tabular-nums;margin-top:6mm}
+      .pdf-c-p3-vermoegen-table th{padding:2mm;font-size:7.5pt;letter-spacing:.16em;text-transform:uppercase;color:#7A7A72;font-weight:500;text-align:left;border-bottom:.5px solid #E8E6DD}
+      .pdf-c-p3-vermoegen-table th.r{text-align:right}
+      .pdf-c-p3-vermoegen-table td{padding:2mm;border-bottom:.4px solid #E8E6DD}
+      .pdf-c-p3-vermoegen-table td.r{text-align:right}
+      .pdf-c-p3-vermoegen-table tr.total td{border-top:.5px solid #B08A4D;font-weight:500;color:#8E6E3D}
+
+      /* Page 4 */
+      .pdf-c-p4-center{display:flex;flex-direction:column;justify-content:center;align-items:center;flex:1;text-align:center;padding-top:30mm}
+      .pdf-c-p4-headline{font-size:24pt;font-weight:200;letter-spacing:-.02em;line-height:1.15;margin-top:6mm;max-width:22ch}
+      .pdf-c-p4-delta{font-size:48pt;font-weight:200;letter-spacing:-.03em;line-height:1;margin-top:14mm;color:#1A1A17}
+      .pdf-c-p4-delta .num{color:#8E6E3D;font-weight:300}
+      .pdf-c-p4-sub{font-size:11pt;line-height:1.7;color:#3A3A35;max-width:62ch;margin-top:8mm}
+
+      /* Page 5 — Detail */
+      .pdf-c-p5-grid{display:grid;grid-template-columns:1fr 1fr;gap:8mm 12mm;margin-top:4mm}
+      .pdf-c-p5-block h4{font-size:8pt;letter-spacing:.2em;text-transform:uppercase;color:#8E6E3D;font-weight:500;margin-bottom:3mm}
+      .pdf-c-p5-block h5{font-size:8pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500;margin:4mm 0 2mm 0}
+      .pdf-c-saldo-row{display:flex;justify-content:space-between;padding:1.6mm 0;border-bottom:.4px solid #E8E6DD;font-size:9.5pt;font-variant-numeric:tabular-nums}
+      .pdf-c-saldo-row.tot{border-bottom:none;border-top:.5px solid #B08A4D;padding-top:2.5mm;margin-top:1.5mm;font-weight:500;color:#8E6E3D}
+      .pdf-c-ass-row{display:flex;justify-content:space-between;padding:1.4mm 0;border-bottom:.4px dotted #E8E6DD;font-size:9pt;font-variant-numeric:tabular-nums}
+      .pdf-c-ass-row .k{color:#7A7A72}
+      .pdf-c-ass-row .v{color:#1A1A17}
+      .pdf-c-p5-cashflow{width:100%;border-collapse:collapse;font-size:8.5pt;font-variant-numeric:tabular-nums;margin-top:2mm}
+      .pdf-c-p5-cashflow th{padding:1.6mm 1mm;font-size:7pt;letter-spacing:.16em;text-transform:uppercase;color:#7A7A72;font-weight:500;text-align:left;border-bottom:.4px solid #E8E6DD}
+      .pdf-c-p5-cashflow th.r{text-align:right}
+      .pdf-c-p5-cashflow td{padding:1.4mm 1mm;border-bottom:.3px solid #E8E6DD}
+      .pdf-c-p5-cashflow td.r{text-align:right}
+
+      /* Page 6 — Weg */
+      .pdf-c-weg{list-style:none;padding:0;margin:6mm 0 0 0;display:flex;flex-direction:column;gap:0}
+      .pdf-c-weg li{display:flex;gap:6mm;padding:4mm 0;border-bottom:.4px solid #E8E6DD}
+      .pdf-c-weg li:last-child{border-bottom:none}
+      .pdf-c-weg-num{flex:0 0 13mm;font-size:22pt;font-weight:200;letter-spacing:-.02em;color:#8E6E3D;line-height:1;font-variant-numeric:tabular-nums}
+      .pdf-c-weg-body{font-size:10pt;line-height:1.65;color:#3A3A35;padding-top:1.5mm}
+      .pdf-c-weg-body strong{color:#1A1A17;font-weight:500;font-size:12pt;line-height:1.3;display:block;margin-bottom:1.5mm}
+
+      /* Page 7 — B&B */
+      .pdf-c-bub-grid{display:grid;grid-template-columns:1fr 1fr;gap:8mm 12mm;margin-top:8mm}
+      .pdf-c-bub-cell{display:flex;flex-direction:column;gap:3mm}
+      .pdf-c-bub-step{font-size:16pt;font-weight:300;letter-spacing:-.005em;color:#8E6E3D;padding-bottom:2.5mm;border-bottom:.4px solid #C9A572}
+      .pdf-c-bub-text{font-size:9.5pt;line-height:1.7;color:#3A3A35;font-weight:400}
+      .pdf-c-bub-foot{margin-top:8mm;padding-top:5mm;border-top:.5px solid #B08A4D;display:grid;grid-template-columns:1fr 1fr;gap:10mm}
+      .pdf-c-bub-foot-item{font-size:9.5pt;line-height:1.7;color:#3A3A35}
+      .pdf-c-bub-foot-item strong{color:#1A1A17;font-weight:500;display:block;margin-bottom:1.5mm}
+      .pdf-c-bub-sig{margin-top:8mm;padding-top:5mm;border-top:.4px solid #E8E6DD;font-size:9pt;color:#3A3A35;line-height:1.7}
+      .pdf-c-bub-sig strong{color:#1A1A17;font-weight:500}
+
+      .pdf-c-disclaimer{margin-top:6mm;padding-top:4mm;border-top:.4px solid #B08A4D;font-size:7.5pt;line-height:1.65;color:#7A7A72;letter-spacing:.01em}
+    </style>
+  `;
+
+  // ===== SEITE 1 · COVER =====
   const seite1 = `
-    <div class="pdf-page">
-      ${_header('Investitionsrechnung', datum + ' · für ' + displayName)}
-      <div class="pdf-objekt-info">
-        <strong>Objekt:</strong> ${esc(we)} &middot; <strong>Kaufpreis:</strong> ${fmt(r.kpGesamt)} &middot; <strong>${esc(kalkInputs.qm)} m²</strong>
+    <div class="pdf-page pdf-c-page pdf-c-cover">
+      <div class="pdf-c-cover-top">
+        <div class="pdf-c-cover-logo">${_bubLogo()}</div>
+        <div class="pdf-c-cover-meta">
+          Investitions-<br>analyse<br>—<br>für<br><strong>${esc(displayName)}</strong>
+        </div>
       </div>
-
-      <h2 class="pdf-section-h">Kennzahlen auf einen Blick</h2>
-      <div class="kpi-grid-pdf">
-        <div class="kpi-pdf"><div class="label">Eigenkapital-Bedarf</div><div class="value">${fmt(r.ekBedarf)}</div></div>
-        <div class="kpi-pdf ${r.belastungMo < 0 ? 'neg' : 'pos'}"><div class="label">Belastung Jahr 1 mtl.</div><div class="value">${fmtMo(r.belastungMo)}</div></div>
-        <div class="kpi-pdf"><div class="label">EK-Rendite (IRR) 10 J.</div><div class="value">${fmtPct(r.irr)}</div></div>
-        <div class="kpi-pdf"><div class="label">Gesamtvermögen 10 J.</div><div class="value">${fmt(r.vermoegenBrutto10)}</div></div>
-        <div class="kpi-pdf pos"><div class="label">Vermögenszuwachs 10 J.</div><div class="value">${fmt(r.vermoegenNetto10)}</div></div>
-        ${r.markteinkaufVorteil ? `<div class="kpi-pdf pos"><div class="label">Markteinkauf-Vorteil</div><div class="value">${fmt(r.markteinkaufVorteil)}</div></div>` : ''}
+      <div class="pdf-c-cover-middle">
+        <div class="pdf-c-cover-kicker">B&amp;B Investitionsanalyse · ${esc(new Date().getFullYear().toString())}</div>
+        <div class="pdf-c-cover-address">${esc(projekt || '—')}${weBez ? '<br>' + esc(weBez) : ''}</div>
+        <div class="pdf-c-cover-headline">
+          In zehn Jahren hast Du <span class="pdf-c-num-accent">${fmt(r.vermoegenNetto10)}</span> aufgebaut.
+        </div>
       </div>
-
-      <h2 class="pdf-section-h">Bonität (Bank-Sicht)</h2>
-      <div class="kpi-grid-pdf kpi-grid-4">
-        <div class="kpi-pdf ${r.bonVor >= 0 ? 'pos' : 'neg'}"><div class="label">Einkommen frei vor Invest.</div><div class="value">${fmtMo(r.bonVor || 0)}</div></div>
-        <div class="kpi-pdf ${r.bonNach >= 0 ? 'pos' : 'neg'}"><div class="label">Einkommen frei nach Invest.</div><div class="value">${fmtMo(r.bonNach || 0)}</div></div>
-        <div class="kpi-pdf"><div class="label">Eigenkapital vor Invest.</div><div class="value">${fmt(r.bonVermoegen || 0)}</div></div>
-        <div class="kpi-pdf ${r.bonVermoegenVsEk >= 0 ? 'pos' : 'neg'}"><div class="label">Eigenkapital nach Invest.</div><div class="value">${fmt(r.bonVermoegenVsEk || 0)}</div></div>
+      <div class="pdf-c-cover-bottom">
+        <div class="meta">${vertrieblerBlock}</div>
+        <div class="date">${esc(datum)}</div>
       </div>
-
-      <h2 class="pdf-section-h">Vertriebs-Argumente</h2>
-      <div class="argument-grid">
-        ${r.markteinkaufVorteil ? `<div class="arg-box"><div class="arg-h">Markteinkauf-Vorteil</div><div class="arg-v">${fmt(r.markteinkaufVorteil)}</div><div class="arg-d">unter Marktpreis eingekauft</div></div>` : ''}
-        <div class="arg-box"><div class="arg-h">Mietsubvention gesamt</div><div class="arg-v">${fmt(r.mietsubventionGesamt)}</div><div class="arg-d">Anlaufphase abgefedert</div></div>
-        <div class="arg-box"><div class="arg-h">Vorteil ggü. Sparen</div><div class="arg-v">${fmt(r.sparenVsKaufenDelta)}</div><div class="arg-d">über 10 Jahre</div></div>
-      </div>
-      ${_footer(user)}
     </div>
   `;
 
-  const cf = `
-    <div class="pdf-page">
-      ${_header('Cashflow & Vermögensaufbau', displayName + ' · ' + esc(we))}
-      <h2 class="pdf-section-h">Cashflow Jahr 1 – 10</h2>
-      <p style="font-size:10.5px;color:#777;margin:0 0 6px 0;">Jahres-Werte. Cashflow positiv = Überschuss; negativ = Eigenleistung pro Jahr.</p>
-      <table>
-        <thead>
-          <tr><th>Jahr</th><th class="num">Miete</th><th class="num">Zinsen</th><th class="num">Tilgung</th><th class="num">HG</th><th class="num">St-Vorteil</th><th class="num">Cashflow</th><th class="num">Restschuld</th></tr>
-        </thead>
-        <tbody>
-          ${r.cf.slice(0,10).map(c => `
-            <tr>
-              <td>J${c.y}</td>
-              <td class="num">${fmt(c.mieteJahr)}</td>
-              <td class="num">${fmt(c.zinsenJahr)}</td>
-              <td class="num">${fmt(c.tilgungJahr)}</td>
-              <td class="num">${fmt(c.hgJahr)}</td>
-              <td class="num">${fmt(c.stVorteilJahr)}</td>
-              <td class="num"><strong>${fmt(c.cfJahr)}</strong></td>
-              <td class="num">${fmt(c.restschuld)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-      ${_footer(user)}
-    </div>
-  `;
+  // ===== SEITE 2 · ECKDATEN + PLAN =====
+  const belastungJ110 = r.cf.slice(0, 10).map((c, idx) => {
+    const mo = Math.round(c.cfJahr / 12);
+    const cls = mo >= 0 ? 'pdf-c-pos' : 'pdf-c-neg';
+    return `<tr><td>${c.y}</td><td class="r ${cls}">${mo > 0 ? '+' : ''}${mo} €</td></tr>`;
+  }).join('');
+  const seite2 = `
+    <div class="pdf-page pdf-c-page">
+      ${ph()}
+      <div class="pdf-c-section-num">01 · Das Objekt &nbsp;·&nbsp; 02 · Der Plan</div>
+      <h2 class="pdf-c-section-title">Effektive Belastung im ersten Jahr: ${fmtMo(r.belastungMo)}.</h2>
+      <p class="pdf-c-lead" style="max-width:48ch">${i.qm ? 'Eine ' + i.qm.toString().replace('.', ',') + '-qm-Wohnung' : 'Eine Wohnung'} im Bestand. Die Wohnung trägt sich nahezu selbst; was bleibt, ist eine kalkulierte monatliche Eigenleistung.</p>
+      <div class="pdf-c-p2-grid">
+        <div class="pdf-c-obj">
+          <h4>Objekt</h4>
+          <div class="pdf-c-obj-row"><span class="k">Adresse</span><span class="v">${esc(projekt || i._weLage || '—')}</span></div>
+          ${i._weNr ? `<div class="pdf-c-obj-row"><span class="k">Wohneinheit</span><span class="v">${esc(i._weNr)}</span></div>` : ''}
+          <div class="pdf-c-obj-row"><span class="k">Wohnfläche</span><span class="v">${(i.qm || 0).toLocaleString('de-DE')}<span class="unit">qm</span></span></div>
 
-  // Vermögensaufbau pro Jahr (10 J)
-  const vermPage = `
-    <div class="pdf-page">
-      ${_header('Vermögensaufbau & Sparen vs. Investieren', displayName + ' · ' + esc(we))}
-      <h2 class="pdf-section-h">Vermögensaufbau 10 Jahre</h2>
-      <p style="font-size:10.5px;color:#777;margin:0 0 6px 0;">Verkaufserlös = Marktwert − Restschuld. Gesamtvermögen = Verkaufserlös + kumulierte Cashflows. Vermögenszuwachs = Gesamtvermögen − eingesetztes EK (echter Reinerlös).</p>
-      <table>
-        <thead>
-          <tr><th>Jahr</th><th class="num">Marktwert</th><th class="num">Restschuld</th><th class="num">Verkaufserlös</th><th class="num">kum. CF</th><th class="num">Gesamtvermögen</th><th class="num">Zuwachs</th></tr>
-        </thead>
-        <tbody>
-          ${r.vermoegen.map(v => `
-            <tr>
-              <td>J${v.y}</td>
-              <td class="num">${fmt(v.wert)}</td>
-              <td class="num">${fmt(v.restschuld)}</td>
-              <td class="num">${fmt(v.verkaufserloes || (v.wert - v.restschuld))}</td>
-              <td class="num">${fmt(v.kumCf)}</td>
-              <td class="num">${fmt(v.vermoegenBrutto)}</td>
-              <td class="num"><strong>${fmt(v.vermoegenNetto)}</strong></td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
+          <h4>Kaufpreis</h4>
+          <div class="pdf-c-obj-row"><span class="k">Wohnung</span><span class="v">${Math.round(i.kaufpreis || 0).toLocaleString('de-DE')}<span class="unit">€</span></span></div>
+          ${i.stellplatzKp > 0 ? `<div class="pdf-c-obj-row"><span class="k">Stellplatz</span><span class="v">${Math.round(i.stellplatzKp).toLocaleString('de-DE')}<span class="unit">€</span></span></div>` : ''}
+          <div class="pdf-c-obj-row"><span class="k">Gesamt</span><span class="v">${Math.round(r.kpGesamt).toLocaleString('de-DE')}<span class="unit">€</span></span></div>
+          <div class="pdf-c-obj-row"><span class="k">KP je qm</span><span class="v">${Math.round(kpQm).toLocaleString('de-DE')}<span class="unit">€</span></span></div>
+          ${marktQm > 0 ? `<div class="pdf-c-obj-row"><span class="k">Markt je qm</span><span class="v">${Math.round(marktQm).toLocaleString('de-DE')}<span class="unit">€</span></span></div>` : ''}
 
-      <h2 class="pdf-section-h">Sparen vs. Investieren (10 Jahre)</h2>
-      <p style="font-size:10.5px;color:#777;margin:0 0 6px 0;">Vergleich: Eigenkapital nur anlegen (Verzinsung ${((kalkInputs.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a.) vs. Eigenkapital als Immobilien-Investment inkl. Cashflow.</p>
-      <table>
-        <thead>
-          <tr><th>Jahr</th><th class="num">Nur Sparen</th><th class="num">Mit Immobilie</th><th class="num">Delta</th></tr>
-        </thead>
-        <tbody>
-          ${r.sparen.map(s => `
-            <tr>
-              <td>J${s.y}</td>
-              <td class="num">${fmt(s.nurSparen)}</td>
-              <td class="num">${fmt(s.mitImmo)}</td>
-              <td class="num"><strong>${fmt(s.delta)}</strong></td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-      ${_footer(user)}
-    </div>
-  `;
-
-  // Bonitäts-Detail-Seite — zeigt Saldo-Rechnung für die Bank
-  const bon = `
-    <div class="pdf-page">
-      ${_header('Bonitäts-Effekt', displayName + ' · Bank-Sicht')}
-      <p style="font-size:10.5px;color:#777;margin:0 0 8px 0;">Quelle: ${r.bonModus === 'detail' ? 'Selbstauskunft' : 'manuelle Quick-Eingabe'}. Banken rechnen die Miete pauschal mit 80 % an (Leerstands-/Mietausfallsreserve).</p>
-
-      <h2 class="pdf-section-h">Saldo-Rechnung</h2>
-      <table class="invest-table">
-        <tr><td>Einnahmen / Monat</td><td class="num pos">+ ${fmtMo(r.bonEinnahmen || 0)}</td></tr>
-        <tr><td>Ausgaben / Monat</td><td class="num neg">− ${fmtMo(r.bonAusgaben || 0)}</td></tr>
-        <tr class="totalrow"><td><strong>Saldo vor Kauf</strong></td><td class="num"><strong>${fmtMo(r.bonVor || 0)}</strong></td></tr>
-        <tr><td>+ Anrechenbare Miete (80 %)</td><td class="num pos">+ ${fmtMo(r.bonMieteAnr || 0)}</td></tr>
-        <tr><td>− Annuität Bank</td><td class="num neg">− ${fmtMo(r.bonAnnuMo || 0)}</td></tr>
-        ${r.bonModus === 'detail' ? `
-        <tr><td>− Hausgeld (bank-konservativ)</td><td class="num neg">− ${fmtMo(r.hausgeldNurMo || 0)}</td></tr>
-        <tr><td>− Hausverwaltung</td><td class="num neg">− ${fmtMo(r.hausverwaltungMo || 0)}</td></tr>
-        ` : ''}
-        <tr class="totalrow"><td><strong>Saldo nach Kauf</strong></td><td class="num"><strong>${fmtMo(r.bonNach || 0)}</strong></td></tr>
-        <tr><td>Saldo-Delta aus dieser WE</td><td class="num"><strong>${fmtMo(r.bonDelta || 0)}</strong></td></tr>
-      </table>
-
-      <h2 class="pdf-section-h">Vermögen aus Bank-Sicht</h2>
-      <table class="invest-table">
-        <tr><td>Verfügbares Eigenkapital</td><td class="num">${fmt(r.bonVermoegen || 0)}</td></tr>
-        <tr><td>− Eigenkapital-Bedarf</td><td class="num neg">− ${fmt(r.ekBedarf)}</td></tr>
-        <tr class="totalrow"><td><strong>EK nach Investment</strong></td><td class="num ${r.bonVermoegenVsEk >= 0 ? 'pos' : 'neg'}"><strong>${fmt(r.bonVermoegenVsEk || 0)}</strong></td></tr>
-      </table>
-
-      <div class="pdf-hint">
-        Nur <em>liquide oder leicht beleihbare Werte</em> zählen für die Bank (Sparbuch, Tagesgeld, Aktien, ETFs, Rückkaufwert Lebensversicherung). Nicht: Eigenheim oder Bestandsimmobilien.
+          <h4>Dein Einsatz</h4>
+          <div class="pdf-c-obj-row"><span class="k">Kaufnebenkosten</span><span class="v">${Math.round(knk).toLocaleString('de-DE')}<span class="unit">€</span></span></div>
+          <div class="pdf-c-obj-row"><span class="k">Eigenkapital</span><span class="v">${Math.round(r.ekBedarf).toLocaleString('de-DE')}<span class="unit">€</span></span></div>
+        </div>
+        <div class="pdf-c-p2-right">
+          <div class="hero-line">Annuität <span class="pdf-c-num">${fmtMo(r.annuityMo)}</span> &nbsp;·&nbsp; Miete <span class="pdf-c-num">${fmtMo(r.mieteJ1Mo)}</span> &nbsp;·&nbsp; Steuervorteil <span class="pdf-c-num">${fmtMo(r.stVorteilJ1Mo)}</span></div>
+          <p class="narrative">Die Wohnung trägt sich aus laufender Miete und Steuervorteil zu rund ${selbsttragungPct} % selbst. Die effektive Belastung im Jahr 1 entspricht etwa einem Streaming-Abo oder einem zweiten Strom-Tarif.</p>
+          <table class="pdf-c-p2-belastung-table">
+            <thead><tr><th>Jahr</th><th class="r">Belastung €/Mo</th></tr></thead>
+            <tbody>${belastungJ110}</tbody>
+          </table>
+          ${crossoverJahr ? `<p class="narrative" style="margin-top:5mm">Ab Jahr ${crossoverJahr} dreht die Belastung ins Plus — die Wohnung beginnt, einen monatlichen Überschuss zu liefern, während die Annuität konstant bleibt.</p>` : '<p class="narrative" style="margin-top:5mm">Über die 10 Jahre bleibt die Belastung im negativen Bereich — der Vermögenseffekt entsteht über die Tilgung und Wertsteigerung.</p>'}
+        </div>
       </div>
-      ${_footer(user)}
+      <div class="pdf-c-page-foot"><div>02 · Eckdaten &amp; Plan</div><div class="pdf-c-page-num">Seite 2 von 7</div></div>
     </div>
   `;
 
-  const annahmen = `
-    <div class="pdf-page">
-      ${_header('Annahmen & Hinweise', displayName + ' · ' + esc(we))}
-      <table class="invest-table">
-        <tr><td>Kaufpreis Wohnung</td><td class="num">${fmt(kalkInputs.kaufpreis)}</td></tr>
-        <tr><td>Stellplatz-KP</td><td class="num">${fmt(kalkInputs.stellplatzKp)}</td></tr>
-        <tr><td>Quadratmeter</td><td class="num">${esc(kalkInputs.qm)} m²</td></tr>
-        <tr><td>Kaltmiete</td><td class="num">${fmt(kalkInputs.kaltmiete)} / Mo</td></tr>
-        <tr><td>Stellplatzmiete</td><td class="num">${fmt(kalkInputs.stellplatzMiete)} / Mo</td></tr>
-        <tr><td>Hausgeld</td><td class="num">${fmt(kalkInputs.hausgeld)} / Mo</td></tr>
-        <tr><td>Hausverwaltung</td><td class="num">${fmt(kalkInputs.hausverwaltung)} / Mo</td></tr>
-        <tr><td>Mietverwaltung</td><td class="num">${fmt(kalkInputs.mietverwaltung)} / Mo</td></tr>
-        ${(() => {
-          // Iter 41.15: Mietsubvention 2-Phasen-Modell sauber im PDF ausweisen
-          // Iter 45: Gesamt-Summe nutzt den echten Liquiditätsabfluss aus dem recalc-Result
-          //          (r.mietsubventionGesamt) — konsistent zur Subv-Glättung.
-          const phasen = Array.isArray(kalkInputs.subventionPhasen) ? kalkInputs.subventionPhasen : [];
-          const totalGeglättet = (r && typeof r.mietsubventionGesamt === 'number')
-            ? r.mietsubventionGesamt
-            : null;
-          if (phasen.length >= 2) {
-            const p1 = phasen[0], p2 = phasen[1];
-            const totalNominal = (p1.mo * p1.monate) + (p2.mo * p2.monate);
-            const totalShow = totalGeglättet !== null ? totalGeglättet : totalNominal;
-            return `
-              <tr><td>Mietsubvention Phase 1</td><td class="num">${fmt(p1.mo)} / Mo × ${p1.monate} Mo</td></tr>
-              <tr><td>Mietsubvention Phase 2</td><td class="num">${fmt(p2.mo)} / Mo × ${p2.monate} Mo</td></tr>
-              <tr><td>Mietsubvention gesamt</td><td class="num"><strong>${fmt(totalShow)}</strong></td></tr>
-            `;
-          } else if (phasen.length === 1) {
-            const p = phasen[0];
-            return `<tr><td>Mietsubvention</td><td class="num">${fmt(p.mo)} / Mo × ${p.monate} Mo</td></tr>`;
-          }
-          const total1Show = totalGeglättet !== null ? totalGeglättet : ((kalkInputs.subventionMo || 0) * (kalkInputs.subventionMonate || 0));
-          return `<tr><td>Mietsubvention</td><td class="num">${fmt(kalkInputs.subventionMo)} / Mo × ${esc(kalkInputs.subventionMonate)} Mo (gesamt <strong>${fmt(total1Show)}</strong>)</td></tr>`;
-        })()}
-        <tr><td>Zins</td><td class="num">${fmtPct(kalkInputs.zins)}</td></tr>
-        <tr><td>Tilgung</td><td class="num">${fmtPct(kalkInputs.tilgung)}</td></tr>
-        <tr><td>AfA-Satz</td><td class="num">${fmtPct(kalkInputs.afaSatz)}</td></tr>
-        <tr><td>Wertsteigerung p.a.</td><td class="num">${fmtPct(kalkInputs.wertsteigerung)}</td></tr>
-        <tr><td>Mietsteigerung</td><td class="num">${fmtPct(kalkInputs.steigerungProz)} (${esc(kalkInputs.mietsteigerungsModus)})</td></tr>
-        <tr><td>Steuersatz</td><td class="num">${fmtPct(kalkInputs.steuersatz)}</td></tr>
-        <tr><td>KNK mitfinanziert</td><td class="num">${kalkInputs.knkMitfinanziert ? 'Ja' : 'Nein'}</td></tr>
+  // ===== SEITE 3 · AUSSICHT =====
+  const vermoegenRows = r.vermoegen.slice(1, 11).map(v => {
+    const netto = Math.round(v.vermoegenNetto || 0);
+    const cls = netto >= 0 ? 'pdf-c-pos' : 'pdf-c-neg';
+    return `<tr><td>${v.y}</td><td class="r">${Math.round(v.wert).toLocaleString('de-DE')} €</td><td class="r">${Math.round(v.restschuld).toLocaleString('de-DE')} €</td><td class="r ${cls}">${netto > 0 ? '+' : ''}${netto.toLocaleString('de-DE')} €</td></tr>`;
+  }).join('');
+  const seite3 = `
+    <div class="pdf-page pdf-c-page">
+      ${ph()}
+      <div class="pdf-c-section-num">03 · Vermögenszuwachs</div>
+      <h2 class="pdf-c-section-title">In zehn Jahren: <span class="pdf-c-accent" style="font-weight:300">${fmt(r.vermoegenNetto10)}</span> Nettovermögen.</h2>
+      <p class="pdf-c-lead" style="max-width:56ch">${nettoCrossoverJahr ? 'Aus zunächst negativem Nettovermögen wird ab Jahr ' + nettoCrossoverJahr + ' der Pfad nach oben sichtbar' : 'Der Pfad zum positiven Nettovermögen braucht in diesem Profil mehr als 10 Jahre'} — getragen vom Restschuld-Abbau durch die Annuität und einer moderat gerechneten Wertentwicklung.</p>
+      <table class="pdf-c-p3-vermoegen-table">
+        <thead><tr><th>Jahr</th><th class="r">Marktwert</th><th class="r">Restschuld</th><th class="r">Netto kumuliert</th></tr></thead>
+        <tbody>${vermoegenRows}</tbody>
       </table>
-
-      <div class="pdf-disclaimer">
-        Diese Investitionsrechnung beruht auf den oben dokumentierten Annahmen. Sie ist
-        keine Anlageberatung im Sinne des WpHG. Tatsächliche Mieten, Zinssätze, Steuersätze
-        und Wertentwicklungen können abweichen. Verbindlich ist ausschließlich der notarielle
-        Kaufvertrag. Steuerliche Aspekte sind mit dem Steuerberater abzustimmen.
+      <div class="pdf-c-p3-bottom">
+        <div class="cell"><div class="label">Markt-Vermögen J10</div><div class="v">${Math.round(v10.wert || 0).toLocaleString('de-DE')}<span class="unit">€</span></div></div>
+        <div class="cell"><div class="label">Restschuld J10</div><div class="v">${Math.round(v10.restschuld || 0).toLocaleString('de-DE')}<span class="unit">€</span></div></div>
+        <div class="cell"><div class="label">Interner Zinsfuß</div><div class="v">${(r.irr * 100).toFixed(1).replace('.',',')}<span class="unit">% p.a.</span></div></div>
       </div>
-      ${_footer(user)}
+      <div class="pdf-c-page-foot"><div>03 · Aussicht</div><div class="pdf-c-page-num">Seite 3 von 7</div></div>
     </div>
   `;
 
-  _doPrint(seite1 + bon + cf + vermPage + annahmen, 'invest');
+  // ===== SEITE 4 · VERGLEICH =====
+  const seite4 = `
+    <div class="pdf-page pdf-c-page">
+      ${ph()}
+      <div class="pdf-c-p4-center">
+        <div class="pdf-c-section-num">04 · Die Alternative</div>
+        <h2 class="pdf-c-p4-headline">Wäre Dein Eigenkapital auf einem Sparbuch geblieben.</h2>
+        <div class="pdf-c-p4-delta">+ <span class="num">${fmt(r.sparenVsKaufenDelta)}</span><br><span style="font-size:11pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500;display:inline-block;margin-top:4mm">Mehrgewinn über 10 Jahre</span></div>
+        <p class="pdf-c-p4-sub">${fmt(r.ekBedarf)} auf einem Sparbuch zu ${((i.sparZins || 0.025) * 100).toFixed(2).replace('.', ',')} % p.a. wären in zehn Jahren auf rund ${fmt(sparen10.nurSparen)} gewachsen. Dasselbe Eigenkapital, in den Sachwert Immobilie investiert, kommt auf ${fmt(sparen10.mitImmo)}. Die Differenz von ${fmt(r.sparenVsKaufenDelta)} ist der reine Sachwert-Vorteil.</p>
+      </div>
+      <div class="pdf-c-page-foot"><div>04 · Im Vergleich</div><div class="pdf-c-page-num">Seite 4 von 7</div></div>
+    </div>
+  `;
+
+  // ===== SEITE 5 · DETAIL =====
+  const cfRowsP5 = r.cf.slice(0, 10).map(c => {
+    const mo = Math.round(c.cfJahr / 12);
+    const cls = mo >= 0 ? 'pdf-c-pos' : 'pdf-c-neg';
+    return `<tr><td>${c.y}</td><td class="r ${cls}">${mo > 0 ? '+' : ''}${mo}</td><td class="r">${Math.round(c.cfJahr).toLocaleString('de-DE')}</td></tr>`;
+  }).join('');
+  const seite5 = `
+    <div class="pdf-page pdf-c-page">
+      ${ph()}
+      <div class="pdf-c-section-num">05 · Im Detail</div>
+      <h2 class="pdf-c-section-title">Damit Du jede Zahl nachvollziehen kannst.</h2>
+      <div class="pdf-c-p5-grid">
+        <div class="pdf-c-p5-block">
+          <h4>Bonität · So rechnet die Bank das durch</h4>
+          <div class="pdf-c-saldo-row"><span>Freies Einkommen vor Investment</span><span class="pdf-c-pos">${fmtMo(r.bonVor || 0)}</span></div>
+          <div class="pdf-c-saldo-row"><span>+ Anrechenbare Miete (80 %)</span><span class="pdf-c-pos">+ ${fmtMo(r.bonMieteAnr || 0)}</span></div>
+          <div class="pdf-c-saldo-row"><span>− Annuität</span><span class="pdf-c-neg">− ${fmtMo(r.bonAnnuMo || 0)}</span></div>
+          ${r.bonModus === 'detail' ? `
+          <div class="pdf-c-saldo-row"><span>− Hausgeld (konservativ)</span><span class="pdf-c-neg">− ${fmtMo(r.hausgeldNurMo || 0)}</span></div>
+          <div class="pdf-c-saldo-row"><span>− Hausverwaltung</span><span class="pdf-c-neg">− ${fmtMo(r.hausverwaltungMo || 0)}</span></div>` : ''}
+          <div class="pdf-c-saldo-row tot"><span>Nach Investment</span><span>${fmtMo(r.bonNach || 0)}</span></div>
+          <h5>Freies Eigenkapital</h5>
+          <div class="pdf-c-saldo-row"><span>Vor Erwerb</span><span>${fmt(r.bonVermoegen || 0)}</span></div>
+          <div class="pdf-c-saldo-row"><span>Einsatz Erwerb (EK + KNK)</span><span class="pdf-c-neg">− ${fmt(r.ekBedarf)}</span></div>
+          <div class="pdf-c-saldo-row tot"><span>Nach Erwerb</span><span>${fmt(r.bonVermoegenVsEk || 0)}</span></div>
+          <p style="font-size:7.5pt;color:#7A7A72;margin-top:3mm;line-height:1.55">Die Mietsubvention wird bei richtiger Gestaltung wie Miete angesetzt — sie geht zu 80 % in die anrechenbare Miete ein.</p>
+        </div>
+
+        <div class="pdf-c-p5-block">
+          <h4>Rechen-Annahmen</h4>
+          <div class="pdf-c-ass-row"><span class="k">Kaufpreis gesamt</span><span class="v">${fmt(r.kpGesamt)}</span></div>
+          <div class="pdf-c-ass-row"><span class="k">Kaufnebenkosten</span><span class="v">${fmt(knk)}${i.knkMitfinanziert ? ' (mitfinanziert)' : ''}</span></div>
+          <div class="pdf-c-ass-row"><span class="k">Eigenkapital-Einsatz</span><span class="v">${fmt(r.ekBedarf)}</span></div>
+          <div class="pdf-c-ass-row"><span class="k">Annuität pro Monat</span><span class="v">${fmtMo(r.annuityMo)}</span></div>
+          <div class="pdf-c-ass-row"><span class="k">Zinssatz Darlehen</span><span class="v">${fmtPct(i.zins || 0)} p.a.</span></div>
+          <div class="pdf-c-ass-row"><span class="k">Anfangstilgung</span><span class="v">${fmtPct(i.tilgung || 0)} p.a.</span></div>
+          <div class="pdf-c-ass-row"><span class="k">Wertsteigerung</span><span class="v">${fmtPct(i.wertsteigerung || 0)} p.a.</span></div>
+          <div class="pdf-c-ass-row"><span class="k">Mietsteigerung</span><span class="v">${fmtPct(i.steigerungProz || 0)} p.a.</span></div>
+          <div class="pdf-c-ass-row"><span class="k">Steuersatz</span><span class="v">${fmtPct(i.steuersatz || 0)}</span></div>
+          <div class="pdf-c-ass-row"><span class="k">AfA-Satz</span><span class="v">${fmtPct(i.afaSatz || 0)} linear</span></div>
+          <div class="pdf-c-ass-row"><span class="k">Mietsubvention</span><span class="v">${subvText}</span></div>
+          <div class="pdf-c-ass-row"><span class="k">Sparbuch-Vergleich</span><span class="v">${((i.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a.</span></div>
+        </div>
+
+        <div class="pdf-c-p5-block" style="grid-column:1/-1">
+          <h4>Cashflow Jahr 1 bis Jahr 10</h4>
+          <table class="pdf-c-p5-cashflow">
+            <thead><tr><th>Jahr</th><th class="r">Belastung €/Mo</th><th class="r">Jahres-Summe €</th></tr></thead>
+            <tbody>${cfRowsP5}</tbody>
+          </table>
+        </div>
+      </div>
+      <p class="pdf-c-disclaimer">
+        Diese Investitionsrechnung beruht auf den dokumentierten Annahmen. Keine Anlageberatung im Sinne des WpHG. Verbindlich ist ausschließlich der notarielle Kaufvertrag. Steuerliche Aspekte sind mit Deinem Steuerberater abzustimmen. Die ausgewiesene Wertsteigerung und Mietsteigerung sind Annahmen auf Basis langjähriger Marktbeobachtung; tatsächliche Werte können abweichen.
+      </p>
+      <div class="pdf-c-page-foot"><div>05 · Im Detail</div><div class="pdf-c-page-num">Seite 5 von 7</div></div>
+    </div>
+  `;
+
+  // ===== SEITE 6 · DER WEG =====
+  const seite6 = `
+    <div class="pdf-page pdf-c-page">
+      ${ph()}
+      <div class="pdf-c-section-num">06 · Wie es weitergeht</div>
+      <h2 class="pdf-c-section-title">Sechs Schritte bis zum Notartermin.</h2>
+      <p class="pdf-c-lead" style="max-width:60ch">
+        Wir beurkunden den Kauf erst dann, wenn drei Voraussetzungen sauber erfüllt sind: Deine Finanzierung steht, die Objektunterlagen passen zu dem, was Du hier siehst, und Du hast die Wohnung besichtigt. Fehlt einer dieser Punkte — kein Notartermin.
+      </p>
+      <ol class="pdf-c-weg">
+        <li><span class="pdf-c-weg-num">1</span><div class="pdf-c-weg-body"><strong>Selbstauskunft vollständig ausfüllen.</strong>Bonität-Grundlage für die Bank — wir helfen Dir durch jedes Feld. Dauert in der Regel 20–30 Minuten.</div></li>
+        <li><span class="pdf-c-weg-num">2</span><div class="pdf-c-weg-body"><strong>Wohneinheit sichern.</strong>Reservierung. Die Wohneinheiten gehen unter Marktwert weg — die Reservierung schützt Dich davor, dass sie an einen anderen Interessenten geht, während Du die nächsten Schritte gehst.</div></li>
+        <li><span class="pdf-c-weg-num">3</span><div class="pdf-c-weg-body"><strong>Objektunterlagen prüfen.</strong>Du bekommst Teilungserklärung, Protokolle, Wirtschaftsplan, Energieausweis. Damit prüfst Du selbst — oder mit Deinem Berater — dass die Unterlagen exakt das wiedergeben, was wir Dir hier gezeigt haben.</div></li>
+        <li><span class="pdf-c-weg-num">4</span><div class="pdf-c-weg-body"><strong>Finanzierungszusage erhalten.</strong>Mit der vollständigen Selbstauskunft und den Objektunterlagen geht es zur Bank. Sobald die schriftliche Finanzierungszusage da ist, schaltet die nächste Stufe frei.</div></li>
+        <li><span class="pdf-c-weg-num">5</span><div class="pdf-c-weg-body"><strong>Besichtigung vor Ort.</strong>Du siehst die Wohnung mit eigenen Augen — Lage, Substanz, Treppenhaus, Umfeld. Erst wenn das passt, machen wir den letzten Schritt.</div></li>
+        <li><span class="pdf-c-weg-num">6</span><div class="pdf-c-weg-body"><strong>Notartermin.</strong>Beurkundung des Kaufvertrags. Wir beurkunden nur, wenn die drei Voraussetzungen Finanzierung, Objektunterlagen und Besichtigung sauber erfüllt sind.</div></li>
+      </ol>
+      <div class="pdf-c-page-foot"><div>06 · Wie es weitergeht</div><div class="pdf-c-page-num">Seite 6 von 7</div></div>
+    </div>
+  `;
+
+  // ===== SEITE 7 · BROT & BUTTER =====
+  const seite7 = `
+    <div class="pdf-page pdf-c-page">
+      ${ph()}
+      <div class="pdf-c-section-num">07 · Wer wir sind</div>
+      <h2 class="pdf-c-section-title">Brot &amp; Butter.</h2>
+      <p class="pdf-c-lead" style="max-width:60ch">Unser Name ist unser Geschäftsmodell. Wir kaufen die großen Brote und veredeln sie mit Butter — bevor wir scheibenweise an Dich weitergeben.</p>
+      <div class="pdf-c-bub-grid">
+        <div class="pdf-c-bub-cell"><div class="pdf-c-bub-step">Brot</div><div class="pdf-c-bub-text">Wir kaufen bei großen Immobiliengesellschaften ganze Bestände zu Preisen, die für Einzelkäufer nie sichtbar werden. Volumen schafft den Einkaufsvorteil — das ist das Leibbrot.</div></div>
+        <div class="pdf-c-bub-cell"><div class="pdf-c-bub-step">Teilen</div><div class="pdf-c-bub-text">Aus dem Bestand werden einzelne Scheiben — einzelne Wohneinheiten, die wir vermarktungsfähig machen. Jede Einheit bekommt ihren eigenen Pfad.</div></div>
+        <div class="pdf-c-bub-cell"><div class="pdf-c-bub-step">Butter</div><div class="pdf-c-bub-text">Veredelung. Bevor eine Wohnung zu Dir kommt, machen wir den Hausverwaltungs-Wechsel, prüfen die Rücklage, setzen notwendige Maßnahmen an und begutachten den Zustand sehr genau.</div></div>
+        <div class="pdf-c-bub-cell"><div class="pdf-c-bub-step">Weitergabe</div><div class="pdf-c-bub-text">Portionsgerecht. Nicht jeder kann ein Mehrfamilienhaus kaufen — eine einzelne Wohnung schon. So machen wir den Sachwert für Privatanleger zugänglich.</div></div>
+      </div>
+      <div class="pdf-c-bub-foot">
+        <div class="pdf-c-bub-foot-item"><strong>Keine Vertriebsprovision.</strong>Du zahlst keinen Vermittler-Aufschlag. Unser Geld verdienen wir im Einkauf, nicht am Verkauf.</div>
+        <div class="pdf-c-bub-foot-item"><strong>Skin in the Game.</strong>Wir behalten regelmäßig Einheiten im eigenen Bestand. Auch die Gesellschafter kaufen privat — wir investieren in das, was wir Dir anbieten.</div>
+      </div>
+      <div class="pdf-c-bub-sig">${vertrieblerBlock}</div>
+      <div class="pdf-c-page-foot"><div>07 · Brot &amp; Butter</div><div class="pdf-c-page-num">Seite 7 von 7</div></div>
+    </div>
+  `;
+
+  _doPrint(pdfCStyle + seite1 + seite2 + seite3 + seite4 + seite5 + seite6 + seite7, 'invest');
 }
 
 /* ====================================================================
