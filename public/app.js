@@ -1039,23 +1039,36 @@ function bindSparZinsSlider() {
   const num   = document.getElementById('spar-zins-num');
   const lbl   = document.getElementById('spar-zins-val');
   if (!range || !num || !lbl) return;
-  const applyValue = (rawPct, source) => {
+  // Iter 91.4 (22.05.2026): zwei getrennte Update-Pfade.
+  //   - liveDisplay: nur die UI-Werte (Label + Sync zwischen Range und Num)
+  //     spiegeln. KEIN recalc. Wird auf input getriggert während des Drags.
+  //   - applyAndRecalc: erst beim Loslassen (change/blur) den State + Recalc.
+  // Vorher: jede Slider-Bewegung triggerte recalcAndRender → die ganze Story
+  // wurde neu gerendert → der Modal-DOM (inkl. dieser Slider) wurde zerstört
+  // → User verlor Mouse-Tracking + Modal schloss sich. Edgar-Befund 22.05.
+  const liveDisplay = (rawPct, source) => {
+    let v = parseFloat(rawPct);
+    if (!isFinite(v)) v = 2.5;
+    v = Math.max(0, Math.min(12, v));
+    if (source !== 'range') range.value = v.toFixed(2);
+    if (source !== 'num')   num.value   = v.toFixed(2);
+    lbl.textContent = v.toFixed(2).replace('.', ',') + ' %';
+  };
+  const applyAndRecalc = (rawPct) => {
     let v = parseFloat(rawPct);
     if (!isFinite(v)) v = 2.5;
     v = Math.max(0, Math.min(12, v));
     state.kalk.sparZins = v / 100;
-    // Beide UI-Elemente synchronisieren
-    if (source !== 'range') range.value = v.toFixed(2);
-    if (source !== 'num')   num.value   = v.toFixed(2);
+    range.value = v.toFixed(2);
+    num.value   = v.toFixed(2);
     lbl.textContent = v.toFixed(2).replace('.', ',') + ' %';
     recalcAndRender();
   };
-  // Iter 91: oninput/onblur direkt setzen statt addEventListener, weil die
-  // Elemente jetzt im Annahmen-Modal leben und bei jedem Re-Render neu
-  // erzeugt werden. Direktes setzen ist idempotent (überschreibt vorigen Handler).
-  range.oninput = () => applyValue(range.value, 'range');
-  num.oninput   = () => applyValue(num.value,   'num');
-  num.onblur    = () => applyValue(num.value,   'num');
+  range.oninput  = () => liveDisplay(range.value, 'range');
+  range.onchange = () => applyAndRecalc(range.value);
+  num.oninput    = () => liveDisplay(num.value,   'num');
+  num.onchange   = () => applyAndRecalc(num.value);
+  num.onblur     = () => applyAndRecalc(num.value);
 }
 
 function setWeMode(mode) {
@@ -2965,7 +2978,11 @@ function _bindCPremiumInteractions() {
     btn.onclick = () => {
       const id = btn.getAttribute('data-kalk-c-modal');
       const m = document.querySelector('.kalk-c-modal-backdrop[data-kalk-c-modal-id="' + id + '"]');
-      if (m) { m.classList.add('kalk-c-open'); document.body.style.overflow = 'hidden'; }
+      if (m) {
+        m.classList.add('kalk-c-open');
+        document.body.style.overflow = 'hidden';
+        window._cOpenModal = id; // Iter 91.4: persistieren
+      }
     };
   });
   const closes = document.querySelectorAll('.kalk-c-modal-backdrop [data-kalk-c-close]');
@@ -2975,6 +2992,14 @@ function _bindCPremiumInteractions() {
   document.querySelectorAll('.kalk-c-modal-backdrop').forEach(bk => {
     bk.onclick = (e) => { if (e.target === bk) _closeAllCModals(); };
   });
+
+  // Iter 91.4: Wenn vor einem Re-Render ein Modal offen war, öffne es wieder.
+  // Sonst schließt sich der Annahmen-Modal nach jedem Slider-change, weil
+  // renderStoryPremium den ganzen Inhalt neu setzt.
+  if (window._cOpenModal) {
+    const m = document.querySelector('.kalk-c-modal-backdrop[data-kalk-c-modal-id="' + window._cOpenModal + '"]');
+    if (m) { m.classList.add('kalk-c-open'); document.body.style.overflow = 'hidden'; }
+  }
   // ESC: einmalig binden (global)
   if (!window._cPremiumEscBound) {
     document.addEventListener('keydown', (e) => {
@@ -3033,6 +3058,7 @@ function _bindCPremiumInteractions() {
 function _closeAllCModals() {
   document.querySelectorAll('.kalk-c-modal-backdrop.kalk-c-open').forEach(m => m.classList.remove('kalk-c-open'));
   document.body.style.overflow = '';
+  window._cOpenModal = null; // Iter 91.4: State leeren
 }
 
 function drawCharts(r) {
