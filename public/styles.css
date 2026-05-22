@@ -2365,3 +2365,280 @@ input[type="range"].spar-zins-range::-moz-range-track {
   padding:10px 18px;
   letter-spacing:.02em;
 }
+
+/* ============================================================
+   SA-Redesign (22.05.2026) — Selbstauskunft-Form
+   Ersetzt Inline-Styles in saPersonHtml + Material-Design-Palette
+   durch B&B-Tokens. Grundstruktur (4 Blöcke + Baukasten) unverändert.
+   ============================================================ */
+
+/* Intro — kompakte 4-Zeilen-Erklärung */
+.sa-intro {
+  background: var(--bg-cream-subtle);
+  border-left: 3px solid var(--accent-light);
+  border-radius: var(--radius-sm);
+  margin: 8px 0 20px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.sa-intro > summary {
+  padding: 12px 18px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--accent-dark);
+  list-style: none;
+  user-select: none;
+}
+.sa-intro > summary::-webkit-details-marker { display: none; }
+.sa-intro > summary::after {
+  content: '⌃';
+  float: right;
+  color: var(--text-tertiary);
+  transition: transform 0.2s ease;
+  transform: rotate(180deg);
+}
+.sa-intro[open] > summary::after { transform: rotate(0deg); }
+.sa-intro-body { padding: 0 18px 14px; }
+.sa-intro-body p { margin: 0 0 8px; }
+.sa-intro-body p:last-child { margin-bottom: 0; }
+
+/* Block-Container — tonal statt Material-Ampel */
+.sa-block {
+  margin: 16px 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  transition: border-left-color 0.2s ease, box-shadow 0.2s ease;
+}
+.sa-block[open] { box-shadow: var(--shadow-card-hover); }
+.sa-block.is-in       { border-left-color: var(--positive); }
+.sa-block.is-out      { border-left-color: var(--negative); }
+.sa-block.is-neutral  { border-left-color: var(--accent); }
+.sa-block.is-gray     { border-left-color: var(--border-strong); }
+
+.sa-block > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 16px 20px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  font-weight: 600;
+}
+.sa-block > summary::-webkit-details-marker { display: none; }
+.sa-block > summary::after {
+  content: '⌃';
+  margin-left: auto;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  transition: transform 0.2s ease;
+  transform: rotate(180deg);
+}
+.sa-block[open] > summary::after { transform: rotate(0deg); }
+.sa-block > summary:hover { background: rgba(176,138,77,0.04); }
+
+.sa-block-num {
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+  min-width: 28px;
+}
+.sa-block-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+.sa-block-sub {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 8px;
+}
+.sa-block-body {
+  padding: 16px 20px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+/* Inputs in der SA — weiß wenn gefüllt, Cream-subtle wenn leer */
+.sa-block-body input[type="text"],
+.sa-block-body input[type="number"],
+.sa-block-body input[type="date"],
+.sa-block-body input[type="email"],
+.sa-block-body input[type="tel"],
+.sa-block-body select,
+.sa-block-body textarea {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.sa-block-body input[type="text"]:placeholder-shown:not(:focus),
+.sa-block-body input[type="number"]:placeholder-shown:not(:focus) {
+  background: var(--bg-cream-subtle);
+}
+.sa-block-body input:focus,
+.sa-block-body select:focus,
+.sa-block-body textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(176,138,77,0.12);
+  outline: none;
+}
+
+/* Baukasten — Sub-Header + Rows */
+.sa-baukasten {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+.sa-baukasten-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.sa-baukasten-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.sa-zusatz-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1.5fr 1fr auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.sa-zusatz-row.is-doppel {
+  grid-template-columns: 1.2fr 1.5fr 1fr 1fr auto;
+}
+.sa-zusatz-empty {
+  color: var(--text-tertiary);
+  font-size: 13px;
+  font-style: italic;
+  margin-bottom: 6px;
+  padding: 8px 12px;
+  background: var(--bg-cream-subtle);
+  border-radius: var(--radius-sm);
+}
+.sa-zusatz-add {
+  background: transparent;
+  color: var(--accent-dark);
+  border: 1px dashed var(--accent-light);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  margin-top: 10px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+.sa-zusatz-add:hover {
+  background: var(--bg-cream-subtle);
+  border-style: solid;
+  border-color: var(--accent);
+}
+.sa-zusatz-remove {
+  background: transparent;
+  color: var(--text-tertiary);
+  padding: 4px 10px;
+  font-size: 16px;
+  line-height: 1;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sa-zusatz-remove:hover {
+  color: var(--negative);
+  border-color: var(--negative-bg);
+  background: var(--negative-bg);
+}
+
+/* Checkliste — bleibt Cream/Bronze, leicht überarbeitet */
+.sa-checklist {
+  background: var(--bg-cream-subtle);
+  border-left: 3px solid var(--accent-light);
+  padding: 12px 16px;
+  margin: 0 0 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.sa-checklist-title {
+  font-weight: 600;
+  color: var(--accent-dark);
+  margin-bottom: 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.sa-checklist ul { margin: 0; padding-left: 18px; }
+.sa-checklist li + li { margin-top: 4px; }
+.sa-checklist strong { color: var(--text-primary); }
+
+/* Immobilien-Karten */
+.sa-immo-card {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-light);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  background: var(--bg-cream-subtle);
+}
+.sa-immo-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.sa-immo-card-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.sa-immo-section-label {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.sa-immo-hint-banner {
+  background: var(--bg-cream-subtle);
+  border-left: 3px solid var(--accent);
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--accent-dark);
+  border-radius: var(--radius-sm);
+}
+
+/* Notizen-Textarea */
+.sa-notizen-textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-cream-subtle);
+}
+
+/* Mobile-Override für Baukasten-Row */
+@media (max-width: 700px) {
+  .sa-zusatz-row,
+  .sa-zusatz-row.is-doppel {
+    grid-template-columns: 1fr auto;
+  }
+  .sa-zusatz-row > input { grid-column: 1 / -1; }
+  .sa-zusatz-row > input:first-child { grid-column: 1 / 2; }
+  .sa-zusatz-row > button { grid-column: 2 / 3; }
+}

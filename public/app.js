@@ -4028,14 +4028,14 @@ function renderTabSelbstauskunft() {
     <div class="card">
       <div class="card-title">Selbstauskunft <span class="text-tertiary text-small" style="font-weight:normal;">(Auto-Save aktiv)</span></div>
 
-      ${/* Iter 72 (21.05.2026): Einleitung als ausklappbares <details> — Standard zu. */ ''}
-      <details class="sa-intro-details" data-sec-state="sa-intro" ${isSaSectionOpen('sa-intro') ? 'open' : ''} style="background:#FAF6EE;border-left:3px solid #C9A961;padding:0;margin:8px 0 20px;border-radius:4px;font-size:14px;line-height:1.55;color:#3A2E13;">
-        <summary style="padding:12px 18px;cursor:pointer;font-weight:600;font-size:15px;list-style:none;">ℹ Wie diese Selbstauskunft funktioniert <span class="text-tertiary text-small" style="font-weight:normal;">(klick zum Ausklappen)</span></summary>
-        <div style="padding:0 18px 14px;">
-          <p style="margin:0 0 8px;">Sie ist bewusst <strong>schlank</strong> gehalten — vier Bausteine: <strong>① Einnahmen, ② Ausgaben, ③ Vermögen, ④ Verbindlichkeiten</strong>. Pro Baustein gibt es die wichtigsten Pflichtfelder als Standard und einen <strong>Baukasten</strong> für alles Individuelle.</p>
-          <p style="margin:0 0 8px;">Im Baukasten kannst Du beliebig viele Positionen mit <strong>Titel + Notiz + Betrag</strong> anlegen. Damit bläht die SA nicht mit ungenutzten Feldern auf, deckt aber jeden Sonderfall ab.</p>
-          <p style="margin:0 0 8px;"><strong>Fonds-Logik (Cross-Reference):</strong> Wenn ein Fondssparplan bespart wird, leg ihn zweimal an — einmal in <em>② Ausgaben</em> mit der Mo-Rate, einmal in <em>③ Vermögen</em> mit dem aktuellen Bestand. <strong>Vergibst Du beide Mal den gleichen Titel</strong> („Fondssparplan Riester"), ist die Verknüpfung sichtbar.</p>
-          <p style="margin:0;"><strong>Checklisten</strong> in jedem Block erinnern Dich, was Du beim Kunden abfragen solltest.</p>
+      ${/* SA-Redesign (22.05.2026): Intro auf 4 Zeilen verschlankt, keine Meta-Erklärungen mehr, Fonds-Logik wandert zum Vermögen-Block. */ ''}
+      <details class="sa-intro" data-sec-state="sa-intro" ${isSaSectionOpen('sa-intro') ? 'open' : ''}>
+        <summary>ℹ So füllst Du die SA aus</summary>
+        <div class="sa-intro-body">
+          <p>6 Blöcke pro Antragsteller: <strong>Stammdaten · ① Einnahmen · ② Ausgaben · ③ Vermögen · ④ Verbindlichkeiten · ⑤ Immobilien · ⑥ Notizen.</strong></p>
+          <p>Pflichtfelder oben, Baukasten unten für alles Individuelle (Titel + Notiz + Betrag).</p>
+          <p>Mieten und Baufi gehören in <strong>⑤ Immobilien</strong> — der Block schiebt sie automatisch in ① und ④.</p>
+          <p>Auto-Save aktiv. Coverage zeigt, was der Bank noch fehlt.</p>
         </div>
       </details>
 
@@ -4063,6 +4063,30 @@ function renderTabSelbstauskunft() {
         <button class="secondary" onclick="exportSaPdf()">PDF Selbstauskunft (Druck)</button>
         <button onclick="sendSaForSignature()">→ Selbstauskunft via PandaDoc senden</button>
       </div>
+      ${/* SA-Redesign (22.05.2026): Datalists mit Banken-üblichen Titeln — Vertriebler
+            bekommt Autocomplete beim Tippen, ersetzt die langen Inline-Code-Listen. */ ''}
+      <datalist id="sa-titel-einnahmen">
+        <option value="Weihnachtsgeld ⌀/Mo"><option value="Urlaubsgeld ⌀/Mo"><option value="Variable Vergütung 2025 ⌀">
+        <option value="Bonus ⌀/Mo"><option value="Unterhalt erhalten"><option value="Kindergeld">
+        <option value="Rente gesetzlich"><option value="BU-Rente"><option value="BAV-Auszahlung">
+        <option value="Selbst. Honorare ⌀">
+      </datalist>
+      <datalist id="sa-titel-ausgaben">
+        <option value="PKV-Beitrag"><option value="GKV-Zusatzbeitrag"><option value="Unterhaltszahlungen">
+        <option value="Fondssparplan MSCI World"><option value="Riester-Beitrag"><option value="Rürup-Beitrag">
+        <option value="Leasing"><option value="Vereinsbeiträge"><option value="Abos / Streaming">
+      </datalist>
+      <datalist id="sa-titel-vermoegen">
+        <option value="Wertpapierdepot"><option value="ETF MSCI World"><option value="Tagesgeld">
+        <option value="Sparbuch"><option value="Bausparvertrag LBS"><option value="VWL">
+        <option value="LV Rückkauf"><option value="Riester-Bestand"><option value="Rürup-Bestand">
+        <option value="Krypto BTC"><option value="Edelmetalle"><option value="Oldtimer">
+      </datalist>
+      <datalist id="sa-titel-verbindlichkeiten">
+        <option value="Autokredit"><option value="Konsumkredit"><option value="Kreditkarte">
+        <option value="Dispo"><option value="Studienkredit BAföG"><option value="KfW-Förderdarlehen">
+        <option value="Privatdarlehen">
+      </datalist>
     </div>
   `;
   // Häkchen-Wechsel: neu rendern, damit Layout (1 vs. 2 Spalten) + Header sich anpassen
@@ -4594,73 +4618,70 @@ function saPersonHtml(prefix, p) {
   // Iter 72 (21.05.2026): Inline-Baukasten — kein eigenes <details>-Wrapper mehr, sondern
   //   wird direkt in den Block-Container integriert. Visuell durch Trennlinie + Sub-Header
   //   vom Standard-Bereich abgesetzt.
-  function zusatzListeInline(kategorie, subHeader, hint, variant, addLabel) {
+  // SA-Redesign (22.05.2026): Titel-Input nutzt <datalist> mit Banken-üblichen Vorschlägen
+  //   pro Kategorie — der Vertriebler bekommt Autocomplete statt langer Inline-Erklär-Texte.
+  function zusatzListeInline(kategorie, subHeader, hint, variant, addLabel, datalistKey) {
     const liste = Array.isArray(p[kategorie]) ? p[kategorie] : [];
     const istDoppel = variant === 'mo-wert';
     const dz = (idx, feld) => `data-sa-zusatz="${prefix}.${kategorie}.${idx}.${feld}"`;
+    const dlAttr = datalistKey ? ` list="sa-titel-${esc(datalistKey)}"` : '';
     const rows = liste.map((item, idx) => {
       let inputs;
       if (istDoppel) {
-        inputs = `<input type="number" step="any" placeholder="€/Mo Belastung" ${dz(idx, 'mo')} value="${item.mo !== undefined && item.mo !== null ? item.mo : ''}" class="sa-zusatz-mo">
-                  <input type="number" step="any" placeholder="€ Restsaldo" ${dz(idx, 'wert')} value="${item.wert !== undefined && item.wert !== null ? item.wert : ''}" class="sa-zusatz-wert">`;
+        inputs = `<input type="number" step="any" inputmode="decimal" placeholder="€/Mo Belastung" ${dz(idx, 'mo')} value="${item.mo !== undefined && item.mo !== null ? item.mo : ''}" class="sa-zusatz-mo">
+                  <input type="number" step="any" inputmode="decimal" placeholder="€ Restsaldo" ${dz(idx, 'wert')} value="${item.wert !== undefined && item.wert !== null ? item.wert : ''}" class="sa-zusatz-wert">`;
       } else if (variant === 'mo') {
-        inputs = `<input type="number" step="any" placeholder="€/Mo" ${dz(idx, 'mo')} value="${item.mo !== undefined && item.mo !== null ? item.mo : ''}" class="sa-zusatz-betrag">`;
+        inputs = `<input type="number" step="any" inputmode="decimal" placeholder="€/Mo" ${dz(idx, 'mo')} value="${item.mo !== undefined && item.mo !== null ? item.mo : ''}" class="sa-zusatz-betrag">`;
       } else {
-        inputs = `<input type="number" step="any" placeholder="€" ${dz(idx, 'wert')} value="${item.wert !== undefined && item.wert !== null ? item.wert : ''}" class="sa-zusatz-betrag">`;
+        inputs = `<input type="number" step="any" inputmode="decimal" placeholder="€" ${dz(idx, 'wert')} value="${item.wert !== undefined && item.wert !== null ? item.wert : ''}" class="sa-zusatz-betrag">`;
       }
       return `
-        <div class="sa-zusatz-row" data-zusatz-row="${prefix}.${kategorie}.${idx}" style="display:grid;grid-template-columns:1.2fr 1.5fr ${istDoppel ? '1fr 1fr' : '1fr'} auto;gap:8px;align-items:center;margin-bottom:6px;">
-          <input type="text" placeholder="Titel (z.B. Fondssparplan Riester)" ${dz(idx, 'titel')} value="${esc(item.titel || '')}">
+        <div class="sa-zusatz-row${istDoppel ? ' is-doppel' : ''}" data-zusatz-row="${prefix}.${kategorie}.${idx}">
+          <input type="text" placeholder="Titel (z.B. Fondssparplan Riester)" ${dz(idx, 'titel')} value="${esc(item.titel || '')}"${dlAttr}>
           <input type="text" placeholder="Notiz (optional)" ${dz(idx, 'notiz')} value="${esc(item.notiz || '')}">
           ${inputs}
-          <button type="button" class="sa-zusatz-remove secondary" data-zusatz-remove="${prefix}.${kategorie}.${idx}" title="Position entfernen" style="padding:4px 10px;line-height:1;">−</button>
+          <button type="button" class="sa-zusatz-remove" data-zusatz-remove="${prefix}.${kategorie}.${idx}" title="Position entfernen">−</button>
         </div>`;
     }).join('');
     return `
-      <div class="sa-baukasten" style="margin-top:14px;padding-top:14px;border-top:1px dashed #D6D2C8;">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
-          <div style="font-weight:600;color:#3A2E13;font-size:14px;">${esc(subHeader)} <span class="text-tertiary text-small" style="font-weight:normal;">(${liste.length})</span></div>
+      <div class="sa-baukasten">
+        <div class="sa-baukasten-head">
+          <div class="sa-baukasten-title">${esc(subHeader)} <span class="text-tertiary text-small">(${liste.length})</span></div>
         </div>
         ${hint ? `<div class="text-tertiary text-small mb-8">${hint}</div>` : ''}
-        <div class="sa-zusatz-list">${rows || '<div class="text-tertiary text-small" style="margin-bottom:6px;">Noch keine zusätzliche Position erfasst.</div>'}</div>
-        <button type="button" class="sa-zusatz-add secondary mt-8" data-zusatz-add="${prefix}.${kategorie}${istDoppel ? '|verbindlichkeit' : ''}">+ ${esc(addLabel || 'Position hinzufügen')}</button>
+        <div class="sa-zusatz-list">${rows || '<div class="sa-zusatz-empty">Noch keine Position erfasst.</div>'}</div>
+        <button type="button" class="sa-zusatz-add" data-zusatz-add="${prefix}.${kategorie}${istDoppel ? '|verbindlichkeit' : ''}">+ ${esc(addLabel || 'Position hinzufügen')}</button>
       </div>
     `;
   }
 
   // Checklisten-Infobox pro Block — erinnert den Vertriebler, was abgefragt werden sollte.
+  // SA-Redesign (22.05.2026): Inline-Styles raus, CSS-Klassen in styles.css.
   function checklistBox(titel, items) {
     return `
-      <div class="sa-checklist" style="background:#FAF6EE;border-left:3px solid #C9A961;padding:10px 14px;margin:0 0 12px;border-radius:4px;font-size:13px;">
-        <div style="font-weight:600;color:#5C4922;margin-bottom:6px;">📋 Checkliste · ${esc(titel)}</div>
-        <ul style="margin:0;padding-left:18px;color:#5C4922;line-height:1.5;">
+      <div class="sa-checklist">
+        <div class="sa-checklist-title">Checkliste · ${esc(titel)}</div>
+        <ul>
           ${items.map(t => `<li>${t}</li>`).join('')}
         </ul>
       </div>`;
   }
 
-  // Iter 72 (21.05.2026): Integrierter Block-Container — Banner + Standard-Felder + Baukasten in
-  //   einem ausklappbaren <details>. Open-State wird per saSectionState gemerkt (siehe unten).
-  //   typ: 'in' (grün) / 'out' (rot) / 'neutral' (gold) / 'gray' (grau)
-  //   label: rechts oben — Edgar passt die Texte teilweise selbst an, daher konfigurierbar.
+  // SA-Redesign (22.05.2026): Block-Container tonal statt Material-Ampel.
+  //   typ: 'in' (positive-Token) / 'out' (negative-Token) / 'neutral' (Bronze) / 'gray' (border-strong)
+  //   Visuelle Logik:  weiße Karte + 4px-Border-Left in tonal-passender Brand-Farbe.
+  //   label: dezenter Sub-Text rechts oben, kein UPPERCASE-Caps mehr.
   function blockContainer(stateKey, nummer, titel, typ, label, inhaltHtml) {
-    const palette = {
-      'in':      { bg: '#E8F5E9', border: '#2E7D32', fg: '#1B5E20' },
-      'out':     { bg: '#FDECEA', border: '#C62828', fg: '#8E1010' },
-      'neutral': { bg: '#FAF6EE', border: '#C9A961', fg: '#5C4922' },
-      'gray':    { bg: '#F0F0F0', border: '#7A7A72', fg: '#3A3A35' },
-    };
-    const c = palette[typ] || palette.neutral;
     const isOpen = isSaSectionOpen(stateKey);
+    const typClass = ['in','out','neutral','gray'].includes(typ) ? `is-${typ}` : 'is-neutral';
     return `
-      <details class="sa-block" data-sec-state="${esc(stateKey)}" ${isOpen ? 'open' : ''} style="margin:18px 0;border-left:6px solid ${c.border};background:${c.bg};border-radius:6px;">
-        <summary style="padding:14px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:20px;font-weight:700;color:${c.fg};letter-spacing:0.02em;list-style:none;">
-          <span>${esc(nummer)} · ${esc(titel)}</span>
-          ${label ? `<span style="font-size:13px;font-weight:600;color:${c.fg};text-transform:uppercase;letter-spacing:0.05em;">${esc(label)}</span>` : ''}
+      <details class="sa-block ${typClass}" data-sec-state="${esc(stateKey)}" ${isOpen ? 'open' : ''}>
+        <summary>
+          <span class="sa-block-num">${esc(nummer)}</span>
+          <span class="sa-block-title">${esc(titel)}</span>
+          ${label ? `<span class="sa-block-sub">${esc(label)}</span>` : ''}
         </summary>
-        <div style="padding:0 18px 16px;background:#FFFFFF;border-radius:0 0 4px 4px;margin:0 8px 8px;">
-          ${inhaltHtml}
-        </div>
+        <div class="sa-block-body">${inhaltHtml}</div>
       </details>`;
   }
 
@@ -4674,43 +4695,39 @@ function saPersonHtml(prefix, p) {
     const rows = liste.map((item, idx) => {
       item = item || {};
       return `
-        <div class="sa-immo-card" data-zusatz-row="${prefix}.immobilien.${idx}" style="border:1px solid #E0DCCF;border-radius:6px;padding:14px 16px;margin-bottom:12px;background:#FCFAF5;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <div style="font-weight:600;color:#3A2E13;">Immobilie ${idx + 1}${item.art ? ' · ' + esc(item.art) : ''}${item.anschrift ? ' · ' + esc(item.anschrift) : ''}</div>
-            <button type="button" class="sa-zusatz-remove secondary" data-zusatz-remove="${prefix}.immobilien.${idx}" title="Immobilie entfernen" style="padding:4px 10px;line-height:1;">− entfernen</button>
+        <div class="sa-immo-card" data-zusatz-row="${prefix}.immobilien.${idx}">
+          <div class="sa-immo-card-head">
+            <div class="sa-immo-card-title">Immobilie ${idx + 1}${item.art ? ' · ' + esc(item.art) : ''}${item.anschrift ? ' · ' + esc(item.anschrift) : ''}</div>
+            <button type="button" class="sa-zusatz-remove" data-zusatz-remove="${prefix}.immobilien.${idx}" title="Immobilie entfernen">− entfernen</button>
           </div>
-          <div class="text-tertiary text-small" style="margin-bottom:6px;font-weight:600;">Stammdaten</div>
+          <div class="sa-immo-section-label">Stammdaten</div>
           <div class="grid-2" style="gap:10px;">
             <div><label>Art (Whg, Haus, Garage, Acker, Gewerbe …)</label><input type="text" ${dz(idx, 'art')} value="${esc(item.art || '')}"></div>
             <div><label>Anschrift</label><input type="text" ${dz(idx, 'anschrift')} value="${esc(item.anschrift || '')}"></div>
-            <div><label>Baujahr</label><input type="number" step="1" ${dz(idx, 'baujahr')} value="${item.baujahr !== undefined && item.baujahr !== null ? item.baujahr : ''}"></div>
-            <div><label>Erwerbsjahr</label><input type="number" step="1" ${dz(idx, 'erwerbsjahr')} value="${item.erwerbsjahr !== undefined && item.erwerbsjahr !== null ? item.erwerbsjahr : ''}"></div>
-            <div><label>Wohnfläche (m²)</label><input type="number" step="any" ${dz(idx, 'wohnflaeche')} value="${item.wohnflaeche !== undefined && item.wohnflaeche !== null ? item.wohnflaeche : ''}"></div>
-            <div><label>Verkehrswert (€)</label><input type="number" step="any" ${dz(idx, 'verkehrswert')} value="${item.verkehrswert !== undefined && item.verkehrswert !== null ? item.verkehrswert : ''}"></div>
-            <div><label>Mieteinnahmen (€/Mo) <span class="text-tertiary text-small">→ fließt in ① Einnahmen</span></label><input type="number" step="any" ${dz(idx, 'mietenMo')} value="${item.mietenMo !== undefined && item.mietenMo !== null ? item.mietenMo : ''}"></div>
+            <div><label>Baujahr</label><input type="number" step="1" inputmode="numeric" ${dz(idx, 'baujahr')} value="${item.baujahr !== undefined && item.baujahr !== null ? item.baujahr : ''}"></div>
+            <div><label>Erwerbsjahr</label><input type="number" step="1" inputmode="numeric" ${dz(idx, 'erwerbsjahr')} value="${item.erwerbsjahr !== undefined && item.erwerbsjahr !== null ? item.erwerbsjahr : ''}"></div>
+            <div><label>Wohnfläche (m²)</label><input type="number" step="any" inputmode="decimal" ${dz(idx, 'wohnflaeche')} value="${item.wohnflaeche !== undefined && item.wohnflaeche !== null ? item.wohnflaeche : ''}"></div>
+            <div><label>Verkehrswert (€)</label><input type="number" step="any" inputmode="decimal" ${dz(idx, 'verkehrswert')} value="${item.verkehrswert !== undefined && item.verkehrswert !== null ? item.verkehrswert : ''}"></div>
+            <div><label>Mieteinnahmen (€/Mo) <span class="text-tertiary text-small">→ fließt in ① Einnahmen</span></label><input type="number" step="any" inputmode="decimal" ${dz(idx, 'mietenMo')} value="${item.mietenMo !== undefined && item.mietenMo !== null ? item.mietenMo : ''}"></div>
           </div>
-          <div class="text-tertiary text-small" style="margin:14px 0 6px;font-weight:600;">Baufinanzierung <span style="font-weight:normal;">→ fließt in ④ Verbindlichkeiten</span></div>
-          <div style="background:#FFF8E1;border-left:3px solid #C9A961;padding:6px 10px;margin-bottom:8px;font-size:12px;color:#5C4922;">
-            ℹ Bei mehreren Darlehen für diese Immobilie: <strong>Summe</strong> hier eintragen (z.B. Bank + KfW + Bauspar zusammengerechnet).
+          <div class="sa-immo-section-label" style="margin-top:14px;">Baufinanzierung <span style="font-weight:normal;">→ fließt in ④ Verbindlichkeiten</span></div>
+          <div class="sa-immo-hint-banner">
+            ℹ Bei mehreren Darlehen: <strong>Summe</strong> hier eintragen (Bank + KfW + Bauspar zusammen).
           </div>
           <div class="grid-2" style="gap:10px;">
-            <div><label>Urspr. Darlehenshöhe (€)</label><input type="number" step="any" ${dz(idx, 'baufiUrspruenglich')} value="${item.baufiUrspruenglich !== undefined && item.baufiUrspruenglich !== null ? item.baufiUrspruenglich : ''}"></div>
+            <div><label>Urspr. Darlehenshöhe (€)</label><input type="number" step="any" inputmode="decimal" ${dz(idx, 'baufiUrspruenglich')} value="${item.baufiUrspruenglich !== undefined && item.baufiUrspruenglich !== null ? item.baufiUrspruenglich : ''}"></div>
             <div><label>Laufzeit bis</label><input type="date" ${dz(idx, 'baufiLaufzeitBis')} value="${esc(item.baufiLaufzeitBis || '')}"></div>
-            <div><label>Mtl. Belastung (€/Mo)</label><input type="number" step="any" ${dz(idx, 'baufiBelastungMo')} value="${item.baufiBelastungMo !== undefined && item.baufiBelastungMo !== null ? item.baufiBelastungMo : ''}"></div>
-            <div><label>Restsaldo (€)</label><input type="number" step="any" ${dz(idx, 'baufiRestsaldo')} value="${item.baufiRestsaldo !== undefined && item.baufiRestsaldo !== null ? item.baufiRestsaldo : ''}"></div>
+            <div><label>Mtl. Belastung (€/Mo)</label><input type="number" step="any" inputmode="decimal" ${dz(idx, 'baufiBelastungMo')} value="${item.baufiBelastungMo !== undefined && item.baufiBelastungMo !== null ? item.baufiBelastungMo : ''}"></div>
+            <div><label>Restsaldo (€)</label><input type="number" step="any" inputmode="decimal" ${dz(idx, 'baufiRestsaldo')} value="${item.baufiRestsaldo !== undefined && item.baufiRestsaldo !== null ? item.baufiRestsaldo : ''}"></div>
           </div>
         </div>`;
     }).join('');
     // Iter 72: nur Inhalt zurückgeben — Block-Container wird außen aufgesetzt
     return `
       ${checklistBox('Immobilien — was abfragen', [
-        '<strong>Selbstgenutztes Eigentum</strong>: Wohnung oder Haus mit aktuellem Verkehrswert',
-        '<strong>Vermietete Bestandsimmobilien</strong>: Verkehrswert + tatsächliche Mieteinnahmen pro Monat',
-        '<strong>Garage / Stellplatz / Tiefgaragenplatz</strong>: auch hier eintragen, wenn Eigentum',
-        '<strong>Acker, Wald, Bauplatz</strong>: als eigene Position pflegen',
-        '<strong>Gewerbeimmobilien</strong>',
-        '<strong>Erbpacht</strong> separat als Notiz',
-        'Pro Immobilie nur <strong>eine Baufinanzierung</strong> — bei mehreren Darlehen Summe eintragen',
+        'Jede Eigentums-Position als eigener Eintrag (Whg, Haus, Garage, Acker, Gewerbe, …)',
+        '<strong>Verkehrswert + Mieteinnahmen + Baufi</strong> pro Immobilie',
+        'Erbpacht oder Besonderheiten → Notiz-Feld der Immobilie',
       ])}
       <div class="sa-immo-list">${rows || '<div class="text-tertiary text-small">Noch keine Immobilie erfasst.</div>'}</div>
       <button type="button" class="sa-zusatz-add secondary mt-8" data-zusatz-add="${prefix}.immobilien">+ Immobilie hinzufügen</button>
@@ -4841,16 +4858,14 @@ function saPersonHtml(prefix, p) {
   `;
 
   // Block-Inhalte als Strings — werden in blockContainer eingehängt.
+  // SA-Redesign (22.05.2026): Checklisten auf 3 prägnante Bullets reduziert,
+  // Banken-Code-Inline-Listen ersetzt durch <datalist> auf den Titel-Inputs (s. zusatzListeInline).
+  // Fonds-Logik wandert in den Vermögen-Block (einziger Ort der Aktion).
   const einnahmenInhalt = `
     ${checklistBox('Einnahmen — was abfragen', [
-      '<strong>Brutto- UND Netto-Gehalt</strong> (Bank rechnet Verhältnis gegen Steuerklasse)',
-      '<strong>Anzahl Gehälter</strong> (12 = nur normal · 13 = mit Weihnachtsgeld · 14 = + Urlaubsgeld)',
-      '<strong>Steuerklasse</strong> (Pflicht bei gemeinsamem Antrag — III/V vs. IV/IV unterschiedlich bewertet)',
-      '<strong>Unterhalt erhalten</strong> (z.B. nach Scheidung) → Baukasten',
-      '<strong>Kindergeld</strong> aktuell laufend → Baukasten',
-      '<strong>Renten</strong>: BU, gesetzliche Rente, BAV-Auszahlung → Baukasten',
-      '<strong>Variable Vergütung / Bonus</strong> nur wenn regelmäßig (Vorjahres-Mittelwert) → Baukasten',
-      '<strong>Mieteinnahmen</strong> werden pro Immobilie im <em>⑤ Immobilien-Block</em> erfasst',
+      '<strong>Brutto + Netto + Steuerklasse + Anzahl Gehälter</strong> (Pflichtfelder)',
+      'Boni / Weihnachts- / Urlaubsgeld als <strong>Mo-Durchschnitt</strong> → Baukasten',
+      'Renten, Unterhalt, Kindergeld, sonstige laufende Einnahmen → Baukasten',
     ])}
     <div class="grid-2">
       ${n('Brutto-Gehalt', 'bruttoMo', '€/Mo')}
@@ -4858,102 +4873,52 @@ function saPersonHtml(prefix, p) {
       ${s('Steuerklasse', 'steuerklasse', [{v:'',l:'—'},{v:'I',l:'I'},{v:'II',l:'II'},{v:'III',l:'III'},{v:'IV',l:'IV'},{v:'V',l:'V'},{v:'VI',l:'VI'}])}
       ${n('Anzahl der Gehälter', 'anzahlGehaelter', '×', '0.5')}
     </div>
-    ${zusatzListeInline('zusatzEinnahmen', 'Weitere Einnahmen (Baukasten)',
-      `<strong>Banken-übliche Titel — bitte konsistent verwenden:</strong><br>
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Weihnachtsgeld ⌀/Mo</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Urlaubsgeld ⌀/Mo</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Variable Vergütung 2025 ⌀</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Unterhalt erhalten</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Rente gesetzlich</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">BU-Rente</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Selbst. Honorare ⌀</code>
-       <br><strong>Tipp:</strong> Sonderzahlungen (Weihnachts-/Urlaubsgeld, Bonus) als monatlichen Durchschnitt eintragen — Bank rechnet so automatisch korrekt mit.`,
-      'mo', 'Einnahme hinzufügen')}
+    ${zusatzListeInline('zusatzEinnahmen', 'Weitere Einnahmen (Baukasten)', '',
+      'mo', 'Einnahme hinzufügen', 'einnahmen')}
   `;
 
   const ausgabenInhalt = `
     ${checklistBox('Ausgaben — was abfragen', [
-      '<strong>Miete eigene Wohnung</strong> inkl. NK (wenn der Kunde zur Miete wohnt)',
-      '<strong>Laufende Lebenshaltung</strong>: Essen, Sprit, Telefon, Strom — realistisch schätzen',
-      '<strong>Unterhaltszahlungen</strong> an Ex-Partner / Kinder → Baukasten',
-      '<strong>Private Krankenversicherung (PKV)</strong> → Baukasten',
-      '<strong>Leasing-Raten</strong>: Auto, Möbel, Fahrrad → Baukasten',
-      '<strong>Sparplan-Raten</strong> (Fondssparplan, Riester, Rürup) → Baukasten mit gleichem Titel wie in Vermögen',
-      '<strong>Vereinsbeiträge, Abos, Streaming</strong> → Baukasten',
+      '<strong>Miete eigene Wohnung + Lebenshaltung</strong> (Pflichtfelder)',
+      'PKV, Leasing, Unterhaltszahlungen → Baukasten',
+      'Sparplan-Raten → Baukasten (gleicher Titel wie im Vermögen)',
     ])}
     <div class="grid-2">
       ${n('Miete inkl. NK (eigene Whg)', 'mieteMo', '€/Mo')}
       ${n('Laufende Lebenshaltung', 'lebenshaltungMo', '€/Mo')}
     </div>
-    ${zusatzListeInline('zusatzAusgaben', 'Weitere Ausgaben (Baukasten)',
-      `<strong>Banken-übliche Titel — bitte konsistent verwenden:</strong><br>
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">PKV-Beitrag</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">GKV-Zusatzbeitrag</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Unterhaltszahlungen an [Name]</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Fondssparplan MSCI World</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Riester-Beitrag</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Rürup-Beitrag</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Leasing BMW X3</code>
-       <br><strong>Fonds-Logik:</strong> Sparplan-Rate hier eintragen UND im Vermögen mit <strong>gleichem Titel</strong> den Bestand — Verknüpfung sichtbar.`,
-      'mo', 'Ausgabe hinzufügen')}
+    ${zusatzListeInline('zusatzAusgaben', 'Weitere Ausgaben (Baukasten)', '',
+      'mo', 'Ausgabe hinzufügen', 'ausgaben')}
   `;
 
   const vermoegenInhalt = `
     ${checklistBox('Vermögen — was abfragen', [
-      '<strong>Bankguthaben</strong>: Giro-/Tagesgeld-/Sparkonten zusammengerechnet',
-      '<strong>Wertpapiere</strong>: aktueller Depotwert → Baukasten',
-      '<strong>Sparbücher / Festgeld</strong> → Baukasten',
-      '<strong>Bausparguthaben / VWL</strong> → Baukasten',
-      '<strong>Fondsgebundene Versicherungen, Riester, Rürup, BAV-Bestand</strong> → Baukasten',
-      '<strong>Edelmetalle, Krypto, Oldtimer, Kunstwerke</strong> → Baukasten',
-      '<strong>Lebensversicherung Rückkaufwert</strong> → Baukasten („LV Rückkauf XYZ")',
-      '<strong>Bestandsimmobilien</strong> werden im <em>⑤ Immobilien-Block</em> erfasst',
+      '<strong>Bankguthaben</strong> (Pflichtfeld)',
+      'Depots, Sparbücher, Bauspar, VWL, LV-Rückkauf, Krypto, Edelmetalle → Baukasten',
+      'Bei besparten Positionen: <strong>gleicher Titel wie in ② Ausgaben</strong> (Sparplan + Bestand werden so verknüpft)',
     ])}
     <div class="grid-2">
       ${n('Bankguthaben', 'bankguthaben', '€')}
     </div>
     ${zusatzListeInline('zusatzVermoegen', 'Weiteres Vermögen (Baukasten)',
-      `<strong>Banken-übliche Titel — bitte konsistent verwenden (PDF mappt automatisch in die Bank-Kategorien):</strong><br>
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Wertpapierdepot [Bank]</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">ETF MSCI World</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Tagesgeld [Bank]</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Sparbuch [Bank]</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Bausparvertrag LBS</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">VWL [Anbieter]</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">LV Rückkauf [Anbieter]</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Krypto BTC</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Edelmetalle</code>
-       <br><strong>Mapping:</strong> Titel mit „bauspar/vwl/riester" → Bausparen-Zeile · „aktie/etf/fonds/depot/wertpapier" → Wertpapier-Zeile · „lebensvers/rentenvers/rückkauf/rürup" → LV-Zeile · sonst Sonstige Wertgegenstände.
-       <br><strong>Fonds-Logik:</strong> Gleichen Titel wie bei Ausgabe verwenden, wenn die Position bespart wird.`,
-      'wert', 'Vermögen hinzufügen')}
+      `<strong>Mapping ins PDF:</strong> Titel mit „bauspar/vwl/riester" → Bausparen · „aktie/etf/fonds/depot/wertpapier" → Wertpapier · „lebensvers/rentenvers/rückkauf/rürup" → LV · sonst Sonstige.`,
+      'wert', 'Vermögen hinzufügen', 'vermoegen')}
   `;
 
   const verbindInhalt = `
     ${checklistBox('Verbindlichkeiten — was abfragen', [
-      '<strong>Baufinanzierungen für Bestandsimmobilien</strong> werden pro Immobilie im <em>⑤ Immobilien-Block</em> gepflegt — hier NICHT nochmal!',
-      '<strong>Autokredit, Möbelfinanzierung</strong> → Baukasten unten',
-      '<strong>Kreditkarten-Saldo, Dispo</strong> wenn dauerhaft im Minus → Baukasten',
-      '<strong>Studienkredite, KfW, Förderdarlehen</strong> ohne Immobilien-Bezug → Baukasten',
-      '<strong>Privatdarlehen, P2P-Kredite</strong> → Baukasten',
-      '<strong>Bürgschaften</strong> als Notiz festhalten',
-      '<strong>Tipp:</strong> Pro Position mtl. Belastung UND Restsaldo angeben',
+      'Baufi für Bestandsimmobilien → kommt aus <em>⑤ Immobilien</em>, hier <strong>nicht nochmal</strong>',
+      'Autokredit, Konsumkredit, Leasing, KfW ohne Immobilien-Bezug → Baukasten',
+      '<strong>Pflicht:</strong> Pro Position mtl. Belastung UND Restsaldo',
     ])}
     ${zusatzListeInline('zusatzVerbindlichkeiten', 'Verbindlichkeiten (Baukasten)',
-      `<strong>Banken-übliche Titel — bitte konsistent verwenden:</strong><br>
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Autokredit BMW</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Konsumkredit [Bank]</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Kreditkarte [Bank]</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Dispo [Bank]</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Studienkredit BAföG</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">KfW-Förderdarlehen</code> ·
-       <code style="background:#FFF8E1;padding:1px 5px;border-radius:2px;font-size:11px;">Privatdarlehen [Name]</code>
-       <br><strong>Pflicht:</strong> Pro Position monatliche Belastung <em>UND</em> Restsaldo angeben. <strong>Bürgschaften</strong> im Notizfeld festhalten (kein mtl. Betrag).`,
-      'mo-wert', 'Verbindlichkeit hinzufügen')}
+      `<strong>Bürgschaften</strong> nur im Notizfeld festhalten (kein mtl. Betrag).`,
+      'mo-wert', 'Verbindlichkeit hinzufügen', 'verbindlichkeiten')}
   `;
 
   const notizenInhalt = `
-    <div class="text-tertiary text-small mb-8">Alles, was über die Felder oben hinausgeht: Bürgschaften, Erbpacht, geplante Karriereschritte, Sondertilgungen, anstehende Schenkungen / Erbschaften, andere Banken-relevante Hinweise.</div>
-    <textarea data-sa="${prefix}.notizen" rows="5" style="width:100%;font-family:inherit;font-size:14px;padding:10px;border:1px solid #D6D2C8;border-radius:4px;background:#FAF7F0;">${esc(p.notizen || '')}</textarea>
+    <div class="text-tertiary text-small mb-8">Bürgschaften, Erbpacht, geplante Karriereschritte, Sondertilgungen, anstehende Schenkungen / Erbschaften — alles Banken-relevante, was kein eigenes Feld hat.</div>
+    <textarea data-sa="${prefix}.notizen" rows="5" class="sa-notizen-textarea">${esc(p.notizen || '')}</textarea>
   `;
 
   return `
