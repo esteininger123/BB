@@ -418,11 +418,20 @@ input[type="range"].spar-zins-range::-moz-range-track {
 /* ============================== MOBILE ============================== */
 @media (max-width: 600px) {
   .main { padding: 20px 14px; }
-  .header { padding: 10px 14px; }
+  /* QA-Fix 2026-05-22 (Audit-I I-B2): Header verkleinert + Logo bleibt links,
+     User-Menu kompakt rechts. Vorher wurde "Logout"-Button bei <400px abgeschnitten. */
+  .header { padding: 10px 12px; gap: 8px; }
+  .logo { font-size: 15px; flex-shrink: 0; }
   .card { padding: 14px; }
   .page-title { font-size: 22px; }
   .kpi .value { font-size: 18px; }
+  .user-menu { gap: 8px; flex-shrink: 0; }
   .user-menu .user-name { display: none; }
+  .user-menu button,
+  .user-menu .btn { font-size: 13px; padding: 6px 10px; }
+  /* QA-Fix 2026-05-22 (Audit-I I-B1): Dashboard-Tabelle horizontal scrollbar machen
+     statt zoom-out — sonst wirkt die ganze App auf iPhone auf 662px geschrumpft. */
+  table { display: block; overflow-x: auto; max-width: 100%; }
 }
 
 /* ============================== PDF PRINT ============================== */

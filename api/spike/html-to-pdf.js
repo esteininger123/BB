@@ -14,6 +14,7 @@
 
 const chromium = require('@sparticuz/chromium-min');
 const puppeteer = require('puppeteer-core');
+const { requireAdminVerified } = require('../_lib/auth');
 
 // Pack-URL muss zur installierten chromium-min-Version matchen (v133.0.0).
 // Per Env-Var überschreibbar — falls GitHub-Release zickt, kann Edgar das Tar auf
@@ -21,6 +22,13 @@ const puppeteer = require('puppeteer-core');
 const DEFAULT_PACK_URL = 'https://github.com/Sparticuz/chromium/releases/download/v133.0.0/chromium-v133.0.0-pack.tar';
 
 module.exports = async (req, res) => {
+  // QA-Fix 2026-05-22 (Audit-D B5): Auth-Gate. Endpoint hatte 3 GB RAM + 60s Timeout
+  // ohne Auth — Resource-Exhaustion-/Kosten-DDoS-Risiko. Da Edgar unklar ist, ob noch
+  // gebraucht, sicherheitshalber auf Admin-only beschränkt. Wenn produktiv nicht mehr
+  // genutzt, kann der Endpoint später ganz weg.
+  const session = await requireAdminVerified(req, res);
+  if (!session) return;
+
   const startTs = Date.now();
   const logs = [];
   const log = (msg) => {

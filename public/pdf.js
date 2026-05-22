@@ -277,12 +277,17 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   `;
 
   // ===== SEITE 1 · COVER =====
+  // QA-Fix 2026-05-22 (Audit-H H1): Cover trägt jetzt volle B&B-Identifikation
+  // (HRB + Geschäftsführer + Adresse) UND Kunden-Adresse aus der SA. Bank-Sachbearbeiter
+  // braucht das ohne S.2 aufschlagen zu müssen.
+  const _saAddr = (k.saJson && k.saJson.antragsteller) || {};
+  const _kundeAdr = [_saAddr.strasse, [_saAddr.plz, _saAddr.ort].filter(Boolean).join(' ')].filter(Boolean).join(', ');
   const seite1 = `
     <div class="pdf-page pdf-c-page pdf-c-cover">
       <div class="pdf-c-cover-top">
         <div class="pdf-c-cover-logo">${_bubLogo()}</div>
         <div class="pdf-c-cover-meta">
-          Investitions-<br>analyse<br>—<br>für<br><strong>${esc(displayName)}</strong>
+          Investitions-<br>analyse<br>—<br>für<br><strong>${esc(displayName)}</strong>${_kundeAdr ? '<br><span style="font-weight:400;font-size:8.5pt;letter-spacing:.1em;text-transform:none;color:#7A7A72;">' + esc(_kundeAdr) + '</span>' : ''}
         </div>
       </div>
       <div class="pdf-c-cover-middle">
@@ -293,7 +298,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         </div>
       </div>
       <div class="pdf-c-cover-bottom">
-        <div class="meta">${vertrieblerBlock}</div>
+        <div class="meta">${vertrieblerBlock}<br><span style="font-weight:400;font-size:7.5pt;letter-spacing:.1em;text-transform:none;color:#7A7A72;">B&amp;B Immo GmbH · Burdastraße 23 · 77746 Schutterwald · HRB 727 814 (Amtsgericht Freiburg) · Geschäftsführer laut Handelsregister</span></div>
         <div class="date">${esc(datum)}</div>
       </div>
     </div>
@@ -328,6 +333,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <h4>Dein Einsatz</h4>
           <div class="pdf-c-obj-row"><span class="k">Kaufnebenkosten</span><span class="v">${Math.round(knk).toLocaleString('de-DE')}<span class="unit">€${i.knkMitfinanziert ? ' · mitfinanziert' : ''}</span></span></div>
           <div class="pdf-c-obj-row"><span class="k">Eigenkapital</span><span class="v">${Math.round(r.ekBedarf).toLocaleString('de-DE')}<span class="unit">€</span></span></div>
+          <div class="pdf-c-obj-row"><span class="k">Darlehenshöhe</span><span class="v">${Math.round((r.darlehen != null ? r.darlehen : (i.knkMitfinanziert ? r.kpGesamt + knk : r.kpGesamt))).toLocaleString('de-DE')}<span class="unit">€${i.knkMitfinanziert ? ' · inkl. KNK' : ''}</span></span></div>
         </div>
         <div class="pdf-c-p2-right">
           <div class="hero-line">Annuität <span class="pdf-c-num">${fmtMo(r.annuityMo)}</span> &nbsp;·&nbsp; Miete <span class="pdf-c-num">${fmtMo(r.mieteJ1Mo)}</span> &nbsp;·&nbsp; Steuervorteil <span class="pdf-c-num">${fmtMo(r.stVorteilJ1Mo)}</span></div>
@@ -366,7 +372,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <tbody>${vermoegenRows}</tbody>
       </table>
       <div class="pdf-c-p3-bottom">
-        <div class="cell"><div class="label">Marktwert J10</div><div class="v">${Math.round(v10.wert || 0).toLocaleString('de-DE')}<span class="unit">€</span></div></div>
+        <div class="cell"><div class="label">Modellwert J10</div><div class="v">${Math.round(v10.wert || 0).toLocaleString('de-DE')}<span class="unit">€</span></div></div>
         <div class="cell"><div class="label">Restschuld J10</div><div class="v">${Math.round(v10.restschuld || 0).toLocaleString('de-DE')}<span class="unit">€</span></div></div>
         ${(r.irr != null && isFinite(r.irr))
           ? `<div class="cell"><div class="label">Interner Zinsfuß</div><div class="v">${(r.irr * 100).toFixed(1).replace('.',',')}<span class="unit">% p.a.</span></div></div>`
@@ -447,9 +453,30 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <div class="pdf-c-ass-row"><span class="k">Zinssatz Darlehen</span><span class="v">${fmtPct(i.zins || 0)} p.a.</span></div>
           <div class="pdf-c-ass-row"><span class="k">Anfangstilgung</span><span class="v">${fmtPct(i.tilgung || 0)} p.a.</span></div>
           <div class="pdf-c-ass-row"><span class="k">Wertsteigerung</span><span class="v">${fmtPct(i.wertsteigerung || 0)} p.a.</span></div>
-          <div class="pdf-c-ass-row"><span class="k">Mietsteigerung</span><span class="v">${fmtPct(i.steigerungProz || 0)} p.a.</span></div>
+          <div class="pdf-c-ass-row"><span class="k">Mietsteigerung</span><span class="v">${(() => {
+            // QA-Fix 2026-05-22 (Audit-H H7): bei sprung-Modus war "20 % p.a." UWG-relevant —
+            // es ist EIN Sprung um 20 % alle 3 Jahre, nicht jährliche Steigerung. Wording
+            // modus-abhängig setzen.
+            const m = i.mietsteigerungsModus || 'sprung';
+            const pct = fmtPct(i.steigerungProz || 0);
+            if (m === 'sprung')  return pct + ' je Sprung · alle 3 Jahre (§ 558 BGB Kappungsgrenze)';
+            if (m === 'staffel') return pct + ' p.a. · Staffelmietvertrag';
+            if (m === 'index')   return pct + ' p.a. · Indexmietvertrag';
+            if (m === 'keine')   return 'keine';
+            return pct + ' p.a.';
+          })()}</span></div>
           <div class="pdf-c-ass-row"><span class="k">Steuersatz</span><span class="v">${fmtPct(i.steuersatz || 0)}</span></div>
-          <div class="pdf-c-ass-row"><span class="k">AfA-Satz</span><span class="v">${fmtPct(i.afaSatz || 0)} linear</span></div>
+          <div class="pdf-c-ass-row"><span class="k">AfA-Satz</span><span class="v">${fmtPct(i.afaSatz || 0)} linear${(() => {
+            // QA-Fix 2026-05-22 (Audit-H H5): AfA-Rechtsgrundlage anzeigen statt nackten Prozentsatz.
+            // Banker fragt: welcher §? Hier Indikation aus dem Satz — Käufer/Steuerberater prüft Detail.
+            const s = i.afaSatz || 0;
+            if (s >= 0.044 && s <= 0.046) return ' · § 7b EStG (Sonder-AfA Neubau)';
+            if (s >= 0.036 && s <= 0.038) return ' · § 7h/i EStG (Sanierung) — Bescheinigung erforderlich';
+            if (s >= 0.029 && s <= 0.031) return ' · § 7 Abs. 4 Nr. 2 a EStG (Neubau ab 2023)';
+            if (s >= 0.024 && s <= 0.026) return ' · § 7 Abs. 5 a EStG (Altbau vor 1925)';
+            if (s >= 0.019 && s <= 0.021) return ' · § 7 Abs. 4 Nr. 1 EStG (Bestand ab 1925)';
+            return ' · Rechtsgrundlage prüfen';
+          })()}</span></div>
           <div class="pdf-c-ass-row"><span class="k">Mietsubvention</span><span class="v">${subvText}</span></div>
           <div class="pdf-c-ass-row"><span class="k">Sparbuch-Vergleich</span><span class="v">${((i.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a.</span></div>
         </div>
@@ -463,7 +490,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         </div>
       </div>
       <p class="pdf-c-disclaimer">
-        Diese Investitionsrechnung beruht auf den dokumentierten Annahmen. Keine Anlageberatung im Sinne des WpHG. Verbindlich ist ausschließlich der notarielle Kaufvertrag. Steuerliche Aspekte sind mit Deinem Steuerberater abzustimmen. Die ausgewiesene Wertsteigerung und Mietsteigerung sind Annahmen auf Basis langjähriger Marktbeobachtung; tatsächliche Werte können abweichen.
+        Diese Investitionsrechnung beruht auf den dokumentierten Annahmen. Keine Anlageberatung im Sinne des WpHG. Vermittlung im Rahmen einer Erlaubnis nach § 34c GewO. Verbindlich ist ausschließlich der notarielle Kaufvertrag. Steuerliche Aspekte (insb. AfA-Rechtsgrundlage und ‑Bemessung) sind mit Deinem Steuerberater abzustimmen. Die ausgewiesene Wertsteigerung und Mietsteigerung sind langfristige Modell-Annahmen; tatsächliche Werte können abweichen. „Modellwert J10" ist eine rechnerische Hochrechnung (Kaufpreis × Wertsteigerung) und kein gutachterlicher Verkehrswert i.S.d. § 194 BauGB. Der Sparbuch-Vergleich rechnet Brutto-Renditen (vor Abgeltungssteuer); die Immobilien-Rendite enthält den persönlichen Steuervorteil aus den angegebenen Werbungskosten.
       </p>
       <div class="pdf-c-page-foot"><div>05 · Im Detail</div><div class="pdf-c-page-num">Seite 5 von 7</div></div>
     </div>

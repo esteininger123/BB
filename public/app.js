@@ -2419,6 +2419,12 @@ function renderStoryPremium(r) {
             <div class="kalk-c-strip-value">${Math.round(r.mieteJ1Mo || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
           </div>
         </div>
+        <!-- QA-Fix 2026-05-22 (Audit-G G-B2): PDF/Snapshot Quick-Actions direkt im Hero,
+             damit der Vertriebler nicht 9× zur Section 5 scrollen muss. -->
+        <div class="kalk-c-hero-actions" style="margin-top:32px;display:flex;gap:12px;flex-wrap:wrap;">
+          <button type="button" onclick="exportInvestPdf()" style="background:var(--accent-dark);color:#fff;border:none;font-family:inherit;font-size:13px;letter-spacing:.06em;padding:11px 22px;border-radius:22px;cursor:pointer;font-weight:500;">PDF erstellen</button>
+          <button type="button" onclick="saveSnapshot()" style="background:transparent;color:var(--text-primary);border:1px solid var(--border);font-family:inherit;font-size:13px;letter-spacing:.06em;padding:11px 22px;border-radius:22px;cursor:pointer;font-weight:500;">Snapshot speichern</button>
+        </div>
       </div>
     </header>
     <hr class="kalk-c-rule" />
@@ -2850,7 +2856,18 @@ function renderStoryPremium(r) {
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Zinssatz Darlehen</span><span class="kalk-c-v">${fmtPct(i.zins || 0)} p.a.</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Anfangstilgung</span><span class="kalk-c-v">${fmtPct(i.tilgung || 0)} p.a.</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Wertsteigerung</span><span class="kalk-c-v">${fmtPct(i.wertsteigerung || 0.03)} p.a.</span></div>
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">Mietsteigerung</span><span class="kalk-c-v">${(((i.steigerungProz || 0.15) * 100).toFixed(1).replace('.', ','))} % · ${_modusCaption}</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Mietsteigerung</span><span class="kalk-c-v">${(() => {
+            // QA-Fix 2026-05-22 (Audit-H H7): bei sprung-Modus war ".. % · alle 3 Jahre" zwar
+            // korrekt, aber Banker liest „p.a." in den Foren. Wording sauber: „je Sprung" +
+            // BGB-Referenz für Bank-Tauglichkeit.
+            const pct = ((i.steigerungProz || 0.15) * 100).toFixed(1).replace('.', ',');
+            const m = i.mietsteigerungsModus || 'sprung';
+            if (m === 'sprung')  return pct + ' % je Sprung · alle 3 Jahre (§ 558 BGB)';
+            if (m === 'staffel') return pct + ' % p.a. · Staffelmietvertrag';
+            if (m === 'index')   return pct + ' % p.a. · Indexmietvertrag';
+            if (m === 'keine')   return 'keine';
+            return pct + ' % · ' + _modusCaption;
+          })()}</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Steuersatz</span><span class="kalk-c-v">${fmtPct(i.steuersatz || 0.3)}</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">AfA-Satz</span><span class="kalk-c-v">${fmtPct(i.afaSatz || 0.02)} linear</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Mietsubvention</span><span class="kalk-c-v">${subvText}</span></div>
@@ -3565,18 +3582,23 @@ async function saveSnapshot() {
 window.saveSnapshot = saveSnapshot;
 
 function exportInvestPdf() {
+  // QA-Fix 2026-05-22 (Audit-G G-B1): Toast-Feedback beim PDF-Klick — vorher passierte
+  // "nichts sichtbares" außer dem System-Druckdialog. Anfänger klickte 3x.
   if (window.PDF && window.PDF.investitionsrechnung) {
-    window.PDF.investitionsrechnung(state.kunde, state.kalk, state.kalkResult, state.user);
+    toast('PDF wird erstellt — Druckdialog öffnet sich', 'info');
+    setTimeout(() => window.PDF.investitionsrechnung(state.kunde, state.kalk, state.kalkResult, state.user), 100);
   } else { alert('PDF-Modul nicht geladen.'); }
 }
 function exportReservPdf() {
   if (window.PDF && window.PDF.reservierung) {
-    window.PDF.reservierung(state.kunde, state.kalk, state.user);
+    toast('Reservierungs-PDF wird erstellt', 'info');
+    setTimeout(() => window.PDF.reservierung(state.kunde, state.kalk, state.user), 100);
   }
 }
 function exportSaPdf() {
   if (window.PDF && window.PDF.selbstauskunft) {
-    window.PDF.selbstauskunft(state.kunde, state.user);
+    toast('Selbstauskunft-PDF wird erstellt', 'info');
+    setTimeout(() => window.PDF.selbstauskunft(state.kunde, state.user), 100);
   }
 }
 window.exportInvestPdf = exportInvestPdf;
