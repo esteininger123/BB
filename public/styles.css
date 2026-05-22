@@ -1891,7 +1891,9 @@ input[type="range"].spar-zins-range::-moz-range-track {
    ===================================================================== */
 
 .kalk-c-magazine{max-width:1180px;margin:0 auto;padding:0}
-.kalk-c-rule{height:1px;background:var(--accent);opacity:.55;width:100%;margin:0}
+/* Iter 91.3: Section-Trenner deutlich sichtbar machen — vorher 1px Bronze
+   bei 0.55 Opacity war optisch fast unsichtbar. Jetzt 2px Bronze voll. */
+.kalk-c-rule{height:2px;background:var(--accent);opacity:.85;width:100%;margin:0}
 
 /* Hero */
 .kalk-c-hero{padding:48px 0 96px;display:flex;flex-direction:column;justify-content:space-between}
@@ -1909,11 +1911,32 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .kalk-c-strip-cell .kalk-c-strip-value .kalk-c-unit{font-size:13px;font-weight:400;color:var(--text-tertiary);margin-left:4px;letter-spacing:0}
 
 /* Sections */
-.kalk-c-section{padding:96px 0}
-.kalk-c-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:64px;margin-bottom:64px}
+/* Iter 91.3: Sections weniger Whitespace-lastig — vorher 96px Padding war
+   so viel dass man nicht mehr sah wo Sections beginnen. Plus: Eyebrow
+   "01 · Das Objekt" als klarer visueller Section-Anker (mit Bronze-Linie
+   davor). */
+.kalk-c-section{padding:64px 0}
+.kalk-c-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:64px;margin-bottom:48px}
 .kalk-c-section-head .kalk-c-left{flex:0 0 auto}
 .kalk-c-section-head .kalk-c-right{flex:1;max-width:48ch;color:var(--text-secondary);font-size:15px;line-height:1.75;font-weight:400}
-.kalk-c-section-num{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent-dark);font-weight:500}
+.kalk-c-section-num{
+  font-size:11px;
+  letter-spacing:.22em;
+  text-transform:uppercase;
+  color:var(--accent-dark);
+  font-weight:600;
+  display:inline-flex;
+  align-items:center;
+  gap:14px;
+}
+/* Bronze-Strich vor dem Section-Num — klarer visueller Anker */
+.kalk-c-section-num::before{
+  content:'';
+  display:inline-block;
+  width:32px;
+  height:2px;
+  background:var(--accent);
+}
 .kalk-c-section-title{margin-top:16px;font-size:40px;font-weight:200;letter-spacing:-.02em;line-height:1.1;color:var(--text-primary);max-width:14ch}
 
 /* Two-column */
@@ -1958,9 +1981,44 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .kalk-c-drill-head .kalk-c-section-num{display:block;margin-bottom:16px}
 .kalk-c-drill-head h2{font-size:32px;font-weight:200;letter-spacing:-.02em;line-height:1.2;color:var(--text-primary)}
 .kalk-c-drill-head p{margin-top:18px;font-size:15px;line-height:1.7;color:var(--text-secondary)}
-.kalk-c-drill-links{display:flex;justify-content:center;flex-wrap:wrap;gap:0;padding-top:32px;border-top:1px solid rgba(176,138,77,.55)}
-.kalk-c-drill-link{flex:1 1 0;min-width:180px;padding:28px 20px;text-align:center;text-decoration:none;color:var(--text-primary);font-size:14px;font-weight:400;letter-spacing:.02em;border-right:1px solid var(--border);transition:background .2s ease,color .2s ease;cursor:pointer;background:transparent;border-top:none;border-bottom:none;border-left:none;font-family:inherit}
-.kalk-c-drill-link:last-child{border-right:none}
+/* Iter 91.3: Drilldown-Links als deutlich klickbare Buttons.
+   Vorher: nahezu unsichtbar, kein Hover-Highlight. Jetzt: Cream-Background
+   im Standardzustand + Bronze-Hover, Pfeil-Indikator nach unten/auf. */
+.kalk-c-drill-links{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;padding-top:32px;border-top:2px solid var(--accent)}
+.kalk-c-drill-link{
+  flex:1 1 0;
+  min-width:180px;
+  padding:24px 20px;
+  text-align:center;
+  text-decoration:none;
+  color:var(--text-primary);
+  font-size:14px;
+  font-weight:500;
+  letter-spacing:.01em;
+  border:1px solid var(--border);
+  border-radius:2px;
+  transition:background .15s ease, color .15s ease, border-color .15s ease, transform .15s ease;
+  cursor:pointer;
+  background:var(--bg-cream-subtle);
+  font-family:inherit;
+  position:relative;
+}
+.kalk-c-drill-link::after{
+  content:'→';
+  display:block;
+  margin-top:6px;
+  font-size:14px;
+  color:var(--accent);
+  font-weight:400;
+}
+.kalk-c-drill-link:hover{
+  background:var(--accent);
+  color:var(--on-accent);
+  border-color:var(--accent);
+  transform:translateY(-1px);
+}
+.kalk-c-drill-link:hover::after{ color:var(--on-accent); }
+.kalk-c-drill-link:hover .kalk-c-arrow{ color:rgba(255,255,255,.7); }
 .kalk-c-drill-link .kalk-c-arrow{display:block;font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--text-tertiary);margin-top:8px;transition:color .2s ease}
 .kalk-c-drill-link:hover{color:var(--accent-dark)}
 .kalk-c-drill-link:hover .kalk-c-arrow{color:var(--accent)}
@@ -2049,19 +2107,23 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .kalk-input-minimal{
   background:transparent;
   border:none;
-  padding:24px 0 0 0;
+  padding:24px 0 8px 0;
   box-shadow:none;
 }
+/* Iter 91.3 (22.05.): Card-Title prominenter — als klare Section-Überschrift
+   (statt versteckte Eyebrow-Linie). Damit der Anfang der Eingabemaske
+   visuell klar definiert ist. */
 .kalk-input-minimal > .card-title{
-  font-size:11px;
+  font-size:18px;
   font-weight:500;
-  letter-spacing:.22em;
-  text-transform:uppercase;
-  color:var(--text-tertiary);
-  margin-bottom:18px;
-  padding-bottom:14px;
-  border-bottom:1px solid var(--border);
+  letter-spacing:-.005em;
+  text-transform:none;
+  color:var(--text-primary);
+  margin-bottom:24px;
+  padding-bottom:16px;
+  border-bottom:2px solid var(--accent);
 }
+/* Section-Container — klarer Trenner + Hover-Hint */
 .kalk-input-minimal .kalk-section{
   border:none;
   background:transparent;
@@ -2070,62 +2132,92 @@ input[type="range"].spar-zins-range::-moz-range-track {
   border-radius:0;
 }
 .kalk-input-minimal .kalk-section:last-child{ border-bottom:none; }
+/* Section-Header (klickbarer summary) — visuell als Button erkennbar */
 .kalk-input-minimal .kalk-section > summary{
-  padding:14px 0;
+  padding:16px 14px 16px 0;
   font-weight:500;
-  font-size:13px;
+  font-size:14px;
   color:var(--text-primary);
-  letter-spacing:.01em;
+  letter-spacing:.005em;
+  cursor:pointer;
+  position:relative;
+  transition:color .15s ease, padding-left .15s ease;
 }
 .kalk-input-minimal .kalk-section > summary:hover{
   background:transparent;
   color:var(--accent-dark);
+  padding-left:6px;
+}
+.kalk-input-minimal .kalk-section[open] > summary{
+  color:var(--accent-dark);
+  font-weight:600;
+}
+.kalk-input-minimal .kalk-section > summary::after{
+  font-size:14px;
+  color:var(--accent);
+}
+/* Inhaltsbereich offener Section: leichter Cream-Hintergrund (visueller Anker) */
+.kalk-input-minimal .kalk-section[open]{
+  background:var(--bg-cream-subtle);
 }
 .kalk-input-minimal .kalk-section > .grid-1,
 .kalk-input-minimal .kalk-section > .grid-2,
 .kalk-input-minimal .kalk-section > .grid-3,
 .kalk-input-minimal .kalk-section > .text-tertiary{
-  padding:4px 0 16px 0;
+  padding:8px 14px 20px 14px;
 }
+/* Labels jetzt klar lesbar — kein zaghaftes Grau mehr */
 .kalk-input-minimal label{
-  font-size:11px;
-  font-weight:400;
+  font-size:12px;
+  font-weight:500;
   text-transform:none;
   letter-spacing:0;
-  color:var(--text-tertiary);
+  color:var(--text-secondary);
   margin-bottom:6px;
 }
+/* Eingaben sichtbar als Eingaben — Cream-Background + klarer Border + Hover */
 .kalk-input-minimal input,
 .kalk-input-minimal select,
 .kalk-input-minimal textarea{
-  font-size:13px;
-  padding:7px 10px;
-  background:transparent;
+  font-size:14px;
+  padding:9px 12px;
+  background:var(--bg-card);
   border:1px solid var(--border);
+  transition:border-color .15s ease, background .15s ease, box-shadow .15s ease;
+}
+.kalk-input-minimal input:hover,
+.kalk-input-minimal select:hover,
+.kalk-input-minimal textarea:hover{
+  border-color:var(--accent-light);
 }
 .kalk-input-minimal input:focus,
 .kalk-input-minimal select:focus,
 .kalk-input-minimal textarea:focus{
-  background:var(--bg-cream-subtle);
+  background:var(--bg-card);
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(176,138,77,.12);
+  outline:none;
 }
+/* Divider zwischen Eingabe-Gruppen — kräftiger Bronze-Strich + sichtbarer Label */
 .kalk-input-minimal .input-group-divider{
-  margin:18px 0 12px 0;
-  padding-top:14px;
-  border-top:1px solid var(--accent);
+  margin:24px 0 16px 0;
+  padding-top:16px;
+  border-top:2px solid var(--accent);
 }
 .kalk-input-minimal .input-group-label{
-  font-size:10px;
-  font-weight:500;
+  font-size:11px;
+  font-weight:600;
   letter-spacing:.18em;
   color:var(--accent-dark);
+  text-transform:uppercase;
 }
-.kalk-input-minimal .slider-row{ padding:6px 0; }
+.kalk-input-minimal .slider-row{ padding:8px 0; }
 .kalk-input-minimal .slider-row input[type=range]{
   background:transparent;
   border:none;
   padding:0;
 }
-.kalk-input-minimal .text-tertiary{ font-size:11px; }
+.kalk-input-minimal .text-tertiary{ font-size:12px; }
 
 /* =====================================================================
    Iter 91.2: Wohnungs-Auswahl-Picker (minimalistisch)
@@ -2181,4 +2273,95 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .we-picker-mode-btn:hover{ filter:brightness(0.97); }
 @media (max-width:900px){
   .we-picker-grid{ grid-template-columns:1fr !important; }
+}
+
+/* =====================================================================
+   Iter 91.3: Klick-Affordance + sichtbare Sections (Magazin)
+   ===================================================================== */
+
+/* Toggle-Buttons (Modus + Vermögens-Chart) bekommen Hover-Highlight */
+.kalk-c-modus-buttons button:hover{
+  filter:brightness(0.96);
+}
+.kalk-c-modus-buttons button:not([style*='var(--accent)']):hover{
+  background:var(--bg-cream-subtle) !important;
+  color:var(--text-primary) !important;
+}
+.kalk-c-vermoegen-toggle button:hover{
+  border-color:var(--accent) !important;
+  color:var(--accent-dark) !important;
+  background:var(--bg-cream-subtle) !important;
+}
+.kalk-c-vermoegen-toggle button[aria-pressed="true"]:hover{
+  filter:brightness(0.96);
+}
+
+/* Section-Head Right (Beschreibungs-Text rechts) — leichter Linker
+   Border-Strich als visueller Anker, dass die Section hier beginnt */
+.kalk-c-section-head .kalk-c-right{
+  padding-left:24px;
+  border-left:1px solid var(--accent-light);
+}
+@media (max-width:900px){
+  .kalk-c-section-head .kalk-c-right{
+    padding-left:0;
+    padding-top:16px;
+    border-left:none;
+    border-top:1px solid var(--accent-light);
+  }
+}
+
+/* Einsatz-Block + Subv-Block: Bronze-Akzent links damit man sieht
+   "hier beginnt ein neuer logischer Block" */
+.kalk-c-einsatz-block{
+  border-left:3px solid var(--accent);
+  padding-left:40px;
+}
+@media (max-width:900px){
+  .kalk-c-einsatz-block{ padding-left:20px; }
+}
+
+/* Drilldown-Modal-Container — etwas mehr Schatten + sichtbarer Border */
+.kalk-c-modal{
+  border:1px solid var(--accent-light);
+  box-shadow:0 30px 80px rgba(0,0,0,.22);
+}
+
+/* Hero-Strip Cells bekommen sichtbare Trenner-Linien dazwischen */
+.kalk-c-hero-strip .kalk-c-strip-cell + .kalk-c-strip-cell{
+  position:relative;
+}
+.kalk-c-hero-strip .kalk-c-strip-cell + .kalk-c-strip-cell::before{
+  content:'';
+  position:absolute;
+  top:0;
+  left:-24px;
+  bottom:0;
+  width:1px;
+  background:var(--border);
+}
+@media (max-width:900px){
+  .kalk-c-hero-strip .kalk-c-strip-cell + .kalk-c-strip-cell::before{ display:none; }
+}
+
+/* WE-Picker — Select hat sichtbares Cream-Background + Hover */
+.we-picker-step select{
+  background:var(--bg-card) !important;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+.we-picker-step select:hover:not(:disabled){
+  border-color:var(--accent-light);
+}
+.we-picker-step select:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(176,138,77,.12);
+  outline:none;
+}
+
+/* Toolbar-Buttons (Snapshot, PDF-Export etc.) — klare Click-Affordance */
+.kalk-input-minimal + * .toolbar button,
+.toolbar.mt-16 button{
+  font-size:13px;
+  padding:10px 18px;
+  letter-spacing:.02em;
 }
