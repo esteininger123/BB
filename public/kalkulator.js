@@ -856,8 +856,12 @@ function recalc(i) {
   let balanceM = darlehen;
   for (let m = 1; m <= 120; m++) {
     const y = Math.ceil(m / 12);
-    const faktor = faktorFor(m);
-    const kaltmieteM = i.kaltmiete * faktor;
+    // QA-Fix 2026-05-22 (Phase-2a Bug #1): cfMonate nutzte i.kaltmiete*faktor direkt und
+    // umging damit den Marktmiete-Cap UND die Iter-91.5-Sprung-Einfrierung. Folge:
+    // Cashflow-Chart konnte bei aktivem Cap (z.B. WE 9 Bruchsal) ~720 €/Mo zeigen, während
+    // die Jahres-KPI cf[] mit gecappten ~300 €/Mo rechnete. kaltmieteForMonth() macht beides
+    // korrekt: Faktor + Cap-Einfrierung im Sprung-Modus.
+    const kaltmieteM = kaltmieteForMonth(m);
     const spMieteM = (i.stellplatzMiete || 0) * Math.pow(1 + (i.wertsteigerung || 0), y - 1);
     // Subv-Glättung (Iter 43): siehe subvForMonth() — Effektivmiete bleibt in jeder
     // Phase konstant, Subv schmilzt mit Bestandsmieten-Steigerung. Kein Spike mehr.
@@ -926,7 +930,12 @@ function recalc(i) {
   for (let y = 1; y <= 9; y++) irrSeries.push(cf[y - 1].cfJahr);
   irrSeries.push(cf[9].cfJahr + vermoegen[9].verkaufserloes);
 
-  const irrValue = irr(irrSeries, 0.10);
+  // QA-Fix 2026-05-22 (Phase-2a Bug #3): Bei knkMitfinanziert=true ist EK=0, IRR-Reihe
+  // startet mit -0. Newton-Raphson kann in solchen Fällen auf rein technische Lösungen
+  // (~30-49 %) konvergieren, obwohl mathematisch keine sinnvolle Anfangsinvestition
+  // existiert. Semantisch ist die Rendite-Aussage „Eigenkapital-Rendite" bei EK=0
+  // undefiniert — Frontend ersetzt das durch den Zuwachs-Satz (renditeSatz).
+  const irrValue = (ekBedarf <= 0.01) ? null : irr(irrSeries, 0.10);
 
   // Belastung Jahr 1
   const cf1 = cf[0];
@@ -1184,7 +1193,9 @@ function recalcPaket(weInputsArr, personSettings) {
   const irrSeries = [-ekBedarf];
   for (let y = 0; y < 9; y++) irrSeries.push(cf[y].cfJahr);
   irrSeries.push(cf[9].cfJahr + vermoegen[10].verkaufserloes);
-  const irrValue = irr(irrSeries, 0.10);
+  // QA-Fix 2026-05-22 (Phase-2a Bug #3): Paket-IRR ebenfalls null bei EK=0
+  // (Konvergenz-Artefakte vermeiden, semantisch undefiniert).
+  const irrValue = (ekBedarf <= 0.01) ? null : irr(irrSeries, 0.10);
 
   // 6. Sparen-vs-Investieren auf Paket-Ebene
   // Iter 67 (21.05.2026): siehe kalkRecalc — 1:1-Vergleich des in die Immobilie

@@ -2008,16 +2008,24 @@ function renderStories(r) {
     </div>
   ` : '';
 
-  const markteinkauf = (marktQm > 0) ? story('01 — Markteinkauf', 'Du kaufst unter Marktpreis', `
+  // QA-Fix 2026-05-22 (Phase-3c K1): bei KP > Markt das Vorzeichen erkennen und Wording
+  // umdrehen. Vorher: „Du kaufst unter Marktpreis" mit negativer Zahl — irreführend.
+  const _vorteilPositiv = (r.markteinkaufVorteil || 0) > 0;
+  const _meHeadline = _vorteilPositiv ? 'Du kaufst unter Marktpreis' : 'Du kaufst über Marktpreis';
+  const _meVorteilLabel = _vorteilPositiv ? 'Dein Vorteil Tag 1' : 'Dein Aufschlag Tag 1';
+  const _meExplain = _vorteilPositiv
+    ? `Du kaufst diese Wohnung für <strong>${Math.round(kpQm).toLocaleString('de-DE')} €/qm</strong>, der Marktpreis liegt bei <strong>${Math.round(marktQm).toLocaleString('de-DE')} €/qm</strong>. Dein Vorteil <strong>steckt im Kaufpreis</strong> und macht Deinen Vermögensaufbau ab Tag 1 belastbar — unabhängig von Wertsteigerung und Mietentwicklung.`
+    : `Du kaufst diese Wohnung für <strong>${Math.round(kpQm).toLocaleString('de-DE')} €/qm</strong>, der Marktpreis liegt bei <strong>${Math.round(marktQm).toLocaleString('de-DE')} €/qm</strong> — also <strong>über Markt</strong>. Der Aufschlag muss durch zukünftige Wertentwicklung oder besondere Lage-/Substanz-Vorteile gerechtfertigt sein.`;
+  const markteinkauf = (marktQm > 0) ? story('01 — Markteinkauf', _meHeadline, `
     <div class="story-grid">
       <table class="story-table">
         <tr><td>Dein Kaufpreis / qm</td><td class="num">${Math.round(kpQm).toLocaleString('de-DE')} €/qm</td></tr>
         <tr><td>Marktpreis / qm</td><td class="num">${Math.round(marktQm).toLocaleString('de-DE')} €/qm</td></tr>
         <tr><td>Wohnfläche</td><td class="num">${(i.qm || 0).toLocaleString('de-DE')} qm</td></tr>
-        <tr><td><strong>Dein Vorteil Tag 1</strong></td><td class="num pos"><strong>${fmt(r.markteinkaufVorteil)}</strong></td></tr>
+        <tr><td><strong>${_meVorteilLabel}</strong></td><td class="num ${_vorteilPositiv ? 'pos' : 'neg'}"><strong>${fmt(r.markteinkaufVorteil)}</strong></td></tr>
       </table>
       <div class="story-explain">
-        Du kaufst diese Wohnung für <strong>${Math.round(kpQm).toLocaleString('de-DE')} €/qm</strong>, der Marktpreis liegt bei <strong>${Math.round(marktQm).toLocaleString('de-DE')} €/qm</strong>. Dein Vorteil <strong>steckt im Kaufpreis</strong> und macht Deinen Vermögensaufbau ab Tag 1 belastbar — unabhängig von Wertsteigerung und Mietentwicklung.
+        ${_meExplain}
         ${marktQuellenHinweis}
       </div>
     </div>
@@ -2327,8 +2335,11 @@ function renderStoryPremium(r) {
     ? Math.min(100, Math.round(einnahmenMo / laufendeKostenMo * 100))
     : 0;
 
-  // KNK-Berechnung (= EK-Bedarf wenn KNK nicht mitfinanziert)
-  const knk = i.knkMitfinanziert ? 0 : r.ekBedarf;
+  // QA-Fix 2026-05-22 (Phase-3a K1): KNK-Anzeige zeigt jetzt den echten KNK-Betrag
+  // auch bei mitfinanziert (Engine: r.knk). Vorher wurde "0 €" angezeigt, was den
+  // realen Kostenblock unsichtbar gemacht hat. Hinweis "(mitfinanziert)" steht am
+  // Subtitel (Z.2410, Z.2766 schon korrekt).
+  const knk = (r.knk != null && isFinite(r.knk)) ? r.knk : (i.knkMitfinanziert ? 0 : r.ekBedarf);
 
   // ===== HERO =====
   const HERO = `
@@ -2390,7 +2401,7 @@ function renderStoryPremium(r) {
         <div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaufpreis je qm</span><span class="kalk-c-v">${Math.round(kpQm).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></span></div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Marktpreis je qm</span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') : '—'}<span class="kalk-c-unit">€</span></span></div>
-          ${r.markteinkaufVorteil ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">Markteinkauf-Vorteil</span><span class="kalk-c-v">${fmt(r.markteinkaufVorteil)}</span></div>` : ''}
+          ${r.markteinkaufVorteil ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">${r.markteinkaufVorteil > 0 ? 'Markteinkauf-Vorteil' : 'Markt-Aufschlag'}</span><span class="kalk-c-v">${fmt(r.markteinkaufVorteil)}</span></div>` : ''}
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaltmiete</span><span class="kalk-c-v">${Math.round(i.kaltmiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Stellplatz-Miete</span><span class="kalk-c-v">${Math.round(i.stellplatzMiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Hausgeld · HV · MV</span><span class="kalk-c-v">${Math.round(i.hausgeld || 0)} / ${Math.round(i.hausverwaltung || 0)} / ${Math.round(i.mietverwaltung || 0)}<span class="kalk-c-unit">€/Mo</span></span></div>
@@ -2478,6 +2489,13 @@ function renderStoryPremium(r) {
   `;
 
   // ===== SECTION 2 · Der Plan =====
+  // QA-Fix 2026-05-22 (Phase-3c W): Chart-Caption-Mietsteigerungs-Modus dynamisch
+  // statt hardcoded "Mietsprünge alle 3 Jahre" (war bei Staffel/Index/Leerstand falsch).
+  const _modus = i.mietsteigerungsModus || 'sprung';
+  const _modusCaption = _modus === 'staffel' ? 'Staffelmiete jährlich'
+    : _modus === 'index' ? 'Indexmiete jährlich'
+    : _modus === 'keine' ? 'Miete konstant'
+    : 'Mietsprünge alle 3 Jahre';
   const SECTION_2 = `
     <section class="kalk-c-section">
       <div class="kalk-c-section-head">
@@ -2492,7 +2510,7 @@ function renderStoryPremium(r) {
       <div class="kalk-c-two-col">
         <div class="kalk-c-col-chart">
           <div class="kalk-c-chart-frame"><canvas id="chart-c-belastung"></canvas></div>
-          <div class="kalk-c-chart-caption">Cashflow nach Steuern, je Monat · Annuität konstant · Mietsprünge alle 3 Jahre</div>
+          <div class="kalk-c-chart-caption">Cashflow nach Steuern, je Monat · Annuität konstant · ${_modusCaption}</div>
         </div>
         <div class="kalk-c-col-text">
           <p class="kalk-c-lead">Eine Annuität von ${fmtEurMo(r.annuityMo)} steht Mieteinnahmen von ${fmtEurMo(r.mieteJ1Mo)} gegenüber. Dein Steuervorteil und in den ersten Jahren eine vereinbarte Mietsubvention glätten die Anlaufphase.</p>
@@ -2769,7 +2787,7 @@ function renderStoryPremium(r) {
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Zinssatz Darlehen</span><span class="kalk-c-v">${fmtPct(i.zins || 0)} p.a.</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Anfangstilgung</span><span class="kalk-c-v">${fmtPct(i.tilgung || 0)} p.a.</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Wertsteigerung</span><span class="kalk-c-v">${fmtPct(i.wertsteigerung || 0.03)} p.a.</span></div>
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">Mietsprung</span><span class="kalk-c-v">${(((i.steigerungProz || 0.15) * 100).toFixed(1).replace('.', ','))} % alle 3 Jahre</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Mietsteigerung</span><span class="kalk-c-v">${(((i.steigerungProz || 0.15) * 100).toFixed(1).replace('.', ','))} % · ${_modusCaption}</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Steuersatz</span><span class="kalk-c-v">${fmtPct(i.steuersatz || 0.3)}</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">AfA-Satz</span><span class="kalk-c-v">${fmtPct(i.afaSatz || 0.02)} linear</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Mietsubvention</span><span class="kalk-c-v">${subvText}</span></div>
@@ -2923,10 +2941,14 @@ function _drawCMagazinCharts(r) {
   if (cCmp) {
     if (_cMagazinCharts.compare) _cMagazinCharts.compare.destroy();
     const sparen10 = r.sparen[10] || {};
+    // QA-Fix 2026-05-22 (Phase-3a W3 / 3c W): Sparbuch-Label dynamisch aus sparZins-State.
+    // Vorher hardcoded "2,5 % p.a." — driftete bei Slider-Änderung im Annahmen-Modal vs.
+    // Compare-Headline (Z.2580 nutzte schon den dynamischen Wert).
+    const _sparZinsPct = ((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.', ',');
     _cMagazinCharts.compare = new Chart(cCmp, {
       type: 'bar',
       data: {
-        labels: ['Sparbuch (2,5 % p.a.)', 'Sachwert Immobilie'],
+        labels: [`Sparbuch (${_sparZinsPct} % p.a.)`, 'Sachwert Immobilie'],
         datasets: [{
           data: [Math.round(sparen10.nurSparen || 0), Math.round(sparen10.mitImmo || 0)],
           backgroundColor: [tertiary, accentDark],

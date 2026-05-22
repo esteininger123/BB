@@ -105,7 +105,9 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const adresseZeile = projekt ? (projekt + ' · ' + weBez) : weBez;
 
   // KNK
-  const knk = i.knkMitfinanziert ? 0 : r.ekBedarf;
+  // QA-Fix 2026-05-22 (Phase-3b K1): zeigt jetzt echten KNK auch bei mitfinanziert.
+  // Vorher: 0 € → Kostenblock im PDF unsichtbar.
+  const knk = (r.knk != null && isFinite(r.knk)) ? r.knk : (i.knkMitfinanziert ? 0 : r.ekBedarf);
 
   // Dynamische Texte
   const crossoverIdx = r.cf.findIndex(c => c.cfJahr > 0);
@@ -349,21 +351,42 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <div class="pdf-c-p3-bottom">
         <div class="cell"><div class="label">Markt-Vermögen J10</div><div class="v">${Math.round(v10.wert || 0).toLocaleString('de-DE')}<span class="unit">€</span></div></div>
         <div class="cell"><div class="label">Restschuld J10</div><div class="v">${Math.round(v10.restschuld || 0).toLocaleString('de-DE')}<span class="unit">€</span></div></div>
-        <div class="cell"><div class="label">Interner Zinsfuß</div><div class="v">${(r.irr * 100).toFixed(1).replace('.',',')}<span class="unit">% p.a.</span></div></div>
+        ${(r.irr != null && isFinite(r.irr))
+          ? `<div class="cell"><div class="label">Interner Zinsfuß</div><div class="v">${(r.irr * 100).toFixed(1).replace('.',',')}<span class="unit">% p.a.</span></div></div>`
+          : `<div class="cell"><div class="label">Vermögenszuwachs</div><div class="v">${Math.round(r.vermoegenNetto10 || 0).toLocaleString('de-DE')}<span class="unit">€</span></div></div>`}
       </div>
       <div class="pdf-c-page-foot"><div>03 · Aussicht</div><div class="pdf-c-page-num">Seite 3 von 7</div></div>
     </div>
   `;
 
   // ===== SEITE 4 · VERGLEICH =====
-  const seite4 = `
+  // QA-Fix 2026-05-22 (Phase-3b K2 / 3c K2): EK=0-Branch parallel zur App-Logik
+  // (app.js Z.2556+). Vorher: PDF rechnete "0 € auf einem Sparbuch wären auf 0 €
+  // gewachsen" — sinnloser Vergleich bei 110%-Finanzierung.
+  const ekIstNullPdf = !r.ekBedarf || r.ekBedarf <= 100;
+  // Bonus-Fix (Phase-3b W2): bei negativem sparenVsKaufenDelta "+Mehrgewinn"-Wording falsch.
+  const _spDeltaPos = (r.sparenVsKaufenDelta || 0) >= 0;
+  const _spDeltaLabel = _spDeltaPos ? 'Mehrgewinn über 10 Jahre' : 'Mehrverlust über 10 Jahre (Sparbuch besser)';
+  const _spDeltaVz = _spDeltaPos ? '+ ' : '';
+  const seite4 = ekIstNullPdf ? `
+    <div class="pdf-page pdf-c-page">
+      ${ph()}
+      <div class="pdf-c-p4-center">
+        <div class="pdf-c-section-num">04 · Der Hebel</div>
+        <h2 class="pdf-c-p4-headline">Ohne Eigenkapital-Einsatz zum Sachwert.</h2>
+        <div class="pdf-c-p4-delta"><span class="num">${fmt(r.vermoegenNetto10)}</span><br><span style="font-size:11pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500;display:inline-block;margin-top:4mm">Vermögensaufbau über 10 Jahre</span></div>
+        <p class="pdf-c-p4-sub">Bei 110-%-Finanzierung setzt Du kein eigenes Kapital ein. Trotzdem baust Du in zehn Jahren ${fmt(r.vermoegenNetto10)} Nettovermögen auf — getragen von Tilgung und Wertentwicklung. Der Hebel kommt aus dem Sachwert, nicht aus Deinem Sparbuch.</p>
+      </div>
+      <div class="pdf-c-page-foot"><div>04 · Der Hebel</div><div class="pdf-c-page-num">Seite 4 von 7</div></div>
+    </div>
+  ` : `
     <div class="pdf-page pdf-c-page">
       ${ph()}
       <div class="pdf-c-p4-center">
         <div class="pdf-c-section-num">04 · Die Alternative</div>
         <h2 class="pdf-c-p4-headline">Wäre Dein Eigenkapital auf einem Sparbuch geblieben.</h2>
-        <div class="pdf-c-p4-delta">+ <span class="num">${fmt(r.sparenVsKaufenDelta)}</span><br><span style="font-size:11pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500;display:inline-block;margin-top:4mm">Mehrgewinn über 10 Jahre</span></div>
-        <p class="pdf-c-p4-sub">${fmt(r.ekBedarf)} auf einem Sparbuch zu ${((i.sparZins || 0.025) * 100).toFixed(2).replace('.', ',')} % p.a. wären in zehn Jahren auf rund ${fmt(sparen10.nurSparen)} gewachsen. Dasselbe Eigenkapital, in den Sachwert Immobilie investiert, kommt auf ${fmt(sparen10.mitImmo)}. Die Differenz von ${fmt(r.sparenVsKaufenDelta)} ist der reine Sachwert-Vorteil.</p>
+        <div class="pdf-c-p4-delta">${_spDeltaVz}<span class="num">${fmt(r.sparenVsKaufenDelta)}</span><br><span style="font-size:11pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500;display:inline-block;margin-top:4mm">${_spDeltaLabel}</span></div>
+        <p class="pdf-c-p4-sub">${fmt(r.ekBedarf)} auf einem Sparbuch zu ${((i.sparZins || 0.025) * 100).toFixed(2).replace('.', ',')} % p.a. wären in zehn Jahren auf rund ${fmt(sparen10.nurSparen)} gewachsen. Dasselbe Eigenkapital, in den Sachwert Immobilie investiert, kommt auf ${fmt(sparen10.mitImmo)}. Die Differenz von ${fmt(r.sparenVsKaufenDelta)} ${_spDeltaPos ? 'ist der reine Sachwert-Vorteil' : 'zeigt, dass dieses Szenario unter Sparbuch-Niveau bleibt — Wertsteigerungs- oder Mietsteigerungs-Annahmen prüfen'}.</p>
       </div>
       <div class="pdf-c-page-foot"><div>04 · Im Vergleich</div><div class="pdf-c-page-num">Seite 4 von 7</div></div>
     </div>
