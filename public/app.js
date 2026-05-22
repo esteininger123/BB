@@ -149,8 +149,9 @@ function renderHeader() {
     <div class="avatar">${esc(initialen(state.user.name))}</div>
     <button class="secondary" onclick="doLogout()" title="Abmelden">Logout</button>
   `;
-  // QA-Sprint 2026-05-23: Auto-Start der Tour beim ersten Login (localStorage-Check).
-  if (typeof maybeStartTourOnFirstLogin === 'function') maybeStartTourOnFirstLogin();
+  // QA-Sprint 2026-05-23 (Audit-J B3): Auto-Start NICHT mehr beim Login — nur beim
+  // ersten Kalkulator-Tab-Aufruf (siehe renderTabKalkulator). Sonst läuft die Tour
+  // auf dem Dashboard und Steps 5-9 highlighten ins Leere.
 }
 
 async function doLogout() {
@@ -598,7 +599,7 @@ async function renderKunde() {
 
       <div class="tabs">
         ${['uebersicht','kalkulator','selbstauskunft','snapshots'].map(t => `
-          <button class="tab ${state.tab === t ? 'active' : ''}"
+          <button class="tab ${state.tab === t ? 'active' : ''}" data-tab="${t}"
                   onclick="setTab('${t}')">
             ${t === 'uebersicht' ? 'Übersicht' :
               t === 'kalkulator' ? 'Kalkulator' :
@@ -804,6 +805,11 @@ window.saveNotizen = saveNotizen;
 /* ============================== KALKULATOR-TAB ============================== */
 
 function renderTabKalkulator() {
+  // QA-Sprint 2026-05-23 (Audit-J B3): Auto-Start der Tour bei erstem Kalkulator-Aufruf.
+  // localStorage-Key checkt — wenn noch nicht gesehen, startet Tour nach kurzem Delay.
+  // Vorher lief Tour beim Login, aber Steps 5-9 brauchen Kalkulator-DOM.
+  if (typeof maybeStartTourOnFirstLogin === 'function') maybeStartTourOnFirstLogin();
+
   const el = document.getElementById('tab-content');
   const wes = state.wohneinheiten;
   const i = state.kalk || makeDefaultKalkInput();
@@ -1545,11 +1551,28 @@ function _resetWeSnapshotFields() {
     '_marktpreisHD', '_marktpreisIS', '_marktpreisQuelle',
     '_indexmiete', '_kappungsgrenze',
     '_leerstand', '_mieteBeiVerkaufActive',
+    // QA-Sprint 2026-05-23 (Audit-K B-K4): echte Stammdaten-Felder (ohne underscore)
+    // wurden bei sticky-Werten nicht zurückgesetzt — bei Stammdaten-Lade-Fehler oder
+    // leeren Feldern blieb der Wert der vorigen WE in der Engine. Speziell
+    // marktmieteEurQm: bei Wesseling WE 3 (=0 in Airtable) blieb der Heidelberger-Wert
+    // sticky → Marktmiete-Cap falsch.
+    'marktmieteEurQm', 'marktwertProQm',
+    'mietsteigerungsModus', 'kappungsgrenze', 'indexmiete',
+    'subventionPhasen', 'subventionMo', 'subventionMonate',
+    'wertsteigerung', 'hgInflation', 'gebaeudeAnteil', 'afaSatz',
+    'hausgeld', 'hausverwaltung', 'mietverwaltung', 'grEstPct',
+    'kaufpreis', 'qm', 'kaltmiete', 'stellplatzKp', 'stellplatzMiete',
+    'letzteMietsteigerung',
   ];
   for (const k of SNAPSHOT_KEYS) delete state.kalk[k];
 }
 
 // async, weil Airtable-Stammdaten via fetch geholt werden
+// QA-Sprint 2026-05-23 (Audit-K B-K1): Token-Pattern gegen Race-Condition. Wenn der
+// User schnell 2 WEs hintereinander klickt (langsamer Stammdaten-Endpoint), könnte
+// der späte Response der ersten WE die State der zweiten überschreiben. Token-Check
+// vor jedem state.kalk-Write bricht den überholten Branch ab.
+let _loadWeToken = 0;
 async function loadWeIntoKalk(weId) {
   if (!weId) {
     _resetWeSnapshotFields();
@@ -1559,6 +1582,7 @@ async function loadWeIntoKalk(weId) {
   // Reset vor jedem Load — sonst rutschen Felder der vorigen WE durch,
   // wenn die neue WE ein Feld leer/null liefert (z.B. keine Vereinbarung).
   _resetWeSnapshotFields();
+  const myToken = ++_loadWeToken;
   const w = state.wohneinheiten.find(x => x.id === weId);
   if (!w) return;
 
@@ -1587,6 +1611,10 @@ async function loadWeIntoKalk(weId) {
   state.kalk._stammdatenQuelle = 'airtable-load';
   try {
     const resp = await api.get('/api/stammdaten/' + encodeURIComponent(weId));
+    // QA-Sprint 2026-05-23 (Audit-K B-K1): Race-Condition-Check. Wenn der User in der
+    // Zwischenzeit eine andere WE gewählt hat, ist myToken < _loadWeToken → wir brechen
+    // ab statt den state mit obsoleten Werten zu überschreiben.
+    if (myToken !== _loadWeToken) return;
     if (resp && resp.we) {
       // Iter 41.15 (18.05.2026, Audit-Fix): Stellplatz/Garage SAUBER GETRENNT von der Wohnung.
       // Vorher wurden KP und Miete aggregiert ins kaufpreis/kaltmiete-Feld gemixt → Slider zeigte 0,
@@ -1777,10 +1805,17 @@ async function loadWeIntoKalk(weId) {
       state.kalk._leerstand = true;
     }
   } catch (e) {
-    // Endpoint nicht erreichbar oder Fehler → wir bleiben beim Excel-Fallback
+    // QA-Sprint 2026-05-23 (Audit-K B-K4): Network-Fehler ist nicht mehr silent —
+    // Vertriebler braucht einen sichtbaren Hinweis. Token-Check verhindert race-spam.
+    if (myToken === _loadWeToken) {
+      toast('Stammdaten konnten nicht geladen werden — Defaults werden genutzt: ' + (e.message || 'Netzwerk-Fehler'), 'error');
+    }
     console.warn('[stammdaten] Airtable-Endpoint fehlgeschlagen, nutze Fallback:', e.message);
   }
 
+  // QA-Sprint 2026-05-23 (Audit-K B-K1): nicht rendern, wenn der User schon
+  // eine andere WE gewählt hat — sonst Re-Render mit obsoleten Daten.
+  if (myToken !== _loadWeToken) return;
   renderTabKalkulator();
 }
 window.loadWeIntoKalk = loadWeIntoKalk;
@@ -3584,21 +3619,35 @@ async function saveSnapshot() {
 }
 window.saveSnapshot = saveSnapshot;
 
+// QA-Sprint 2026-05-23 (Audit-K B-K3): Debounce gegen PDF-Doppelklick. Vorher löste
+// 3× schnelles Klicken 3× Toast + 3× _doPrint aus. Lock dauert 3s — danach wieder
+// klickbar. Reicht für Browser-Print-Dialog zum Öffnen.
+let _pdfExportLock = 0;
+function _pdfExportGuard() {
+  const now = Date.now();
+  if (now - _pdfExportLock < 3000) {
+    toast('PDF wird gerade erstellt — bitte kurz warten', 'warning');
+    return false;
+  }
+  _pdfExportLock = now;
+  return true;
+}
 function exportInvestPdf() {
-  // QA-Fix 2026-05-22 (Audit-G G-B1): Toast-Feedback beim PDF-Klick — vorher passierte
-  // "nichts sichtbares" außer dem System-Druckdialog. Anfänger klickte 3x.
+  if (!_pdfExportGuard()) return;
   if (window.PDF && window.PDF.investitionsrechnung) {
     toast('PDF wird erstellt — Druckdialog öffnet sich', 'info');
     setTimeout(() => window.PDF.investitionsrechnung(state.kunde, state.kalk, state.kalkResult, state.user), 100);
   } else { alert('PDF-Modul nicht geladen.'); }
 }
 function exportReservPdf() {
+  if (!_pdfExportGuard()) return;
   if (window.PDF && window.PDF.reservierung) {
     toast('Reservierungs-PDF wird erstellt', 'info');
     setTimeout(() => window.PDF.reservierung(state.kunde, state.kalk, state.user), 100);
   }
 }
 function exportSaPdf() {
+  if (!_pdfExportGuard()) return;
   if (window.PDF && window.PDF.selbstauskunft) {
     toast('Selbstauskunft-PDF wird erstellt', 'info');
     setTimeout(() => window.PDF.selbstauskunft(state.kunde, state.user), 100);
@@ -3867,6 +3916,34 @@ async function sendSaForSignature() {
   if (gemeinsam && !m.email) {
     toast('E-Mail des Mitantragstellers fehlt in der SA', 'error');
     return;
+  }
+
+  // QA-Sprint 2026-05-23 (Audit-K B-K2): Bank-Pflichtfeld-Check vor PandaDoc-Send.
+  // Audit-H hatte aufgedeckt: halb-leere SAs waren absendbar. Bank-Sachbearbeiter
+  // schickte sie zurück. Jetzt: Liste der fehlenden Pflichtfelder zeigen statt
+  // blind absenden. Vertriebler bestätigt explizit, wenn er trotzdem senden will.
+  function _pflichtfehlend(p) {
+    const fehlt = [];
+    if (!p.vorname || !p.name) fehlt.push('Vor-/Nachname');
+    if (!p.geburtsdatum) fehlt.push('Geburtsdatum');
+    if (!p.strasse || !p.plz || !p.ort) fehlt.push('Anschrift');
+    if (!p.steuerId && !p.steuerid) fehlt.push('Steuer-ID');
+    if (!p.iban) fehlt.push('IBAN');
+    if (!p.bruttoMo && !p.brutto) fehlt.push('Brutto-Einkommen');
+    if (!p.steuerklasse) fehlt.push('Steuerklasse');
+    return fehlt;
+  }
+  const fehlA = _pflichtfehlend(a);
+  const fehlM = gemeinsam ? _pflichtfehlend(m) : [];
+  if (fehlA.length || fehlM.length) {
+    const parts = [];
+    if (fehlA.length) parts.push('Antragsteller: ' + fehlA.join(', '));
+    if (fehlM.length) parts.push('Mitantragsteller: ' + fehlM.join(', '));
+    const msg = 'Bank-Pflichtfelder fehlen — die Bank wird die SA zurückschicken:\n\n' + parts.join('\n\n') + '\n\nTrotzdem senden? (Nicht empfohlen.)';
+    if (!window.confirm(msg)) {
+      toast('SA-Versand abgebrochen — bitte Pflichtfelder ergänzen', 'warning');
+      return;
+    }
   }
 
   const kundeName = ((a.vorname || '') + ' ' + (a.name || '')).trim() || '(ohne Name)';
@@ -5685,47 +5762,47 @@ const TOUR_STORAGE_KEY = 'bbk_tour_' + TOUR_VERSION + '_seen';
 const TOUR_STEPS = [
   {
     title: 'Willkommen im B&B Kalkulator',
-    text: 'Kurze Tour in 9 Schritten — zeigt Dir das Tool. Jederzeit überspringbar (Esc). Wieder aufrufbar über das ?-Symbol oben rechts.',
+    text: 'Kurze Tour in 9 Schritten. Esc oder Überspringen-Button beendet sie. Du kannst sie jederzeit über das „?"-Symbol oben rechts wieder starten.',
     target: null,
   },
   {
     title: 'Dein Dashboard',
-    text: 'Hier siehst Du Deine Kunden. Klick "+ Neuer Kunde" um einen anzulegen. Owner-Logik: Du siehst nur Deine eigenen Kunden, Admin sieht alle.',
-    target: 'nav a[href="#/dashboard"], button.primary',
+    text: 'Auf der Startseite siehst Du Deine Kunden. „+ Neuer Kunde" oben rechts. Du siehst nur Deine eigenen Kunden (Admin sieht alle).',
+    target: '.bbk-help-btn',
   },
   {
     title: 'Kunde anlegen',
-    text: 'Pflichtfelder: Vorname, Nachname, Email. Geburtsdatum hilft später bei der Bonität. Notizen kannst Du jederzeit nachpflegen.',
-    target: null,
+    text: 'Pflichtfelder: Vorname, Nachname, Email. Geburtsdatum hilft später bei der Bonität. Notizen kannst Du jederzeit nachpflegen, Archivieren statt Löschen — Vertrieb-Standard.',
+    target: '.bbk-help-btn',
   },
   {
     title: 'Wohneinheit wählen',
-    text: 'Im Kunden-Detail wechsle in den "Kalkulator"-Tab. Dropdown oben: Projekt → WE. Nur WEs mit Status "Vermarktung" und vollständigen Stammdaten sind sichtbar.',
-    target: '#tab-kalkulator, .tab[data-tab="kalkulator"]',
+    text: 'Im Kunden-Detail wechsle in den „Kalkulator"-Tab. Dropdown oben: zuerst Projekt, dann WE. Nur WEs mit Status „Vermarktung" und vollständigen Stammdaten erscheinen.',
+    target: '.tab[data-tab="kalkulator"]',
   },
   {
     title: 'Hero — die wichtigste Zahl',
-    text: 'Was der Kunde in 10 Jahren aufgebaut hat. Direkt darunter: PDF-Button und Snapshot-Speichern. Tipp: Snapshot speichern bevor Du Werte änderst.',
-    target: '.kalk-c-hero-headline, .kalk-c-hero-actions',
+    text: 'Was der Kunde in 10 Jahren aufgebaut hat. Darunter zwei Quick-Action-Buttons: PDF erstellen und Snapshot speichern. Tipp: vor Wert-Änderungen einen Snapshot machen — als Anker.',
+    target: '.kalk-c-hero, .kalk-c-hero-headline',
   },
   {
     title: 'Section 1 — Eckdaten + Markt-Anker',
-    text: 'Kaufpreis, Markt-Schnitt (ImmoScout + Homeday), Markteinkauf-Vorteil. Hover auf "Marktpreis je qm" zeigt die Quellen. Kaufnebenkosten + Eigenkapital = Was der Kunde wirklich einsetzt.',
-    target: '.kalk-c-objekt-list, .kalk-c-einsatz-block',
+    text: 'Kaufpreis, Markt-Schnitt (ImmoScout + Homeday), Markteinkauf-Vorteil oder Aufschlag. Hover auf „Marktpreis je qm" zeigt die Quellen. Darunter: Kaufnebenkosten + Eigenkapital = der echte Einsatz.',
+    target: '.kalk-c-objekt-list',
   },
   {
     title: 'Section 2 — Belastung Jahr 1',
-    text: 'Annuität · Miete · Steuervorteil = effektive Belastung. Bei Subvention: 2-Phasen-Modell glättet die Anlaufphase. Chart zeigt Cashflow Monat für Monat über 10 Jahre.',
+    text: 'Annuität minus Miete minus Steuervorteil = effektive monatliche Belastung. Bei aktiver Mietsubvention glättet das 2-Phasen-Modell die Anlaufphase. Chart: Cashflow nach Steuern Monat für Monat über 10 Jahre.',
     target: '#chart-c-belastung',
   },
   {
     title: 'Section 3 — Vermögensaufbau',
-    text: '"Modellwert J10" = Marktwert hochgerechnet. "Mein Anteil J10" = Verkaufserlös + kumulierte Cashflows. Toggle "Restschuld einblenden" zeigt die Bank-Seite.',
-    target: '#chart-c-vermoegen-magazin, .kalk-c-vermoegen-toggle',
+    text: 'Zwei zentrale Größen: „Modellwert J10" (Markthochrechnung Kaufpreis × Wertsteigerung^10) und „Mein Anteil J10" (Verkaufserlös plus kumulierte Cashflows). Toggle „Restschuld einblenden" zeigt die Bank-Seite.',
+    target: '#chart-c-vermoegen-magazin',
   },
   {
-    title: 'Section 5 — Drilldowns',
-    text: 'Vier Detail-Modals: Bonität (so rechnet die Bank), Cashflow (Jahr für Jahr), Vermögen (Tabelle), Annahmen (alle Parameter inkl. Sparzins-Slider). PDF unten oder via Hero-Button.',
+    title: 'Section 5 — Detail-Drilldowns',
+    text: 'Vier Modals für den tiefen Blick: Bonität (so rechnet die Bank, 80% anrechenbare Miete), Cashflow J1–J10 (Jahres-Tabelle), Vermögen (kumuliert), Annahmen (alle Parameter inkl. Sparzins-Slider). PDF + Snapshot auch oben im Hero.',
     target: '.kalk-c-drill-links',
   },
 ];
