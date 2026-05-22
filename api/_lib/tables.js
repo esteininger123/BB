@@ -186,7 +186,12 @@ const KALK_STAMMDATEN_FIELDS = {
   // den klassischen 'KP-Vorschlag Wohnung'-Wert (Ertragswert-basiert, ohne Subv)
   // mit dem Subv-Aufschlag: manueller Mietzuschuss × Laufzeit, sonst Auto-Subv-Total.
   KP_VORSCHLAG_BASIS:        'fldaxnWdFP1mLYVtH', // alt — ohne Subv
-  KP_VORSCHLAG_INKL_SUBV:    'fldHKSqsRVmKPlY5t', // neu — mit Subv-Aufschlag
+  KP_VORSCHLAG_INKL_SUBV:    'fldHKSqsRVmKPlY5t', // Wohnung + Subv
+  // Iter-4 (22.05.2026): KP-Vorschlag GESAMT inkl. Stellplätze. Analog zu Henrys
+  // Auflistung (Spalten: Wohnung / Stellplätze / Gesamt). Das ist die Vermarktungs-
+  // Komplett-Paket-Zahl, die Käufer sieht.
+  STELLPLATZ_KP_GESAMT:      'fldwNFyzAk2EaQ15Q', // SUM aller verlinkten Stellplatz-KPs
+  KP_VORSCHLAG_GESAMT:       'fldmZHWs15KaPfmKD', // KP inkl. Subv + Stellplatz-KP-Summe
 };
 
 const KALK_STATUS_AKTIV    = 'Aktiv';

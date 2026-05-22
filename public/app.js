@@ -1559,18 +1559,43 @@ function detectProfil(k) {
   return 'standard';
 }
 
+// Iter-4 (22.05.2026, Audit-Fix): Zentrale Reset-Helper für WE-Snapshot-Felder.
+// Vorher gab `loadWeIntoKalk('')` nur 6 Felder frei, ~15 Snapshot-Felder rutschten
+// beim WE-Wechsel durch (z.B. Tag-1-Badges der vorigen WE). Symptom war Iter-78-artig.
+// UI-State-Felder (_isPaket, _paketWeIds, _projektFilter, _openSec, _profil) bleiben
+// erhalten — der Wechsel löscht nur die WE-bezogenen Felder.
+function _resetWeSnapshotFields() {
+  const SNAPSHOT_KEYS = [
+    '_weId', '_weLage', '_weNr', '_projektName', '_objektvorstellungLink',
+    '_stammdatenId', '_stammdatenQuelle', '_stammdatenStatus',
+    '_stellplatzAnzahl', '_stellplatzGarageCount', '_stellplatzFlaecheCount',
+    '_stellplatzKp', '_stellplatzMiete', '_stellplatzMieteQuelle',
+    '_wohnungsKaltmiete',
+    '_vermietungsStatus', '_vermietungsStatusQuelle', '_vermietungsModus',
+    '_vertragVorhanden', '_letzteMietsteigerung', '_letzteMietsteigerungQuelle',
+    '_subventionQuelle', '_subventionTotalEur', '_subventionCapEur',
+    '_subventionCapGreift', '_subventionErlaeuterung',
+    '_subventionMarktCapGreift', '_subventionKaltmieteAdjustiert',
+    '_subventionTag1Erhoehung', '_subventionTag1Anhebung', '_subventionTag1Quelle',
+    '_vereinbarung',
+    '_marktmieteEurQm', '_marktmieteAbs',
+    '_marktpreisHD', '_marktpreisIS', '_marktpreisQuelle',
+    '_indexmiete', '_kappungsgrenze',
+    '_leerstand', '_mieteBeiVerkaufActive',
+  ];
+  for (const k of SNAPSHOT_KEYS) delete state.kalk[k];
+}
+
 // async, weil Airtable-Stammdaten via fetch geholt werden
 async function loadWeIntoKalk(weId) {
   if (!weId) {
-    delete state.kalk._weId;
-    delete state.kalk._weLage;
-    delete state.kalk._weNr;
-    delete state.kalk._projektName;
-    delete state.kalk._stammdatenQuelle;
-    delete state.kalk._stellplatzAnzahl;
+    _resetWeSnapshotFields();
     renderTabKalkulator();
     return;
   }
+  // Reset vor jedem Load — sonst rutschen Felder der vorigen WE durch,
+  // wenn die neue WE ein Feld leer/null liefert (z.B. keine Vereinbarung).
+  _resetWeSnapshotFields();
   const w = state.wohneinheiten.find(x => x.id === weId);
   if (!w) return;
 
@@ -1846,7 +1871,7 @@ function recalcAndRender() {
               mietverwaltung: (kalk && kalk.mietverwaltungDefault) || 0,
               hausverwaltung: (kalk && kalk.hausverwaltung) || 30,
               afaSatz: (kalk && kalk.afaGutachten) || 0.02,
-              gebaeudeAnteil: (kalk && kalk.gebaeudeAnteil) || 0.80,
+              gebaeudeAnteil: (kalk && kalk.gebaeudeAnteil) || 0.85,
               afaBemessung: 'kaufpreis',
               wertsteigerung: (kalk && kalk.wertsteigerung) || 0.03,
             };
@@ -2096,9 +2121,25 @@ function renderStories(r) {
               const quelleSuffix = v.quelle === 'mietvertrag' ? ' (aus Mietvertrag)'
                 : v.quelle === 'stammdaten-override' ? ' (Override in Stammdaten)'
                 : '';
-              hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#d1e7dd;border-left:3px solid #198754;padding:6px 10px;margin-top:6px;color:#0f5132;font-size:13px;">✓ <strong>Vereinbarung mit Mieter${quelleSuffix}:</strong> Erhöhung auf ${Math.round(state.kalk._subventionKaltmieteAdjustiert || 0)} €/Mo ab ${datumStr} (+${anhebung} €/Mo)${vorlauf}. Danach 2 reguläre Subv-Zyklen (72 Mo).</span>`);
+              // Iter-Audit (22.05.2026): alte Miete im Badge sichtbar machen — der Sprung
+              // wird konkret („von 706 auf 800") statt nur das Ziel zu zeigen.
+              const altMiete = Math.round((state.kalk._subventionKaltmieteAdjustiert || 0) - (state.kalk._subventionTag1Anhebung || 0));
+              hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#d1e7dd;border-left:3px solid #198754;padding:6px 10px;margin-top:6px;color:#0f5132;font-size:13px;">✓ <strong>Vereinbarung mit Mieter${quelleSuffix}:</strong> Erhöhung von ${altMiete} €/Mo auf ${Math.round(state.kalk._subventionKaltmieteAdjustiert || 0)} €/Mo ab ${datumStr} (+${anhebung} €/Mo)${vorlauf}. Danach 2 reguläre Subv-Zyklen (72 Mo).</span>`);
             } else {
-              hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#fff3cd;border-left:3px solid #d39e00;padding:6px 10px;margin-top:6px;color:#664d03;font-size:13px;">⚠ <strong>Tag-1-Erhöhung aktiv (rechnerisch):</strong> Die letzte Mietsteigerung war &gt; 3 Jahre her. Wir heben den Mieter vor Übergabe um ${anhebung} €/Mo an — Käufer bekommt die schon erhöhte Miete ab Tag 1, danach 2 reguläre Subv-Zyklen (72 Mo).</span>`);
+              // Iter-Audit (22.05.2026): konkretes Datum + Monatszahl statt vage
+              // „> 3 Jahre her" — das echte Vertrags-Datum ist in _letzteMietsteigerung.
+              const dRaw = state.kalk._letzteMietsteigerung;
+              let dInfo = 'war > 3 Jahre her';
+              if (dRaw) {
+                const d = new Date(dRaw);
+                if (!isNaN(d.getTime())) {
+                  const heute = new Date();
+                  const mo = (heute.getFullYear() - d.getFullYear()) * 12 + (heute.getMonth() - d.getMonth());
+                  const monStr = `${('0'+(d.getMonth()+1)).slice(-2)}/${d.getFullYear()}`;
+                  dInfo = `war vor ${mo} Monaten (${monStr})`;
+                }
+              }
+              hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#fff3cd;border-left:3px solid #d39e00;padding:6px 10px;margin-top:6px;color:#664d03;font-size:13px;">⚠ <strong>Tag-1-Erhöhung aktiv (rechnerisch):</strong> Die letzte echte Mietsteigerung ${dInfo}. Wir heben den Mieter vor Übergabe um ${anhebung} €/Mo an — Käufer bekommt die schon erhöhte Miete ab Tag 1, danach 2 reguläre Subv-Zyklen (72 Mo).</span>`);
             }
           } else if (state.kalk._vereinbarung && !state.kalk._vereinbarung.anwendbar) {
             // Iter 70: Vereinbarung gepflegt aber wegen Vorlaufzeit/Wert nicht angewendet.
@@ -2347,7 +2388,7 @@ function drawCharts(r) {
     werteBlock.innerHTML =
       card('Dein operativer CF', opJ1, opJ10, false,
         'Operativer Cashflow',
-        'Was monatlich aus der Immobilie übrig bleibt — VOR Steuern.\n\nFormel: Kaltmiete (inkl. Mietsubvention) − Annuität (Zins + Tilgung) − Hausgeld − Hausverwaltung\n\nStartet meist im Minus (Belastung > Miete), kippt über die Jahre ins Plus, sobald Mieten steigen und der Zinsanteil der Annuität sinkt.') +
+        'Was monatlich aus der Immobilie übrig bleibt — VOR Steuern.\n\nFormel: Kaltmiete (inkl. Mietsubvention) − Annuität (Zins + Tilgung) − Hausgeld − Hausverwaltung − Mietverwaltung (SEV)\n\nStartet meist im Minus (Belastung > Miete), kippt über die Jahre ins Plus, sobald Mieten steigen und der Zinsanteil der Annuität sinkt.') +
       card('Dein Steuervorteil', stVJ1, stVJ10, false,
         'Steuervorteil',
         'Wie viel Steuern Du Dir pro Monat sparst, weil die Immobilie steuerlich Verluste produziert.\n\nFormel: (Zinsanteil + AfA + Werbungskosten − Mieteinnahmen) × Dein Grenzsteuersatz\n\nAfA-Bemessung (§7 EStG): (Kaufpreis + Kaufnebenkosten) × Gebäudeanteil. Grund und Boden ist nicht abnutzbar.\n\nSchrumpft über die Zeit: Zinsanteil sinkt mit Tilgung, Mieten steigen — der steuerliche Verlust wird kleiner, irgendwann kippt es ins Plus (= Du zahlst Steuern auf die Mieteinnahmen).') +
@@ -3119,7 +3160,7 @@ function saCoverage(sa, gemeinsam) {
     { sek: 'Person',          felder: ['vorname','name','geburtsdatum','strasse','plz','ort','staatsangehoerigkeit','telefonPrivat','email','steuerId','familienstand'] },
     { sek: 'Beruf',           felder: ['beruf','firma','beschaeftigtSeit','befristung'] },
     { sek: 'Einkommen',       felder: ['nettoMo','anzahlGehaelter'] },
-    { sek: 'Fixkosten',       felder: ['mieteMo','pkvMo'] },
+    { sek: 'Fixkosten',       felder: ['mieteMo'] },
     { sek: 'Vermögen',        felder: ['bankguthaben'] },
     { sek: 'GwG-Identität',   felder: ['gwg.ausweisArt','gwg.ausweisNr','gwg.ausweisGueltig'] },
     { sek: 'PEP-Status',      felder: ['pep'] },
@@ -4214,6 +4255,7 @@ async function saveSelbstauskunft() {
   // Auto-Save, damit es nur eine Quelle der Wahrheit gibt.
   const sa = collectSaFromDOM();
   sa.gemeinsam = document.getElementById('sa-gemeinsam').checked;
+  cleanupLegacyFields(sa); // Iter 73: alte Felder auch beim manuellen Speichern mitlöschen (Audit-Fix 22.05.2026)
   try {
     await api.put('/api/kunden/' + state.kundeId, { saJson: sa });
     state.kunde.saJson = sa;
