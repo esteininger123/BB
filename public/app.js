@@ -1705,7 +1705,12 @@ async function loadWeIntoKalk(weId) {
         state.kalk.steigerungProz = (sd.indexmiete !== null && sd.indexmiete !== undefined && sd.indexmiete > 0)
           ? sd.indexmiete
           : 0.03; // 3 % Default
-      } else if (sd.vermietungsModus === 'Bestand') {
+      } else if (modusLower.includes('bestand')) {
+        // Iter 91.2 (22.05.2026): vorher `=== 'Bestand'` (strikter String-Match).
+        // Wenn Airtable den Wert mit Suffix/Whitespace führt ('Bestand vermietet',
+        // 'Bestand · Vergleichsmiete', ' Bestand'), fiel die WE durch in den
+        // Else-Branch und blieb beim Staffel-Default → jährliche Steigerung
+        // statt Sprung alle 3 Jahre. Edgar-Befund WE 1 Heidelberger.
         state.kalk.mietsteigerungsModus = 'sprung';
         if (sd.kappungsgrenze === '20 % alle 3 Jahre') {
           state.kalk.steigerungProz = 0.20;
@@ -2541,6 +2546,10 @@ function renderStoryPremium(r) {
         <div class="kalk-c-col-chart">
           <div class="kalk-c-chart-frame"><canvas id="chart-c-vermoegen-magazin"></canvas></div>
           <div class="kalk-c-chart-caption">Nettovermögen kumuliert · Wertsteigerung ${fmtPct(i.wertsteigerung || 0.03)} p.a.</div>
+          <div class="kalk-c-vermoegen-toggle" style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+            <button type="button" data-vermoegen-line="restschuld" aria-pressed="false" style="background:transparent;border:1px solid var(--border);color:var(--text-tertiary);font-family:inherit;font-size:11px;letter-spacing:.04em;padding:6px 12px;border-radius:14px;cursor:pointer;transition:all .15s ease">+ Restschuld einblenden</button>
+            <button type="button" data-vermoegen-line="brutto" aria-pressed="false" style="background:transparent;border:1px solid var(--border);color:var(--text-tertiary);font-family:inherit;font-size:11px;letter-spacing:.04em;padding:6px 12px;border-radius:14px;cursor:pointer;transition:all .15s ease">+ Immobilienwert einblenden</button>
+          </div>
         </div>
       </div>
     </section>
@@ -2865,13 +2874,16 @@ function _drawCMagazinCharts(r) {
     });
   }
 
-  // Chart 2 — Vermögen Netto + Brutto-Verkaufserlös (gestrichelt)
+  // Chart 2 — Vermögen Netto (default sichtbar) + Restschuld + Brutto (default hidden, via Toggle)
+  // Iter 91.2: Edgar-Wunsch: standardmäßig nur Nettovermögen-Linie.
+  // Schulden + Immobilienwert per Klick auf Toggle-Pills einblenden.
   const cVer = document.getElementById('chart-c-vermoegen-magazin');
   if (cVer) {
     if (_cMagazinCharts.vermoegen) _cMagazinCharts.vermoegen.destroy();
     const labels = ['J1','J2','J3','J4','J5','J6','J7','J8','J9','J10'];
     const netto = r.vermoegen.slice(1, 11).map(v => Math.round(v.vermoegenNetto || 0));
-    const brutto = r.vermoegen.slice(1, 11).map(v => Math.round((v.verkaufserloes !== undefined ? v.verkaufserloes : (v.wert - v.restschuld))));
+    const restschuld = r.vermoegen.slice(1, 11).map(v => Math.round(v.restschuld || 0));
+    const brutto = r.vermoegen.slice(1, 11).map(v => Math.round(v.wert || (v.verkaufserloes ? v.verkaufserloes + (v.restschuld || 0) : 0)));
     _cMagazinCharts.vermoegen = new Chart(cVer, {
       type: 'line',
       data: {
@@ -2880,12 +2892,20 @@ function _drawCMagazinCharts(r) {
           {
             label: 'Nettovermögen', data: netto,
             borderColor: accent, backgroundColor: 'rgba(176,138,77,.08)',
-            borderWidth: 2.2, fill: true, tension: 0.32, pointRadius: 0, pointHoverRadius: 4
+            borderWidth: 2.2, fill: true, tension: 0.32, pointRadius: 0, pointHoverRadius: 4,
+            hidden: false
           },
           {
-            label: 'Brutto-Vermögen (Verkaufserlös)', data: brutto,
-            borderColor: tertiary, borderDash: [4, 4], backgroundColor: 'transparent',
-            borderWidth: 1.5, fill: false, tension: 0.32, pointRadius: 0, pointHoverRadius: 4
+            label: 'Restschuld (Schulden)', data: restschuld,
+            borderColor: '#9A3E33', borderDash: [4, 3], backgroundColor: 'transparent',
+            borderWidth: 1.5, fill: false, tension: 0.32, pointRadius: 0, pointHoverRadius: 4,
+            hidden: !(_cMagazinCharts._vermoegenShow && _cMagazinCharts._vermoegenShow.restschuld)
+          },
+          {
+            label: 'Immobilienwert (Marktwert)', data: brutto,
+            borderColor: '#2D6E47', borderDash: [2, 4], backgroundColor: 'transparent',
+            borderWidth: 1.5, fill: false, tension: 0.32, pointRadius: 0, pointHoverRadius: 4,
+            hidden: !(_cMagazinCharts._vermoegenShow && _cMagazinCharts._vermoegenShow.brutto)
           }
         ]
       },
@@ -2893,7 +2913,7 @@ function _drawCMagazinCharts(r) {
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
-        plugins: { legend: { display: true, position: 'bottom', labels: { color: tertiary, font: { size: 10 }, boxWidth: 12 } },
+        plugins: { legend: { display: false },
           tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('de-DE') + ' €' } }
         },
         scales: {
@@ -2975,6 +2995,35 @@ function _bindCPremiumInteractions() {
       if (state.kalk && v) {
         state.kalk.mietsteigerungsModus = v;
         if (typeof recalcAndRender === 'function') recalcAndRender();
+      }
+    };
+  });
+
+  // Iter 91.2: Vermögens-Chart Toggle (Restschuld / Immobilienwert einblenden).
+  // State persistiert in _cMagazinCharts._vermoegenShow damit Re-Renders die
+  // Sichtbarkeit beibehalten.
+  if (!_cMagazinCharts._vermoegenShow) _cMagazinCharts._vermoegenShow = { restschuld: false, brutto: false };
+  document.querySelectorAll('.kalk-c-vermoegen-toggle button[data-vermoegen-line]').forEach(btn => {
+    const key = btn.getAttribute('data-vermoegen-line');
+    // Initial-Style nach State
+    const setStyle = (on) => {
+      btn.style.background = on ? 'var(--accent)' : 'transparent';
+      btn.style.color = on ? 'var(--on-accent)' : 'var(--text-tertiary)';
+      btn.style.borderColor = on ? 'var(--accent)' : 'var(--border)';
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.textContent = (on ? '✓ ' : '+ ') + (key === 'restschuld' ? 'Restschuld' : 'Immobilienwert') + (on ? ' ausblenden' : ' einblenden');
+    };
+    setStyle(_cMagazinCharts._vermoegenShow[key]);
+    btn.onclick = () => {
+      _cMagazinCharts._vermoegenShow[key] = !_cMagazinCharts._vermoegenShow[key];
+      const on = _cMagazinCharts._vermoegenShow[key];
+      setStyle(on);
+      // Im Chart das passende Dataset (Index 1 = Restschuld, Index 2 = Brutto) zeigen/verstecken.
+      const chart = _cMagazinCharts.vermoegen;
+      if (chart) {
+        const idx = (key === 'restschuld') ? 1 : 2;
+        chart.data.datasets[idx].hidden = !on;
+        chart.update('none');
       }
     };
   });

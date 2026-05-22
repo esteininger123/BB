@@ -114,8 +114,13 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const nettoCrossoverJahr = nettoCrossoverIdx >= 0 ? nettoCrossoverIdx : null;
   const v10 = r.vermoegen[10] || {};
   const sparen10 = r.sparen[10] || {};
-  const selbsttragungPct = r.annuityMo > 0
-    ? Math.round(((r.mieteJ1Mo || 0) + (r.stVorteilJ1Mo || 0)) / r.annuityMo * 100)
+  // Iter 91.2: Selbsttragung gegen ALLE laufenden Kosten (Annuität + HG + HV + MV),
+  // gecappt auf 100 % — vorher konnte > 100 % zeigen obwohl Belastung negativ war.
+  const laufendeKostenMo = (r.annuityMo || 0) + (r.hausgeldNurMo || 0)
+    + (r.hausverwaltungMo || 0) + (r.mietverwaltungMo || 0);
+  const einnahmenMo = (r.mieteJ1Mo || 0) + (r.stVorteilJ1Mo || 0);
+  const selbsttragungPct = laufendeKostenMo > 0
+    ? Math.min(100, Math.round(einnahmenMo / laufendeKostenMo * 100))
     : 0;
   const marktQm = parseFloat(i.marktwertProQm) || 0;
   const kpQm = r.kaufpreisProQm || 0;
@@ -311,7 +316,9 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         </div>
         <div class="pdf-c-p2-right">
           <div class="hero-line">Annuität <span class="pdf-c-num">${fmtMo(r.annuityMo)}</span> &nbsp;·&nbsp; Miete <span class="pdf-c-num">${fmtMo(r.mieteJ1Mo)}</span> &nbsp;·&nbsp; Steuervorteil <span class="pdf-c-num">${fmtMo(r.stVorteilJ1Mo)}</span></div>
-          <p class="narrative">Die Wohnung trägt sich aus laufender Miete und Steuervorteil zu rund ${selbsttragungPct} % selbst. Die effektive Belastung im Jahr 1 entspricht etwa einem Streaming-Abo oder einem zweiten Strom-Tarif.</p>
+          <p class="narrative">${r.belastungMo >= 0
+            ? `Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst — Miete und Steuervorteil decken alle laufenden Kosten und liefern einen monatlichen Überschuss von ${fmtMo(r.belastungMo)}.`
+            : `Die Wohnung trägt sich aus laufender Miete und Steuervorteil zu rund ${selbsttragungPct} % selbst. Den Rest leistest Du als Eigenleistung — Jahr für Jahr kleiner werdend.`}</p>
           <table class="pdf-c-p2-belastung-table">
             <thead><tr><th>Jahr</th><th class="r">Belastung €/Mo</th></tr></thead>
             <tbody>${belastungJ110}</tbody>
