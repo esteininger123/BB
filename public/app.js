@@ -2322,17 +2322,31 @@ function renderStoryPremium(r) {
     + (state.kalk._weNr ? 'Wohneinheit ' + esc(state.kalk._weNr) : esc(state.kalk._weLage || ''));
 
   // Dynamische Texte
+  // QA-Fix 2026-05-22 (Audit-E B3): bei crossoverJahr > 10 (z.B. WE 11 über-markt, Crossover
+  // erst ab J13) sagte der Text „Ab Jahr 13 dreht ins Plus" — aber der Chart darüber zeigt
+  // nur J1-J10. Kunde fragt: „Sind die Zahlen schöngerechnet?" Jetzt: Crossover-Text
+  // konditional auf den sichtbaren Horizont.
   const crossoverIdx = r.cf.findIndex(c => c.cfJahr > 0);
   const crossoverJahr = crossoverIdx >= 0 ? (crossoverIdx + 1) : null;
   const crossoverSatz = crossoverJahr
-    ? `Ab Jahr <span class="positive">${crossoverJahr}</span> dreht die Belastung ins Plus`
+    ? (crossoverJahr <= 10
+      ? `Ab Jahr <span class="positive">${crossoverJahr}</span> dreht die Belastung ins Plus`
+      : `Innerhalb der nächsten 10 Jahre bleibt die Belastung im negativen Bereich — der Crossover folgt voraussichtlich erst um Jahr <span class="positive">${crossoverJahr}</span>`)
     : `Über die 10 Jahre bleibt Deine Belastung im negativen Bereich`;
 
+  // QA-Fix 2026-05-22 (Audit-E B4/B8): wenn findIndex = 0 (vermoegenNetto bereits zum
+  // Start positiv, z.B. WE 1 mit Markt > Darlehen+EK), wurde `nettoCrossoverJahr` zu 0
+  // → der truthy-Check kippte in den „mehr als 10 Jahre"-Branch, OBWOHL die Vermögens-
+  // Tabelle desselben WE J1..J10 alle positiv zeigte. Widerspruch in einer Section.
+  // Jetzt: 3 Branches — bereits positiv (idx=0), Crossover in J1-10, oder > J10.
   const nettoCrossoverIdx = r.vermoegen.findIndex(v => v.vermoegenNetto > 0);
-  const nettoCrossoverJahr = nettoCrossoverIdx >= 0 ? nettoCrossoverIdx : null;
-  const nettoCrossoverSatz = nettoCrossoverJahr
-    ? `Aus zunächst negativem Nettovermögen wird ab Jahr ${nettoCrossoverJahr} der Pfad nach oben sichtbar`
-    : `Der Pfad zum positiven Nettovermögen braucht in diesem Profil mehr als 10 Jahre`;
+  const nettoCrossoverJahr = nettoCrossoverIdx > 0 ? nettoCrossoverIdx : null;
+  const nettoPositivAbStart = nettoCrossoverIdx === 0;
+  const nettoCrossoverSatz = nettoPositivAbStart
+    ? `Dein Nettovermögen ist bereits zum Start positiv — Marktwert übersteigt den Eigenkapital-Einsatz`
+    : nettoCrossoverJahr
+      ? `Aus zunächst negativem Nettovermögen wird ab Jahr ${nettoCrossoverJahr} der Pfad nach oben sichtbar`
+      : `Der Pfad zum positiven Nettovermögen braucht in diesem Profil mehr als 10 Jahre`;
 
   // Selbsttragung: Wie viel Prozent der gesamten laufenden Kosten
   // (Annuität + HG + HV + MV) deckst Du aus Miete + Steuervorteil?
@@ -2352,6 +2366,16 @@ function renderStoryPremium(r) {
   const knk = (r.knk != null && isFinite(r.knk)) ? r.knk : (i.knkMitfinanziert ? 0 : r.ekBedarf);
 
   // ===== HERO =====
+  // QA-Fix 2026-05-22 (Audit-E B6): Hero-Subtitle „im Bestand" war hardcoded — bei
+  // Neuvermietung/Staffel (z.B. Wesseling WE 3) erschien trotzdem „im Bestand". Jetzt
+  // modus-abhängig aus i.mietsteigerungsModus.
+  const _modusHeroSubtitle = (() => {
+    const m = i.mietsteigerungsModus || 'sprung';
+    if (m === 'staffel') return ', neu vermietet mit Staffelmiete';
+    if (m === 'index')   return ' mit Indexmietvertrag';
+    if (m === 'keine')   return '';
+    return ' im Bestand';
+  })();
   const HERO = `
     <header class="kalk-c-hero">
       <div class="kalk-c-hero-top">
@@ -2367,7 +2391,7 @@ function renderStoryPremium(r) {
           In zehn Jahren hast Du <span class="kalk-c-num-accent">${fmt(r.vermoegenNetto10)}</span> aufgebaut.
         </h1>
         <p class="kalk-c-hero-sub">
-          ${i.qm ? 'Eine ' + i.qm.toString().replace('.', ',') + '-qm-Wohnung' : 'Eine Wohnung'} im Bestand. Die folgende Analyse zeigt Deinen Vermögensaufbau, Deine monatliche Belastung und den Vergleich zur klassischen Sparbuch-Alternative.
+          ${i.qm ? 'Eine ' + i.qm.toString().replace('.', ',') + '-qm-Wohnung' : 'Eine Wohnung'}${_modusHeroSubtitle}. Die folgende Analyse zeigt Deinen Vermögensaufbau, Deine monatliche Belastung und den Vergleich zur klassischen Sparbuch-Alternative.
         </p>
         <div class="kalk-c-hero-strip">
           <div class="kalk-c-strip-cell">
@@ -2411,7 +2435,7 @@ function renderStoryPremium(r) {
         <div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaufpreis je qm</span><span class="kalk-c-v">${Math.round(kpQm).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></span></div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Marktpreis je qm</span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') : '—'}<span class="kalk-c-unit">€</span></span></div>
-          ${r.markteinkaufVorteil ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">${r.markteinkaufVorteil > 0 ? 'Markteinkauf-Vorteil' : 'Markt-Aufschlag'}</span><span class="kalk-c-v">${fmt(r.markteinkaufVorteil)}</span></div>` : ''}
+          ${r.markteinkaufVorteil ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">${r.markteinkaufVorteil > 0 ? 'Markteinkauf-Vorteil' : 'Markt-Aufschlag'}</span><span class="kalk-c-v ${r.markteinkaufVorteil > 0 ? '' : 'kalk-c-neg'}">${fmt(Math.abs(r.markteinkaufVorteil))}${r.markteinkaufVorteil > 0 ? '' : ' über Markt'}</span></div>` : ''}
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaltmiete</span><span class="kalk-c-v">${Math.round(i.kaltmiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Stellplatz-Miete</span><span class="kalk-c-v">${Math.round(i.stellplatzMiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Hausgeld · HV · MV</span><span class="kalk-c-v">${Math.round(i.hausgeld || 0)} / ${Math.round(i.hausverwaltung || 0)} / ${Math.round(i.mietverwaltung || 0)}<span class="kalk-c-unit">€/Mo</span></span></div>
@@ -2514,7 +2538,11 @@ function renderStoryPremium(r) {
           <h2 class="kalk-c-section-title">Effektive Belastung im ersten Jahr: ${fmtEurMo(r.belastungMo)}.</h2>
         </div>
         <div class="kalk-c-right">
-          Die Wohnung trägt sich nahezu selbst. Was bleibt, ist eine kalkulierte monatliche Eigenleistung, die mit der Zeit kleiner wird.
+          ${r.belastungMo >= 0
+            ? 'Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst. Was bleibt, ist ein monatlicher Überschuss.'
+            : (selbsttragungPct >= 95
+              ? 'Die Wohnung trägt sich nahezu selbst. Was bleibt, ist eine kalkulierte monatliche Eigenleistung, die mit der Zeit kleiner wird.'
+              : 'Die Wohnung trägt einen Teil der laufenden Kosten selbst. Die verbleibende monatliche Eigenleistung schrumpft Jahr für Jahr durch Mietsteigerung und Tilgung.')}
         </div>
       </div>
       <div class="kalk-c-two-col">
@@ -2523,7 +2551,7 @@ function renderStoryPremium(r) {
           <div class="kalk-c-chart-caption">Cashflow nach Steuern, je Monat · Annuität konstant · ${_modusCaption}</div>
         </div>
         <div class="kalk-c-col-text">
-          <p class="kalk-c-lead">Eine Annuität von ${fmtEurMo(r.annuityMo)} steht Mieteinnahmen von ${fmtEurMo(r.mieteJ1Mo)} gegenüber. Dein Steuervorteil und in den ersten Jahren eine vereinbarte Mietsubvention glätten die Anlaufphase.</p>
+          <p class="kalk-c-lead">Eine Annuität von ${fmtEurMo(r.annuityMo)} steht Mieteinnahmen von ${fmtEurMo(r.mieteJ1Mo)} gegenüber. Dein Steuervorteil${(r.mietsubventionGesamt && r.mietsubventionGesamt > 0) ? ' und in den ersten Jahren eine vereinbarte Mietsubvention glätten' : ' glättet'} die Anlaufphase.</p>
           <p>${r.belastungMo >= 0
             ? `Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst — Miete und Steuervorteil decken alle laufenden Kosten und liefern einen monatlichen Überschuss von ${fmtEurMo(r.belastungMo)}.`
             : `Die Wohnung trägt sich zu rund ${selbsttragungPct} % selbst — Miete plus Steuervorteil decken den Großteil der laufenden Kosten (Annuität + Hausgeld + Verwaltung). Den Rest leistest Du als monatliche Eigenleistung.`}</p>
@@ -2544,9 +2572,13 @@ function renderStoryPremium(r) {
   const renditeSatz = ekIstNull
     ? `Da Du kein eigenes Kapital einsetzt, gibt es keine klassische Eigenkapital-Rendite — der gesamte Vermögenszuwachs entsteht aus Restschuld-Abbau und Wertsteigerung.`
     : `Dein Nettowert — Marktwert abzüglich Restschuld und kumulierter Eigenleistung — erreicht im Jahr 10 die genannten ${fmt(r.vermoegenNetto10)}. Das ist nach 10 Jahren ein interner Zinsfuß von <strong>${fmtPct(r.irr)}</strong>.`;
+  // QA-Fix 2026-05-22 (Audit-F B-1): „Brutto-Vermögen J10" und PDF-„Markt-Vermögen J10"
+  // zeigten unter ähnlich klingenden Labels verschiedene Größen — Magazin: Eigenanteil
+  // (verkaufserloes + kumCf), PDF: Bruttomarktwert (= v10.wert). Diff 124-294k €.
+  // Klare Labels: „Mein Anteil J10" (= vermoegenBrutto) vs. „Marktwert J10" (= v10.wert).
   const metaLine3 = ekIstNull
-    ? `Brutto-Vermögen J10 · ${fmt(v10.vermoegenBrutto || (v10.wert - v10.restschuld))} &nbsp;·&nbsp; ohne EK-Einsatz`
-    : `IRR 10 J · ${fmtPct(r.irr)} &nbsp;·&nbsp; Brutto-Vermögen J10 · ${fmt(v10.vermoegenBrutto || (v10.wert - v10.restschuld))}`;
+    ? `Mein Anteil J10 · ${fmt(v10.vermoegenBrutto || (v10.wert - v10.restschuld))} &nbsp;·&nbsp; ohne EK-Einsatz`
+    : `IRR 10 J · ${fmtPct(r.irr)} &nbsp;·&nbsp; Mein Anteil J10 · ${fmt(v10.vermoegenBrutto || (v10.wert - v10.restschuld))}`;
   const SECTION_3 = `
     <section class="kalk-c-section">
       <div class="kalk-c-section-head">
@@ -2591,7 +2623,7 @@ function renderStoryPremium(r) {
       </div>
       <div class="kalk-c-compare">
         <div class="kalk-c-compare-headline"><span class="kalk-c-delta">${fmt(r.vermoegenNetto10)}</span> &nbsp;Vermögensaufbau</div>
-        <div class="kalk-c-compare-sub">Bei 110-%-Finanzierung setzt Du kein eigenes Kapital ein. Trotzdem baust Du in 10 Jahren ${fmt(r.vermoegenNetto10)} Nettovermögen auf — getragen von Tilgung und Wertentwicklung. Der Hebel kommt aus dem Sachwert, nicht aus Deinem Sparbuch.</div>
+        <div class="kalk-c-compare-sub">Bei 110-%-Finanzierung setzt Du kein eigenes Kapital ein. Trotzdem baust Du in 10 Jahren ${fmt(r.vermoegenNetto10)} Nettovermögen auf — getragen von Tilgung und Wertentwicklung. Der Hebel kommt aus dem Sachwert, nicht aus Deinem Sparbuch.<br><br><em style="font-size:13px;color:var(--text-tertiary)">Ein klassischer Sparbuch-Vergleich entfällt: ohne Eigenkapital-Einsatz wäre auch das Sparbuch-Ergebnis 0 €. Die Belastung über die Laufzeit ist Deine einzige Eigenleistung.</em></div>
       </div>
     </section>
     <hr class="kalk-c-rule" />
@@ -2700,7 +2732,7 @@ function renderStoryPremium(r) {
         <button class="kalk-c-modal-close" data-kalk-c-close>Schließen ×</button>
         <div class="kalk-c-eyebrow">05 · Detail · Bonitäts-Saldo</div>
         <h3>So rechnet die Bank das durch</h3>
-        <div class="kalk-c-sub">Wirkung der Investition auf Deine monatliche Liquidität und Dein freies Eigenkapital. Die Mietsubvention wird bei richtiger Gestaltung wie Miete angesetzt (80 % anrechenbar).</div>
+        <div class="kalk-c-sub">Wirkung der Investition auf Deine monatliche Liquidität und Dein freies Eigenkapital.${(r.mietsubventionGesamt && r.mietsubventionGesamt > 0) ? ' Die Mietsubvention wird bei richtiger Gestaltung wie Miete angesetzt (80 % anrechenbar).' : ' Die Bank rechnet 80 % der vereinbarten Miete als Einkommen.'}</div>
         <div class="kalk-c-saldo-grid">
           <div class="kalk-c-saldo-card">
             <div class="kalk-c-label">Frei verfügbares Einkommen — Bank-Sicht</div>

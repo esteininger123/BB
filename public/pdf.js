@@ -112,8 +112,12 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   // Dynamische Texte
   const crossoverIdx = r.cf.findIndex(c => c.cfJahr > 0);
   const crossoverJahr = crossoverIdx >= 0 ? (crossoverIdx + 1) : null;
+  // QA-Fix 2026-05-22 (Audit-E B4/B8): identischer Fix wie app.js — Truthy-Bug bei
+  // findIndex=0 (vermoegenNetto schon bei J0 positiv) löste den „mehr als 10 Jahre"-
+  // Branch aus, obwohl Tabelle alle Jahre positiv zeigte.
   const nettoCrossoverIdx = r.vermoegen.findIndex(v => v.vermoegenNetto > 0);
-  const nettoCrossoverJahr = nettoCrossoverIdx >= 0 ? nettoCrossoverIdx : null;
+  const nettoCrossoverJahr = nettoCrossoverIdx > 0 ? nettoCrossoverIdx : null;
+  const nettoPositivAbStart = nettoCrossoverIdx === 0;
   const v10 = r.vermoegen[10] || {};
   const sparen10 = r.sparen[10] || {};
   // Iter 91.2: Selbsttragung gegen ALLE laufenden Kosten (Annuität + HG + HV + MV),
@@ -297,7 +301,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       ${ph()}
       <div class="pdf-c-section-num">01 · Das Objekt &nbsp;·&nbsp; 02 · Der Plan</div>
       <h2 class="pdf-c-section-title">Effektive Belastung im ersten Jahr: ${fmtMo(r.belastungMo)}.</h2>
-      <p class="pdf-c-lead" style="max-width:48ch">${i.qm ? 'Eine ' + i.qm.toString().replace('.', ',') + '-qm-Wohnung' : 'Eine Wohnung'} im Bestand. Die Wohnung trägt sich nahezu selbst; was bleibt, ist eine kalkulierte monatliche Eigenleistung.</p>
+      <p class="pdf-c-lead" style="max-width:48ch">${i.qm ? 'Eine ' + i.qm.toString().replace('.', ',') + '-qm-Wohnung' : 'Eine Wohnung'}${(() => { const m = i.mietsteigerungsModus || 'sprung'; if (m === 'staffel') return ', neu vermietet mit Staffelmiete'; if (m === 'index') return ' mit Indexmietvertrag'; if (m === 'keine') return ''; return ' im Bestand'; })()}. ${r.belastungMo >= 0 ? 'Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst.' : (selbsttragungPct >= 95 ? 'Die Wohnung trägt sich nahezu selbst; was bleibt, ist eine kalkulierte monatliche Eigenleistung.' : 'Die Wohnung trägt einen Teil der laufenden Kosten selbst; die verbleibende Eigenleistung schrumpft Jahr für Jahr.')}</p>
       <div class="pdf-c-p2-grid">
         <div class="pdf-c-obj">
           <h4>Objekt</h4>
@@ -325,7 +329,11 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
             <thead><tr><th>Jahr</th><th class="r">Belastung €/Mo</th></tr></thead>
             <tbody>${belastungJ110}</tbody>
           </table>
-          ${crossoverJahr ? `<p class="narrative" style="margin-top:5mm">Ab Jahr ${crossoverJahr} dreht die Belastung ins Plus — die Wohnung beginnt, einen monatlichen Überschuss zu liefern, während die Annuität konstant bleibt.</p>` : '<p class="narrative" style="margin-top:5mm">Über die 10 Jahre bleibt die Belastung im negativen Bereich — der Vermögenseffekt entsteht über die Tilgung und Wertsteigerung.</p>'}
+          ${crossoverJahr
+            ? (crossoverJahr <= 10
+              ? `<p class="narrative" style="margin-top:5mm">Ab Jahr ${crossoverJahr} dreht die Belastung ins Plus — die Wohnung beginnt, einen monatlichen Überschuss zu liefern, während die Annuität konstant bleibt.</p>`
+              : `<p class="narrative" style="margin-top:5mm">Innerhalb der hier dargestellten 10 Jahre bleibt die Belastung im negativen Bereich — der Crossover folgt voraussichtlich erst um Jahr ${crossoverJahr}. Der Vermögenseffekt in den ersten 10 Jahren entsteht aus Tilgung und Wertsteigerung.</p>`)
+            : '<p class="narrative" style="margin-top:5mm">Über die 10 Jahre bleibt die Belastung im negativen Bereich — der Vermögenseffekt entsteht über die Tilgung und Wertsteigerung.</p>'}
         </div>
       </div>
       <div class="pdf-c-page-foot"><div>02 · Eckdaten &amp; Plan</div><div class="pdf-c-page-num">Seite 2 von 7</div></div>
@@ -343,13 +351,13 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       ${ph()}
       <div class="pdf-c-section-num">03 · Vermögenszuwachs</div>
       <h2 class="pdf-c-section-title">In zehn Jahren: <span class="pdf-c-accent" style="font-weight:300">${fmt(r.vermoegenNetto10)}</span> Nettovermögen.</h2>
-      <p class="pdf-c-lead" style="max-width:56ch">${nettoCrossoverJahr ? 'Aus zunächst negativem Nettovermögen wird ab Jahr ' + nettoCrossoverJahr + ' der Pfad nach oben sichtbar' : 'Der Pfad zum positiven Nettovermögen braucht in diesem Profil mehr als 10 Jahre'} — getragen vom Restschuld-Abbau durch die Annuität und einer moderat gerechneten Wertentwicklung.</p>
+      <p class="pdf-c-lead" style="max-width:56ch">${nettoPositivAbStart ? 'Dein Nettovermögen ist bereits zum Start positiv — Marktwert übersteigt den Eigenkapital-Einsatz' : (nettoCrossoverJahr ? 'Aus zunächst negativem Nettovermögen wird ab Jahr ' + nettoCrossoverJahr + ' der Pfad nach oben sichtbar' : 'Der Pfad zum positiven Nettovermögen braucht in diesem Profil mehr als 10 Jahre')} — getragen vom Restschuld-Abbau durch die Annuität und einer moderat gerechneten Wertentwicklung.</p>
       <table class="pdf-c-p3-vermoegen-table">
         <thead><tr><th>Jahr</th><th class="r">Marktwert</th><th class="r">Restschuld</th><th class="r">Netto kumuliert</th></tr></thead>
         <tbody>${vermoegenRows}</tbody>
       </table>
       <div class="pdf-c-p3-bottom">
-        <div class="cell"><div class="label">Markt-Vermögen J10</div><div class="v">${Math.round(v10.wert || 0).toLocaleString('de-DE')}<span class="unit">€</span></div></div>
+        <div class="cell"><div class="label">Marktwert J10</div><div class="v">${Math.round(v10.wert || 0).toLocaleString('de-DE')}<span class="unit">€</span></div></div>
         <div class="cell"><div class="label">Restschuld J10</div><div class="v">${Math.round(v10.restschuld || 0).toLocaleString('de-DE')}<span class="unit">€</span></div></div>
         ${(r.irr != null && isFinite(r.irr))
           ? `<div class="cell"><div class="label">Interner Zinsfuß</div><div class="v">${(r.irr * 100).toFixed(1).replace('.',',')}<span class="unit">% p.a.</span></div></div>`
@@ -376,6 +384,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <h2 class="pdf-c-p4-headline">Ohne Eigenkapital-Einsatz zum Sachwert.</h2>
         <div class="pdf-c-p4-delta"><span class="num">${fmt(r.vermoegenNetto10)}</span><br><span style="font-size:11pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500;display:inline-block;margin-top:4mm">Vermögensaufbau über 10 Jahre</span></div>
         <p class="pdf-c-p4-sub">Bei 110-%-Finanzierung setzt Du kein eigenes Kapital ein. Trotzdem baust Du in zehn Jahren ${fmt(r.vermoegenNetto10)} Nettovermögen auf — getragen von Tilgung und Wertentwicklung. Der Hebel kommt aus dem Sachwert, nicht aus Deinem Sparbuch.</p>
+        <p class="pdf-c-p4-sub" style="margin-top:6mm;font-size:10pt;color:#7A7A72;font-style:italic">Ein klassischer Sparbuch-Vergleich entfällt: ohne Eigenkapital-Einsatz wäre auch das Sparbuch-Ergebnis 0 €. Die monatliche Belastung über die Laufzeit ist die einzige Eigenleistung.</p>
       </div>
       <div class="pdf-c-page-foot"><div>04 · Der Hebel</div><div class="pdf-c-page-num">Seite 4 von 7</div></div>
     </div>
@@ -417,7 +426,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <div class="pdf-c-saldo-row"><span>Vor Erwerb</span><span>${fmt(r.bonVermoegen || 0)}</span></div>
           <div class="pdf-c-saldo-row"><span>Einsatz Erwerb (EK + KNK)</span><span class="pdf-c-neg">− ${fmt(r.ekBedarf)}</span></div>
           <div class="pdf-c-saldo-row tot"><span>Nach Erwerb</span><span class="${(r.bonVermoegenVsEk || 0) < 0 ? 'pdf-c-neg' : ''}">${fmt(r.bonVermoegenVsEk || 0)}</span></div>
-          <p style="font-size:7.5pt;color:#7A7A72;margin-top:3mm;line-height:1.55">Die Mietsubvention wird bei richtiger Gestaltung wie Miete angesetzt — sie geht zu 80 % in die anrechenbare Miete ein.</p>
+          <p style="font-size:7.5pt;color:#7A7A72;margin-top:3mm;line-height:1.55">${(r.mietsubventionGesamt && r.mietsubventionGesamt > 0) ? 'Die Mietsubvention wird bei richtiger Gestaltung wie Miete angesetzt — sie geht zu 80 % in die anrechenbare Miete ein.' : 'Die Bank rechnet 80 % der vereinbarten Miete als zusätzliches Einkommen.'}</p>
         </div>
 
         <div class="pdf-c-p5-block">
