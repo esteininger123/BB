@@ -970,8 +970,8 @@ function renderTabKalkulator() {
       </div>
     </div>
     ` : `
-    <div class="card mt-16">
-      <div class="card-title">${isPaket ? 'Persönliche Eingaben (für das Paket)' : 'Eingaben — ' + esc((i._weNr ? 'WE ' + i._weNr + ' · ' : '') + (i._weLage || ''))}</div>
+    <div class="card kalk-input-minimal mt-16">
+      <div class="card-title">${isPaket ? 'Persönliche Eingaben · Paket' : 'Eingaben · ' + esc((i._weNr ? 'WE ' + i._weNr + ' · ' : '') + (i._weLage || ''))}</div>
       <div class="kalk-section-grid">
         ${isPaket ? kalkInputsPaketHtml(i) : kalkInputsThemenHtml(i)}
       </div>
@@ -979,81 +979,13 @@ function renderTabKalkulator() {
     `}
 
     ${(!isPaket && !i._weId) ? '' : `
-      <div class="kpi-grid mt-16" id="kpi-grid"></div>
+      <!-- Iter 91 (22.05.2026): Power-User-Strip oben entfernt — KPIs, Bonität,
+           Hauptcharts und Cashflow/Sparen-Charts sind alle in die Magazin-Story
+           integriert (renderStoryPremium). Der Vertriebler checkt Daten links,
+           beginnt direkt unten mit der Story.
+           Spar-Zins-Slider wandert in den Annahmen-Modal der Magazin-View. -->
 
-      <div class="card mt-16" id="bon-card">
-        <!-- Bonitäts-Anzeige (wird in recalcAndRender gefüllt) -->
-      </div>
-
-      <!-- HAUPTCHART: Vermögensaufbau (groß, 10 J) — Schere Marktwert ↔ Restschuld -->
-      <div class="card mt-16">
-        <div class="card-title">Dein Vermögensaufbau · 10 Jahre</div>
-        <div class="text-tertiary text-small">Die Schere zwischen Marktwert und Deiner Restschuld öffnet sich Jahr für Jahr — das ist Dein Vermögensaufbau.</div>
-        <div class="chart-info-row" aria-label="Erklärungen zu den Linien">
-          <button type="button" class="chart-info-chip chip-marktwert"
-                  data-info-title="Marktwert (Immobilie)"
-                  data-info-body="Heutiger Kaufpreis (KP) verzinst mit Deiner angenommenen Wertsteigerung p.a.&#10;&#10;Formel: KP × (1 + Wertsteigerung)^Jahr&#10;&#10;Steigt die Wertsteigerung im Slider, wandert diese Linie nach oben.">
-            <span class="chart-info-swatch swatch-marktwert"></span>
-            <span class="chart-info-label">Marktwert</span>
-            <span class="chart-info-i" aria-hidden="true">i</span>
-          </button>
-          <button type="button" class="chart-info-chip chip-restschuld"
-                  data-info-title="Restschuld (Darlehen)"
-                  data-info-body="Was Du der Bank noch schuldest. Sinkt durch Tilgung Jahr für Jahr.&#10;&#10;Formel: Anfangsdarlehen − kumulierte Tilgung&#10;&#10;Tilgung kommt aus Deiner Annuität: Annuität = Zins + Tilgung. Zinsanteil sinkt, Tilgungsanteil steigt mit jedem Jahr.">
-            <span class="chart-info-swatch swatch-restschuld"></span>
-            <span class="chart-info-label">Restschuld</span>
-            <span class="chart-info-i" aria-hidden="true">i</span>
-          </button>
-          <button type="button" class="chart-info-chip chip-vermoegen"
-                  data-info-title="Vermögensaufbau (= Dein Gewinn)"
-                  data-info-body="Was bei einem theoretischen Verkauf nach Abzug aller Kosten als Gewinn übrig bleibt — gerechnet gegenüber Deinem Tag-1-Einsatz.&#10;&#10;Formel: (Marktwert − Restschuld + kumulierte Cashflows) − eingesetztes EK (inkl. Kaufnebenkosten)&#10;&#10;Startet im Minus (Du hast gerade KNK eingezahlt), kreuzt die Null, wenn Tilgung + Wertsteigerung + Cashflows den Einsatz reingeholt haben.">
-            <span class="chart-info-swatch swatch-vermoegen"></span>
-            <span class="chart-info-label">Vermögensaufbau</span>
-            <span class="chart-info-i" aria-hidden="true">i</span>
-          </button>
-        </div>
-        <div class="chart-info-popover" role="dialog" aria-hidden="true">
-          <div class="chart-info-popover-title"></div>
-          <div class="chart-info-popover-body"></div>
-        </div>
-        <div class="chart-container" style="height:420px;"><canvas id="chart-vermoegen"></canvas></div>
-      </div>
-
-      <!-- DARUNTER: Cashflow + Sparen-vs-Investieren nebeneinander -->
-      <div class="grid-2 mt-16">
-        <div class="card">
-          <div class="card-title">Dein Cashflow · 10 Jahre</div>
-          <div id="cf-werte-block" class="kalk-werte-block"></div>
-          <div class="chart-info-popover" role="dialog" aria-hidden="true">
-            <div class="chart-info-popover-title"></div>
-            <div class="chart-info-popover-body"></div>
-          </div>
-          <div class="chart-container"><canvas id="chart-cashflow"></canvas></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Dein Eigenkapital · Anlage vs. Immobilie</div>
-          <div id="spar-werte-block" class="kalk-werte-block"></div>
-          <div class="chart-info-popover" role="dialog" aria-hidden="true">
-            <div class="chart-info-popover-title"></div>
-            <div class="chart-info-popover-body"></div>
-          </div>
-          <div class="chart-container"><canvas id="chart-sparen"></canvas></div>
-          <div class="spar-zins-row">
-            <span class="spar-zins-label">EK-Verzinsung:</span>
-            <input type="range" id="spar-zins-slider" min="0" max="12" step="0.05"
-                   value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
-                   class="spar-zins-range">
-            <span id="spar-zins-val" class="spar-zins-val">
-              ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} %
-            </span>
-            <input type="number" id="spar-zins-num" min="0" max="12" step="0.05"
-                   value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
-                   class="spar-zins-num">
-          </div>
-        </div>
-      </div>
-
-      <!-- Story-Sektionen (Vertriebs-Erzählung) -->
+      <!-- Story-Sektionen (Magazin-Vertriebsstory) -->
       <div class="stories mt-16" id="story-container"></div>
 
       <div class="toolbar mt-16">
@@ -1116,9 +1048,12 @@ function bindSparZinsSlider() {
     lbl.textContent = v.toFixed(2).replace('.', ',') + ' %';
     recalcAndRender();
   };
-  range.addEventListener('input', () => applyValue(range.value, 'range'));
-  num.addEventListener('input',   () => applyValue(num.value,   'num'));
-  num.addEventListener('blur',    () => applyValue(num.value,   'num')); // bei manueller Eingabe absichern
+  // Iter 91: oninput/onblur direkt setzen statt addEventListener, weil die
+  // Elemente jetzt im Annahmen-Modal leben und bei jedem Re-Render neu
+  // erzeugt werden. Direktes setzen ist idempotent (überschreibt vorigen Handler).
+  range.oninput = () => applyValue(range.value, 'range');
+  num.oninput   = () => applyValue(num.value,   'num');
+  num.onblur    = () => applyValue(num.value,   'num');
 }
 
 function setWeMode(mode) {
@@ -1922,7 +1857,9 @@ function recalcAndRender() {
   const fmtPct = window.Kalk.fmtPct;
   const fmtEurMo = window.Kalk.fmtEurMo;
   const grid = document.getElementById('kpi-grid');
-  if (!grid) return;
+  // Iter 91: kein Early-Return mehr — Power-User-KPI-Strip ist entfernt,
+  // KPIs leben jetzt im Magazin (renderStoryPremium). Wenn grid noch
+  // existiert (Legacy), füllen wir es. Sonst: KPI-Render skippen, Story rendern.
   const cls = (v) => v > 0 ? 'positive' : (v < 0 ? 'negative' : '');
   // Kern-KPIs wie V1 — 5 Standard + optional Markteinkauf-Vorteil. Mit klickbaren Info-Boxen.
   const kpiCard = (label, value, info, extraClass) => `
@@ -1959,7 +1896,7 @@ function recalcAndRender() {
       'Differenz zwischen Marktpreis pro qm und Deinem Kaufpreis pro qm × Wohnfläche. „Geld, das schon in Deinem Kaufpreis steckt."',
       cls(r.markteinkaufVorteil)));
   }
-  grid.innerHTML = kpis.join('');
+  if (grid) grid.innerHTML = kpis.join('');
 
   // Bonität-Card — 4 KPIs: Einkommen vor/nach + EK vor/nach
   const bonEl = document.getElementById('bon-card');
@@ -2812,8 +2749,18 @@ function renderStoryPremium(r) {
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Steuersatz</span><span class="kalk-c-v">${fmtPct(i.steuersatz || 0.3)}</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">AfA-Satz</span><span class="kalk-c-v">${fmtPct(i.afaSatz || 0.02)} linear</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Mietsubvention</span><span class="kalk-c-v">${subvText}</span></div>
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">Sparbuch-Vergleich</span><span class="kalk-c-v">${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a.</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Sparbuch-Vergleich</span><span class="kalk-c-v"><span id="spar-zins-val" style="display:inline-block;min-width:48px;text-align:right;">${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} %</span> p.a.</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Marktpreis je qm Ref.</span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') + ' €' : '—'}</span></div>
+        </div>
+        <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:14px;font-size:13px;color:var(--text-secondary)">
+          <span style="flex:0 0 auto;color:var(--text-tertiary);">EK-Verzinsung Sparbuch:</span>
+          <input type="range" id="spar-zins-slider" min="0" max="12" step="0.05"
+                 value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
+                 class="spar-zins-range" style="flex:1;">
+          <input type="number" id="spar-zins-num" min="0" max="12" step="0.05"
+                 value="${((state.kalk.sparZins || 0.025) * 100).toFixed(2)}"
+                 class="spar-zins-num" style="width:72px;text-align:right;">
+          <span style="color:var(--text-tertiary);">%</span>
         </div>
       </div>
     </div>
@@ -2992,6 +2939,11 @@ function _bindCPremiumInteractions() {
     });
     window._cPremiumEscBound = true;
   }
+
+  // Iter 91: Spar-Zins-Slider lebt jetzt im Annahmen-Modal — wir binden ihn
+  // hier neu nach jedem renderStoryPremium-Aufruf, weil der Modal-HTML
+  // bei jedem Re-Render neu erzeugt wird.
+  if (typeof bindSparZinsSlider === 'function') bindSparZinsSlider();
 }
 function _closeAllCModals() {
   document.querySelectorAll('.kalk-c-modal-backdrop.kalk-c-open').forEach(m => m.classList.remove('kalk-c-open'));
