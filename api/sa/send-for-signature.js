@@ -126,10 +126,17 @@ module.exports = async (req, res) => {
     });
   }
   const docName = `Selbstauskunft – ${a.vorname || ''} ${a.name || ''}`.trim();
+  // Iter 86 (22.05.2026): parse_form_fields auf FALSE setzen.
+  //   PandaDoc hat zwei verschiedene Erkennungs-Modi:
+  //   - parse_form_fields:true  → erkennt native PDF Form Fields (Adobe Acrobat etc.)
+  //   - parse_form_fields:false → erkennt Text-basierte Tags wie [signature:Rolle___]
+  //   Wir nutzen Text-Tags, deshalb MUSS es false sein. Vorher war es true →
+  //   Text-Tags wurden als roher Text im PDF ignoriert.
+  //   Quelle: https://developers.pandadoc.com/docs/create-document-from-file
   const dataJson = {
     name: docName,
     recipients,
-    parse_form_fields: true,  // Triggert Field-Tag-Erkennung im PDF
+    parse_form_fields: false,
     tags: ['selbstauskunft', 'bb-immo'],
   };
 
