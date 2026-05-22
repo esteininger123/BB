@@ -5,7 +5,7 @@
 const { verifySession, requireAdminVerified } = require('../_lib/auth');
 const { airtable, listAll } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
-const { TABLES, KUNDEN_FIELDS, VERTRIEBLER_FIELDS } = require('../_lib/tables');
+const { TABLES, KUNDEN_FIELDS, VERTRIEBLER_FIELDS, SNAPSHOT_FIELDS } = require('../_lib/tables');
 const { kundeRecordToFull, kundeBodyToFields } = require('../_lib/mappers');
 
 async function getOwnerNameMap() {
@@ -90,8 +90,29 @@ module.exports = async (req, res) => {
         if (e.status === 404) return res.status(404).json({ error: 'Kunde nicht gefunden' });
         throw e;
       }
+      // QA-Fix 2026-05-22 (Audit-A E DSGVO-Cascade): vor dem Kunden-Delete alle
+      // verlinkten Snapshots löschen — sonst bleiben Waisen-Snapshots mit SA-JSON
+      // (Bankguthaben, Verbindlichkeiten, Lohn) in Airtable. DSGVO-relevant beim
+      // „Recht-auf-Vergessen-werden"-Antrag.
+      let snapshotsCascaded = 0;
+      try {
+        const allSnaps = await listAll(TABLES.SNAPSHOTS, {
+          fields: [SNAPSHOT_FIELDS.KUNDE]
+        }, 5000);
+        const linked = allSnaps.filter(s => {
+          const k = s.fields && s.fields[SNAPSHOT_FIELDS.KUNDE];
+          return Array.isArray(k) && k.includes(id);
+        });
+        for (const s of linked) {
+          try { await airtable('delete', TABLES.SNAPSHOTS, { recordId: s.id }); snapshotsCascaded++; }
+          catch (e) { /* swallow per-snapshot — Kunde löschen ist Priorität */ }
+        }
+      } catch (e) {
+        // Snapshot-Lade-Fehler nicht-tödlich, aber Edgar in Response melden
+        return res.status(500).json({ error: 'Snapshot-Cascade fehlgeschlagen — Kunde NICHT gelöscht', detail: String(e.message || e) });
+      }
       await airtable('delete', TABLES.KUNDEN, { recordId: id });
-      return res.status(200).json({ ok: true, action: 'deleted' });
+      return res.status(200).json({ ok: true, action: 'deleted', snapshotsCascaded });
     }
 
     return methodNotAllowed(res, ['GET', 'PUT', 'DELETE']);

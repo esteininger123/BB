@@ -110,7 +110,16 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const knk = (r.knk != null && isFinite(r.knk)) ? r.knk : (i.knkMitfinanziert ? 0 : r.ekBedarf);
 
   // Dynamische Texte
-  const crossoverIdx = r.cf.findIndex(c => c.cfJahr > 0);
+  // QA-Fix 2026-05-22 (Audit-E E6): bei oszillierendem CF — Crossover erst, wenn alle
+  // Folgejahre im 10-J-Fenster positiv sind.
+  const crossoverIdx = r.cf.findIndex((c, idx) => {
+    if (!c || c.cfJahr <= 0) return false;
+    const end = Math.min(10, r.cf.length);
+    for (let k = idx + 1; k < end; k++) {
+      if (!r.cf[k] || r.cf[k].cfJahr <= 0) return false;
+    }
+    return true;
+  });
   const crossoverJahr = crossoverIdx >= 0 ? (crossoverIdx + 1) : null;
   // QA-Fix 2026-05-22 (Audit-E B4/B8): identischer Fix wie app.js — Truthy-Bug bei
   // findIndex=0 (vermoegenNetto schon bei J0 positiv) löste den „mehr als 10 Jahre"-

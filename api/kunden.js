@@ -2,7 +2,7 @@
 // POST /api/kunden — neuen Kunden anlegen (Owner = current user)
 
 const { verifySession } = require('./_lib/auth');
-const { airtable, listAll } = require('./_lib/airtable');
+const { airtable, listAll, escapeFormulaString } = require('./_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('./_lib/http');
 const { TABLES, KUNDEN_FIELDS, VERTRIEBLER_FIELDS } = require('./_lib/tables');
 const { kundeRecordToBasic, kundeBodyToFields } = require('./_lib/mappers');
@@ -41,7 +41,10 @@ module.exports = async (req, res) => {
       };
       const filters = [];
       if (!isAdmin) {
-        filters.push(`FIND('${session.vertrieblerId}', ARRAYJOIN({Owner}))>0`);
+        // QA-Fix 2026-05-22 (Audit-D E7): escapeFormulaString gegen Formula-Injection.
+        // vertrieblerId kommt aus dem JWT (server-side gesetzt), heute safe — defensive
+        // Coding für künftige Auth-Flow-Änderungen.
+        filters.push(`FIND('${escapeFormulaString(session.vertrieblerId)}', ARRAYJOIN({Owner}))>0`);
         if (!withArchived) filters.push(`NOT({Archiviert})`);
       }
       if (filters.length === 1) listParams.filterByFormula = filters[0];

@@ -854,6 +854,11 @@ function recalc(i) {
   // jährlich) — Mietsteigerungs-Sprünge werden so im Chart korrekt sichtbar.
   const cfMonate = []; // 120 Einträge (10 Jahre × 12 Mo)
   let balanceM = darlehen;
+  // QA-Fix 2026-05-22 (Phase-2a Bug #2): cfMonate nutzt jetzt die Excel-PMT (-annuityRate),
+  // identisch zu cf[]'s cumipmtExcel/cumprincExcel. Vorher liefen cf[] (Excel-PMT, ~746,74 €)
+  // und cfMonate (deutsche Formel, ~747,08 €) parallel mit ~4 €/Jahr Drift. annuityMo selbst
+  // (UI-Anzeige) bleibt auf deutscher Formel = Bank-Standard.
+  const annuityMoExcel = (nper > 0 && rateM > 0) ? -annuityRate(darlehen, rateM, nper) : annuityMo;
   for (let m = 1; m <= 120; m++) {
     const y = Math.ceil(m / 12);
     // QA-Fix 2026-05-22 (Phase-2a Bug #1): cfMonate nutzte i.kaltmiete*faktor direkt und
@@ -868,10 +873,11 @@ function recalc(i) {
     const subvM = subvForMonth(m);
     const mieteM = kaltmieteM + spMieteM + subvM;
     // Zinsen + Tilgung pro Monat (Annuitäten-Formel iterativ)
+    // QA-Fix 2026-05-22 (Phase-2a Bug #2): annuityMoExcel statt annuityMo.
     let zinsM = 0, tilgM = 0;
     if (m <= nper) {
       zinsM = balanceM * rateM;
-      tilgM = annuityMo - zinsM;
+      tilgM = annuityMoExcel - zinsM;
       balanceM = Math.max(0, balanceM - tilgM);
     }
     // HG + MV + HV pro Monat (jährliche Inflation)

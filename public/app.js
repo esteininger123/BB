@@ -2326,7 +2326,19 @@ function renderStoryPremium(r) {
   // erst ab J13) sagte der Text „Ab Jahr 13 dreht ins Plus" — aber der Chart darüber zeigt
   // nur J1-J10. Kunde fragt: „Sind die Zahlen schöngerechnet?" Jetzt: Crossover-Text
   // konditional auf den sichtbaren Horizont.
-  const crossoverIdx = r.cf.findIndex(c => c.cfJahr > 0);
+  // QA-Fix 2026-05-22 (Audit-E E6): bei oszillierendem CF (z.B. WE 1 zwischen +7/+2/+3
+  // €/Mo) ist „Ab Jahr 4 dreht ins Plus" semantisch dünn. Robust-Definition: erst dauer-
+  // hafter Crossover, wenn das Jahr UND alle Folgejahre im sichtbaren 10-J-Fenster auch
+  // positiv sind. Sonst null → „bleibt im negativen Bereich". Falls echter Crossover-Punkt
+  // erst später kommt, wird das oben durch crossoverJahr > 10 Branch abgefangen.
+  const crossoverIdx = r.cf.findIndex((c, idx) => {
+    if (!c || c.cfJahr <= 0) return false;
+    const end = Math.min(10, r.cf.length);
+    for (let k = idx + 1; k < end; k++) {
+      if (!r.cf[k] || r.cf[k].cfJahr <= 0) return false;
+    }
+    return true;
+  });
   const crossoverJahr = crossoverIdx >= 0 ? (crossoverIdx + 1) : null;
   const crossoverSatz = crossoverJahr
     ? (crossoverJahr <= 10
@@ -2434,7 +2446,16 @@ function renderStoryPremium(r) {
         </div>
         <div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaufpreis je qm</span><span class="kalk-c-v">${Math.round(kpQm).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></span></div>
-          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Marktpreis je qm</span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') : '—'}<span class="kalk-c-unit">€</span></span></div>
+          <div class="kalk-c-objekt-row" title="${(() => {
+            const is = state.kalk._marktpreisIS;
+            const hd = state.kalk._marktpreisHD;
+            const src = state.kalk._marktpreisQuelle;
+            const parts = [];
+            if (is) parts.push('ImmoScout: ' + Math.round(is).toLocaleString('de-DE') + ' €/qm');
+            if (hd) parts.push('Homeday: ' + Math.round(hd).toLocaleString('de-DE') + ' €/qm');
+            const srcText = src === 'schnitt' ? ' · Anzeige: Schnitt beider' : src === 'nur-is' ? ' · Anzeige: nur ImmoScout' : src === 'nur-hd' ? ' · Anzeige: nur Homeday' : '';
+            return parts.length ? parts.join(' · ') + srcText : 'Marktpreis aus Stammdaten';
+          })()}"><span class="kalk-c-k">Marktpreis je qm</span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') : '—'}<span class="kalk-c-unit">€</span></span></div>
           ${r.markteinkaufVorteil ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">${r.markteinkaufVorteil > 0 ? 'Markteinkauf-Vorteil' : 'Markt-Aufschlag'}</span><span class="kalk-c-v ${r.markteinkaufVorteil > 0 ? '' : 'kalk-c-neg'}">${fmt(Math.abs(r.markteinkaufVorteil))}${r.markteinkaufVorteil > 0 ? '' : ' über Markt'}</span></div>` : ''}
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaltmiete</span><span class="kalk-c-v">${Math.round(i.kaltmiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Stellplatz-Miete</span><span class="kalk-c-v">${Math.round(i.stellplatzMiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>
