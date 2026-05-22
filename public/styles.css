@@ -457,8 +457,9 @@ input[type="range"].spar-zins-range::-moz-range-track {
   .pdf-page.sa-page.sa-legal {
     page-break-before: always;
   }
-  /* Innere Tabellen sollen nicht in der Mitte zerrissen werden */
-  .sa-page .sa-table { page-break-inside: avoid; }
+  /* Iter 85 (22.05.2026): page-break-inside: avoid für sa-table entfernt —
+     Persönliche-Verhältnisse-Tabelle ist mit ~30 Zeilen größer als A4
+     und wurde komplett auf die nächste Seite verschoben → Seite 1 war leer. */
 
   /* SA: kein wiederholter sticky-Footer pro Sektion — der globale Bottom-Footer
      im letzten .pdf-page reicht aus. Andere PDFs (Investitionsrechnung, Reservierung)

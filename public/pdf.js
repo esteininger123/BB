@@ -905,15 +905,15 @@ function _buildSelbstauskunftBody(kunde, user) {
       </p>
       <div class="sa-sigblock">
         <div class="sig-col">
-          <div class="sig-line"><span class="sig-tag">[signature:Antragsteller_______________]</span></div>
+          <div class="sig-line"><span class="sig-tag" style="color:#888;font-size:9px;">[signature:Antragsteller_______________]</span></div>
           <div class="sig-meta">Ort, Datum &middot; Unterschrift Antragsteller</div>
-          <div class="sig-meta sig-tag" style="margin-top:1mm;">[date:Antragsteller________]</div>
+          <div class="sig-meta sig-tag" style="margin-top:1mm;color:#888;font-size:9px;">[date:Antragsteller________]</div>
         </div>
         ${gemeinsam ? `
         <div class="sig-col">
-          <div class="sig-line"><span class="sig-tag">[signature:Mitantragsteller_______________]</span></div>
+          <div class="sig-line"><span class="sig-tag" style="color:#888;font-size:9px;">[signature:Mitantragsteller_______________]</span></div>
           <div class="sig-meta">Ort, Datum &middot; Unterschrift Mitantragsteller</div>
-          <div class="sig-meta sig-tag" style="margin-top:1mm;">[date:Mitantragsteller________]</div>
+          <div class="sig-meta sig-tag" style="margin-top:1mm;color:#888;font-size:9px;">[date:Mitantragsteller________]</div>
         </div>` : '<div></div>'}
       </div>
       ${_footer(user)}
@@ -958,7 +958,7 @@ const _SA_INLINE_CSS = `
   .pdf-template { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #fff; color: #1B1B1B; font-size: 11px; line-height: 1.4; }
   .pdf-page.sa-page { padding: 14mm 12mm 14mm 12mm; position: relative; page-break-after: auto; }
   .pdf-page.sa-page.sa-legal { page-break-before: always; }
-  .sa-page .sa-table { page-break-inside: avoid; }
+  /* Iter 85: page-break-inside: avoid für sa-table ENTFERNT — Persönliche-Verhältnisse-Tabelle ist größer als A4 und wurde komplett auf Folgeseite verschoben (Seite 1 leer). */
   .sa-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 7mm; padding-bottom: 4mm; border-bottom: 0.3px solid #000; }
   .sa-head .sa-logo { height: 9mm !important; width: auto !important; max-width: 55mm; display: block; }
   .sa-head .sa-title-block { text-align: right; line-height: 1.15; }
@@ -989,7 +989,7 @@ const _SA_INLINE_CSS = `
   .sa-sigblock .sig-col { display: flex; flex-direction: column; }
   .sa-sigblock .sig-line { border-bottom: 0.5px solid #000; min-height: 12mm; padding: 2mm 0; }
   .sa-sigblock .sig-meta { font-size: 8.5px; color: #555; margin-top: 1mm; }
-  .sa-sigblock .sig-tag { color: rgba(255,255,255,0.01); font-size: 8.5px; }  /* Tags fast unsichtbar — PandaDoc liest sie trotzdem */
+  .sa-sigblock .sig-tag { color: #888; font-size: 9px; }  /* Iter 85: Tags lesbar als hellgrauer Text — versteckter Text wurde von PandaDoc evtl. ignoriert */
 `;
 
 window.PDF = { investitionsrechnung, reservierung, selbstauskunft, selbstauskunftHtmlForPandaDoc };
