@@ -2665,3 +2665,22 @@ input[type="range"].spar-zins-range::-moz-range-track {
   .sa-zusatz-row > input:first-child { grid-column: 1 / 2; }
   .sa-zusatz-row > button { grid-column: 2 / 3; }
 }
+
+/* Save-Badge im SA-Card-Title — live State-Feedback */
+.sa-save-badge {
+  font-weight: 400;
+  font-size: 12px;
+  margin-left: 10px;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  transition: color 0.2s ease;
+}
+.sa-save-idle   { color: var(--text-tertiary); }
+.sa-save-saving { color: var(--accent); animation: sa-pulse 1s ease-in-out infinite; }
+.sa-save-saved  { color: var(--positive); }
+.sa-save-error  { color: var(--negative); font-weight: 500; }
+@keyframes sa-pulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1.0; }
+}

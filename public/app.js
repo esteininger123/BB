@@ -4030,7 +4030,7 @@ function renderTabSelbstauskunft() {
   const istGemeinsam = sa.gemeinsam === true;
   el.innerHTML = `
     <div class="card">
-      <div class="card-title">Selbstauskunft <span class="text-tertiary text-small" style="font-weight:normal;">(Auto-Save aktiv)</span></div>
+      <div class="card-title">Selbstauskunft <span id="sa-save-badge" class="sa-save-badge"><span class="sa-save-idle">Auto-Save aktiv</span></span></div>
 
       ${/* SA-Redesign (22.05.2026): Intro auf 4 Zeilen verschlankt, keine Meta-Erklärungen mehr, Fonds-Logik wandert zum Vermögen-Block. */ ''}
       <details class="sa-intro" data-sec-state="sa-intro" ${isSaSectionOpen('sa-intro') ? 'open' : ''}>
@@ -4514,6 +4514,44 @@ function cleanupLegacyFields(sa) {
 }
 
 let _saAutoSaveTimer = null;
+// SA-Redesign (22.05.2026): Auto-Save-State sichtbar als Badge im Card-Title.
+//   States: idle / saving / saved / error. Mit Live-Zeitstempel "vor X Sek".
+let _saSaveLastSuccessTs = null;
+let _saSaveTimestampInterval = null;
+function _saUpdateSaveBadge(state, errMsg) {
+  const badge = document.getElementById('sa-save-badge');
+  if (!badge) return;
+  let html = '';
+  if (state === 'idle')        html = '<span class="sa-save-idle">Auto-Save aktiv</span>';
+  else if (state === 'saving') html = '<span class="sa-save-saving">speichere …</span>';
+  else if (state === 'saved') {
+    _saSaveLastSuccessTs = Date.now();
+    html = '<span class="sa-save-saved">✓ gespeichert · gerade eben</span>';
+  } else if (state === 'error') {
+    html = `<span class="sa-save-error">⚠ nicht gespeichert${errMsg ? ' · ' + errMsg : ''}</span>`;
+  }
+  badge.innerHTML = html;
+}
+// Live-Timestamp aktualisieren: "vor 3 Sek", "vor 1 Min", …
+function _saTickSaveTimestamp() {
+  if (!_saSaveLastSuccessTs) return;
+  const badge = document.getElementById('sa-save-badge');
+  if (!badge) return;
+  const successSpan = badge.querySelector('.sa-save-saved');
+  if (!successSpan) return;
+  const diffSec = Math.round((Date.now() - _saSaveLastSuccessTs) / 1000);
+  let label;
+  if (diffSec < 5)        label = 'gerade eben';
+  else if (diffSec < 60)  label = `vor ${diffSec} Sek`;
+  else if (diffSec < 3600) label = `vor ${Math.floor(diffSec / 60)} Min`;
+  else                    label = `vor ${Math.floor(diffSec / 3600)} Std`;
+  successSpan.textContent = `✓ gespeichert · ${label}`;
+}
+function _saStartTimestampTicker() {
+  if (_saSaveTimestampInterval) return;
+  _saSaveTimestampInterval = setInterval(_saTickSaveTimestamp, 5000);
+}
+
 async function autoSaveSa() {
   // Debounce: 600ms warten und einmalig speichern
   clearTimeout(_saAutoSaveTimer);
@@ -4534,11 +4572,15 @@ async function autoSaveSa() {
       payload.telefon = state.kunde.telefon || '';
       payload.geburtsdatum = state.kunde.geburtsdatum || '';
     }
+    _saUpdateSaveBadge('saving');
     try {
       await api.put('/api/kunden/' + state.kundeId, payload);
       state.kunde.saJson = sa;
+      _saUpdateSaveBadge('saved');
+      _saStartTimestampTicker();
     } catch (e) {
       console.error('autoSaveSa', e);
+      _saUpdateSaveBadge('error', e && e.message ? e.message.slice(0, 40) : '');
     }
   }, 600);
 }
