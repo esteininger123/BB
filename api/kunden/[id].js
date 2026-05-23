@@ -2,7 +2,7 @@
 // PUT    /api/kunden/:id  — Kunden aktualisieren (Vertriebler nur eigene, Admin alle)
 // DELETE /api/kunden/:id  — Vertriebler: löscht eigene; Admin: NICHT (stattdessen Phase auf Abgebrochen setzen)
 
-const { verifySession, requireAdminVerified } = require('../_lib/auth');
+const { verifySession, requireAdminVerified, requireSafeOrigin } = require('../_lib/auth');
 const { airtable, listAll } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { TABLES, KUNDEN_FIELDS, VERTRIEBLER_FIELDS, SNAPSHOT_FIELDS } = require('../_lib/tables');
@@ -24,14 +24,24 @@ async function getOwnerNameMap() {
 }
 
 // Checkt: Darf session auf rec zugreifen? Owner-Check + Admin-Ausnahme.
+// QA-Fix 2026-05-23 (Audit-DD-3 — gleicher Pattern-Bug wie Y-B5 in snapshots.js):
+// Owner-Array kann verschiedene Shapes haben (IDs, Objekte, Namen). Vorher
+// schlug includes() bei {id, name}-Objekten fehl → Vertriebler bekam 403 auf
+// EIGENE Kunden. Robuste Normalisierung wie in canAccessKunde der snapshots.js.
 function canAccess(session, rec) {
   if (!rec || !rec.fields) return false;
   if (session.rolle === 'Admin') return true;
-  const ownerIds = rec.fields[KUNDEN_FIELDS.OWNER] || [];
-  return Array.isArray(ownerIds) && ownerIds.includes(session.vertrieblerId);
+  const ownersRaw = rec.fields[KUNDEN_FIELDS.OWNER] || [];
+  if (!Array.isArray(ownersRaw)) return false;
+  const ownerIds = ownersRaw
+    .map(o => (o && typeof o === 'object') ? o.id : (typeof o === 'string' && o.startsWith('rec') ? o : null))
+    .filter(Boolean);
+  return ownerIds.includes(session.vertrieblerId);
 }
 
 module.exports = async (req, res) => {
+  // QA-Fix 2026-05-23 (Audit-DD-1): CSRF-Schutz vor jeder Mutation (PUT/DELETE).
+  if (!requireSafeOrigin(req, res)) return;
   const session = verifySession(req);
   if (!session) return res.status(401).json({ error: 'Nicht eingeloggt' });
 

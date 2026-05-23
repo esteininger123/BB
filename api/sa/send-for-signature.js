@@ -23,7 +23,7 @@
 
 const chromium = require('@sparticuz/chromium-min');
 const puppeteer = require('puppeteer-core');
-const { verifySession } = require('../_lib/auth');
+const { verifySession, requireSafeOrigin } = require('../_lib/auth');
 const { airtable } = require('../_lib/airtable');
 const { readBody, methodNotAllowed } = require('../_lib/http');
 const { TABLES, KUNDEN_FIELDS } = require('../_lib/tables');
@@ -34,6 +34,9 @@ const DEFAULT_PACK_URL = 'https://github.com/Sparticuz/chromium/releases/downloa
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const startTs = Date.now();
+
+  // QA-Fix 2026-05-23 (Audit-DD-1): CSRF-Schutz.
+  if (!requireSafeOrigin(req, res)) return;
 
   const session = verifySession(req);
   if (!session) return res.status(401).json({ error: 'Nicht eingeloggt' });

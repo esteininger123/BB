@@ -297,6 +297,7 @@ async function loadKunde(id) {
     state.snapshots = await api.get('/api/snapshots?kundeId=' + id).catch(() => []);
     // Kalk-State aus selbstauskunft-JSON oder Default
     state.kalk = makeDefaultKalkInput();
+    clearKalkDirty();
   } catch (e) {
     toast('Kunde konnte nicht geladen werden: ' + e.message, 'error');
     state.kunde = null;
@@ -1542,6 +1543,21 @@ function kalkInputsThemenHtml(i) {
   `;
 }
 
+// QA-Fix 2026-05-23 (Audit-EE-1, Datenverlust-Blocker): Wenn der User
+// Kalkulator-Werte geändert hat und ungespeichert F5/Tab-Close drückt,
+// vorher kommentarlos Verlust. Jetzt: beforeunload-Warning. Dirty-Flag
+// wird in bindKalkInputs/Snapshot-Save sauber gemanagt.
+let _kalkDirty = false;
+function markKalkDirty() { _kalkDirty = true; }
+function clearKalkDirty() { _kalkDirty = false; }
+window.addEventListener('beforeunload', (e) => {
+  if (_kalkDirty) {
+    e.preventDefault();
+    e.returnValue = ''; // Chrome-Pflicht
+    return '';
+  }
+});
+
 function bindKalkInputs() {
   // Slider <input type="range"> — schreiben in Dezimal (Prozent/100), oder bei Euro-Slidern als Roh-Wert.
   document.querySelectorAll('[data-slider]').forEach(slider => {
@@ -1554,6 +1570,7 @@ function bindKalkInputs() {
       const raw = parseFloat(slider.value);
       const v = isEur ? raw : (raw / 100); // Prozent → Dezimal
       state.kalk[k] = v;
+      markKalkDirty();
       // Iter 41.15 (Audit-Fix #5): Manuelle Subv-Slider-Verstellung deaktiviert das
       // 2-Phasen-Modell, damit der Slider-Wert wirklich Effekt hat.
       if ((k === 'subventionMo' || k === 'subventionMonate') &&
@@ -1590,6 +1607,7 @@ function bindKalkInputs() {
       // NaN → null (für leere Number-Felder)
       if (typeof v === 'number' && !isFinite(v)) v = null;
       state.kalk[k] = v;
+      markKalkDirty();
       // Iter 41.15 (Audit-Fix #5): Wenn 2-Phasen-Subv aktiv ist und der Vertriebler
       // den Subv-Slider manuell verstellt → Phasen-Array zurücksetzen, damit recalc
       // ab jetzt mit dem Slider-Wert rechnet (statt das Phasen-Array zu nutzen).
@@ -3731,8 +3749,15 @@ async function saveSnapshot() {
   // QA-Sprint 2026-05-23 (Audit-G G-B3): Snapshot-Bezeichnung jetzt via Modal statt
   // window.prompt — anti-2003-Optik. Async-Wrapper damit's wie ein normaler Modal-Flow
   // läuft. Bei „Abbrechen" → Promise resolved zu null.
+  // QA-Fix 2026-05-23 (Audit-EE-5): Bei silent abort durch Esc/X → null = wirklich
+  // Abbruch. Wenn Modal mit leerer Bezeichnung „bestätigt" wird (User löscht
+  // Default-Text und klickt Speichern) → openSnapshotNameModal liefert null
+  // statt "" — wir können das also nicht unterscheiden. Workaround: das Modal
+  // selbst verhindert leere Eingabe via OK-Button (siehe openSnapshotNameModal).
+  // Hier explizit defensiv: wenn null → Toast, dass der User wahrscheinlich
+  // den Default gelöscht hat, und mit Default fallback erneut anfragen.
   const bez = await openSnapshotNameModal(defaultBez);
-  if (!bez) return;
+  if (!bez) return; // Echter Abbruch (Cancel-Button / Esc / Klick außerhalb).
   try {
     const snap = await api.post('/api/snapshots', {
       kundeId: state.kundeId,
@@ -3744,6 +3769,8 @@ async function saveSnapshot() {
     });
     // POST-Response ist schon der gemappte Snapshot, aber Sicherheit halber gleich
     // vom Backend neu laden, damit die Liste immer aktuell ist (auch nach Reload).
+    // Snapshot ist gespeichert → Dirty-Flag clearen (EE-1).
+    clearKalkDirty();
     try {
       const reloaded = await api.get('/api/snapshots?kundeId=' + state.kundeId);
       state.snapshots = Array.isArray(reloaded) ? reloaded : [snap];
@@ -5504,6 +5531,7 @@ function loadSnapshot(id) {
     }
     // Wichtig: state.kalk komplett ersetzen (kein Object.assign, sonst bleiben alte Felder)
     state.kalk = kalk;
+    clearKalkDirty(); // Frischer Snapshot-Load → noch nichts geändert
     // Iter 60 (20.05.2026): Alte Snapshots haben kein saSteuersatz — initialisieren
     //   aus dem damaligen `steuersatz`, damit der Detail-Modus-Slider nicht auf 0 % steht.
     if (typeof state.kalk.saSteuersatz !== 'number') {
@@ -6613,12 +6641,32 @@ function openSnapshotNameModal(defaultValue, title) {
       document.removeEventListener('keydown', keyHandler);
       resolve(val);
     }
+    // QA-Fix 2026-05-23 (Audit-EE-5): OK mit leerem Input zeigt Fehler IM Modal
+    // statt silent abort. Vorher konnte der User den Default löschen, „Speichern"
+    // klicken und dachte er hätte gespeichert.
+    function confirmOk() {
+      const v = (input.value || '').trim();
+      if (!v) {
+        input.style.borderColor = '#C04A2E';
+        input.focus();
+        let warn = ov.querySelector('.bbk-snap-warn');
+        if (!warn) {
+          warn = document.createElement('div');
+          warn.className = 'bbk-snap-warn';
+          warn.style.cssText = 'color:#C04A2E;font-size:12px;margin-top:8px;';
+          warn.textContent = 'Bezeichnung darf nicht leer sein — bitte Namen eingeben oder Abbrechen.';
+          input.parentNode.insertBefore(warn, input.nextSibling);
+        }
+        return;
+      }
+      close(v);
+    }
     function keyHandler(e) {
       if (e.key === 'Escape') close(null);
-      if (e.key === 'Enter') close((input.value || '').trim() || null);
+      if (e.key === 'Enter') confirmOk();
     }
     ov.querySelector('#bbk-snap-cancel').onclick = () => close(null);
-    ov.querySelector('#bbk-snap-ok').onclick = () => close((input.value || '').trim() || null);
+    ov.querySelector('#bbk-snap-ok').onclick = confirmOk;
     ov.onclick = (e) => { if (e.target === ov) close(null); };
     document.addEventListener('keydown', keyHandler);
   });

@@ -6,7 +6,7 @@
 // Berechtigung: Wer den Kunden bedienen darf (Owner oder Admin), darf auch
 // dessen Snapshots umbenennen und löschen.
 
-const { verifySession } = require('./_lib/auth');
+const { verifySession, requireSafeOrigin } = require('./_lib/auth');
 const { airtable, listAll } = require('./_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('./_lib/http');
 const { TABLES, SNAPSHOT_FIELDS, KUNDEN_FIELDS } = require('./_lib/tables');
@@ -49,6 +49,8 @@ async function canAccessKunde(session, kundeId) {
 }
 
 module.exports = async (req, res) => {
+  // QA-Fix 2026-05-23 (Audit-DD-1): CSRF-Schutz vor jeder Mutation (POST/PATCH/DELETE).
+  if (!requireSafeOrigin(req, res)) return;
   const session = verifySession(req);
   if (!session) return res.status(401).json({ error: 'Nicht eingeloggt' });
 

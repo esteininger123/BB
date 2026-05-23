@@ -1,7 +1,7 @@
 // GET  /api/kunden — Liste (Vertriebler: eigene; Admin: alle)
 // POST /api/kunden — neuen Kunden anlegen (Owner = current user)
 
-const { verifySession } = require('./_lib/auth');
+const { verifySession, requireSafeOrigin } = require('./_lib/auth');
 const { airtable, listAll, escapeFormulaString } = require('./_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('./_lib/http');
 const { TABLES, KUNDEN_FIELDS, VERTRIEBLER_FIELDS } = require('./_lib/tables');
@@ -23,6 +23,8 @@ async function getOwnerNameMap() {
 }
 
 module.exports = async (req, res) => {
+  // QA-Fix 2026-05-23 (Audit-DD-1): CSRF-Schutz vor jeder Mutation.
+  if (!requireSafeOrigin(req, res)) return;
   const session = verifySession(req);
   if (!session) return res.status(401).json({ error: 'Nicht eingeloggt' });
 

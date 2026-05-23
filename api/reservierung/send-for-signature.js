@@ -15,7 +15,7 @@
 // Standard Recipient-Variablen (Kaufinteressent.FirstName/LastName/Email/...) werden
 // automatisch aus dem recipients-Array ausgefüllt — kein extra Mapping nötig.
 
-const { verifySession } = require('../_lib/auth');
+const { verifySession, requireSafeOrigin } = require('../_lib/auth');
 const { airtable, listAll } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const {
@@ -27,6 +27,10 @@ const PANDADOC_API = 'https://api.pandadoc.com/public/v1';
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+
+  // QA-Fix 2026-05-23 (Audit-DD-1): CSRF-Schutz. PandaDoc-Send kostet Quota
+  // und sendet realen Vertrag — strikt schützen.
+  if (!requireSafeOrigin(req, res)) return;
 
   try {
     const session = verifySession(req);

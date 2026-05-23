@@ -156,6 +156,47 @@ function isAdminByEmailWhitelist(email) {
   return !!email && list.includes(String(email).toLowerCase());
 }
 
+// QA-Fix 2026-05-23 (Audit-DD-1, CSRF-Schutz): Origin-Header-Check für
+// mutierende Endpoints. SameSite=lax schützt nicht gegen
+// JSON-Fetch-CSRF von gleicher Site/Subdomain. Wir prüfen Origin gegen
+// Allowlist + erlauben „kein Origin" für non-Browser-Tools (curl bei
+// Cron-Aufrufen). Einsatz: in jedem POST/PUT/PATCH/DELETE-Handler
+// vor verifySession aufrufen — bei false direkt 403 zurückgeben.
+function isSafeOrigin(req) {
+  const method = (req.method || '').toUpperCase();
+  // Lesen ist nie state-changing → kein CSRF-Risiko.
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return true;
+  const origin = (req.headers && (req.headers.origin || req.headers.referer)) || '';
+  // Keine Origin (Postman, curl, server-zu-server, Vercel-Cron) → erlauben.
+  // Echte Browser senden bei Cross-Origin-Fetch IMMER einen Origin.
+  if (!origin) return true;
+  // Allowlist aus env + Default-Production-Domain. Subdomain-Wildcard wäre
+  // gefährlich; wir matchen exakt.
+  const allowed = [
+    'https://bb-brown-pi.vercel.app',
+    'https://bb.immo-stein.de',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ];
+  const extra = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+  allowed.push(...extra);
+  try {
+    const u = new URL(origin);
+    const originRoot = `${u.protocol}//${u.host}`;
+    return allowed.includes(originRoot);
+  } catch {
+    return false;
+  }
+}
+
+function requireSafeOrigin(req, res) {
+  if (!isSafeOrigin(req)) {
+    res.status(403).json({ error: 'Cross-Origin-Request blockiert (CSRF-Schutz)', hint: 'Erwartet: Request von app-eigener Domain.' });
+    return false;
+  }
+  return true;
+}
+
 module.exports = {
   COOKIE_NAME,
   verifyGoogleToken,
@@ -166,5 +207,7 @@ module.exports = {
   requireAuth,
   requireAdmin,
   requireAdminVerified,
-  isAdminByEmailWhitelist
+  isAdminByEmailWhitelist,
+  isSafeOrigin,
+  requireSafeOrigin
 };
