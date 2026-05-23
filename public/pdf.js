@@ -605,7 +605,13 @@ function reservierung(kunde, kalkInputs, user) {
     else if (spFla > 0)         stplLabel = `${spFla} Stellplätze`;
     else                        stplLabel = `${spAnz} Stellplätze`;
   }
-  const garageText = spKp > 0 ? ` plus ${fmt(spKp)} für ${stplLabel}` : '';
+  // QA-Fix 2026-05-23 (Audit-BB-5): Wenn Stellplatz vorhanden aber KP=0
+  // (Geschenk-Stellplatz), Stellplatz trotzdem im Reservierungs-Doc nennen.
+  // Vorher: PDF verschluckte den Stellplatz komplett → Käufer fragt sich,
+  // warum WE-Liste „+ 1 Garage" zeigt und PDF nichts.
+  const garageText = spKp > 0
+    ? ` plus ${fmt(spKp)} für ${stplLabel}`
+    : (spAnz > 0 ? ` (inklusive ${stplLabel}, ohne Aufpreis)` : '');
   const lageEsc = esc(lage || '');
   const wohnungSuffix = weNr ? `Wohnung ${esc(weNr)}` : '';
   const qmText = qm > 0 ? ` mit ${fmtQm(qm)}` : '';

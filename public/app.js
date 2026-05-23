@@ -2201,13 +2201,23 @@ function renderStories(r) {
   `) : '';
 
   // Iter 41.15 (Audit-Fix #9): Miete-Aufschlüsselung in Story 02
+  // QA-Fix 2026-05-23 (Audit-AA-4): davon-Zeilen sind Tag-1-Werte, Total ist
+  // Jahres-Mittel inkl. Subv-Glättung. Bei Phase-1 < 12 Mo oder Mietsteigerung
+  // in J1 stimmten die Summen nicht überein → Maurice rechnet im Kopf und sieht
+  // Drift. Jetzt: Label-Hinweis „Tag-1-Aufschlüsselung" macht Erwartung klar.
   const kaltmieteJ1Mo = i.kaltmiete || 0;
   const stellplatzMieteJ1Mo = i.stellplatzMiete || 0;
   const subvJ1Mo = (Array.isArray(i.subventionPhasen) && i.subventionPhasen[0] && i.subventionPhasen[0].monate >= 1)
     ? i.subventionPhasen[0].mo
     : (i.subventionMo || 0);
+  const tag1Sum = kaltmieteJ1Mo + stellplatzMieteJ1Mo + subvJ1Mo;
+  const j1Mean = r.mieteJ1Mo || 0;
+  const hatDrift = Math.abs(tag1Sum - j1Mean) > 1; // > 1 € Drift → Hinweis zeigen
+  const driftHint = hatDrift
+    ? ` <span class="text-tertiary text-small" title="Tag-1-Summe ${fmtEurMo(tag1Sum)}/Mo. Total = Jahres-Mittel inkl. Subv-Glättung über Phasen-Monate.">(Tag 1)</span>`
+    : '';
   const mieteAufschluesselung = `
-    <tr><td>· davon Deine Kaltmiete Wohnung</td><td class="num pos">+ ${fmtEurMo(kaltmieteJ1Mo)}</td></tr>
+    <tr><td>· davon Deine Kaltmiete Wohnung${driftHint}</td><td class="num pos">+ ${fmtEurMo(kaltmieteJ1Mo)}</td></tr>
     ${stellplatzMieteJ1Mo > 0 ? `<tr><td>· davon Deine Stellplatz-/Garagenmiete</td><td class="num pos">+ ${fmtEurMo(stellplatzMieteJ1Mo)}</td></tr>` : ''}
     ${subvJ1Mo > 0 ? `<tr><td>· davon Deine Mietsubvention${(Array.isArray(i.subventionPhasen) && i.subventionPhasen.length >= 2) ? ' (Phase 1)' : ''}</td><td class="num pos">+ ${fmtEurMo(subvJ1Mo)}</td></tr>` : ''}
   `;
@@ -2216,7 +2226,7 @@ function renderStories(r) {
     <div class="story-grid">
       <table class="story-table">
         <thead><tr><th>Position</th><th class="num">€/Monat</th></tr></thead>
-        <tr><td><strong>Deine Mieteinnahmen gesamt Jahr 1</strong></td><td class="num pos"><strong>+ ${fmtEurMo(r.mieteJ1Mo || 0)}</strong></td></tr>
+        <tr><td><strong>Deine Mieteinnahmen gesamt Jahr 1</strong>${hatDrift ? ' <span class="text-tertiary text-small" title="Jahres-Durchschnitt aus 12 Monaten — Subv-Phasen sind über die Vereinbarungs-Monate geglättet">(Ø Jahres-Mittel)</span>' : ''}</td><td class="num pos"><strong>+ ${fmtEurMo(j1Mean)}</strong></td></tr>
         ${mieteAufschluesselung}
         <tr><td>Deine Annuität an die Bank</td><td class="num neg">− ${fmtEurMo(r.annuityMo || 0)}</td></tr>
         <tr><td>Hausgeld inkl. Rücklage</td><td class="num neg">− ${fmtEurMo(r.hausgeldNurMo || 0)}</td></tr>
@@ -2942,14 +2952,19 @@ function renderStoryPremium(r) {
   `;
 
   // Cashflow J1-J10
+  // QA-Fix 2026-05-23 (Audit-AA-8): Summe aus den ANGEZEIGTEN (gerundeten)
+  // Jahres-Werten bilden, nicht aus den raw cfJahr. Vorher konnte der Kunde
+  // mit dem Bleistift addieren und ~5 € Drift gegen die Summen-Zeile finden.
+  let _cfSummeDisplayed = 0;
   const cashflowRows = r.cf.slice(0, 10).map((c, idx) => {
     const mo = Math.round(c.cfJahr / 12);
     const cls = mo >= 0 ? 'kalk-c-pos' : 'kalk-c-neg';
     const jahressumme = Math.round(c.cfJahr);
+    _cfSummeDisplayed += jahressumme;
     const summe_cls = jahressumme >= 0 ? 'kalk-c-pos' : 'kalk-c-neg';
     return `<tr><td>${c.y}</td><td class="kalk-c-r ${cls}">${mo > 0 ? '+' : ''}${mo}</td><td class="kalk-c-r ${summe_cls}">${jahressumme > 0 ? '+' : ''}${jahressumme.toLocaleString('de-DE')}</td></tr>`;
   }).join('');
-  const cfSumme = Math.round(r.cf.slice(0, 10).reduce((s, c) => s + c.cfJahr, 0));
+  const cfSumme = _cfSummeDisplayed;
   const cashflowModal = `
     <div class="kalk-c-modal-backdrop" data-kalk-c-modal-id="cashflow">
       <div class="kalk-c-modal">
@@ -6788,19 +6803,52 @@ async function saveKavTracker(kundeId, freeNotes, tracker) {
   }
 }
 
+// QA-Fix 2026-05-23 (Audit-Z-2, Lost-Update-Blocker): KAV-Saves serialisieren.
+// Vorher konnte ein schneller 3-fach-Klick auf Aufgaben A/B/C alle 3 mit dem
+// gleichen Snapshot starten, last-wins → A und B verloren. Jetzt: jeder Save
+// wartet auf den vorigen, liest danach den frischen state.kunde.notizen und
+// applied seine eigene Mutation NEU darauf. Funktioniert für Tasks UND
+// Wiedervorlage und alle künftigen KAV-Operationen über kavQueueMutation().
+let _kavSaveQueue = Promise.resolve();
+function kavQueueMutation(applyMutation, opts) {
+  // applyMutation: (tracker) → void. Wird mit dem FRISCHEN Tracker aufgerufen.
+  // opts: { successToast: 'msg', successType: 'success'|'info', errorPrefix: 'Fehler: ' }
+  const kundeId = state.kunde && state.kunde.id;
+  if (!kundeId) return Promise.resolve();
+  const _opts = opts || {};
+  _kavSaveQueue = _kavSaveQueue.then(async () => {
+    // Frischen Tracker JETZT lesen (nicht beim Queue-Enqueue) — der vorige
+    // Save hat state.kunde.notizen schon aktualisiert.
+    if (!state.kunde || state.kunde.id !== kundeId) return; // Kunde gewechselt
+    const tracker = getKavTracker(state.kunde);
+    if (!tracker.tasks) tracker.tasks = {};
+    const freeNotes = tracker.freeNotes || '';
+    delete tracker.freeNotes;
+    try {
+      applyMutation(tracker);
+      await saveKavTracker(kundeId, freeNotes, tracker);
+      if (_opts.successToast) toast(_opts.successToast, _opts.successType || 'success');
+      if (state.kunde && state.kunde.id === kundeId) renderKunde();
+    } catch (e) {
+      toast((_opts.errorPrefix || 'Fehler: ') + (e && e.message ? e.message : 'unbekannt'), 'error');
+    }
+  });
+  return _kavSaveQueue;
+}
+
 async function kavToggleTask(taskId) {
   if (!state.kunde) return;
-  const tracker = getKavTracker(state.kunde);
-  if (!tracker.tasks) tracker.tasks = {};
-  const wasDone = !!tracker.tasks[taskId];
-  tracker.tasks[taskId] = wasDone ? null : new Date().toISOString().split('T')[0];
-  const freeNotes = tracker.freeNotes || '';
-  delete tracker.freeNotes;
-  try {
-    await saveKavTracker(state.kunde.id, freeNotes, tracker);
-    toast(wasDone ? 'Aufgabe wieder offen' : '✓ Aufgabe erledigt', wasDone ? 'info' : 'success');
-    renderKunde();
-  } catch (e) { toast('Fehler beim Speichern: ' + e.message, 'error'); }
+  // Optimistisches Feedback berechnen BEVOR die Queue läuft — sonst sieht
+  // der User bei 3-fach-Klick gar keine Reaktion.
+  const peekTracker = getKavTracker(state.kunde);
+  const wasDone = !!(peekTracker.tasks || {})[taskId];
+  kavQueueMutation((tracker) => {
+    tracker.tasks[taskId] = wasDone ? null : new Date().toISOString().split('T')[0];
+  }, {
+    successToast: wasDone ? 'Aufgabe wieder offen' : '✓ Aufgabe erledigt',
+    successType: wasDone ? 'info' : 'success',
+    errorPrefix: 'Fehler beim Speichern: '
+  });
 }
 window.kavToggleTask = kavToggleTask;
 
@@ -6810,15 +6858,12 @@ async function kavSetWiedervorlage() {
   const aktuell = tracker.wiedervorlage || {};
   const datum = await openWiedervorlageModal(aktuell.datum || '', aktuell.notiz || '');
   if (datum === null) return; // Cancel
-  // datum kann '' sein → Wiedervorlage löschen
-  tracker.wiedervorlage = datum.datum ? { datum: datum.datum, notiz: datum.notiz || '' } : null;
-  const freeNotes = tracker.freeNotes || '';
-  delete tracker.freeNotes;
-  try {
-    await saveKavTracker(state.kunde.id, freeNotes, tracker);
-    toast(tracker.wiedervorlage ? 'Wiedervorlage gesetzt' : 'Wiedervorlage gelöscht', 'success');
-    renderKunde();
-  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+  kavQueueMutation((t) => {
+    t.wiedervorlage = datum.datum ? { datum: datum.datum, notiz: datum.notiz || '' } : null;
+  }, {
+    successToast: datum.datum ? 'Wiedervorlage gesetzt' : 'Wiedervorlage gelöscht',
+    successType: 'success'
+  });
 }
 window.kavSetWiedervorlage = kavSetWiedervorlage;
 
