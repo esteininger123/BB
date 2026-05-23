@@ -262,7 +262,7 @@ async function loadInitialData() {
   state.loadingData = true;
   try {
     const [kunden, wes, stammAudit] = await Promise.all([
-      api.get('/api/kunden').catch(() => []),
+      api.get('/api/kunden?mineOnly=1').catch(() => []),
       api.get('/api/wohneinheiten').catch(() => []),
       api.get('/api/stammdaten').catch(() => []),
     ]);
@@ -5768,7 +5768,28 @@ async function renderWeListe() {
   // Daten laden + rendern
   try {
     if (!_weListeCache) {
-      _weListeCache = await api.get('/api/stammdaten');
+      // QA-Fix 2026-05-23 (B2/B3 Edgar-Doc): WE-Liste rechnete mit reduzierten Inputs
+      // (nur Stammdaten-Audit-Endpoint) → Cashflow J1 wich erheblich von App ab, weil
+      // 2-Phasen-Subv und Tag-1-Vereinbarung (Mietvertrag-Zukunft) fehlten.
+      // Lösung: pro WE den individuellen Stammdaten-Endpoint nutzen (liefert
+      // derived.subventionPhasen + derived.subventionKaltmieteAdjustiert +
+      // vermietung.letzteMietsteigerung). Parallel-Calls via Promise.all.
+      const auditList = await api.get('/api/stammdaten');
+      const activeRows = auditList.filter(row => row.stammdaten && row.stammdaten.status === 'Aktiv');
+      // Pro aktive WE parallel den Detail-Endpoint holen
+      const detailById = {};
+      await Promise.all(activeRows.map(async row => {
+        const weId = row.we && row.we.id;
+        if (!weId) return;
+        try {
+          const detail = await api.get('/api/stammdaten/' + encodeURIComponent(weId));
+          detailById[weId] = detail;
+        } catch (e) {
+          // einzelne Fehler nicht-tödlich — Fallback auf Audit-Daten
+          detailById[weId] = null;
+        }
+      }));
+      _weListeCache = { auditList, detailById };
     }
     _renderWeListeContent();
   } catch (e) {
@@ -5795,7 +5816,8 @@ function _renderWeListeContent() {
   if (!el || !_weListeCache) return;
 
   // Nur aktive Stammdaten zeigen — der Vertrieb braucht keine Entwurf-/Fehlt-WEs
-  const audit = _weListeCache.filter(row => row.stammdaten && row.stammdaten.status === 'Aktiv');
+  const audit = (_weListeCache.auditList || []).filter(row => row.stammdaten && row.stammdaten.status === 'Aktiv');
+  const detailById = _weListeCache.detailById || {};
 
   // Nach Projekt gruppieren (aus WE-Titel ableiten)
   const projektAus = (titel) => {
@@ -5830,68 +5852,118 @@ function _renderWeListeContent() {
       const stpl = row.stellplaetze || {};
       const verm = row.vermietung || {};
 
+      // QA-Fix 2026-05-23 (B2/B3 Edgar-Doc): Detail-Endpoint-Daten nutzen wenn vorhanden.
+      // Liefert derived.subventionPhasen (2 Phasen), Tag-1-Vereinbarung (subventionKaltmieteAdjustiert),
+      // korrekte vermietung.letzteMietsteigerung. Vorher war Cashflow J1 in der WE-Liste deutlich
+      // negativer als in der App, weil 2-Phasen-Subv + Tag-1-Anhebung fehlten.
+      const detail = (detailById && detailById[we.id]) || null;
+      const derived = (detail && detail.derived) || null;
+      const detailVerm = (detail && detail.vermietung) || verm;
+      const detailStpl = (detail && detail.stellplaetze) || stpl;
+      const detailWe = (detail && detail.we) || we;
+      const detailKalk = (detail && detail.kalkStammdaten) || sd;
+
       const base = window.Kalk.getDefaults ? window.Kalk.getDefaults() : {};
       const profile = (window.Kalk.PROFILES && window.Kalk.PROFILES[_weListeProfil]) || {};
 
       // Vermietungs-Modus aus Stammdaten (Edgar-Feedback: nicht den WE-IST-Status nehmen —
       // eine WE kann technisch noch „vermietet" sein aber als Neuvermietung verkauft werden.
       // Stammdaten-Modus ist die Vertriebs-Wahrheit).
-      const modusRaw = String(sd.vermietungsModus || '').toLowerCase();
+      const modusRaw = String(detailKalk.vermietungsModus || sd.vermietungsModus || '').toLowerCase();
       let modus = 'sprung';
       if (modusRaw.includes('neuvermietung') || modusRaw.includes('staffel')) modus = 'staffel';
       else if (modusRaw.includes('bestand')) modus = 'sprung';
       else if (modusRaw.includes('index')) modus = 'index';
       else if (modusRaw.includes('leer') || modusRaw.includes('frei')) modus = 'staffel';
 
-      // Subv-Phase: manueller Mietzuschuss hat Vorrang, sonst Auto-Subv (Backend-Berechnet).
-      const subvMo = (sd.mietzuschuss != null && sd.mietzuschuss > 0)
-        ? sd.mietzuschuss
-        : (sd.autoSubvMo != null && sd.autoSubvMo > 0 ? sd.autoSubvMo : 0);
-      const subvMonate = sd.mietzuschussMonate || (subvMo > 0 ? 36 : 0);
-      const subventionPhasen = subvMo > 0 ? [{ mo: subvMo, monate: subvMonate }] : [];
+      // Subventions-Phasen: aus derived (echtes 2-Phasen-Modell mit Auto-Subv + Tag-1) oder
+      // Fallback auf manuellen Mietzuschuss.
+      let subventionPhasen = [];
+      let subvMoPhase1 = 0;
+      let subvMonatePhase1 = 0;
+      if (derived && Array.isArray(derived.subventionPhasen) && derived.subventionPhasen.length > 0) {
+        subventionPhasen = derived.subventionPhasen;
+        subvMoPhase1 = subventionPhasen[0] && subventionPhasen[0].mo || 0;
+        subvMonatePhase1 = subventionPhasen[0] && subventionPhasen[0].monate || 0;
+      } else if (sd.mietzuschuss != null && sd.mietzuschuss > 0) {
+        subvMoPhase1 = sd.mietzuschuss;
+        subvMonatePhase1 = sd.mietzuschussMonate || 36;
+        subventionPhasen = [{ mo: subvMoPhase1, monate: subvMonatePhase1 }];
+      } else if (sd.autoSubvMo != null && sd.autoSubvMo > 0) {
+        subvMoPhase1 = sd.autoSubvMo;
+        subvMonatePhase1 = sd.mietzuschussMonate || 36;
+        subventionPhasen = [{ mo: subvMoPhase1, monate: subvMonatePhase1 }];
+      }
 
-      // Marktpreis-Schnitt
-      const isP = sd.marktpreisImmoscout || 0;
-      const hdP = sd.marktpreisHomeday || 0;
-      let marktwertProQm = 0;
-      if (isP > 0 && hdP > 0) marktwertProQm = (isP + hdP) / 2;
-      else if (isP > 0) marktwertProQm = isP;
-      else if (hdP > 0) marktwertProQm = hdP;
+      // Tag-1-Vereinbarung: wenn aktiv (derived.subventionKaltmieteAdjustiert),
+      // nutze die angehobene Kaltmiete + monateSeit=36 (Tag-1).
+      let effKaltmiete = detailWe.kaltmiete || we.kaltmiete || 0;
+      let monateSeit = null;
+      if (derived && derived.subventionKaltmieteAdjustiert && derived.subventionKaltmieteAdjustiert > 0) {
+        effKaltmiete = derived.subventionKaltmieteAdjustiert;
+        monateSeit = 36; // Tag-1
+      } else if (detailVerm.letzteMietsteigerung) {
+        const lastDate = new Date(detailVerm.letzteMietsteigerung);
+        const now = new Date();
+        monateSeit = Math.max(0, Math.round((now - lastDate) / (1000*60*60*24*30.44)));
+      } else if (detailVerm.status === 'leer') {
+        monateSeit = 36;
+      }
+
+      // Marktpreis-Schnitt aus derived (sicher) oder selbst rechnen
+      let marktwertProQm = (derived && derived.marktpreisGemittelt) || 0;
+      if (!marktwertProQm) {
+        const isP = detailKalk.marktpreisImmoscout || sd.marktpreisImmoscout || 0;
+        const hdP = detailKalk.marktpreisHomeday || sd.marktpreisHomeday || 0;
+        if (isP > 0 && hdP > 0) marktwertProQm = (isP + hdP) / 2;
+        else if (isP > 0) marktwertProQm = isP;
+        else if (hdP > 0) marktwertProQm = hdP;
+      }
+
+      // Marktmiete €/qm aus derived (mit Tag-1-Logik) oder Stammdaten
+      const marktmieteEurQm = (derived && derived.marktmieteEurQm) || detailKalk.marktmiete || sd.marktmiete || 0;
 
       const inputs = Object.assign({}, base, profile, {
-        kaufpreis: we.kp || 0,
-        qm: we.qm || 0,
-        kaltmiete: we.kaltmiete || 0,
-        stellplatzKp: (stpl.kaufpreisSumme || 0),
-        stellplatzMiete: (stpl.mieteMoSumme || 0),
+        kaufpreis: detailWe.kp || we.kp || 0,
+        qm: detailWe.qm || we.qm || 0,
+        kaltmiete: effKaltmiete,
+        stellplatzKp: (detailStpl.kaufpreisSumme || stpl.kaufpreisSumme || 0),
+        stellplatzMiete: (detailStpl.mieteMoSumme || stpl.mieteMoSumme || 0),
         marktwertProQm,
-        marktmieteEurQm: sd.marktmiete || 0,
-        hausgeld: sd.hausgeldRuecklage,
-        hausverwaltung: sd.hausverwaltung,
-        mietverwaltung: sd.mietverwaltungDefault,
-        afaSatz: sd.afaGutachten || base.afaSatz || 0.02,
-        gebaeudeAnteil: sd.gebaeudeAnteil || base.gebaeudeAnteil || 0.85,
-        wertsteigerung: sd.wertsteigerung || base.wertsteigerung || 0.03,
-        hgInflation: sd.hgInflation || base.hgInflation || 0.02,
+        marktmieteEurQm,
+        hausgeld: detailKalk.hausgeldRuecklage != null ? detailKalk.hausgeldRuecklage : sd.hausgeldRuecklage,
+        hausverwaltung: detailKalk.hausverwaltung != null ? detailKalk.hausverwaltung : sd.hausverwaltung,
+        mietverwaltung: detailKalk.mietverwaltungDefault != null ? detailKalk.mietverwaltungDefault : sd.mietverwaltungDefault,
+        afaSatz: (detailKalk.afaGutachten || sd.afaGutachten) || base.afaSatz || 0.02,
+        gebaeudeAnteil: (detailKalk.gebaeudeAnteil || sd.gebaeudeAnteil) || base.gebaeudeAnteil || 0.85,
+        wertsteigerung: (detailKalk.wertsteigerung || sd.wertsteigerung) || base.wertsteigerung || 0.03,
+        hgInflation: (detailKalk.hgInflation || sd.hgInflation) || base.hgInflation || 0.02,
+        steigerungProz: derived && derived.steigerungProz ? derived.steigerungProz
+                        : (modus === 'sprung' ? 0.20 : 0.03),
+        kappungsgrenze: detailKalk.kappungsgrenze || sd.kappungsgrenze || 0.20,
+        indexmiete: (detailKalk.indexmiete || sd.indexmiete) || 0.03,
         mietsteigerungsModus: modus,
         subventionPhasen,
-        subventionMo: subvMo,
-        subventionMonate: subvMonate,
-        letzteMietsteigerung: verm.letzteMietsteigerung || null,
+        subventionMo: subvMoPhase1,
+        subventionMonate: subvMonatePhase1,
+        letzteMietsteigerung: detailVerm.letzteMietsteigerung || verm.letzteMietsteigerung || null,
+        monateSeitMieterhoehung: monateSeit != null ? monateSeit : 0,
       });
       const r = window.Kalk.recalc(inputs);
-      // Brutto-Rendite Tag 1 = (Kaltmiete + Stellplatz + Subv) × 12 / KpGesamt
-      const mieteMo = (we.kaltmiete || 0) + (stpl.mieteMoSumme || 0) + subvMo;
+      // Brutto-Rendite Tag 1 = (Effektive Kaltmiete + Stellplatz + Subv-Phase-1) × 12 / KpGesamt
+      // effKaltmiete enthält bereits Tag-1-Anhebung wenn vorhanden.
+      const mieteMo = effKaltmiete + ((detailStpl.mieteMoSumme || stpl.mieteMoSumme) || 0) + subvMoPhase1;
       const bruttoRendite = (r.kpGesamt > 0) ? (mieteMo * 12 / r.kpGesamt) : null;
       return {
         belastungMo: r.belastungMo,
         irr: r.irr,
         vermoegenNetto10: r.vermoegenNetto10,
         bruttoRendite,
-        subvMoPhase1: subvMo,
-        subvMonatePhase1: subvMonate,
-        subvGesamt: r.mietsubventionGesamt || (subvMo * subvMonate),
+        subvMoPhase1,
+        subvMonatePhase1,
+        subvGesamt: r.mietsubventionGesamt || (subvMoPhase1 * subvMonatePhase1),
         modus,
+        tag1Aktiv: !!(derived && derived.subventionKaltmieteAdjustiert > 0),
       };
     } catch (e) { return null; }
   }
@@ -5938,7 +6010,16 @@ function _renderWeListeContent() {
           <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}</div></td>
           <td>${modusBadge}</td>
           <td class="num">${fmtEur(we.kp)}</td>
-          <td class="num">${we.kaltmiete > 0 ? fmtEurMo(we.kaltmiete) : '–'}</td>
+          <td class="num">${(() => {
+            // Effektive Kaltmiete: bei Tag-1-Vereinbarung die ANGEHOBENE Miete zeigen
+            // (= was der neue Eigentümer ab Tag 1 effektiv kassiert). Sonst Standard.
+            const det = detailById && detailById[we.id];
+            const adj = det && det.derived && det.derived.subventionKaltmieteAdjustiert;
+            if (adj > 0) {
+              return fmtEurMo(adj) + '<div class="text-tertiary text-small">Tag-1 (vorher ' + Math.round(we.kaltmiete || 0).toLocaleString('de-DE') + ' €)</div>';
+            }
+            return we.kaltmiete > 0 ? fmtEurMo(we.kaltmiete) : '–';
+          })()}</td>
           <td class="num">${(stpl.anzahl > 0) ? fmtEur(stpl.kaufpreisSumme) : '–'}</td>
           <td class="num">${(stpl.anzahl > 0 && stpl.mieteMoSumme > 0) ? fmtEurMo(stpl.mieteMoSumme) : '–'}</td>
           <td class="num">${subvCell}</td>

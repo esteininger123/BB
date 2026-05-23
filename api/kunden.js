@@ -29,6 +29,10 @@ module.exports = async (req, res) => {
   try {
     if (req.method === 'GET') {
       const isAdmin = session.rolle === 'Admin';
+      // QA-Fix 2026-05-23 (Edgar-Doc B1): Admin sah in „Meine Kunden"-Liste auch
+      // fremde Kunden. Fix: ?mineOnly=1 erzwingt Owner-Filter — auch für Admin.
+      // Frontend-Dashboard nutzt das Flag, Admin-Tab nicht.
+      const mineOnly = req.query && (req.query.mineOnly === '1' || req.query.mineOnly === 'true');
 
       // Iter 52: archivierte Kunden werden für Vertriebler standardmäßig ausgeblendet.
       // Admin sieht alle (das archiviert-Flag bleibt im Response, damit die Admin-UI
@@ -40,7 +44,7 @@ module.exports = async (req, res) => {
         'sort[0][direction]': 'desc'
       };
       const filters = [];
-      if (!isAdmin) {
+      if (!isAdmin || mineOnly) {
         // QA-Fix 2026-05-22 (Audit-D E7): escapeFormulaString gegen Formula-Injection.
         // vertrieblerId kommt aus dem JWT (server-side gesetzt), heute safe — defensive
         // Coding für künftige Auth-Flow-Änderungen.

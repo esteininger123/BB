@@ -490,7 +490,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         </div>
       </div>
       <p class="pdf-c-disclaimer">
-        Diese Investitionsrechnung beruht auf den dokumentierten Annahmen. Keine Anlageberatung im Sinne des WpHG. Vermittlung im Rahmen einer Erlaubnis nach § 34c GewO. Verbindlich ist ausschließlich der notarielle Kaufvertrag. Steuerliche Aspekte (insb. AfA-Rechtsgrundlage und ‑Bemessung) sind mit Deinem Steuerberater abzustimmen. Die ausgewiesene Wertsteigerung und Mietsteigerung sind langfristige Modell-Annahmen; tatsächliche Werte können abweichen. „Modellwert J10" ist eine rechnerische Hochrechnung (Kaufpreis × Wertsteigerung) und kein gutachterlicher Verkehrswert i.S.d. § 194 BauGB. Der Sparbuch-Vergleich rechnet Brutto-Renditen (vor Abgeltungssteuer); die Immobilien-Rendite enthält den persönlichen Steuervorteil aus den angegebenen Werbungskosten.
+        Diese Investitionsrechnung beruht auf den dokumentierten Annahmen. Keine Anlageberatung im Sinne des WpHG. Vermittlung im Rahmen einer Erlaubnis nach § 34c GewO. Verbindlich ist ausschließlich der notarielle Kaufvertrag. Steuerliche Aspekte (insb. AfA-Rechtsgrundlage und ‑Bemessung) sind mit Deinem Steuerberater abzustimmen. Die ausgewiesene Wertsteigerung und Mietsteigerung sind langfristige Modell-Annahmen; tatsächliche Werte können abweichen. „Modellwert J10" ist eine rechnerische Hochrechnung (Kaufpreis × Wertsteigerung) und kein gutachterlicher Verkehrswert i.S.d. § 194 BauGB. Der Sparbuch-Vergleich rechnet Brutto-Renditen (vor Abgeltungssteuer); die Immobilien-Rendite enthält den persönlichen Steuervorteil aus den angegebenen Werbungskosten. Für die Finanzierungs-Vermittlung berechnen wir Dir keine Provision — eventuelle Bank-Vermittlungs-Provisionen fließen in die Kondition ein und werden von der Bank getragen. Die in der Bonitäts-Box ausgewiesene 80‑%-Anrechnung von Mieteinnahmen entspricht dem Standard unserer Partnerbanken; andere Banken können hiervon abweichen.
       </p>
       <div class="pdf-c-page-foot"><div>05 · Im Detail</div><div class="pdf-c-page-num">Seite 5 von 7</div></div>
     </div>
@@ -759,6 +759,13 @@ function _buildSelbstauskunftBody(kunde, user) {
     });
     aus += parseFloat(p.mieteMo) || 0;
     aus += parseFloat(p.lebenshaltungMo) || 0;
+    // QA-Fix 2026-05-23 (B6 Maurice-Clever): PKV / Leasing / Unterhalt wurden in der
+    // Bonitäts-Box NICHT mitgezählt, obwohl sie in der SA-PDF-Ausgaben-Tabelle erscheinen.
+    // Maurice hatte 760 €/Mo PKV eingegeben → Bonitäts-Saldo war 760 € zu optimistisch.
+    // Edgar: "entweder lass die berechnung weg oder richtig" → richtig.
+    aus += parseFloat(p.pkvMo) || 0;
+    aus += parseFloat(p.leasingMo) || 0;
+    aus += parseFloat(p.unterhaltZahlungMo) || 0;
     (Array.isArray(p.zusatzAusgaben) ? p.zusatzAusgaben : []).forEach(it => {
       if (it) aus += parseFloat(it.mo) || 0;
     });
@@ -796,7 +803,7 @@ function _buildSelbstauskunftBody(kunde, user) {
         <div class="sa-bonitaet-value saldo-${bonSaldoClass}">${bonSaldoSign}${fmtBonE(Math.abs(bonSaldo))}</div>
       </div>
     </div>
-    <div class="sa-bonitaet-note">Vom Antragsteller selbst ermittelt — Bank validiert vor Auszahlung. Mieten mit 80% angerechnet (Bank-Standard).</div>
+    <div class="sa-bonitaet-note">Vom Antragsteller selbst ermittelt — Bank validiert vor Auszahlung. Mieten mit 80&nbsp;% anrechenbar (Standard unserer Partnerbanken; einzelne Banken weichen ab — wir prüfen bankspezifisch).</div>
   `;
 
   // === SEITE 1: PERSÖNLICHE VERHÄLTNISSE + EINKOMMEN + FIXKOSTEN ===
