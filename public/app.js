@@ -815,37 +815,47 @@ function renderTabUebersicht() {
 
     ${(() => {
       // QA-Fix 2026-05-23 (Edgar-Doc Bug-9): Notizen UND Aktivitätshistorie
-      // getrennt rendern. freeNotes enthält Mix aus User-Text und Auto-Events
-      // (PandaDoc-Webhook, Snapshot, Send) — wir trennen via Regex und
-      // zeigen 2 saubere Karten: Notizen (editable Textarea) + Historie
-      // (read-only chronologisch).
+      // getrennt rendern. freeNotes enthält Mix aus User-Text und Auto-Events.
+      // QA-Fix 2026-05-24 (Edgar): Notizen mit Send-Button („An Historie senden")
+      // + Aktivitäten-Card mit eigenem Eintrag-Input. Notizen-Textarea ist
+      // jetzt Scratchpad für Stichpunkte — beim Senden landet's mit Timestamp
+      // dauerhaft in der Historie. Aktivitäten-Card ist immer sichtbar.
       const parsed = (typeof parseKavTracker === 'function')
         ? parseKavTracker(k.notizen || '')
         : { tracker: null, freeNotes: k.notizen || '' };
       const split = _splitNotesAndActivities(parsed.freeNotes);
-      // Notizen-Karte
+      // Notizen-Karte mit Send-Button
       const notizenCard = `
         <div class="card mt-16">
-          <div class="card-title">Notizen</div>
-          <textarea id="f-notizen" onblur="saveNotizen()" placeholder="Frei-Notizen, Gesprächs-Stichpunkte ...">${esc(split.notes)}</textarea>
-          <div class="text-tertiary text-small mt-8">Auto-Save bei Klick außerhalb. Auto-Events (PandaDoc, Snapshots, Reservierungen) erscheinen unten in der Aktivitäten-Historie.</div>
-        </div>
-      `;
-      // Aktivitäten-Karte (nur wenn was da). Sortiert nach TS desc (neueste oben).
-      const sortedActs = split.activities.slice().sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
-      const aktivitaetenCard = (sortedActs.length > 0) ? `
-        <div class="card mt-16 activity-card">
-          <div class="card-title">Aktivitäten-Historie <span class="text-tertiary text-small" style="font-weight:normal;">· ${sortedActs.length} Einträge (automatisch)</span></div>
-          <div class="activity-list">
-            ${sortedActs.map(a => `
-              <div class="activity-row">
-                <div class="activity-ts">${esc(a.ts)}</div>
-                <div class="activity-text">${esc(a.text)}</div>
-              </div>
-            `).join('')}
+          <div class="card-title">Notizen <span class="text-tertiary text-small" style="font-weight:normal;">· Scratchpad für laufende Stichpunkte</span></div>
+          <textarea id="f-notizen" onblur="saveNotizen()" placeholder="Frei-Notizen, Gesprächs-Stichpunkte … Klick „An Historie senden" um sie dauerhaft mit Datum zu speichern.">${esc(split.notes)}</textarea>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;">
+            <span class="text-tertiary text-small">Auto-Save bei Klick außerhalb.</span>
+            <button type="button" onclick="sendNotizToHistory()" class="secondary" style="padding:6px 14px;font-size:12px;">→ An Historie senden</button>
           </div>
         </div>
-      ` : '';
+      `;
+      // Aktivitäten-Karte — immer sichtbar, mit Input für manuelle Einträge.
+      const sortedActs = split.activities.slice().sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+      const aktivitaetenCard = `
+        <div class="card mt-16 activity-card">
+          <div class="card-title">Aktivitäten-Historie <span class="text-tertiary text-small" style="font-weight:normal;">· ${sortedActs.length} Einträge</span></div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <input type="text" id="activity-new-input" placeholder="Neue Aktivität / Notiz mit Datum festhalten …" style="flex:1;padding:8px 12px;font-size:13px;border:1px solid var(--border);border-radius:4px;font-family:inherit;" onkeydown="if(event.key==='Enter'){event.preventDefault();addActivityEntry();}">
+            <button type="button" onclick="addActivityEntry()" class="secondary" style="padding:6px 14px;font-size:12px;white-space:nowrap;">+ Eintrag</button>
+          </div>
+          ${sortedActs.length > 0 ? `
+            <div class="activity-list">
+              ${sortedActs.map(a => `
+                <div class="activity-row">
+                  <div class="activity-ts">${esc(a.ts)}</div>
+                  <div class="activity-text">${esc(a.text)}</div>
+                </div>
+              `).join('')}
+            </div>
+          ` : '<div class="text-tertiary text-small" style="padding:14px 0;">Noch keine Einträge. Aktivitäten von PandaDoc, Snapshot-Speichern oder Reservierungen landen hier automatisch — manuelle Einträge oben ergänzen.</div>'}
+        </div>
+      `;
       return notizenCard + aktivitaetenCard;
     })()}
   `;
@@ -977,6 +987,77 @@ async function saveNotizen() {
   }
 }
 window.saveNotizen = saveNotizen;
+
+// QA-Fix 2026-05-24 (Edgar): Notizen-Text als Activity-Eintrag in die Historie
+// schicken — Notizen-Feld wird geleert, neuer Activity-Entry mit Datum.
+async function sendNotizToHistory() {
+  const ta = document.getElementById('f-notizen');
+  if (!ta) return;
+  const text = (ta.value || '').trim();
+  if (!text) {
+    toast('Notiz ist leer', 'warning');
+    return;
+  }
+  await _appendActivityToNotizen(text);
+  ta.value = '';
+  // saveNotizen schreibt mit leerem Text → User-Notes-Anteil wird komplett
+  // ersetzt durch leer. Aber unsere Activity wird in _appendActivity gespeichert.
+  await saveNotizen();
+  toast('Notiz an Historie gesendet', 'success');
+  // Re-render Kunde-Tab damit Activity-Card sich aktualisiert.
+  renderKunde();
+}
+window.sendNotizToHistory = sendNotizToHistory;
+
+// Manueller Aktivität-Eintrag aus dem Input in der Activity-Card.
+async function addActivityEntry() {
+  const inp = document.getElementById('activity-new-input');
+  if (!inp) return;
+  const text = (inp.value || '').trim();
+  if (!text) {
+    toast('Eintrag ist leer', 'warning');
+    return;
+  }
+  await _appendActivityToNotizen(text);
+  inp.value = '';
+  toast('Aktivität gespeichert', 'success');
+  renderKunde();
+}
+window.addActivityEntry = addActivityEntry;
+
+// Hilfsfunktion: hängt einen Activity-Eintrag [YYYY-MM-DD HH:MM] {text} an
+// die freeNotes-Region an (vor dem KAV-Block, damit der Block am Ende bleibt).
+// Wird sowohl von sendNotizToHistory als auch addActivityEntry genutzt.
+async function _appendActivityToNotizen(text) {
+  if (!state.kunde) return;
+  const now = new Date();
+  const pad = (n) => ('0' + n).slice(-2);
+  const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const newLine = `[${ts}] ${text.replace(/[\r\n]+/g, ' ').trim()}`;
+  const parsed = typeof parseKavTracker === 'function'
+    ? parseKavTracker(state.kunde.notizen || '')
+    : { tracker: null, freeNotes: state.kunde.notizen || '' };
+  const free = parsed.freeNotes || '';
+  // Activity-Line ganz vorne anhängen (neueste oben in der Datei-Order).
+  const newFree = free.trim() ? `${newLine}\n${free}` : newLine;
+  const newNotizen = (typeof stringifyKavTracker === 'function' && parsed.tracker)
+    ? stringifyKavTracker(newFree, parsed.tracker)
+    : newFree;
+  // Optimistic update
+  const prev = state.kunde.notizen;
+  state.kunde.notizen = newNotizen;
+  if (Array.isArray(state.kunden)) {
+    const idx = state.kunden.findIndex(x => x.id === state.kundeId);
+    if (idx >= 0) state.kunden[idx].notizen = newNotizen;
+  }
+  try {
+    await api.put('/api/kunden/' + state.kundeId, { notizen: newNotizen });
+  } catch (e) {
+    state.kunde.notizen = prev;
+    toast('Fehler beim Speichern: ' + (e.message || ''), 'error');
+    throw e;
+  }
+}
 
 // ===== MODUL: views/kalkulator-tab (~1700 LoC bis Z. 2310 — größter Brocken) =====
 /* ============================== KALKULATOR-TAB ============================== */
