@@ -3104,7 +3104,7 @@ function renderStoryPremium(r) {
           Du musst Dich nicht um Mieterhöhungen, Steuerformulare, Übergaben oder Handwerker kümmern. Wir bauen Dich an wie einen alten Bekannten und Du hast direkten Draht über WhatsApp — auch für Dinge, von denen Du noch gar nicht weißt, dass sie auftreten werden.
         </div>
       </div>
-      <div class="kalk-c-bub-grid">
+      <div class="kalk-c-bub-grid" style="grid-template-columns:repeat(3,1fr);">
         <div class="kalk-c-bub-cell">
           <div class="kalk-c-bub-step">Mietsubvention bankentauglich</div>
           <div class="kalk-c-bub-body">Wir richten sie so ein, dass die Bank sie als Einkommen anrechnet — positiver Bonitäts-Effekt für Folge-Käufe.</div>
