@@ -880,6 +880,15 @@ function renderTabKalkulator() {
   // localStorage-Key checkt — wenn noch nicht gesehen, startet Tour nach kurzem Delay.
   // Vorher lief Tour beim Login, aber Steps 5-9 brauchen Kalkulator-DOM.
   if (typeof maybeStartTourOnFirstLogin === 'function') maybeStartTourOnFirstLogin();
+  // QA-Fix 2026-05-23 (Audit-U4): Pending-WE aus WE-Liste-Klick (vor Kunden-Auswahl)
+  // jetzt auto-laden, sobald Kunde geöffnet wird.
+  try {
+    const pendingWe = sessionStorage.getItem('bbk_pending_we');
+    if (pendingWe && state.kundeId && (!state.kalk || state.kalk._weId !== pendingWe)) {
+      sessionStorage.removeItem('bbk_pending_we');
+      setTimeout(() => { if (typeof loadWeIntoKalk === 'function') loadWeIntoKalk(pendingWe); }, 300);
+    }
+  } catch (e) {}
 
   const el = document.getElementById('tab-content');
   const wes = state.wohneinheiten;
@@ -4362,9 +4371,13 @@ function renderTabSelbstauskunft() {
         <option value="Selbst. Honorare ⌀">
       </datalist>
       <datalist id="sa-titel-ausgaben">
-        <option value="PKV-Beitrag"><option value="GKV-Zusatzbeitrag"><option value="Unterhaltszahlungen">
+        <!-- QA-Fix 2026-05-23 (Audit-T2): PKV-Beitrag / Leasing / Unterhaltszahlungen
+             aus der Baukasten-Auswahl ENTFERNT — diese drei sind seit B6/P3 wieder
+             Pflichtfelder mit eigenem Input. Sonst doppelte Eingabe + doppelte
+             Anrechnung (Maurice-Doppelzähl-Falle). -->
+        <option value="GKV-Zusatzbeitrag">
         <option value="Fondssparplan MSCI World"><option value="Riester-Beitrag"><option value="Rürup-Beitrag">
-        <option value="Leasing"><option value="Vereinsbeiträge"><option value="Abos / Streaming">
+        <option value="Vereinsbeiträge"><option value="Abos / Streaming">
       </datalist>
       <datalist id="sa-titel-vermoegen">
         <option value="Wertpapierdepot"><option value="ETF MSCI World"><option value="Tagesgeld">
@@ -5943,9 +5956,16 @@ function _renderWeListeContent() {
       let effKaltmiete = detailWe.kaltmiete || we.kaltmiete || 0;
       const istNeuvermietung = modus === 'staffel';
       const mbv = detailKalk.mieteBeiVerkauf || sd.mieteBeiVerkauf || 0;
-      if (istNeuvermietung && effKaltmiete < 100 && mbv > 0) {
-        // Leerstand oder bald neu vermietet → Käufer-Miete = MBV
-        effKaltmiete = mbv;
+      if (istNeuvermietung && effKaltmiete < 100) {
+        if (mbv > 0) {
+          // Leerstand oder bald neu vermietet → Käufer-Miete = MBV
+          effKaltmiete = mbv;
+        } else {
+          // QA-Fix 2026-05-23 (Audit-T1): wenn auch MBV null/0 ist (Pflege-Lücke wie
+          // Wesseling WE 4), markiere als „unkalkulierbar" — return null/incomplete
+          // statt -376 €/Mo Belastung mit Mietzahlung=0.
+          return { incomplete: true, reason: 'Kaltmiete und MBV fehlen — Pflege in Stammdaten' };
+        }
       }
       let monateSeit = null;
       if (derived && derived.subventionKaltmieteAdjustiert && derived.subventionKaltmieteAdjustiert > 0) {
@@ -6061,6 +6081,17 @@ function _renderWeListeContent() {
       const subvCell = calc.subvMoPhase1 > 0
         ? `<div>${fmtEurMo(calc.subvMoPhase1)} × ${calc.subvMonatePhase1} Mo</div><div class="text-tertiary text-small">Gesamt ${fmtEur(calc.subvGesamt)}</div>`
         : '<span class="audit-cell-missing">–</span>';
+      // Incomplete-Marker für unkalkulierbare WEs (kein Kaltmiete + kein MBV)
+      if (calc && calc.incomplete) {
+        return `
+          <tr class="we-liste-row" onclick="window._weListeOpenWe('${esc(we.id || '')}')" style="opacity:0.55;">
+            <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}</div></td>
+            <td>${modusBadge}</td>
+            <td class="num">${fmtEur(we.kp)}</td>
+            <td colspan="8" style="text-align:center;color:var(--negative);font-style:italic;font-size:13px;">⚠ ${esc(calc.reason || 'unkalkulierbar')}</td>
+          </tr>
+        `;
+      }
       return `
         <tr class="we-liste-row" onclick="window._weListeOpenWe('${esc(we.id || '')}')">
           <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}</div></td>
@@ -6125,9 +6156,13 @@ function _renderWeListeContent() {
 
 function _weListeOpenWe(weId) {
   if (!weId) return;
-  // Ohne ausgewählten Kunden → in den Dashboard schicken und Hinweis
+  // QA-Fix 2026-05-23 (Audit-U4): Ohne ausgewählten Kunden → speichere WE-Wunsch im
+  // sessionStorage und gehe ins Dashboard. Wenn der User dann einen Kunden öffnet,
+  // wird die WE auto-geladen. Vorher war das eine Sackgasse (Toast + Redirect → User
+  // verliert die Klick-Intention).
   if (!state.kundeId) {
-    toast('Erst Kunde im Dashboard wählen, dann WE laden', 'warning');
+    try { sessionStorage.setItem('bbk_pending_we', weId); } catch (e) {}
+    toast('Wähle erst einen Kunden — die WE wird dann automatisch geladen', 'info');
     go('/dashboard');
     return;
   }
@@ -6298,12 +6333,12 @@ const TOUR_STEPS = [
   },
   {
     title: 'Selbstauskunft → digital signiert',
-    text: 'SA-Tab füllt die Bank-Selbstauskunft. Antragsteller + optional Mitantragsteller. Baukasten für beliebige Vermögens-/Einnahmen-/Ausgaben-Positionen. Auto-Save aktiv. „SA an Bank senden" generiert PDF + lädt es zu PandaDoc → beide Personen unterschreiben digital. Pflichtfeld-Check vor Send (Steuer-ID, IBAN, Brutto, Steuerklasse) verhindert halb-leere Anträge.',
+    text: 'SA-Tab füllt die Bank-Selbstauskunft. Antragsteller + optional Mitantragsteller. Baukasten für beliebige Vermögens-/Einnahmen-/Ausgaben-Positionen. Auto-Save aktiv. Der Button „→ Selbstauskunft via PandaDoc senden" unten im SA-Tab generiert PDF + lädt es zu PandaDoc → beide Personen unterschreiben digital. Pflichtfeld-Check vor Send (Steuer-ID, IBAN, Brutto, Steuerklasse) verhindert halb-leere Anträge.',
     target: '.tab[data-tab="selbstauskunft"]',
   },
   {
     title: 'Reservierung → KAV via PandaDoc',
-    text: 'In der Übersicht oder Snapshots: „Reservierung erstellen" → Kaufabsichtserklärung (30 Tage Frist) wird via PandaDoc-Editor erzeugt. Verkäufer- und Käufer-Daten ziehen automatisch aus SA + State. Du editierst noch im PandaDoc-Editor (Doc-Name, Frist), dann „Senden" — Kunde unterschreibt digital. Status-Updates landen automatisch in den Kunden-Notizen via Webhook.',
+    text: 'Im Kalkulator-Tab (rechte Seite oben) findest Du den Button „Reservierung digital senden". Kaufabsichtserklärung (30 Tage Frist) wird via PandaDoc-Editor erzeugt. Verkäufer- und Käufer-Daten ziehen automatisch aus SA + State. Du editierst noch im PandaDoc-Editor (Doc-Name, Frist), dann „Senden" — Kunde unterschreibt digital. Status-Updates landen automatisch in den Kunden-Notizen via Webhook.',
     target: '.tab[data-tab="uebersicht"]',
   },
 ];
