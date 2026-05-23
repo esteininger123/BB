@@ -771,73 +771,14 @@ function _buildSelbstauskunftBody(kunde, user) {
 
   const versA = a.vers || {};
 
-  // === SA-Redesign (22.05.2026): Bonitäts-Zusammenfassung ===
-  // Banker liest in der echten Reihenfolge: Saldo Einnahmen ./. Ausgaben.
-  // 80%-Mietanrechnung wie in computeBonitaetDetailed (Bank-Standard).
-  function _saSumPerson(p) {
-    if (!p) return { ein: 0, aus: 0 };
-    let ein = 0, aus = 0;
-    ein += parseFloat(p.nettoMo) || 0;
-    ein += parseFloat(p.kindergeldMo) || 0;
-    ein += parseFloat(p.unterhaltMo) || 0;
-    // Sonderzahlungen aus Pflichtfeldern (p.a. → /12)
-    ein += ((parseFloat(p.weihnachtsgeld)||0) + (parseFloat(p.urlaubsgeld)||0) + (parseFloat(p.variableMo)||0)) / 12;
-    // Baukasten zusatzEinnahmen (mo-Werte)
-    (Array.isArray(p.zusatzEinnahmen) ? p.zusatzEinnahmen : []).forEach(it => {
-      if (it) ein += parseFloat(it.mo) || 0;
-    });
-    // Mieten aus Immobilien-Baukasten — 80% Bank-Anrechnung
-    (Array.isArray(p.immobilien) ? p.immobilien : []).forEach(immo => {
-      if (immo) ein += 0.8 * (parseFloat(immo.mietenMo) || 0);
-    });
-    aus += parseFloat(p.mieteMo) || 0;
-    aus += parseFloat(p.lebenshaltungMo) || 0;
-    // QA-Fix 2026-05-23 (B6 Maurice-Clever): PKV / Leasing / Unterhalt wurden in der
-    // Bonitäts-Box NICHT mitgezählt, obwohl sie in der SA-PDF-Ausgaben-Tabelle erscheinen.
-    // Maurice hatte 760 €/Mo PKV eingegeben → Bonitäts-Saldo war 760 € zu optimistisch.
-    // Edgar: "entweder lass die berechnung weg oder richtig" → richtig.
-    aus += parseFloat(p.pkvMo) || 0;
-    aus += parseFloat(p.leasingMo) || 0;
-    aus += parseFloat(p.unterhaltZahlungMo) || 0;
-    (Array.isArray(p.zusatzAusgaben) ? p.zusatzAusgaben : []).forEach(it => {
-      if (it) aus += parseFloat(it.mo) || 0;
-    });
-    (Array.isArray(p.zusatzSparplaene) ? p.zusatzSparplaene : []).forEach(it => {
-      if (it) aus += parseFloat(it.mo) || 0;
-    });
-    (Array.isArray(p.zusatzVerbindlichkeiten) ? p.zusatzVerbindlichkeiten : []).forEach(it => {
-      if (it) aus += parseFloat(it.mo) || 0;
-    });
-    (Array.isArray(p.immobilien) ? p.immobilien : []).forEach(immo => {
-      if (immo) aus += parseFloat(immo.baufiBelastungMo) || 0;
-    });
-    return { ein, aus };
-  }
-  const bonA = _saSumPerson(a);
-  const bonM = gemeinsam ? _saSumPerson(m) : { ein: 0, aus: 0 };
-  const bonEin = bonA.ein + bonM.ein;
-  const bonAus = bonA.aus + bonM.aus;
-  const bonSaldo = bonEin - bonAus;
-  const bonSaldoClass = bonSaldo >= 0 ? 'positiv' : 'negativ';
-  const bonSaldoSign = bonSaldo >= 0 ? '+ ' : '− ';
-  const fmtBonE = (v) => Math.round(v).toLocaleString('de-DE') + ' €';
-  const bonitaetBoxHtml = `
-    <div class="sa-bonitaet-box">
-      <div class="sa-bonitaet-cell">
-        <div class="sa-bonitaet-label">Einnahmen anr. Mo</div>
-        <div class="sa-bonitaet-value">${fmtBonE(bonEin)}</div>
-      </div>
-      <div class="sa-bonitaet-cell">
-        <div class="sa-bonitaet-label">Ausgaben Mo</div>
-        <div class="sa-bonitaet-value">${fmtBonE(bonAus)}</div>
-      </div>
-      <div class="sa-bonitaet-cell">
-        <div class="sa-bonitaet-label">Saldo Mo</div>
-        <div class="sa-bonitaet-value saldo-${bonSaldoClass}">${bonSaldoSign}${fmtBonE(Math.abs(bonSaldo))}</div>
-      </div>
-    </div>
-    <div class="sa-bonitaet-note">Vom Antragsteller selbst ermittelt — Bank validiert vor Auszahlung. Mieten mit 80&nbsp;% anrechenbar (Standard unserer Partnerbanken; einzelne Banken weichen ab — wir prüfen bankspezifisch).</div>
-  `;
+  // QA-Fix 2026-05-23 (Edgar live Marcel): SA-Bonitäts-Box („Einnahmen anr. Mo /
+  // Ausgaben Mo / Saldo Mo") komplett entfernt. Edgar's Vorgabe: „Die Bank kann
+  // selbst zusammenrechnen." Vorteil: kein Konsistenz-Risiko zwischen unserer
+  // Hochrechnung und dem, was die Bank selbst rechnen würde (z.B. Anzahl-
+  // Gehälter-Skalierung 14/12, 80%-Mietanrechnung, PKV/Leasing/Unterhalt im
+  // Saldo). Die Bank bekommt unten alle Rohwerte und rechnet ihre eigene
+  // Bonität wie sie es immer macht.
+  const bonitaetBoxHtml = '';
 
   // === SEITE 1: PERSÖNLICHE VERHÄLTNISSE + EINKOMMEN + FIXKOSTEN ===
   const seite1 = `

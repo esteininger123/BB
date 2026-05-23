@@ -6918,15 +6918,30 @@ function stringifyKavTracker(freeNotes, tracker) {
 }
 
 function kavCurrentPhase(tracker) {
-  // Heuristik: aktuelle Phase = letzte Phase, in der mindestens eine kritische Aufgabe
-  // erledigt ist UND nicht alle kritischen erledigt sind. Wenn alle erledigt → nächste Phase.
-  for (let i = 0; i < KAV_PHASES.length; i++) {
-    const ph = KAV_PHASES[i];
-    const critTasks = ph.tasks.filter(t => t.critical);
-    const allCritDone = critTasks.length > 0 && critTasks.every(t => !!(tracker.tasks || {})[t.id]);
-    if (!allCritDone) return ph.id;
+  // QA-Fix 2026-05-23 (Edgar live Elin): Vorher „aktuelle Phase = erste
+  // Phase ohne alle critical done". Edgar's Mental-Model passt nicht: Elin
+  // Duven hat in P2 schon Aufgaben gemacht (SA an Bank, Unterlagen), aber
+  // formal in P1 fehlt noch „Reservierung unterschrieben" (Notiz läuft
+  // noch in PandaDoc). System zeigte P1, Edgar erwartet P2.
+  //
+  // Neue Logic: Phase = HÖCHSTE Phase, in der mindestens eine Task erledigt
+  // ist. Wenn jemand in P3 schon eine Task hat → P3, auch wenn P1/P2 nicht
+  // 100 % final. Wenn alle critical von P3 done → 'abgeschlossen'.
+  const tasks = tracker.tasks || {};
+  // Phase 3 abgeschlossen?
+  const p3 = KAV_PHASES[2];
+  if (p3) {
+    const p3Crit = p3.tasks.filter(t => t.critical);
+    if (p3Crit.length > 0 && p3Crit.every(t => !!tasks[t.id])) return 'abgeschlossen';
   }
-  return 'abgeschlossen';
+  // Höchste Phase mit mindestens einer erledigten Task
+  for (let i = KAV_PHASES.length - 1; i >= 0; i--) {
+    const ph = KAV_PHASES[i];
+    const hasActivity = ph.tasks.some(t => !!tasks[t.id]);
+    if (hasActivity) return ph.id;
+  }
+  // Noch gar nichts gemacht → Phase 1
+  return KAV_PHASES[0].id;
 }
 
 function kavTaskCount(tracker, phaseId) {
@@ -7212,8 +7227,10 @@ function kavListeBadges(kunde) {
   const ph = KAV_PHASES.find(p => p.id === currentPhId);
   const wv = kavWiedervorlageStatus(tracker);
   const counts = ph ? kavTaskCount(tracker, ph.id) : { done: 0, total: 0 };
+  // QA-Fix 2026-05-23 (Edgar): Phase-spezifische CSS-Klasse für klare visuelle
+  // Unterscheidung P1/P2/P3.
   const phaseChip = ph
-    ? `<span class="kav-mini-phase" style="--kav-accent:${ph.accent};">P${ph.nr} · ${esc(ph.label)} <span class="kav-mini-counts">${counts.done}/${counts.total}</span></span>`
+    ? `<span class="kav-mini-phase kav-phase-p${ph.nr}" style="--kav-accent:${ph.accent};">P${ph.nr} · ${esc(ph.label)} <span class="kav-mini-counts">${counts.done}/${counts.total}</span></span>`
     : `<span class="kav-mini-phase kav-mini-done">✓ Abgeschlossen</span>`;
   let wvChip = '';
   if (wv.status === 'overdue') wvChip = `<span class="kav-mini-wv overdue" title="Wiedervorlage überfällig">⚠ ${wv.tageUeber}d</span>`;

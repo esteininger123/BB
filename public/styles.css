@@ -2419,15 +2419,34 @@ input[type="range"].spar-zins-range::-moz-range-track {
 }
 
 /* Kunden-Liste: Phase + Wiedervorlage als Mini-Chips */
+/* QA-Fix 2026-05-23 (Edgar): P1/P2/P3 deutlich unterschiedliche Hintergründe
+   und Rahmen — Edgar will auf einen Blick sehen, in welcher Etappe der Kunde
+   ist. Vorher waren alle 3 Phasen in fast identischem Bronze. */
 .kav-mini-phase{
   display:inline-flex; align-items:center; gap:6px;
-  padding:3px 10px; border-radius:12px;
-  background:#fff; border:1px solid var(--border);
-  border-left:3px solid var(--kav-accent, var(--accent));
-  font-size:11.5px; font-weight:500; color:var(--text-primary);
+  padding:4px 12px; border-radius:14px;
+  background:#fff;
+  border:1.5px solid var(--kav-accent, var(--accent));
+  font-size:12px; font-weight:600; color:var(--kav-accent, var(--accent));
   letter-spacing:.02em;
 }
-.kav-mini-counts{ color:var(--text-tertiary); font-variant-numeric:tabular-nums; font-weight:400; }
+/* Spezifische Farben + Hintergründe pro Phase */
+.kav-mini-phase.kav-phase-p1 {
+  background:#F7EDDA;          /* sandig hell */
+  border-color:#B08A4D;
+  color:#7A5A24;
+}
+.kav-mini-phase.kav-phase-p2 {
+  background:#FAEEDB;          /* bronze hell */
+  border-color:#8E6E3D;
+  color:#5F4520;
+}
+.kav-mini-phase.kav-phase-p3 {
+  background:#DEEFE3;          /* grün hell, Notar = Ziel-Phase */
+  border-color:#2D6E47;
+  color:#1F4F33;
+}
+.kav-mini-counts{ color:inherit; opacity:0.75; font-variant-numeric:tabular-nums; font-weight:500; }
 .kav-mini-phase.kav-mini-done{
   background:var(--positive-bg); color:var(--positive); border-color:var(--positive);
 }
@@ -2467,11 +2486,25 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .wv-row-main{ color:var(--text-primary); }
 .wv-row-date{ font-size:12px; color:var(--text-tertiary); text-align:right; }
 
-/* Dashboard: KAV-Phasen-KPIs neu — mit Akzent-Linie */
+/* Dashboard: KAV-Phasen-KPIs neu — mit Akzent-Linie + Phase-spezifischer Hintergrund */
 .kav-phasen-row{ display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:20px; }
 .kav-phase-kpi{
-  background:#fff; border:1px solid var(--border); border-left:3px solid var(--kav-accent);
+  background:#fff; border:1px solid var(--border); border-left:4px solid var(--kav-accent);
   border-radius:6px; padding:14px 16px;
+}
+/* QA-Fix 2026-05-23 (Edgar): kräftigere Hintergründe pro Phase auch auf den
+   Dashboard-KPI-Kacheln, damit die 3 Phasen visuell klar trennbar sind. */
+.kav-phasen-row .kav-phase-kpi:nth-child(1){
+  background:#FBF5E7;          /* P1: sandig */
+  border-left-color:#B08A4D;
+}
+.kav-phasen-row .kav-phase-kpi:nth-child(2){
+  background:#FBEFD8;          /* P2: bronze */
+  border-left-color:#8E6E3D;
+}
+.kav-phasen-row .kav-phase-kpi:nth-child(3){
+  background:#E6F1EA;          /* P3: grün — Ziel-Phase */
+  border-left-color:#2D6E47;
 }
 .kav-phase-kpi .label{
   font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
@@ -2484,7 +2517,10 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .kav-phase-kpi .sub{
   font-size:11px; color:var(--text-tertiary); margin-top:4px;
 }
-.kav-done-kpi{ border-left-color:var(--positive); }
+.kav-done-kpi{
+  background:#D7E8DD !important;
+  border-left-color:var(--positive) !important;
+}
 .kav-done-kpi .value{ color:var(--positive); }
 @media (max-width: 900px){
   .kav-phasen-row{ grid-template-columns:repeat(2, 1fr); }
