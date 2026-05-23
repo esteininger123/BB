@@ -207,7 +207,12 @@ function describeEvent(evName, docStatus, ev) {
     switch (docStatus) {
       case 'document.sent':      return 'Versandt';
       case 'document.viewed':    return 'Angesehen';
-      case 'document.completed': return 'Vollständig signiert';
+      // QA-Fix 2026-05-23 (Audit-CC-8): document.completed heißt "alle
+      // Recipients haben signiert" — meist Edgar + Käufer. Klarer formulieren,
+      // damit Edgar nicht reflexartig „der Kunde hat unterschrieben" liest.
+      // Tatsächlicher Käufer-Signatur-Beleg ist recipient_completed weiter
+      // oben in der Notiz mit Käufer-Email.
+      case 'document.completed': return 'Doc vollständig (alle Recipients signiert — Käufer-Signatur siehe recipient_completed-Einträge oben)';
       case 'document.rejected':  return 'Abgelehnt';
       case 'document.expired':   return 'Frist abgelaufen';
       case 'document.draft':     return 'Entwurf bereit';
