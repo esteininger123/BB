@@ -1156,7 +1156,9 @@ function renderTabKalkulator() {
         <button onclick="saveSnapshot()">Snapshot speichern</button>
         <button class="secondary" onclick="exportInvestPdf()">PDF Investitionsrechnung</button>
         <button class="secondary" onclick="exportReservPdf()">PDF Reservierung</button>
-        <button onclick="sendReservierungForSignature()">Reservierung digital senden</button>
+        ${state.kalk && state.kalk._isPaket
+          ? `<button disabled title="Bei Paket-Auswahl noch nicht unterstützt — bitte einzelne WE wählen" style="opacity:0.45;cursor:not-allowed;">Reservierung digital senden (nur Einzel-WE)</button>`
+          : `<button onclick="sendReservierungForSignature()">Reservierung digital senden</button>`}
       </div>
     `}
   `;
@@ -3828,25 +3830,58 @@ function _pdfExportGuard() {
   _pdfExportLock = now;
   return true;
 }
+// QA-Fix 2026-05-23 (Audit-EE-9): während PDF-Erstellung Buttons visuell
+// disabled + Text „PDF wird erstellt…". Vorher klickte man, nichts passierte
+// sofort, User klickte erneut → Lock-Toast. Jetzt sofort eindeutiges Feedback.
+function _pdfButtonBusy(matchOnclick, label) {
+  const btns = Array.from(document.querySelectorAll(`button[onclick*="${matchOnclick}"]`));
+  btns.forEach(b => {
+    if (!b.dataset.prevText) b.dataset.prevText = b.textContent;
+    b.disabled = true;
+    b.textContent = label;
+  });
+  return btns;
+}
+function _pdfButtonRelease(btns) {
+  btns.forEach(b => {
+    if (b.dataset.prevText) {
+      b.textContent = b.dataset.prevText;
+      delete b.dataset.prevText;
+    }
+    b.disabled = false;
+  });
+}
 function exportInvestPdf() {
   if (!_pdfExportGuard()) return;
   if (window.PDF && window.PDF.investitionsrechnung) {
     toast('PDF wird erstellt — Druckdialog öffnet sich', 'info');
-    setTimeout(() => window.PDF.investitionsrechnung(state.kunde, state.kalk, state.kalkResult, state.user), 100);
+    const btns = _pdfButtonBusy('exportInvestPdf', 'PDF wird erstellt…');
+    setTimeout(() => {
+      try { window.PDF.investitionsrechnung(state.kunde, state.kalk, state.kalkResult, state.user); }
+      finally { setTimeout(() => _pdfButtonRelease(btns), 2500); }
+    }, 100);
   } else { alert('PDF-Modul nicht geladen.'); }
 }
 function exportReservPdf() {
   if (!_pdfExportGuard()) return;
   if (window.PDF && window.PDF.reservierung) {
     toast('Reservierungs-PDF wird erstellt', 'info');
-    setTimeout(() => window.PDF.reservierung(state.kunde, state.kalk, state.user), 100);
+    const btns = _pdfButtonBusy('exportReservPdf', 'PDF wird erstellt…');
+    setTimeout(() => {
+      try { window.PDF.reservierung(state.kunde, state.kalk, state.user); }
+      finally { setTimeout(() => _pdfButtonRelease(btns), 2500); }
+    }, 100);
   }
 }
 function exportSaPdf() {
   if (!_pdfExportGuard()) return;
   if (window.PDF && window.PDF.selbstauskunft) {
     toast('Selbstauskunft-PDF wird erstellt', 'info');
-    setTimeout(() => window.PDF.selbstauskunft(state.kunde, state.user), 100);
+    const btns = _pdfButtonBusy('exportSaPdf', 'PDF wird erstellt…');
+    setTimeout(() => {
+      try { window.PDF.selbstauskunft(state.kunde, state.user); }
+      finally { setTimeout(() => _pdfButtonRelease(btns), 2500); }
+    }, 100);
   }
 }
 window.exportInvestPdf = exportInvestPdf;
