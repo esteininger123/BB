@@ -149,6 +149,8 @@ label {
    drumherum dunkel). Card seitlich, nicht überlagernd. */
 
 /* Tour-Target-Highlight: Element bleibt voll sichtbar + leuchtet, alles drumherum dunkel */
+/* QA-Fix 2026-05-23 (Audit-T-Code-9): box-shadow mit !important damit Card/Cards mit
+   eigenem shadow den Spotlight nicht überschreiben. */
 .bbk-tour-highlight {
   position: relative;
   z-index: 10001 !important;
@@ -157,7 +159,7 @@ label {
   border-radius: 6px;
   box-shadow:
     0 0 0 9999px rgba(26, 26, 23, 0.68),
-    0 0 30px 8px rgba(250, 215, 138, 0.4);
+    0 0 30px 8px rgba(250, 215, 138, 0.4) !important;
   animation: bbk-tour-pulse 1.4s ease-in-out infinite alternate;
   /* Klick-Events durchlassen — User soll mit dem Element interagieren können */
   pointer-events: auto !important;
@@ -197,6 +199,10 @@ label {
   padding: 24px 28px;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(201, 165, 114, 0.5);
   border: 1px solid #C9A572;
+  /* QA-Fix 2026-05-23 (Audit-T-Code-8): bei langem Inhalt + kleinem Viewport
+     scrollbar machen statt unter den Footer rutschen lassen. */
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
 }
 .bbk-tour-card-head {
   display: flex;

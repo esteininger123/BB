@@ -922,11 +922,23 @@ async function saveNotizen() {
   // (Race-Window war ~200 ms zwischen PUT-Send und Response).
   const prev = state.kunde.notizen;
   state.kunde.notizen = notizen;
+  // QA-Fix 2026-05-23 (Audit-K-2): state.kunden[]-Cache mit-syncen wie saveKavTracker
+  // es tut. Sonst sieht Dashboard nach Tab-Wechsel alten FreeText (KAV-Tracker war OK,
+  // FreeText drifted).
+  let _prevKListIdx = -1, _prevKListNotizen = null;
+  if (Array.isArray(state.kunden)) {
+    _prevKListIdx = state.kunden.findIndex(x => x.id === state.kundeId);
+    if (_prevKListIdx >= 0) {
+      _prevKListNotizen = state.kunden[_prevKListIdx].notizen;
+      state.kunden[_prevKListIdx].notizen = notizen;
+    }
+  }
   try {
     await api.put('/api/kunden/' + state.kundeId, { notizen });
     toast('Notizen gespeichert');
   } catch (e) {
     state.kunde.notizen = prev; // Rollback bei Fehler
+    if (_prevKListIdx >= 0) state.kunden[_prevKListIdx].notizen = _prevKListNotizen;
     toast('Fehler: ' + e.message, 'error');
   }
 }
@@ -6006,7 +6018,16 @@ function renderAdminStammdatenAudit(audit) {
 let _weListeCache = null;
 // QA-Sprint 2026-05-23 (Edgar live): Default ist „30% StSatz, 4,5% Zins, KP ohne KNK".
 // Entspricht dem alten 'standard'-Profil.
-let _weListeProfil = 's30z45ohne';
+// QA-Fix 2026-05-23 (Audit-P-2): Auswahl in localStorage persistieren — vor F5
+// musste Edgar das Profil jedes Mal neu wählen.
+const _WE_LISTE_PROFIL_LS_KEY = 'bbk_we_liste_profil';
+let _weListeProfil = (() => {
+  try {
+    const saved = localStorage.getItem(_WE_LISTE_PROFIL_LS_KEY);
+    if (saved && /^s\d{2}z\d{2}(ohne|knk)$/.test(saved)) return saved;
+  } catch {}
+  return 's30z45ohne';
+})();
 
 async function renderWeListe() {
   const app = document.getElementById('app');
@@ -6023,26 +6044,13 @@ async function renderWeListe() {
             ${(() => {
               // QA-Sprint 2026-05-23 (Edgar live): 12er-Matrix: 3 Steuersätze ×
               // 2 Zinssätze × 2 KNK-Varianten, alle mit 1 % Tilgung.
+              // QA-Fix 2026-05-23 (Audit-P-1): toter Code entfernt — nur optgroup-Loop bleibt.
               const stSaetze = [30, 35, 42];
               const zinse    = [4.5, 4.8];
               const knkOpts  = [
                 { key: 'ohne', label: 'KP ohne KNK' },
                 { key: 'knk',  label: 'KP + KNK finanziert' },
               ];
-              const opts = [];
-              for (const st of stSaetze) {
-                for (const z of zinse) {
-                  for (const knk of knkOpts) {
-                    const val = `s${st}z${(z*10).toFixed(0)}${knk.key}`;
-                    const label = `${st} % StSatz · ${String(z).replace('.', ',')} % Zins · 1 % Tilg. · ${knk.label}`;
-                    opts.push(`<option value="${val}"${_weListeProfil === val ? ' selected' : ''}>${label}</option>`);
-                  }
-                  // Visueller Trenner zwischen den Zins-Blöcken (optgroup wäre cleaner,
-                  // aber visuell zu schwer)
-                }
-                // optgroup pro Steuersatz für klare Struktur
-              }
-              // Reorganisieren via optgroup-Markup
               return stSaetze.map(st => {
                 const groupOpts = [];
                 for (const z of zinse) {
@@ -6106,6 +6114,8 @@ window._weListeReload = _weListeReload;
 
 function _weListeSetProfil(p) {
   _weListeProfil = p;
+  // QA-Fix 2026-05-23 (Audit-P-2): in localStorage persistieren.
+  try { localStorage.setItem(_WE_LISTE_PROFIL_LS_KEY, p); } catch {}
   _renderWeListeContent();
 }
 window._weListeSetProfil = _weListeSetProfil;
@@ -6417,12 +6427,23 @@ function _renderWeListeContent() {
 
   // QA-Sprint 2026-05-23 (Edgar live): Profil-Label aus Profil-Daten ableiten
   // statt nur den Slug-Key zu zeigen.
-  const profilObj = (window.Kalk && window.Kalk.PROFILES && window.Kalk.PROFILES[_weListeProfil]) || {};
-  const profilLabel = `${Math.round((profilObj.steuersatz || 0) * 100)} % StSatz · ${(profilObj.zins * 100).toFixed(1).replace('.', ',')} % Zins · ${Math.round((profilObj.tilgung || 0) * 100)} % Tilg. · ${profilObj.knkMitfinanziert ? 'KP+KNK finanziert' : 'KP ohne KNK'}`;
+  // QA-Fix 2026-05-23 (Audit-P-5): Guard gegen unbekanntes/leeres Profil — sonst
+  // crash bei zins=undefined.toFixed. Plus (Audit-P-4): Schreibweise „KP + KNK
+  // finanziert" mit Spaces, einheitlich zum Dropdown.
+  const profilObj = (window.Kalk && window.Kalk.PROFILES && window.Kalk.PROFILES[_weListeProfil]) || null;
+  const profilLabel = profilObj
+    ? `${Math.round((profilObj.steuersatz || 0) * 100)} % StSatz · ${((profilObj.zins || 0) * 100).toFixed(1).replace('.', ',')} % Zins · ${Math.round((profilObj.tilgung || 0) * 100)} % Tilg. · ${profilObj.knkMitfinanziert ? 'KP + KNK finanziert' : 'KP ohne KNK'}`
+    : '(unbekannt)';
+  // QA-Fix 2026-05-23 (Audit-P-3): bei KNK-finanziert greift ekBedarf=0 → IRR
+  // ist mathematisch undefined (kein Initial-Investment für die Rendite-Rechnung).
+  // Vertriebler sieht „—" und ist verwirrt. Klarer Hinweis im Footer.
+  const irrHint = (profilObj && profilObj.knkMitfinanziert)
+    ? ' · <span title="Bei 100 %-Finanzierung gibt es kein initiales Eigenkapital — daher ist die klassische IRR-Berechnung mathematisch nicht definiert.">IRR-Spalte „—" bei 100 %-Finanzierung (kein EK)</span>'
+    : '';
   el.innerHTML = `
     <div class="text-tertiary text-small" style="margin:0 0 8px;">
       <strong>${audit.length} aktive WEs</strong> über ${projekte.length} ${projekte.length === 1 ? 'Projekt' : 'Projekte'} ·
-      Profil: <strong>${esc(profilLabel)}</strong> · Wertsteigerung 3 %/a, AfA aus Stammdaten.
+      Profil: <strong>${esc(profilLabel)}</strong> · Wertsteigerung 3 %/a, AfA aus Stammdaten.${irrHint}
     </div>
     ${sections}
   `;
@@ -6579,35 +6600,28 @@ const TOUR_STEPS = [
   },
   {
     title: 'Schritt 1 — Test-Kunde anlegen',
-    action: 'Klick oben rechts auf den Button „+ Neuer Kunde". Trage als Vornamen „Test" ein, als Nachnamen „Vertrieb", E-Mail „test.vertrieb@bub-immo.de". Dann auf „Anlegen" klicken.',
+    action: 'Klick oben rechts auf den Button „+ Neuer Kunde". Trage als Vornamen „Test" ein, als Nachnamen „Vertrieb", E-Mail „test.vertrieb@bub-immo.de". Klick auf „Anlegen" — Du landest danach automatisch auf der Kunden-Seite.',
     tip: 'Pflichtfelder: Vorname, Nachname, E-Mail. Geburtsdatum hilft später bei der Bonität — kannst Du auch leer lassen.',
     target: 'button[onclick*="createNewKunde"]',
     needsView: 'dashboard',
   },
   {
-    title: 'Schritt 2 — Test-Kunden öffnen',
-    action: 'Klick in der Liste „Meine Kunden" auf den eben angelegten „Test Vertrieb".',
-    tip: 'Jede Zeile ist klickbar. Die Phase-Pille rechts (P1 · Strategie 0/5) zeigt, wo der Kunde im Funnel steht — wird sich gleich ändern wenn Du Aufgaben abhakst.',
-    target: '#kunden-tbl tbody tr',
-    needsView: 'dashboard',
-  },
-  {
-    title: 'Schritt 3 — Zum Kalkulator wechseln',
-    action: 'Du bist jetzt im Kunden-Detail. Klick oben auf den Tab „Kalkulator".',
+    title: 'Schritt 2 — Zum Kalkulator wechseln',
+    action: 'Du bist jetzt auf der Kunden-Detail-Seite. Klick oben auf den Tab „Kalkulator".',
     tip: 'Der Kalkulator ist Dein Haupt-Tool für den Vertriebs-Pitch. SA und Snapshots erreichst Du über die anderen Tabs.',
     target: '.tab[data-tab="kalkulator"]',
     needsView: 'kunde',
   },
   {
-    title: 'Schritt 4 — Projekt wählen',
-    action: 'Im Cream-Bereich oben siehst Du zwei Dropdowns. Wähle ein Projekt aus dem ersten Dropdown.',
+    title: 'Schritt 3 — Projekt wählen',
+    action: 'Im Cream-Bereich oben siehst Du zwei Dropdowns. Wähle ein Projekt aus dem ersten Dropdown — erst danach wird das WE-Dropdown aktiv.',
     tip: 'Es erscheinen nur Projekte, in denen B&B aktuell aktive Wohneinheiten vermarktet. Wenn keins da ist → Domi/Henry pingen wegen Stammdaten-Pflege.',
     target: '#projekt-select',
     needsView: 'kunde',
     needsTab: 'kalkulator',
   },
   {
-    title: 'Schritt 5 — Wohneinheit wählen',
+    title: 'Schritt 4 — Wohneinheit wählen',
     action: 'Wähle jetzt eine konkrete Wohneinheit im zweiten Dropdown. Die Berechnung lädt automatisch.',
     tip: 'Status-Pille zeigt vermietet/leer. Stellplätze (Garagen/Außenstellplätze) werden automatisch dazugeladen, wenn welche zur WE gehören.',
     target: '#we-select',
@@ -6615,7 +6629,7 @@ const TOUR_STEPS = [
     needsTab: 'kalkulator',
   },
   {
-    title: 'Schritt 6 — Hero anschauen',
+    title: 'Schritt 5 — Hero anschauen',
     action: 'Scroll runter zur grünen Hero-Kachel. Da steht „Mein Anteil J10" — der Vermögensaufbau in 10 Jahren. Das ist die wichtigste Zahl im Vertriebs-Gespräch.',
     tip: 'Darunter zwei Quick-Buttons: Snapshot speichern + PDF erstellen. Tipp: vor jedem Wert-Sprung einen Snapshot — als Diskussions-Anker mit dem Kunden.',
     target: '.kalk-c-hero-headline',
@@ -6623,7 +6637,7 @@ const TOUR_STEPS = [
     needsTab: 'kalkulator',
   },
   {
-    title: 'Schritt 7 — Profil wählen (Bonität)',
+    title: 'Schritt 6 — Profil wählen (Bonität)',
     action: 'Oben rechts findest Du das „Profil"-Dropdown (Standard / Premium / Spitze). Wähle „Premium" — Steuersatz springt auf 35 %, Cashflow ändert sich.',
     tip: 'Standard = 30 % StSatz · Premium = 35 % · Spitze = 42 %. Den Steuersatz kannst Du auch individuell überschreiben — Profil-Wechsel danach fragt vor dem Überschreiben nach.',
     target: '#kalk-profil-select',
@@ -6631,56 +6645,56 @@ const TOUR_STEPS = [
     needsTab: 'kalkulator',
   },
   {
-    title: 'Schritt 8 — Snapshot speichern',
-    action: 'Scroll runter zur Toolbar (unter den Stories) und klick auf „Snapshot speichern". Vergib eine Bezeichnung, z.B. „Premium-Profil Test".',
+    title: 'Schritt 7 — Snapshot speichern',
+    action: 'Scroll ganz nach unten zur Toolbar und klick auf „Snapshot speichern". Vergib eine Bezeichnung, z.B. „Premium-Profil Test".',
     tip: 'Snapshots sind eingefrorene Zwischenstände — sie ändern sich nicht mehr, auch wenn Stammdaten sich ändern. Beim Reload kommt ein Toast „Werte eingefroren".',
-    target: 'button[onclick*="saveSnapshot"]',
+    target: '.toolbar button[onclick*="saveSnapshot"]',
     needsView: 'kunde',
     needsTab: 'kalkulator',
   },
   {
-    title: 'Schritt 9 — PDF Investitionsrechnung exportieren',
+    title: 'Schritt 8 — PDF Investitionsrechnung exportieren',
     action: 'In der gleichen Toolbar klick auf „PDF Investitionsrechnung". Der Browser öffnet den Druckdialog — wähle „Als PDF speichern" oder druck es echt aus.',
     tip: '7-Seiten Investitionsrechnung mit Cover, Eckdaten, Vermögensaufbau, Cashflow, Bonität wie die Bank rechnet, Annahmen. Edgars Standard-Pitch-Doc.',
-    target: 'button[onclick*="exportInvestPdf"]',
+    target: '.toolbar button[onclick*="exportInvestPdf"]',
     needsView: 'kunde',
     needsTab: 'kalkulator',
   },
   {
-    title: 'Schritt 10 — Selbstauskunft öffnen',
+    title: 'Schritt 9 — Selbstauskunft öffnen',
     action: 'Wechsel oben auf den Tab „Selbstauskunft". Du siehst das SA-Formular für Antragsteller (+ optional Mit-Antragsteller).',
     tip: 'Auto-Save ist aktiv — jede Änderung wird sofort gespeichert. Pflichtfelder (Brutto, Steuerklasse, IBAN, Steuer-ID) werden vor dem digitalen Send geprüft.',
     target: '.tab[data-tab="selbstauskunft"]',
     needsView: 'kunde',
   },
   {
-    title: 'Schritt 11 — Snapshots-Tab anschauen',
+    title: 'Schritt 10 — Snapshots-Tab anschauen',
     action: 'Wechsel oben auf den Tab „Snapshots". Da siehst Du Deinen eben gespeicherten Snapshot „Premium-Profil Test".',
     tip: 'Snapshots kannst Du laden (Werte werden in den Kalkulator zurückgespielt) oder löschen. Beim Laden eines Snapshots ist die Kalkulation eingefroren — Stammdaten werden nicht neu aus Airtable gezogen.',
     target: '.tab[data-tab="snapshots"]',
     needsView: 'kunde',
   },
   {
-    title: 'Schritt 12 — Reservierung digital senden (NICHT klicken)',
-    action: 'Wechsel zurück zum Kalkulator-Tab. Scroll runter zur Toolbar — da ist der Button „Reservierung digital senden". Klick ihn NICHT, das würde ein echtes PandaDoc-Doc an die Test-Mail schicken.',
-    tip: 'Was passiert würde: PandaDoc öffnet sich, Käufer- und Verkäufer-Daten werden automatisch eingesetzt, Frist 30 Tage. Kunde unterschreibt digital. Status landet automatisch in Kunden-Notizen via Webhook.',
-    target: 'button[onclick*="sendReservierungForSignature"]',
+    title: 'Schritt 11 — Reservierung-Button (NICHT klicken)',
+    action: 'Wechsel zurück zum Kalkulator-Tab. In der Toolbar ganz unten ist der Button „Reservierung digital senden". NICHT klicken — würde ein echtes PandaDoc-Doc an die Test-Mail schicken.',
+    tip: 'Was passieren würde: PandaDoc öffnet sich, Käufer- und Verkäufer-Daten werden automatisch eingesetzt, Frist 30 Tage. Kunde unterschreibt digital. Status landet automatisch in Kunden-Notizen via Webhook.',
+    target: '.toolbar button[onclick*="sendReservierungForSignature"]',
     needsView: 'kunde',
     needsTab: 'kalkulator',
   },
   {
-    title: 'Schritt 13 — Aktive WEs im Überblick',
+    title: 'Schritt 12 — Aktive WEs im Überblick',
     action: 'Klick oben in der Navigation auf „Aktive WEs". Du siehst alle Wohneinheiten in Vermarktung, pro Projekt gruppiert, mit Kennzahlen.',
     tip: 'Profil-Dropdown oben rechts wechselt zwischen 12 Bank-Szenarien (3 Steuersätze × 2 Zinssätze × KNK ja/nein). Jede WE-Zeile ist klickbar — öffnet direkt im Kalkulator.',
     target: 'a[href="#/we-liste"]',
     needsView: null,
   },
   {
-    title: 'Schritt 14 — Test-Kunde aufräumen',
-    action: 'Geh zurück zum Dashboard. Öffne den Test-Kunden, klick auf „Archivieren" (oder lösche ihn über das Admin-Menü). So bleibt Deine Kunden-Liste sauber.',
+    title: 'Schritt 13 — Test-Kunde aufräumen',
+    action: 'Geh zurück zum Test-Kunden (Dashboard → Test Vertrieb anklicken). Im Header der Kundenseite ist der Button „Archivieren" — klick ihn an, der Kunde verschwindet aus Deiner Liste.',
     tip: 'Vertrieb darf nicht endgültig löschen, nur archivieren. Edgar als Admin kann später echte Löschungen durchführen. Damit ist die Tour fertig — Du bist startklar! 🎉',
-    target: 'a[href="#/dashboard"]',
-    needsView: null,
+    target: 'button[onclick*="archiveKunde"]',
+    needsView: 'kunde',
   },
 ];
 
@@ -6699,6 +6713,9 @@ window.startTour = startTour;
 
 function endTour(markSeen) {
   _tourActive = false;
+  // QA-Fix 2026-05-23 (Audit-T-Code-1): pending rerender-Timer canceln,
+  // damit kein Zombie-Render NACH endTour eine neue Card erzeugt.
+  if (_tourRerenderTimer) { clearTimeout(_tourRerenderTimer); _tourRerenderTimer = null; }
   const ov = document.getElementById('bbk-tour-overlay');
   if (ov) ov.remove();
   const card = document.getElementById('bbk-tour-card');
@@ -6714,11 +6731,16 @@ function endTour(markSeen) {
 // QA-Sprint 2026-05-23 (Edgar live): Tour neu rendern wenn der User die
 // Seite wechselt — so wird der View-Match-Hinweis live aktualisiert sobald
 // der User auf den richtigen Tab klickt.
+// QA-Fix 2026-05-23 (Audit-T-Code-2): Debounce gegen Resize-Burst (60 Events/s).
+// Pending Timer wird vor neuem schedule gecanceled — nur 1 Re-Render pro Burst.
+let _tourRerenderTimer = null;
 function _tourRerender() {
-  if (_tourActive) {
-    // Kleiner Delay, sodass DOM bereits gerendert ist nach hashchange
-    setTimeout(() => { if (_tourActive) _renderTour(); }, 50);
-  }
+  if (!_tourActive) return;
+  if (_tourRerenderTimer) clearTimeout(_tourRerenderTimer);
+  _tourRerenderTimer = setTimeout(() => {
+    _tourRerenderTimer = null;
+    if (_tourActive) _renderTour();
+  }, 80);
 }
 window.endTour = endTour;
 
@@ -6870,6 +6892,10 @@ function _renderTour() {
 // Hilfsfunktion: positioniert die Tour-Card so, dass sie das Target nicht verdeckt.
 function _positionTourCard(targetEl, card) {
   if (!targetEl || !card) return;
+  // QA-Fix 2026-05-23 (Audit-T-Code-3): Element könnte zwischen Render und
+  // setTimeout-Callback aus dem DOM entfernt worden sein (z.B. tab-Wechsel).
+  // getBoundingClientRect liefert dann {0,0,0,0} → Card landet links-oben.
+  if (!document.body.contains(targetEl)) return;
   const tRect = targetEl.getBoundingClientRect();
   const vh = window.innerHeight;
   const vw = window.innerWidth;
@@ -7029,6 +7055,9 @@ function applyKalkProfil(profilKey) {
   markKalkDirty();
   toast('Käufer-Profil auf "' + profilKey + '" gesetzt (Steuersatz ' + (p.steuersatz * 100).toFixed(0) + ' %)', 'info');
   renderTabKalkulator();
+  // QA-Fix 2026-05-23 (Audit-T-5/T-6): nach renderTabKalkulator ist das alte
+  // highlighted Element aus dem DOM — Tour neu rendern damit Spotlight zurück kommt.
+  if (typeof _tourRerender === 'function') _tourRerender();
 }
 window.applyKalkProfil = applyKalkProfil;
 
@@ -7224,6 +7253,9 @@ function kavQueueMutation(applyMutation, opts) {
       if (state.kunde && state.kunde.id === kundeId) renderKunde();
     } catch (e) {
       toast((_opts.errorPrefix || 'Fehler: ') + (e && e.message ? e.message : 'unbekannt'), 'error');
+      // QA-Fix 2026-05-23 (Audit-K-1): bei Save-Fehler UI auf state zurücksetzen,
+      // damit die optimistische Checkbox-Markierung nicht hängen bleibt.
+      if (state.kunde && state.kunde.id === kundeId) renderKunde();
     }
   });
   return _kavSaveQueue;
