@@ -55,7 +55,10 @@ module.exports = async (req, res) => {
           const vRec = await airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId });
           vName = (vRec && vRec.fields && vRec.fields[VERTRIEBLER_FIELDS.NAME]) || '';
         } catch (e) {
-          // Fallback: ohne Namen kein Filter — zeigt 0 statt alle (sicherer).
+          // QA-Fix 2026-05-23 (Audit-Y-B3): Silent fail loggen, damit Server-Logs
+          // zeigen WARUM ein Vertriebler plötzlich 0 Kunden sieht (typische
+          // Ursache: Vertriebler-Record gelöscht / IDs verschoben).
+          console.error('[kunden:GET] Vertriebler-Lookup fehlgeschlagen für vertrieblerId=' + session.vertrieblerId + ':', e && e.message);
         }
         if (vName) {
           // QA-Fix 2026-05-23 (Audit-Y-B1): exakter Match mit Komma-Separator-Wrapping.
