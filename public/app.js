@@ -2169,6 +2169,16 @@ function recalcAndRender() {
     if (errGrid) errGrid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;color:var(--negative);"><strong>Berechnung fehlgeschlagen.</strong> Prüf die Eingabewerte oder lade die Seite neu.</div>`;
     return;
   }
+  // QA-Fix 2026-05-23 (Audit E-1): recalc returnt jetzt null wenn kaufpreis=0.
+  // Frontend muss das defensiv handhaben, sonst crasht jeder folgende Zugriff.
+  if (r == null) {
+    state.kalkResult = null;
+    const errGrid = document.getElementById('kpi-grid');
+    if (errGrid) errGrid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;color:var(--text-tertiary);"><strong>Kein Kaufpreis</strong> — Eckdaten der WE in Stammdaten pflegen.</div>`;
+    const storyEl = document.getElementById('story-container');
+    if (storyEl) storyEl.innerHTML = '<div class="empty-state" style="padding:40px;text-align:center;">Kaufpreis fehlt — keine Kalkulation möglich.</div>';
+    return;
+  }
   state.kalkResult = r;
 
   // KPIs
@@ -6554,6 +6564,8 @@ function _renderWeListeContent() {
         monateSeitMieterhoehung: monateSeit != null ? monateSeit : (modus === 'sprung' ? 36 : 0),
       });
       const r = window.Kalk.recalc(inputs);
+      // QA-Fix 2026-05-23 (Audit E-1): null bei kaufpreis=0 sauber handhaben.
+      if (r == null) return { incomplete: true, reason: 'Kaufpreis nicht gepflegt' };
       // Brutto-Rendite Tag 1 = (Effektive Kaltmiete + Stellplatz + Subv-Phase-1) × 12 / KpGesamt
       // effKaltmiete enthält bereits Tag-1-Anhebung wenn vorhanden.
       const mieteMo = effKaltmiete + ((detailStpl.mieteMoSumme || stpl.mieteMoSumme) || 0) + subvMoPhase1;

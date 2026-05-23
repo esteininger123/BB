@@ -57,10 +57,16 @@ module.exports = async (req, res) => {
       airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId }),
     ]);
 
-    // Owner-Check: Nicht-Admins dürfen nur eigene Kunden bedienen
+    // QA-Fix 2026-05-23 (Audit B-1 BLOCKER): Robuste Owner-Normalisierung wie in
+    // canAccess (kunden/[id].js) und canAccessKunde (snapshots.js). Vorher
+    // schlug includes() bei Owner als {id, name}-Object oder Display-Name fehl
+    // → Vertriebler bekamen 403 auf EIGENE Kunden → keine Reservierung möglich.
     if (session.rolle !== 'Admin') {
-      const owners = (kundeRec.fields && kundeRec.fields[KUNDEN_FIELDS.OWNER]) || [];
-      if (!Array.isArray(owners) || !owners.includes(session.vertrieblerId)) {
+      const ownersRaw = (kundeRec.fields && kundeRec.fields[KUNDEN_FIELDS.OWNER]) || [];
+      const ownerIds = Array.isArray(ownersRaw)
+        ? ownersRaw.map(o => (o && typeof o === 'object') ? o.id : (typeof o === 'string' && o.startsWith('rec') ? o : null)).filter(Boolean)
+        : [];
+      if (!ownerIds.includes(session.vertrieblerId)) {
         return res.status(403).json({ error: 'Kein Zugriff auf diesen Kunden' });
       }
     }

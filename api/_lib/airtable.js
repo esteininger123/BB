@@ -36,10 +36,25 @@ function buildQuery(params) {
 }
 
 async function fetchWithRetry(url, options, attempt = 0) {
-  const res = await fetch(url, options);
-  if (res.status === 429 && attempt < 3) {
-    // Rate-Limit, kurz warten und retry
-    await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+  let res;
+  try {
+    res = await fetch(url, options);
+  } catch (e) {
+    // QA-Fix 2026-05-23 (Audit B-2): Netzwerk-Fehler (DNS, Connection refused)
+    // auch retryen — könnte transienter Vercel-Edge-Issue sein.
+    if (attempt < 2) {
+      await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
+      return fetchWithRetry(url, options, attempt + 1);
+    }
+    throw e;
+  }
+  // QA-Fix 2026-05-23 (Audit B-2 BLOCKER): nicht nur 429, sondern auch 5xx
+  // (Airtable-Wartung, transientes Edge-Issue) retryen. Bonus: Retry-After-
+  // Header respektieren wenn vorhanden.
+  if ((res.status === 429 || (res.status >= 500 && res.status < 600)) && attempt < 3) {
+    const retryAfter = parseInt(res.headers && res.headers.get && res.headers.get('retry-after')) || 0;
+    const waitMs = retryAfter > 0 ? Math.min(retryAfter * 1000, 5000) : 500 * (attempt + 1);
+    await new Promise(r => setTimeout(r, waitMs));
     return fetchWithRetry(url, options, attempt + 1);
   }
   return res;

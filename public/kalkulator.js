@@ -574,7 +574,20 @@ function recalc(i) {
   if (i && i.bonModus === 'detail' && typeof i.saSteuersatz === 'number' && isFinite(i.saSteuersatz)) {
     i = Object.assign({}, i, { steuersatz: i.saSteuersatz });
   }
-  const kpGesamt = i.kaufpreis + i.stellplatzKp;
+  // QA-Fix 2026-05-23 (Audit E-1 HIGH): Hard-Guard gegen kaufpreis=0. Vorher
+  // silent NaN-Kaskade durch die ganze Engine (annuityMo=0, ln1=NaN, nper=NaN,
+  // CF=0/NaN-Mischung). User sah leere oder „n.v."-Werte ohne Verständnis warum.
+  const kpGesamt = (parseFloat(i.kaufpreis) || 0) + (parseFloat(i.stellplatzKp) || 0);
+  if (!(kpGesamt > 0)) return null;
+  // QA-Fix 2026-05-23 (Audit E-3 HIGH): zins=0 (Volltilgung / Promo-Darlehen)
+  // hat im cumipmtExcel-Pfad eine NaN-Kaskade ausgelöst (rate=0 → division
+  // durch 0). Erkenne den Fall und nutze für Volltilger einen vereinfachten
+  // Plan: keine Zinsen, lineare Tilgung über nper Monate.
+  const _zinsValid = (typeof i.zins === 'number' && isFinite(i.zins) && i.zins > 0);
+  if (!_zinsValid && (typeof i.zins !== 'number' || !isFinite(i.zins))) {
+    // Defekter Input → konservativ auf BB-Default 4.5% setzen.
+    i = Object.assign({}, i, { zins: 0.045 });
+  }
   // Kaufnebenkosten: GrESt (variabel pro Bundesland) + Notar 1,5 % + Grundbuch 0,5 %.
   // Keine Maklerprovision — B&B verkauft direkt. GrESt kommt aus Airtable-Stammdaten
   // (i.grEstPct), Fallback 5 % (BaWü).
@@ -1144,11 +1157,11 @@ function recalcPaket(weInputsArr, personSettings) {
     personFields.forEach(f => {
       if (ps[f] !== undefined) merged[f] = ps[f];
     });
-    // Damit Sparen-vs-Inv. nicht in jedem Einzel-Recalc gegen volles Vermögen rechnet:
-    // wir aggregieren das auf Paket-Ebene neu.
     return recalc(merged);
-  });
+  }).filter(Boolean); // QA-Fix 2026-05-23 (Audit E-1): recalc kann jetzt null
+                      // returnen (KP=0). Diese WEs aus der Paket-Aggregation rausfiltern.
 
+  if (results.length === 0) return null;
   const sum = (key, fn) => results.reduce((s, r) => s + (fn ? fn(r) : (r[key] || 0)), 0);
 
   // 2. Aggregations-KPIs

@@ -74,9 +74,13 @@ module.exports = async (req, res) => {
   } catch (e) {
     return res.status(404).json({ error: 'Kunde nicht gefunden' });
   }
+  // QA-Fix 2026-05-23 (Audit B-1 BLOCKER): Robuste Owner-Normalisierung.
   if (session.rolle !== 'Admin') {
-    const owners = (kundeRec.fields && kundeRec.fields[KUNDEN_FIELDS.OWNER]) || [];
-    if (!Array.isArray(owners) || !owners.includes(session.vertrieblerId)) {
+    const ownersRaw = (kundeRec.fields && kundeRec.fields[KUNDEN_FIELDS.OWNER]) || [];
+    const ownerIds = Array.isArray(ownersRaw)
+      ? ownersRaw.map(o => (o && typeof o === 'object') ? o.id : (typeof o === 'string' && o.startsWith('rec') ? o : null)).filter(Boolean)
+      : [];
+    if (!ownerIds.includes(session.vertrieblerId)) {
       return res.status(403).json({ error: 'Kein Zugriff auf diesen Kunden' });
     }
   }
