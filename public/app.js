@@ -714,6 +714,10 @@ function setTab(t) {
   state.tab = t;
   history.replaceState(null, '', '#/kunde/' + state.kundeId + '/' + t);
   renderKunde();
+  // QA-Fix 2026-05-23: Tour live re-rendern wenn der Tab wechselt — replaceState
+  // löst keinen hashchange aus, daher manuell triggern. Sonst sieht der Vertriebler
+  // einen falschen „Element nicht sichtbar"-Hinweis obwohl er den richtigen Tab hat.
+  if (typeof _tourRerender === 'function') _tourRerender();
 }
 window.setTab = setTab;
 
@@ -6600,6 +6604,7 @@ const TOUR_STEPS = [
     tip: 'Es erscheinen nur Projekte, in denen B&B aktuell aktive Wohneinheiten vermarktet. Wenn keins da ist → Domi/Henry pingen wegen Stammdaten-Pflege.',
     target: '#projekt-select',
     needsView: 'kunde',
+    needsTab: 'kalkulator',
   },
   {
     title: 'Schritt 5 — Wohneinheit wählen',
@@ -6607,6 +6612,7 @@ const TOUR_STEPS = [
     tip: 'Status-Pille zeigt vermietet/leer. Stellplätze (Garagen/Außenstellplätze) werden automatisch dazugeladen, wenn welche zur WE gehören.',
     target: '#we-select',
     needsView: 'kunde',
+    needsTab: 'kalkulator',
   },
   {
     title: 'Schritt 6 — Hero anschauen',
@@ -6614,6 +6620,7 @@ const TOUR_STEPS = [
     tip: 'Darunter zwei Quick-Buttons: Snapshot speichern + PDF erstellen. Tipp: vor jedem Wert-Sprung einen Snapshot — als Diskussions-Anker mit dem Kunden.',
     target: '.kalk-c-hero-headline',
     needsView: 'kunde',
+    needsTab: 'kalkulator',
   },
   {
     title: 'Schritt 7 — Profil wählen (Bonität)',
@@ -6621,6 +6628,7 @@ const TOUR_STEPS = [
     tip: 'Standard = 30 % StSatz · Premium = 35 % · Spitze = 42 %. Den Steuersatz kannst Du auch individuell überschreiben — Profil-Wechsel danach fragt vor dem Überschreiben nach.',
     target: '#kalk-profil-select',
     needsView: 'kunde',
+    needsTab: 'kalkulator',
   },
   {
     title: 'Schritt 8 — Snapshot speichern',
@@ -6628,6 +6636,7 @@ const TOUR_STEPS = [
     tip: 'Snapshots sind eingefrorene Zwischenstände — sie ändern sich nicht mehr, auch wenn Stammdaten sich ändern. Beim Reload kommt ein Toast „Werte eingefroren".',
     target: 'button[onclick*="saveSnapshot"]',
     needsView: 'kunde',
+    needsTab: 'kalkulator',
   },
   {
     title: 'Schritt 9 — PDF Investitionsrechnung exportieren',
@@ -6635,6 +6644,7 @@ const TOUR_STEPS = [
     tip: '7-Seiten Investitionsrechnung mit Cover, Eckdaten, Vermögensaufbau, Cashflow, Bonität wie die Bank rechnet, Annahmen. Edgars Standard-Pitch-Doc.',
     target: 'button[onclick*="exportInvestPdf"]',
     needsView: 'kunde',
+    needsTab: 'kalkulator',
   },
   {
     title: 'Schritt 10 — Selbstauskunft öffnen',
@@ -6654,8 +6664,9 @@ const TOUR_STEPS = [
     title: 'Schritt 12 — Reservierung digital senden (NICHT klicken)',
     action: 'Wechsel zurück zum Kalkulator-Tab. Scroll runter zur Toolbar — da ist der Button „Reservierung digital senden". Klick ihn NICHT, das würde ein echtes PandaDoc-Doc an die Test-Mail schicken.',
     tip: 'Was passiert würde: PandaDoc öffnet sich, Käufer- und Verkäufer-Daten werden automatisch eingesetzt, Frist 30 Tage. Kunde unterschreibt digital. Status landet automatisch in Kunden-Notizen via Webhook.',
-    target: '.tab[data-tab="kalkulator"]',
+    target: 'button[onclick*="sendReservierungForSignature"]',
     needsView: 'kunde',
+    needsTab: 'kalkulator',
   },
   {
     title: 'Schritt 13 — Aktive WEs im Überblick',
@@ -6760,28 +6771,41 @@ function _renderTour() {
 
   // View-Check: aktuelle state.view passt zur needsView?
   const needsView = step.needsView || null;
+  const needsTab  = step.needsTab  || null;
   const viewMatches = !needsView || state.view === needsView;
+  const tabMatches  = !needsTab  || state.tab  === needsTab;
   const viewLabel = { dashboard: 'Dashboard', kunde: 'Kunde-Detail-Seite', 'we-liste': 'Aktive WEs', admin: 'Admin' }[needsView] || needsView;
   const viewHref = { dashboard: '#/dashboard', kunde: state.kundeId ? ('#/kunde/' + state.kundeId) : '#/dashboard', 'we-liste': '#/we-liste', admin: '#/admin' }[needsView] || '#/dashboard';
+  const tabLabel = { uebersicht: 'Übersicht', kalkulator: 'Kalkulator', selbstauskunft: 'Selbstauskunft', snapshots: 'Snapshots' }[needsTab] || needsTab;
 
-  const targetEl = (viewMatches && step.target) ? document.querySelector(step.target) : null;
+  const targetEl = (viewMatches && tabMatches && step.target) ? document.querySelector(step.target) : null;
 
   // Bei View-Mismatch: klarer Block + Auto-Hinbringen
-  const viewMismatchBlock = (!viewMatches)
-    ? `<div class="bbk-tour-warn">
+  let viewMismatchBlock = '';
+  if (!viewMatches) {
+    viewMismatchBlock = `<div class="bbk-tour-warn">
          <strong>Du bist nicht auf der richtigen Seite.</strong>
          Dieser Schritt ist auf der Seite „${esc(viewLabel)}".
          <div style="margin-top:10px;">
            <a href="${viewHref}" class="bbk-tour-jumpbtn">→ Dorthin springen</a>
          </div>
-       </div>`
-    : '';
+       </div>`;
+  } else if (!tabMatches) {
+    // View OK aber falscher Tab → Tab-Wechsel-Button
+    viewMismatchBlock = `<div class="bbk-tour-warn">
+         <strong>Falscher Tab.</strong>
+         Dieser Schritt ist im Tab „${esc(tabLabel)}".
+         <div style="margin-top:10px;">
+           <button type="button" class="bbk-tour-jumpbtn" onclick="setTab('${esc(needsTab)}')">→ Tab wechseln</button>
+         </div>
+       </div>`;
+  }
 
-  // Bei View-Match aber Element fehlt: Hinweis (z.B. Tab noch nicht geklickt)
-  const targetMissingBlock = (viewMatches && step.target && !targetEl)
+  // Bei View+Tab-Match aber Element fehlt: Hinweis (z.B. Conditional Rendering)
+  const targetMissingBlock = (viewMatches && tabMatches && step.target && !targetEl)
     ? `<div class="bbk-tour-warn">
          <strong>Element gerade nicht sichtbar.</strong>
-         Vielleicht musst Du einen Tab wechseln oder etwas scrollen. Die Tour läuft trotzdem weiter.
+         Vielleicht musst Du etwas scrollen oder eine WE auswählen. Die Tour läuft trotzdem weiter.
        </div>`
     : '';
 
