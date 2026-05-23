@@ -13,13 +13,36 @@ const { TABLES, SNAPSHOT_FIELDS, KUNDEN_FIELDS } = require('./_lib/tables');
 const { snapshotRecordToApi, snapshotBodyToFields } = require('./_lib/mappers');
 
 // Checkt Owner-Zugriff auf den Kunden für die Snapshot-Sicht.
+// QA-Fix 2026-05-23 (Audit-Y-B5): Owner-Array kann verschiedene Formen haben:
+//   - ['recABC123']                              (Linked-Record-IDs, normaler Fall)
+//   - [{ id: 'recABC123', name: 'Edgar' }]       (People-Field oder erweitertes Linked-Record)
+//   - ['Edgar Steininger']                       (Lookup auf Name — wenn Schema mal umgestellt wird)
+// Vorher: `.includes(session.vertrieblerId)` matched nur exakt String → flatten unklar.
+// Jetzt: normalisieren zu IDs + Namen, gegen beides matchen.
 async function canAccessKunde(session, kundeId) {
   if (!kundeId) return false;
   if (session.rolle === 'Admin') return true;
   try {
     const rec = await airtable('get', TABLES.KUNDEN, { recordId: kundeId });
-    const owners = (rec.fields && rec.fields[KUNDEN_FIELDS.OWNER]) || [];
-    return Array.isArray(owners) && owners.includes(session.vertrieblerId);
+    const ownersRaw = (rec.fields && rec.fields[KUNDEN_FIELDS.OWNER]) || [];
+    if (!Array.isArray(ownersRaw)) return false;
+    const ownerIds = ownersRaw
+      .map(o => (o && typeof o === 'object') ? o.id : (typeof o === 'string' && o.startsWith('rec') ? o : null))
+      .filter(Boolean);
+    if (ownerIds.includes(session.vertrieblerId)) return true;
+    // Name-Fallback (falls Schema mal nur Namen liefert)
+    const ownerNames = ownersRaw
+      .map(o => (o && typeof o === 'object') ? (o.name || o.email || '') : (typeof o === 'string' ? o : ''))
+      .filter(s => s && !s.startsWith('rec'));
+    if (ownerNames.length > 0) {
+      try {
+        const { VERTRIEBLER_FIELDS } = require('./_lib/tables');
+        const vRec = await airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId });
+        const myName = (vRec && vRec.fields && vRec.fields[VERTRIEBLER_FIELDS.NAME]) || '';
+        if (myName && ownerNames.includes(myName)) return true;
+      } catch {}
+    }
+    return false;
   } catch {
     return false;
   }

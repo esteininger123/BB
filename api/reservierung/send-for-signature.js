@@ -417,16 +417,15 @@ function composeQmWeNr(qm, weNr, stellplaetze) {
 }
 
 function composeKaufpreis(wohnungsPreis, stellplaetze, snapKaufpreis) {
-  // Wenn Snapshot-Preis existiert, nehmen wir den als Single-Wert (eingefroren).
-  if (snapKaufpreis && snapKaufpreis > 0) {
-    return formatEUR(snapKaufpreis);
-  }
+  // QA-Fix 2026-05-23 (Audit-X1): Snapshot-Kaufpreis ist NUR Wohnungspreis (ohne
+  // Stellplatz). Vorher wurde der bevorzugt → KAV-Doc zeigte unvollständigen Preis.
+  // Fix: auch bei Snapshot-Preis Stellplätze dazurechnen.
   const stellplatzPreis = (stellplaetze || []).reduce((sum, s) => sum + (s && s.preis ? s.preis : 0), 0);
-  const gesamt = (wohnungsPreis || 0) + stellplatzPreis;
+  const whgPreis = (snapKaufpreis && snapKaufpreis > 0) ? snapKaufpreis : (wohnungsPreis || 0);
+  const gesamt = whgPreis + stellplatzPreis;
   if (stellplatzPreis <= 0) {
-    return formatEUR(wohnungsPreis);
+    return formatEUR(whgPreis);
   }
-  // Mehrteilig: "120.000,00 € (Wohnung) + 15.000,00 € (Garage) = 135.000,00 €"
   const stplLabel = stellplaetze.length === 1 ? (stellplaetze[0].typ || 'Stellplatz') : 'Stellplätze';
-  return `${formatEUR(wohnungsPreis)} (Wohnung) + ${formatEUR(stellplatzPreis)} (${stplLabel}) = ${formatEUR(gesamt)}`;
+  return `${formatEUR(whgPreis)} (Wohnung) + ${formatEUR(stellplatzPreis)} (${stplLabel}) = ${formatEUR(gesamt)}`;
 }

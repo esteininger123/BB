@@ -131,7 +131,15 @@ function phaseBadgeClass(phase) {
 }
 function fmtDate(d) {
   if (!d) return '—';
-  try { return new Date(d).toLocaleDateString('de-DE'); } catch(e) { return d; }
+  try {
+    const dt = new Date(d);
+    // QA-Fix 2026-05-23 (Audit-X12): `new Date('foo').toLocaleDateString()` wirft
+    // KEINEN Fehler, sondern liefert "Invalid Date". Vorher rutschte das in die UI.
+    if (isNaN(dt.getTime())) return '—';
+    return dt.toLocaleDateString('de-DE');
+  } catch(e) {
+    return '—';
+  }
 }
 
 // ===== MODUL: views/auth (renderHeader + Login + Logout + Google-Sign-In) =====
@@ -336,21 +344,21 @@ function renderDashboard() {
           <div class="wv-row overdue" onclick="go('/kunde/${esc(k.id)}')">
             <div class="wv-row-status">⚠ ${wv.tageUeber}d überfällig</div>
             <div class="wv-row-main"><strong>${esc(k.name || (k.vorname + ' ' + k.nachname) || '—')}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
-            <div class="wv-row-date">${esc(new Date(wv.datum).toLocaleDateString('de-DE'))}</div>
+            <div class="wv-row-date">${esc(fmtDate(wv.datum))}</div>
           </div>
         `).join('')}
         ${wvToday.map(({k, wv}) => `
           <div class="wv-row today" onclick="go('/kunde/${esc(k.id)}')">
             <div class="wv-row-status">🔔 heute</div>
             <div class="wv-row-main"><strong>${esc(k.name || (k.vorname + ' ' + k.nachname) || '—')}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
-            <div class="wv-row-date">${esc(new Date(wv.datum).toLocaleDateString('de-DE'))}</div>
+            <div class="wv-row-date">${esc(fmtDate(wv.datum))}</div>
           </div>
         `).join('')}
         ${wvSoon.map(({k, wv}) => `
           <div class="wv-row soon" onclick="go('/kunde/${esc(k.id)}')">
             <div class="wv-row-status">in ${wv.tage}d</div>
             <div class="wv-row-main"><strong>${esc(k.name || (k.vorname + ' ' + k.nachname) || '—')}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
-            <div class="wv-row-date">${esc(new Date(wv.datum).toLocaleDateString('de-DE'))}</div>
+            <div class="wv-row-date">${esc(fmtDate(wv.datum))}</div>
           </div>
         `).join('')}
       </div>
@@ -1304,10 +1312,14 @@ function kalkInputsPaketHtml(i) {
 
 function kalkInputsThemenHtml(i) {
   // Plain Number-Input
+  // QA-Fix 2026-05-23 (Audit-X8): min="0" als Default. Negative Werte sind in
+  // KEINEM Baukasten-Feld sinnvoll (KP, Miete, HG, HV, Zins, Tilgung, EK …).
+  // Vorher konnte ein versehentliches Minus die Kalkulation in negative Cashflows
+  // kippen, ohne dass der User es sofort sah.
   const num = (label, key, suffix, step) => `
     <div>
       <label>${esc(label)}${suffix ? ' (' + suffix + ')' : ''}</label>
-      <input data-kalk="${key}" type="number" step="${step || 'any'}" value="${i[key] === undefined || i[key] === null ? '' : i[key]}">
+      <input data-kalk="${key}" type="number" min="0" step="${step || 'any'}" value="${i[key] === undefined || i[key] === null ? '' : i[key]}">
     </div>`;
   // Slider + Number-Input gekoppelt (Prozent-Wert wird in Dezimal gespeichert)
   const slider = (label, key, minPct, maxPct, stepPct) => {
@@ -3769,7 +3781,15 @@ window.exportInvestPdf = exportInvestPdf;
 window.exportReservPdf = exportReservPdf;
 window.exportSaPdf = exportSaPdf;
 
+// QA-Fix 2026-05-23 (Audit-X4): Doppelklick-Schutz. Vorher erzeugte ein versehentlicher
+// 2. Klick einen zweiten PandaDoc-Vorgang → 2 Docs, doppelte Reservierung, Verwirrung
+// beim Kunden. Jetzt: bool-Lock + Button-Disable für die Dauer des Calls.
+let _sendReservLock = false;
 async function sendReservierungForSignature() {
+  if (_sendReservLock) {
+    toast('Vorgang läuft bereits — bitte warten', 'info');
+    return;
+  }
   // Voraussetzungen prüfen (klare Fehlermeldungen statt stiller Disabled-Button)
   if (!state.kundeId) {
     toast('Erst Kunde auswählen', 'error');
@@ -3811,6 +3831,11 @@ async function sendReservierungForSignature() {
     if (fitting[0]) snapshotId = fitting[0].id;
   }
 
+  _sendReservLock = true;
+  // Alle „Reservierung digital senden"-Buttons disablen, damit der Click nicht
+  // mehrfach ausgelöst werden kann auch wenn der User schnell klickt.
+  const _resBtns = Array.from(document.querySelectorAll('button[onclick*="sendReservierungForSignature"]'));
+  _resBtns.forEach(b => { b.disabled = true; b.dataset.prevText = b.textContent; b.textContent = 'Sende…'; });
   toast('Erstelle Dokument in PandaDoc…', 'info');
   try {
     const resp = await api.post('/api/reservierung/send-for-signature', {
@@ -3844,6 +3869,9 @@ async function sendReservierungForSignature() {
     const hint = e.body && e.body.hint ? ' — ' + e.body.hint : '';
     const detail = e.body && e.body.detail ? ' (' + String(e.body.detail).substring(0, 120) + ')' : '';
     toast('Fehler: ' + (e.message || 'unbekannt') + hint + detail, 'error');
+  } finally {
+    _sendReservLock = false;
+    _resBtns.forEach(b => { b.disabled = false; if (b.dataset.prevText) { b.textContent = b.dataset.prevText; delete b.dataset.prevText; } });
   }
 }
 window.sendReservierungForSignature = sendReservierungForSignature;
@@ -4001,7 +4029,13 @@ function openReservierungFinalModal({ editorUrl, kundeName, weLabel, kundeEmail,
 // es an /api/sa/send-for-signature. Backend rendert via Puppeteer zu PDF und
 // uploaded zu PandaDoc mit parse_form_fields:true → Field-Tags werden erkannt.
 
+// QA-Fix 2026-05-23 (Audit-X4): Lock auch für SA-Versand (gleiches Risiko).
+let _sendSaLock = false;
 async function sendSaForSignature() {
+  if (_sendSaLock) {
+    toast('Vorgang läuft bereits — bitte warten', 'info');
+    return;
+  }
   if (!state.kundeId) {
     toast('Erst Kunde auswählen', 'error');
     return;
@@ -4075,6 +4109,9 @@ async function sendSaForSignature() {
   state.kunde.saJson = state._sa;
   const html = window.PDF.selbstauskunftHtmlForPandaDoc(state.kunde, state.user);
 
+  _sendSaLock = true;
+  const _saBtns = Array.from(document.querySelectorAll('button[onclick*="sendSaForSignature"]'));
+  _saBtns.forEach(b => { b.disabled = true; b.dataset.prevText = b.textContent; b.textContent = 'Sende…'; });
   toast('Erstelle Dokument in PandaDoc… (kann 10-15 Sek dauern)', 'info');
   try {
     const resp = await api.post('/api/sa/send-for-signature', {
@@ -4108,6 +4145,9 @@ async function sendSaForSignature() {
     }
   } catch (e) {
     toast('Fehler: ' + (e && e.message ? e.message : 'Unbekannt'), 'error');
+  } finally {
+    _sendSaLock = false;
+    _saBtns.forEach(b => { b.disabled = false; if (b.dataset.prevText) { b.textContent = b.dataset.prevText; delete b.dataset.prevText; } });
   }
 }
 window.sendSaForSignature = sendSaForSignature;
@@ -5085,10 +5125,12 @@ function saPersonHtml(prefix, p) {
       <input data-sa="${prefix}.${key}" type="text" value="${esc(p[key] || '')}">
     </div>`;
   // Zahl-Feld
+  // QA-Fix 2026-05-23 (Audit-X8): min="0" — Einkünfte, Belastungen, Vermögen
+  // sind nie negativ in der SA (Schulden sind eigene Felder).
   const n = (label, key, suffix, step) => `
     <div>
       <label>${esc(label)}${suffix ? ' (' + suffix + ')' : ''}</label>
-      <input data-sa="${prefix}.${key}" type="number" step="${step || 'any'}" value="${p[key] !== undefined && p[key] !== null ? p[key] : ''}">
+      <input data-sa="${prefix}.${key}" type="number" min="0" step="${step || 'any'}" value="${p[key] !== undefined && p[key] !== null ? p[key] : ''}">
     </div>`;
   // Datum-Feld
   const d = (label, key) => `
@@ -5116,7 +5158,7 @@ function saPersonHtml(prefix, p) {
     if (type === 'text') {
       return `<div><label>${esc(label)}</label><input data-sa="${fullKey}" type="text" value="${esc(val || '')}"></div>`;
     }
-    return `<div><label>${esc(label)}${suffix ? ' (' + suffix + ')' : ''}</label><input data-sa="${fullKey}" type="number" step="${step || 'any'}" value="${val !== undefined && val !== null ? val : ''}"></div>`;
+    return `<div><label>${esc(label)}${suffix ? ' (' + suffix + ')' : ''}</label><input data-sa="${fullKey}" type="number" min="0" step="${step || 'any'}" value="${val !== undefined && val !== null ? val : ''}"></div>`;
   };
 
   // Iter 72 (21.05.2026): Stammdaten in einem zusammenfassenden Container — abgegrenzt
@@ -5432,7 +5474,7 @@ function loadSnapshot(id) {
     // Konserven (Marktmiete, Subv-Phasen, Stammdaten zum Speicher-Zeitpunkt). Vertriebler
     // soll wissen: "vorsicht, das ist eine alte Rechnung". Wenn er Live-Stammdaten will,
     // muss er die WE neu aus dem Dropdown laden.
-    const datumStr = s.createdAt ? new Date(s.createdAt).toLocaleDateString('de-DE') : null;
+    const datumStr = s.createdAt ? fmtDate(s.createdAt) : null;
     if (_promoted && datumStr) {
       toast('Snapshot vom ' + datumStr + ' geladen — Gebäude-Anteil auto-angepasst (0,80→0,85, Iter 61). Stammdaten sind eingefroren; für Live-Werte WE neu wählen.', 'warning');
     } else if (datumStr) {
@@ -6840,7 +6882,7 @@ function renderKavCockpit(k) {
   } else if (wvStatus.status === 'soon') {
     wvBadge = `<button class="kav-wv-badge soon" onclick="kavSetWiedervorlage()">🔔 in ${wvStatus.tage}d</button>`;
   } else if (wvStatus.status === 'future') {
-    wvBadge = `<button class="kav-wv-badge future" onclick="kavSetWiedervorlage()">🔔 ${new Date(wvStatus.datum).toLocaleDateString('de-DE')}</button>`;
+    wvBadge = `<button class="kav-wv-badge future" onclick="kavSetWiedervorlage()">🔔 ${fmtDate(wvStatus.datum)}</button>`;
   } else {
     wvBadge = `<button class="kav-wv-badge none" onclick="kavSetWiedervorlage()">+ Wiedervorlage</button>`;
   }
@@ -6858,7 +6900,8 @@ function renderKavCockpit(k) {
     const counts = kavTaskCount(tracker, ph.id);
     const items = ph.tasks.map(t => {
       const done = !!(tracker.tasks || {})[t.id];
-      const dateStr = done ? (tracker.tasks[t.id] && tracker.tasks[t.id] !== true ? new Date(tracker.tasks[t.id]).toLocaleDateString('de-DE') : '') : '';
+      // QA-Fix 2026-05-23 (Audit-X12): fmtDate fängt "Invalid Date" sauber ab → '—'.
+      const dateStr = done ? (tracker.tasks[t.id] && tracker.tasks[t.id] !== true ? fmtDate(tracker.tasks[t.id]) : '') : '';
       return `
         <label class="kav-task ${done ? 'done' : ''} ${t.critical ? 'critical' : ''}">
           <input type="checkbox" ${done ? 'checked' : ''} onchange="kavToggleTask('${t.id}')" />

@@ -58,7 +58,12 @@ module.exports = async (req, res) => {
           // Fallback: ohne Namen kein Filter — zeigt 0 statt alle (sicherer).
         }
         if (vName) {
-          filters.push(`FIND('${escapeFormulaString(vName)}', ARRAYJOIN({Owner}))>0`);
+          // QA-Fix 2026-05-23 (Audit-Y-B1): exakter Match mit Komma-Separator-Wrapping.
+          // Vorher Substring-Match: „Henry" matched „Henry Wacker" UND „Henry Schmidt".
+          // Jetzt: ARRAYJOIN mit „, " als Separator, suche nach „, {Name}, " mit
+          // Komma-Begrenzern → exakter Match auf vollständigen Namen.
+          const esc = escapeFormulaString(vName);
+          filters.push(`OR(FIND(', ${esc}, ', ', ' & ARRAYJOIN({Owner}, ', ') & ', ')>0)`);
         } else {
           // ID-Fallback (matched aktuell nicht, aber zukunftssicher falls Schema-Change)
           filters.push(`FIND('${escapeFormulaString(session.vertrieblerId)}', ARRAYJOIN({Owner}))>0`);
