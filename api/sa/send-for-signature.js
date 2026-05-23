@@ -55,6 +55,17 @@ module.exports = async (req, res) => {
   if (!html || typeof html !== 'string' || html.length < 100) {
     return res.status(400).json({ error: 'html erforderlich (vom Frontend via PDF.selbstauskunftHtmlForPandaDoc)' });
   }
+  // QA-Fix 2026-05-23 (Audit-DD-8): Max-Size-Limit für HTML-Payload, sonst kann
+  // ein böswilliger oder verbuggter Client Puppeteer-Resource-Exhaustion auslösen
+  // (3 GB Memory). 5 MB reicht selbst für eine vollumfängliche SA mit allen
+  // Sektionen + Anbietern + Inline-Bildern.
+  const MAX_HTML_BYTES = 5 * 1024 * 1024;
+  if (Buffer.byteLength(html, 'utf8') > MAX_HTML_BYTES) {
+    return res.status(413).json({
+      error: 'SA-HTML zu groß',
+      hint: `HTML-Größe überschreitet ${(MAX_HTML_BYTES / 1024 / 1024).toFixed(0)} MB Limit. Bitte Inline-Bilder reduzieren oder SA in mehrere Docs aufteilen.`
+    });
+  }
 
   // Kunde laden + Owner-Check (analog Reservierungs-Endpoint)
   let kundeRec;

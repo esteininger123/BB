@@ -3989,7 +3989,13 @@ async function sendReservierungForSignature() {
   } catch (e) {
     const hint = e.body && e.body.hint ? ' — ' + e.body.hint : '';
     const detail = e.body && e.body.detail ? ' (' + String(e.body.detail).substring(0, 120) + ')' : '';
-    toast('Fehler: ' + (e.message || 'unbekannt') + hint + detail, 'error');
+    // QA-Fix 2026-05-23 (Audit-EE-8): Bei Network-Fehler nach Doc-Erstellung kann
+    // das Doc in PandaDoc trotzdem entstanden sein (Response verloren). Klarer
+    // Hinweis, damit Edgar das selbst prüft → kein Doppelversand.
+    const pandadocHint = (e.network || e.status === 0 || e.status >= 500)
+      ? '\n\n⚠ Bitte in PandaDoc-Drafts prüfen — das Doc könnte trotzdem angelegt worden sein. Sonst Doppelversand riskiert.'
+      : '';
+    toast('Fehler: ' + (e.message || 'unbekannt') + hint + detail + pandadocHint, 'error');
   } finally {
     _sendReservLock = false;
     _resBtns.forEach(b => { b.disabled = false; if (b.dataset.prevText) { b.textContent = b.dataset.prevText; delete b.dataset.prevText; } });
@@ -6073,7 +6079,15 @@ function _renderWeListeContent() {
   const projekte = Object.keys(byProjekt).sort();
 
   if (audit.length === 0) {
-    el.innerHTML = `<div class="empty-state" style="padding:48px;text-align:center;color:var(--text-tertiary);">Keine aktiven Wohneinheiten gefunden.</div>`;
+    // QA-Fix 2026-05-23 (Audit-EE-2): nicht nur Text, sondern Reload-Action +
+    // Hinweis an wen sich der Vertriebler wenden soll.
+    el.innerHTML = `
+      <div class="empty-state" style="padding:48px;text-align:center;color:var(--text-tertiary);">
+        <div style="font-size:15px;margin-bottom:8px;">Keine aktiven Wohneinheiten gefunden.</div>
+        <div style="font-size:12px;margin-bottom:20px;">Heißt: Es gibt aktuell keine WE im Status „Vermarktung / Im Verkauf" mit aktiven Stammdaten.</div>
+        <button onclick="renderWeListe()" style="font-family:inherit;font-size:13px;padding:8px 18px;border:1px solid #C9A572;background:#fff;border-radius:18px;cursor:pointer;">⟳ Neu laden</button>
+        <div style="font-size:11px;margin-top:14px;color:var(--text-tertiary);">Bleibt das Ergebnis leer → Domi/Henry pingen, Stammdaten-Pflege checken.</div>
+      </div>`;
     return;
   }
 

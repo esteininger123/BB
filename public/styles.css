@@ -1532,6 +1532,22 @@ input[type="range"].spar-zins-range::-moz-range-track {
   border-bottom: 1px solid var(--border);
 }
 
+/* QA-Fix 2026-05-23 (Audit-EE-7): Admin-Audit-Tabelle auf iPad lesbar.
+   Bei <1100px wrappen wir die Tabelle in einen scrollbaren Container statt
+   die Seite zum horizontalen Scrollen zu zwingen. */
+@media (max-width: 1100px) {
+  .admin-audit-table {
+    font-size: 11px;
+    min-width: 1200px;
+  }
+  .admin-audit-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+}
+
 /* Vertriebler-Stats — vorher inline #b7791f/#2c5282/#f7fafc. */
 .stats-cell.warn   { color: var(--badge-mittelphase-fg); font-weight: 700; }
 .stats-cell.notar  { color: var(--accent-dark);         font-weight: 700; }
