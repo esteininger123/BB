@@ -6963,6 +6963,8 @@ function kavWiedervorlageStatus(tracker) {
   const wv = tracker && tracker.wiedervorlage;
   if (!wv || !wv.datum) return { status: 'none' };
   const target = new Date(wv.datum);
+  // QA-Fix 2026-05-23: bei kaputtem Datum-String (z.B. „demnächst") nicht crashen.
+  if (isNaN(target.getTime())) return { status: 'none' };
   const now = new Date();
   target.setHours(0,0,0,0); now.setHours(0,0,0,0);
   const diffDays = Math.round((target - now) / (1000*60*60*24));
