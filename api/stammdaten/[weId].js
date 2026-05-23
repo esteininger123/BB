@@ -468,16 +468,26 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   if (!kalkApi) return Object.assign({}, empty, { quelle: 'keine-stammdaten' });
 
   // Manueller Override → eine Phase
+  // QA-Fix 2026-05-23 (Audit-BB-1): Vorher reichte nur Monate > 0, um eine
+  // Subv-Phase mit mo=0 zu erzeugen. Resultat: PDF zeigte „0 €/Mo über X Monate"
+  // als Subv-Story — sinnlos und unseriös im Live-Verkauf. Jetzt: BEIDE Werte
+  // müssen > 0 sein, sonst fällt es in den Auto-Pfad.
   const manMo  = kalkApi.mietzuschuss;
   const manMon = kalkApi.mietzuschussMonate;
-  if ((manMo != null && manMo > 0) || (manMon != null && manMon > 0)) {
-    const mo = manMo || 0, monate = manMon || 0;
+  if (manMo != null && manMo > 0 && manMon != null && manMon > 0) {
     return {
-      phasen: [{ mo, monate, label: 'Manuell (Override)' }],
-      totalEur: Math.round(mo * monate),
-      mo, monate, quelle: 'manuell',
+      phasen: [{ mo: manMo, monate: manMon, label: 'Manuell (Override)' }],
+      totalEur: Math.round(manMo * manMon),
+      mo: manMo, monate: manMon, quelle: 'manuell',
       erlaeuterung: 'Manuell gepflegter Mietzuschuss in Stammdaten hat Vorrang.'
     };
+  }
+  // Pflegelücke: nur Höhe ODER nur Monate gepflegt → klare Warnung, keine Phase.
+  if ((manMo != null && manMo > 0) || (manMon != null && manMon > 0)) {
+    return Object.assign({}, empty, {
+      quelle: 'manuell-unvollstaendig',
+      erlaeuterung: 'Mietzuschuss in Stammdaten unvollständig — beide Felder (Höhe + Monate) müssen gepflegt sein.'
+    });
   }
 
   // Vermietungsmodus checken

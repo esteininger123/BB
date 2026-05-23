@@ -3815,9 +3815,23 @@ async function sendReservierungForSignature() {
   const weLabel = (w && (w.projektName ? w.projektName + ' — ' : '') + (w.lageText || w.lage || ('WE ' + w.weNr))) || 'die ausgewählte WE';
   const kundeName = (((state.kunde && state.kunde.vorname) || '') + ' ' + ((state.kunde && state.kunde.nachname) || '')).trim() || '(unbekannt)';
 
+  // QA-Fix 2026-05-23 (Audit-Z-1, DSGVO-Blocker): Kunde-Snapshot VOR Modal-Await.
+  // Wenn Vertriebler Modal öffnet, dann via Sidebar zu anderem Kunden wechselt
+  // und dann bestätigt → Backend bekam neue kundeId aber WE/Modal-Kontext vom
+  // alten Kunden. Worst-Case: PandaDoc-Doc an falsche E-Mail. Hier abfangen.
+  const _frozenKundeId = state.kundeId;
+  const _frozenKundeEmail = kundeEmail;
+  const _frozenWeId = weId;
+
   // Modal 1: Bestätigung vor API-Call
   const userConfirmed = await openReservierungConfirmModal({ kundeName, weLabel, kundeEmail });
   if (!userConfirmed) return;
+
+  // Race-Check: Hat sich der aktive Kunde während Modal-Offen geändert?
+  if (state.kundeId !== _frozenKundeId || (state.kalk && state.kalk._weId !== _frozenWeId)) {
+    toast('Kunde oder WE wurde während Bestätigung gewechselt — Vorgang abgebrochen. Bitte nochmal starten.', 'warning');
+    return;
+  }
 
   // Falls ein Snapshot für diese WE existiert, den jüngsten als Quelle für den Kaufpreis mitschicken.
   let snapshotId = null;
@@ -4095,9 +4109,17 @@ async function sendSaForSignature() {
   const kundeName = ((a.vorname || '') + ' ' + (a.name || '')).trim() || '(ohne Name)';
   const mitName = gemeinsam ? ((m.vorname || '') + ' ' + (m.name || '')).trim() : null;
 
+  // QA-Fix 2026-05-23 (Audit-Z-1, DSGVO-Blocker): siehe sendReservierungForSignature.
+  const _frozenKundeId = state.kundeId;
+
   // Modal 1: Bestätigung vor API-Call
   const userConfirmed = await openSaConfirmModal({ kundeName, kundeEmail: a.email, mitName, mitEmail: gemeinsam ? m.email : null });
   if (!userConfirmed) return;
+
+  if (state.kundeId !== _frozenKundeId) {
+    toast('Kunde wurde während Bestätigung gewechselt — SA-Versand abgebrochen. Bitte nochmal starten.', 'warning');
+    return;
+  }
 
   // HTML generieren (im Browser, mit Inline-CSS für PandaDoc)
   if (!window.PDF || typeof window.PDF.selbstauskunftHtmlForPandaDoc !== 'function') {
@@ -4892,9 +4914,21 @@ function _saStartTimestampTicker() {
 }
 
 async function autoSaveSa() {
+  // QA-Fix 2026-05-23 (Audit-Z-3, DSGVO-Blocker): KundeId zum TRIGGER-Zeitpunkt
+  // einfrieren. Vorher las der setTimeout-Closure state.kundeId nach 600ms — wenn
+  // der Vertriebler in dem Fenster zum nächsten Kunden wechselte, schrieb der
+  // Save SA-Daten von Kunde X in Kunde Y. Jetzt: ID einfrieren + bei Fire prüfen,
+  // dass wir noch beim gleichen Kunden sind. Sonst Drop ohne Schreibvorgang.
+  const _triggerKundeId = state.kundeId;
   // Debounce: 600ms warten und einmalig speichern
   clearTimeout(_saAutoSaveTimer);
   _saAutoSaveTimer = setTimeout(async () => {
+    if (state.kundeId !== _triggerKundeId) {
+      // Kunde wurde gewechselt → nicht speichern. Der Save für den neuen Kunden
+      // wird durch dessen eigenen Input-Trigger ohnehin angestoßen.
+      console.warn('[autoSaveSa] Kunde gewechselt während Debounce — Save übersprungen für', _triggerKundeId);
+      return;
+    }
     const sa = collectSaFromDOM();
     cleanupLegacyFields(sa); // Iter 73: alte Felder mit jedem Save mitlöschen
     sa.gemeinsam = document.getElementById('sa-gemeinsam') ? document.getElementById('sa-gemeinsam').checked : (sa.gemeinsam === true);
@@ -4913,8 +4947,11 @@ async function autoSaveSa() {
     }
     _saUpdateSaveBadge('saving');
     try {
-      await api.put('/api/kunden/' + state.kundeId, payload);
-      state.kunde.saJson = sa;
+      await api.put('/api/kunden/' + _triggerKundeId, payload);
+      // Nur lokal mergen wenn der aktive Kunde noch derselbe ist.
+      if (state.kundeId === _triggerKundeId && state.kunde) {
+        state.kunde.saJson = sa;
+      }
       _saUpdateSaveBadge('saved');
       _saStartTimestampTicker();
     } catch (e) {

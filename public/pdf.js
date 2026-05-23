@@ -575,6 +575,10 @@ function reservierung(kunde, kalkInputs, user) {
   const qm      = (kalkInputs && kalkInputs.qm)        || 0;
   const kp      = (kalkInputs && kalkInputs.kaufpreis) || 0;
   const spKp    = (kalkInputs && kalkInputs.stellplatzKp) || 0;
+  // QA-Fix 2026-05-23 (Audit-AA-3): Stellplatz-Bezeichnung nach Anzahl + Typ.
+  const spAnz   = (kalkInputs && kalkInputs._stellplatzAnzahl) || 0;
+  const spGar   = (kalkInputs && kalkInputs._stellplatzGarageCount) || 0;
+  const spFla   = (kalkInputs && kalkInputs._stellplatzFlaecheCount) || 0;
   const fmt     = window.Kalk.fmtEur;
   const fmtQm   = (v) => (v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' qm';
 
@@ -590,7 +594,18 @@ function reservierung(kunde, kalkInputs, user) {
   // QA-Fix 2026-05-22 (Prüfer-3 B1): bei leerer Lage entsteht kein doppeltes Leerzeichen
   // mehr ("  mit Wohnung 5 ..."). Wenn auch lage leer ist, beginnt der Satz mit
   // "Wohnung X" oder "Objekt" als Fallback.
-  const garageText = spKp > 0 ? ` plus ${fmt(spKp)} für einen Stellplatz/Garage` : '';
+  // QA-Fix 2026-05-23 (Audit-AA-3): Plural + Typ-Bezeichnung dynamisch.
+  // Vorher hartkodiert „einen Stellplatz/Garage" auch bei 2 Stellplätzen.
+  let stplLabel;
+  if (spAnz <= 1) {
+    stplLabel = spGar > 0 ? 'eine Garage' : (spFla > 0 ? 'einen Stellplatz' : 'einen Stellplatz/Garage');
+  } else {
+    if (spGar > 0 && spFla > 0) stplLabel = `${spGar} Garage${spGar > 1 ? 'n' : ''} und ${spFla} Stellplatz${spFla > 1 ? 'plätze' : ''}`;
+    else if (spGar > 0)         stplLabel = `${spGar} Garagen`;
+    else if (spFla > 0)         stplLabel = `${spFla} Stellplätze`;
+    else                        stplLabel = `${spAnz} Stellplätze`;
+  }
+  const garageText = spKp > 0 ? ` plus ${fmt(spKp)} für ${stplLabel}` : '';
   const lageEsc = esc(lage || '');
   const wohnungSuffix = weNr ? `Wohnung ${esc(weNr)}` : '';
   const qmText = qm > 0 ? ` mit ${fmtQm(qm)}` : '';

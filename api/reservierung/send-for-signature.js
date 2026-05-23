@@ -376,14 +376,12 @@ module.exports = async (req, res) => {
 };
 
 function formatEUR(n) {
+  // QA-Fix 2026-05-23 (Audit-AA-1/AA-7): Ganzzahlig formatieren wie App + PDF
+  // (kalkulator.js fmtEur). Vorher zeigte PandaDoc-Doc Cents (200.000,00 €),
+  // App + PDF zeigten ohne (200.000 €) → Käufer sieht Drift im Side-by-Side.
   const num = parseFloat(n);
   if (!isFinite(num)) return '';
-  return num.toLocaleString('de-DE', {
-    style: 'currency',
-    currency: 'EUR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+  return Math.round(num).toLocaleString('de-DE') + ' €';
 }
 
 function composeQmWeNr(qm, weNr, stellplaetze) {
