@@ -233,6 +233,11 @@ module.exports = async (req, res) => {
           marktpreisImmoscout:   num(sf[KALK_STAMMDATEN_FIELDS.MARKTPREIS_IS]),
           marktpreisHomeday:     num(sf[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]),
           marktmiete:            num(sf[KALK_STAMMDATEN_FIELDS.MARKTMIETE]),
+          // Auto-Subv (vom Cron 3×/Tag gepflegt) — Frontend WE-Liste nutzt diese
+          // wenn manueller Mietzuschuss fehlt (Bruchsal-Default-Pattern).
+          autoSubvMo:            num(sf[KALK_STAMMDATEN_FIELDS.AUTO_SUBV_MO]),
+          autoSubvTotal:         num(sf[KALK_STAMMDATEN_FIELDS.AUTO_SUBV_TOTAL]),
+          mietzuschussTotal:     (num(sf[KALK_STAMMDATEN_FIELDS.MIETZUSCHUSS]) || 0) * (num(sf[KALK_STAMMDATEN_FIELDS.MIETZUSCHUSS_MONATE]) || 0),
         } : null,
       };
     });

@@ -5833,15 +5833,20 @@ function _renderWeListeContent() {
       const base = window.Kalk.getDefaults ? window.Kalk.getDefaults() : {};
       const profile = (window.Kalk.PROFILES && window.Kalk.PROFILES[_weListeProfil]) || {};
 
-      // Vermietungs-Modus auf Engine-Modus mappen
+      // Vermietungs-Modus aus Stammdaten (Edgar-Feedback: nicht den WE-IST-Status nehmen —
+      // eine WE kann technisch noch „vermietet" sein aber als Neuvermietung verkauft werden.
+      // Stammdaten-Modus ist die Vertriebs-Wahrheit).
       const modusRaw = String(sd.vermietungsModus || '').toLowerCase();
       let modus = 'sprung';
-      if (verm.status === 'leer' || modusRaw.includes('neuvermietung')) modus = 'staffel';
+      if (modusRaw.includes('neuvermietung') || modusRaw.includes('staffel')) modus = 'staffel';
       else if (modusRaw.includes('bestand')) modus = 'sprung';
       else if (modusRaw.includes('index')) modus = 'index';
+      else if (modusRaw.includes('leer') || modusRaw.includes('frei')) modus = 'staffel';
 
-      // Subv-Phase aus Mietzuschuss + Auto-Subv ableiten
-      const subvMo = (sd.mietzuschuss != null && sd.mietzuschuss > 0) ? sd.mietzuschuss : 0;
+      // Subv-Phase: manueller Mietzuschuss hat Vorrang, sonst Auto-Subv (Backend-Berechnet).
+      const subvMo = (sd.mietzuschuss != null && sd.mietzuschuss > 0)
+        ? sd.mietzuschuss
+        : (sd.autoSubvMo != null && sd.autoSubvMo > 0 ? sd.autoSubvMo : 0);
       const subvMonate = sd.mietzuschussMonate || (subvMo > 0 ? 36 : 0);
       const subventionPhasen = subvMo > 0 ? [{ mo: subvMo, monate: subvMonate }] : [];
 
@@ -5883,6 +5888,10 @@ function _renderWeListeContent() {
         irr: r.irr,
         vermoegenNetto10: r.vermoegenNetto10,
         bruttoRendite,
+        subvMoPhase1: subvMo,
+        subvMonatePhase1: subvMonate,
+        subvGesamt: r.mietsubventionGesamt || (subvMo * subvMonate),
+        modus,
       };
     } catch (e) { return null; }
   }
@@ -5895,28 +5904,44 @@ function _renderWeListeContent() {
       const stpl = row.stellplaetze || {};
       const verm = row.vermietung || {};
       const calc = _berechne(row) || {};
-      const vermBadge = verm.status === 'vermietet'
-        ? '<span class="audit-pill size-sm vermietet">vermietet</span>'
-        : verm.status === 'leer'
-          ? '<span class="audit-pill size-sm leer">leer</span>'
-          : '<span class="audit-cell-missing">–</span>';
-      // Pflege-Zustand: vollständig vs. Lücken
+      // Vermietungs-MODUS aus Stammdaten (Vertriebs-Wahrheit). Edgar:
+      // "Eine WE könnte technisch noch auf Vermietung stehen, wird aber als
+      // Neuvermietung verkauft — geh auf die Stammdaten."
+      const modusRaw = String(sd.vermietungsModus || '').trim();
+      let modusBadge;
+      if (/neuvermietung|staffel/i.test(modusRaw)) {
+        modusBadge = '<span class="audit-pill size-sm leer">Neuvermietung</span>';
+      } else if (/bestand/i.test(modusRaw)) {
+        modusBadge = '<span class="audit-pill size-sm vermietet">Bestand</span>';
+      } else if (/index/i.test(modusRaw)) {
+        modusBadge = '<span class="audit-pill size-sm vermietet">Index</span>';
+      } else if (/leer|frei/i.test(modusRaw)) {
+        modusBadge = '<span class="audit-pill size-sm leer">Leerstand</span>';
+      } else {
+        modusBadge = '<span class="audit-pill size-sm fehlt" title="Vermietungs-Modus in Stammdaten nicht gepflegt">offen</span>';
+      }
+      // Pflege-Lücken nur als dezentes ⚠-Icon am WE-Namen (Edgar: „vollständig macht keinen Sinn")
       const lueckenAnzahl = [
         sd.mieteBeiVerkauf, sd.marktmiete, sd.marktpreisImmoscout || sd.marktpreisHomeday,
         sd.vermietungsModus, sd.gebaeudeAnteil
       ].filter(v => v == null || v === 0 || v === '').length;
-      const zustand = lueckenAnzahl === 0
-        ? '<span class="audit-pill size-sm aktiv">vollständig</span>'
-        : `<span class="audit-pill size-sm entwurf" title="${lueckenAnzahl} Pflichtfelder leer">${lueckenAnzahl} Lücken</span>`;
+      const luckenIcon = lueckenAnzahl > 0
+        ? ` <span title="${lueckenAnzahl} Pflichtfelder leer" style="color:var(--accent-dark);cursor:help;font-size:11px;">⚠</span>`
+        : '';
+      // Mietsubvention: Wert aus der Engine (Phase-1 €/Mo × Mo · Gesamt). Edgar:
+      // „Werte aus der Kalkulation selbst, nicht nur manuelle Stammdaten".
+      const subvCell = calc.subvMoPhase1 > 0
+        ? `<div>${fmtEurMo(calc.subvMoPhase1)} × ${calc.subvMonatePhase1} Mo</div><div class="text-tertiary text-small">Gesamt ${fmtEur(calc.subvGesamt)}</div>`
+        : '<span class="audit-cell-missing">–</span>';
       return `
         <tr class="we-liste-row" onclick="window._weListeOpenWe('${esc(we.id || '')}')">
-          <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong><div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}</div></td>
-          <td>${vermBadge}</td>
-          <td>${zustand}</td>
+          <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}</div></td>
+          <td>${modusBadge}</td>
           <td class="num">${fmtEur(we.kp)}</td>
+          <td class="num">${we.kaltmiete > 0 ? fmtEurMo(we.kaltmiete) : '–'}</td>
           <td class="num">${(stpl.anzahl > 0) ? fmtEur(stpl.kaufpreisSumme) : '–'}</td>
           <td class="num">${(stpl.anzahl > 0 && stpl.mieteMoSumme > 0) ? fmtEurMo(stpl.mieteMoSumme) : '–'}</td>
-          <td class="num">${sd.mietzuschuss > 0 ? fmtEurMo(sd.mietzuschuss) + ' × ' + (sd.mietzuschussMonate || 36) + ' Mo' : '–'}</td>
+          <td class="num">${subvCell}</td>
           <td class="num">${fmtPct(calc.bruttoRendite)}</td>
           <td class="num ${calc.belastungMo < 0 ? 'cell-neg' : 'cell-pos'}">${fmtEurMo(calc.belastungMo)}</td>
           <td class="num">${fmtEur(calc.vermoegenNetto10)}</td>
@@ -5932,14 +5957,14 @@ function _renderWeListeContent() {
             <thead>
               <tr>
                 <th style="min-width:170px;">Wohneinheit</th>
-                <th>Vermietung</th>
-                <th>Zustand</th>
+                <th>Vermietungs-Modus</th>
                 <th class="num">Kaufpreis WHG</th>
+                <th class="num">Kaltmiete WHG</th>
                 <th class="num">Garage KP</th>
                 <th class="num">Garage Miete</th>
                 <th class="num">Mietsubvention</th>
                 <th class="num">Brutto-Rendite</th>
-                <th class="num">Cashflow J1</th>
+                <th class="num">Cashflow J1 n. St.</th>
                 <th class="num">Vermögen J10</th>
                 <th class="num">IRR 10 J</th>
               </tr>
