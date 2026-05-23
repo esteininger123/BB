@@ -863,6 +863,18 @@ async function saveStammdaten(opts) {
     telefon: get('f-telefon'),
     geburtsdatum: get('f-geburtsdatum'),
   };
+  // QA-Fix 2026-05-23 (Audit-Z-6): Rollback bei Save-Fehler. Vorher applied
+  // Object.assign(state.kunde, body) optimistisch vor dem PUT — bei 5xx blieb
+  // state.kunde mit den geänderten Daten zurück, obwohl Airtable den alten Stand
+  // hat. Folgeklicks (PDF-Export, Snapshot) nutzten dann den nie-gespeicherten
+  // Wert. Jetzt: alte Werte sichern, optimistisch updaten, bei Fehler rollback.
+  const _prevKunde = {
+    vorname: state.kunde.vorname,
+    nachname: state.kunde.nachname,
+    email: state.kunde.email,
+    telefon: state.kunde.telefon,
+    geburtsdatum: state.kunde.geburtsdatum,
+  };
   try {
     Object.assign(state.kunde, body);
     const sa = syncStammdatenInSa();
@@ -878,7 +890,12 @@ async function saveStammdaten(opts) {
       state._sa.antragsteller.geburtsdatum = body.geburtsdatum;
     }
     if (!opts.silent) toast('Stammdaten gespeichert (auch in Selbstauskunft übernommen)', 'success');
-  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+  } catch (e) {
+    // Rollback: state.kunde auf alten Stand zurück, damit Folgeklicks nicht
+    // mit Phantom-Daten arbeiten.
+    Object.assign(state.kunde, _prevKunde);
+    toast('Fehler beim Speichern — Änderungen wurden zurückgesetzt: ' + e.message, 'error');
+  }
 }
 window.saveStammdaten = saveStammdaten;
 
@@ -6775,6 +6792,33 @@ function applyKalkProfil(profilKey) {
   if (!window.Kalk || !window.Kalk.PROFILES) return;
   const p = window.Kalk.PROFILES[profilKey];
   if (!p) return;
+
+  // QA-Fix 2026-05-23 (Audit-EE-6): Wenn der User manuell-veränderte Werte hat,
+  // die das Profil überschreiben würde, vorher fragen. Vorher konnte der User
+  // den Käufer-Steuersatz 38% mühsam eintippen und dann durch Profil-Wechsel
+  // verlieren.
+  const manuellGeaendert = [];
+  if (state.kalk._profil && state.kalk._profil !== profilKey) {
+    const cur = window.Kalk.PROFILES[state.kalk._profil];
+    if (cur) {
+      if (Math.abs((state.kalk.steuersatz || 0) - cur.steuersatz) > 1e-4) manuellGeaendert.push(`Steuersatz (${(state.kalk.steuersatz*100).toFixed(0)} % → ${(p.steuersatz*100).toFixed(0)} %)`);
+      if (Math.abs((state.kalk.bonEinnahmen || 0) - cur.bonEinnahmen) > 1) manuellGeaendert.push('Bonität-Einnahmen');
+      if (Math.abs((state.kalk.bonAusgaben || 0) - cur.bonAusgaben) > 1) manuellGeaendert.push('Bonität-Ausgaben');
+      if (Math.abs((state.kalk.bonVermoegen || 0) - cur.bonVermoegen) > 1) manuellGeaendert.push('Bonität-Vermögen');
+    }
+  }
+  if (manuellGeaendert.length > 0) {
+    const ok = window.confirm(
+      `Profil-Wechsel überschreibt deine manuellen Werte:\n\n• ${manuellGeaendert.join('\n• ')}\n\nFortfahren?`
+    );
+    if (!ok) {
+      // Dropdown auf alten Wert zurücksetzen
+      const sel = document.getElementById('kalk-profil-select');
+      if (sel && state.kalk._profil) sel.value = state.kalk._profil;
+      return;
+    }
+  }
+
   // Wir kopieren die persönlichen Profil-Felder direkt rein. Zins/Tilgung übernehmen
   // wir auch — aber NICHT überschreiben, wenn der User sie manuell geändert hat
   // (heuristik: 4,5/1,0 ist Default — wenn etwas anderes, behalten).
@@ -6792,6 +6836,7 @@ function applyKalkProfil(profilKey) {
   // hat Steuersatz manuell 31% gesetzt). Vorher: Detect-Heuristik per Range war
   // unzuverlässig bei Snapshots.
   state.kalk._profil = profilKey;
+  markKalkDirty();
   toast('Käufer-Profil auf "' + profilKey + '" gesetzt (Steuersatz ' + (p.steuersatz * 100).toFixed(0) + ' %)', 'info');
   renderTabKalkulator();
 }

@@ -1060,6 +1060,30 @@ module.exports = async (req, res) => {
           }
         }
       }
+      // QA-Fix 2026-05-23 (Audit-BB-9): letzteMietsteigerung darf nicht in der
+      // Zukunft liegen. Tippfehler (2030 statt 2024) verfälscht monateSeit → 0
+      // → Engine erwartet erste Erhöhung erst Jahr 4. Plausibilitäts-Check.
+      if (body.letzteMietsteigerung) {
+        const d = new Date(body.letzteMietsteigerung);
+        if (isNaN(d.getTime())) {
+          return res.status(400).json({ error: 'Letzte Mietsteigerung — Datums-Format ungültig (YYYY-MM-DD erwartet)' });
+        }
+        const heute = new Date();
+        if (d.getTime() > heute.getTime() + 24*60*60*1000) {
+          return res.status(400).json({
+            error: 'Letzte Mietsteigerung darf nicht in der Zukunft liegen',
+            hint: `Erhalten: ${body.letzteMietsteigerung}. Erwartet: ein Datum aus der Vergangenheit.`
+          });
+        }
+        // Plausibilitäts-Untergrenze: 30 Jahre zurück
+        const minDate = new Date(heute.getFullYear() - 30, heute.getMonth(), heute.getDate());
+        if (d.getTime() < minDate.getTime()) {
+          return res.status(400).json({
+            error: 'Letzte Mietsteigerung liegt > 30 Jahre zurück — vermutlich Tippfehler',
+            hint: `Erhalten: ${body.letzteMietsteigerung}. Wenn beabsichtigt, bitte beim Admin melden.`
+          });
+        }
+      }
 
       // Existierenden Datensatz finden (egal welcher Status)
       const existing = await loadKalkStammdatenForWE(weId);
