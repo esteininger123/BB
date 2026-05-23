@@ -141,10 +141,19 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const kpQm = r.kaufpreisProQm || 0;
 
   // Subv-Phasen-Text
+  // QA-Fix 2026-05-23 (Audit-R1): Engine glättet die Effektivmiete über alle
+  // Subv-Phasen konstant (Iter 47/48) — nominale Phasen-Werte können den Käufer
+  // verwirren, wenn die Gesamt-Summe nicht (phase1Mo*monate + phase2Mo*monate)
+  // entspricht. Lösung: Phasen-Laufzeiten zeigen, aber Subv-Werte als
+  // "geglättet" markieren wenn die nominale Summe von r.mietsubventionGesamt
+  // mehr als 5 % abweicht.
   let subvText = '—';
   const phasen = Array.isArray(i.subventionPhasen) ? i.subventionPhasen : [];
+  const nominalSum = phasen.reduce((s, p) => s + ((p && p.mo) || 0) * ((p && p.monate) || 0), 0);
+  const istGeglaettet = (nominalSum > 0 && r.mietsubventionGesamt && Math.abs(r.mietsubventionGesamt - nominalSum) / nominalSum > 0.05);
+  const glaettungsHinweis = istGeglaettet ? ' (über Phasen geglättet)' : '';
   if (phasen.length >= 2) {
-    subvText = `Phase 1 ${fmtMo(phasen[0].mo)} × ${phasen[0].monate} Mo · Phase 2 ${fmtMo(phasen[1].mo)} × ${phasen[1].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
+    subvText = `Phase 1 ${fmtMo(phasen[0].mo)} × ${phasen[0].monate} Mo · Phase 2 ${fmtMo(phasen[1].mo)} × ${phasen[1].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}${glaettungsHinweis}`;
   } else if (phasen.length === 1) {
     subvText = `${fmtMo(phasen[0].mo)} × ${phasen[0].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
   } else if (i.subventionMo > 0) {

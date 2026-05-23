@@ -1070,9 +1070,21 @@ function renderTabKalkulator() {
         <span style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:normal;letter-spacing:.02em;">
           <span class="text-tertiary" style="text-transform:uppercase;letter-spacing:.08em;font-size:10px;">Käufer-Profil</span>
           <select id="kalk-profil-select" onchange="applyKalkProfil(this.value)" style="font-size:13px;padding:5px 10px;">
-            <option value="standard"${(i.steuersatz >= 0.28 && i.steuersatz <= 0.32) ? ' selected' : ''}>Standard · 30 %</option>
-            <option value="premium"${(i.steuersatz >= 0.33 && i.steuersatz <= 0.37) ? ' selected' : ''}>Premium · 35 %</option>
-            <option value="spitze"${(i.steuersatz >= 0.40 && i.steuersatz <= 0.45) ? ' selected' : ''}>Spitze · 42 %</option>
+            ${(() => {
+              // QA-Fix 2026-05-23 (Audit-S1+S2): explizites _profil-Feld bevorzugen
+              // (von applyKalkProfil persistiert) — Heuristik nur als Fallback bei
+              // alten Snapshots. Sonst zeigt Dropdown bei Mischzuständen falsch.
+              const active = state.kalk._profil
+                || ((i.steuersatz >= 0.28 && i.steuersatz <= 0.32) ? 'standard'
+                  : (i.steuersatz >= 0.33 && i.steuersatz <= 0.37) ? 'premium'
+                  : (i.steuersatz >= 0.40 && i.steuersatz <= 0.45) ? 'spitze' : '');
+              const opts = [
+                ['standard', 'Standard · 30 %'],
+                ['premium',  'Premium · 35 %'],
+                ['spitze',   'Spitze · 42 %'],
+              ];
+              return opts.map(([v, l]) => `<option value="${v}"${active === v ? ' selected' : ''}>${l}</option>`).join('');
+            })()}
           </select>
         </span>
       </div>
@@ -5984,7 +5996,13 @@ function _renderWeListeContent() {
         subventionPhasen,
         subventionMo: subvMoPhase1,
         subventionMonate: subvMonatePhase1,
-        letzteMietsteigerung: detailVerm.letzteMietsteigerung || verm.letzteMietsteigerung || null,
+        // QA-Fix 2026-05-23 (Audit-S3): bei Tag-1-Vereinbarung letzteMietsteigerung
+        // auf null forcen, sonst überschreibt die Engine in Z.674 unser monateSeit=0
+        // aus dem Datum-Lookup → Sprung springt wieder sofort in Monat 1. App-Live
+        // macht das gleich in loadWeIntoKalk:1790.
+        letzteMietsteigerung: (derived && derived.subventionKaltmieteAdjustiert > 0)
+          ? null
+          : (detailVerm.letzteMietsteigerung || verm.letzteMietsteigerung || null),
         monateSeitMieterhoehung: monateSeit != null ? monateSeit : 0,
       });
       const r = window.Kalk.recalc(inputs);
@@ -6484,6 +6502,11 @@ function applyKalkProfil(profilKey) {
   state.kalk.bonVermoegen = p.bonVermoegen;
   if (isDefaultZins) state.kalk.zins = p.zins;
   if (isDefaultTilg) state.kalk.tilgung = p.tilgung;
+  // QA-Fix 2026-05-23 (Audit-S1+S2): _profil-Marker persistieren — Snapshot-Reload
+  // soll das richtige Profil im Dropdown zeigen, auch bei Misch-Werten (z.B. User
+  // hat Steuersatz manuell 31% gesetzt). Vorher: Detect-Heuristik per Range war
+  // unzuverlässig bei Snapshots.
+  state.kalk._profil = profilKey;
   toast('Käufer-Profil auf "' + profilKey + '" gesetzt (Steuersatz ' + (p.steuersatz * 100).toFixed(0) + ' %)', 'info');
   renderTabKalkulator();
 }
