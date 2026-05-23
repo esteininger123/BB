@@ -45,10 +45,24 @@ module.exports = async (req, res) => {
       };
       const filters = [];
       if (!isAdmin || mineOnly) {
-        // QA-Fix 2026-05-22 (Audit-D E7): escapeFormulaString gegen Formula-Injection.
-        // vertrieblerId kommt aus dem JWT (server-side gesetzt), heute safe — defensive
-        // Coding für künftige Auth-Flow-Änderungen.
-        filters.push(`FIND('${escapeFormulaString(session.vertrieblerId)}', ARRAYJOIN({Owner}))>0`);
+        // QA-Fix 2026-05-23 (P1 — Edgar's Kunden weg): ARRAYJOIN({Owner}) liefert in
+        // Airtable-Formula die DISPLAY-Werte (= Vertriebler-Namen), nicht die Record-IDs.
+        // Filter mit vertrieblerId hat IMMER 0 gematcht. War seit Anfang an kaputt für
+        // Vertriebler, jetzt durch mineOnly=1 auch für Admin sichtbar geworden.
+        // Fix: Vertriebler-Namen aus Airtable holen + im Filter nutzen.
+        let vName = '';
+        try {
+          const vRec = await airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId });
+          vName = (vRec && vRec.fields && vRec.fields[VERTRIEBLER_FIELDS.NAME]) || '';
+        } catch (e) {
+          // Fallback: ohne Namen kein Filter — zeigt 0 statt alle (sicherer).
+        }
+        if (vName) {
+          filters.push(`FIND('${escapeFormulaString(vName)}', ARRAYJOIN({Owner}))>0`);
+        } else {
+          // ID-Fallback (matched aktuell nicht, aber zukunftssicher falls Schema-Change)
+          filters.push(`FIND('${escapeFormulaString(session.vertrieblerId)}', ARRAYJOIN({Owner}))>0`);
+        }
         if (!withArchived) filters.push(`NOT({Archiviert})`);
       }
       if (filters.length === 1) listParams.filterByFormula = filters[0];

@@ -5956,16 +5956,21 @@ function _renderWeListeContent() {
       let effKaltmiete = detailWe.kaltmiete || we.kaltmiete || 0;
       const istNeuvermietung = modus === 'staffel';
       const mbv = detailKalk.mieteBeiVerkauf || sd.mieteBeiVerkauf || 0;
-      if (istNeuvermietung && effKaltmiete < 100) {
+      if (istNeuvermietung) {
+        // QA-Fix 2026-05-23 (Edgar P2): Bei Neuvermietung IMMER MBV nutzen — die
+        // alte Kaltmiete (z.B. von einem Vor-Mieter der ausgezogen ist) ist NICHT
+        // die Miete die der neue Mieter zahlen wird. MBV = vertraglich vereinbarte
+        // neue Miete. Vorher: Fallback nur bei kaltmiete<100 → bei WE 5 mit alter
+        // Kaltmiete > 100 zeigte WE-Liste die alte Miete obwohl der Käufer die MBV
+        // kassieren wird.
         if (mbv > 0) {
-          // Leerstand oder bald neu vermietet → Käufer-Miete = MBV
           effKaltmiete = mbv;
-        } else {
-          // QA-Fix 2026-05-23 (Audit-T1): wenn auch MBV null/0 ist (Pflege-Lücke wie
-          // Wesseling WE 4), markiere als „unkalkulierbar" — return null/incomplete
-          // statt -376 €/Mo Belastung mit Mietzahlung=0.
+        } else if (effKaltmiete < 100) {
+          // Beide null → unkalkulierbar (z.B. Wesseling WE 4 Pflege-Lücke).
           return { incomplete: true, reason: 'Kaltmiete und MBV fehlen — Pflege in Stammdaten' };
         }
+        // Falls effKaltmiete vorhanden aber MBV fehlt: zumindest mit alter Miete
+        // rechnen + ⚠-Hinweis (sd.mieteBeiVerkauf Pflege-Empfehlung).
       }
       let monateSeit = null;
       if (derived && derived.subventionKaltmieteAdjustiert && derived.subventionKaltmieteAdjustiert > 0) {
@@ -6098,12 +6103,22 @@ function _renderWeListeContent() {
           <td>${modusBadge}</td>
           <td class="num">${fmtEur(we.kp)}</td>
           <td class="num">${(() => {
-            // Effektive Kaltmiete: bei Tag-1-Vereinbarung die ANGEHOBENE Miete zeigen
-            // (= was der neue Eigentümer ab Tag 1 effektiv kassiert). Sonst Standard.
+            // QA-Fix 2026-05-23 (P2): Effektive Kaltmiete = was der Käufer ab Tag 1 kassiert.
+            //  - Bestand mit Tag-1-Vereinbarung → subventionKaltmieteAdjustiert (angehoben)
+            //  - Neuvermietung → MBV (zukünftige Miete, alte ist irrelevant)
+            //  - Bestand ohne Vereinbarung → aktuelle Kaltmiete
             const det = detailById && detailById[we.id];
             const adj = det && det.derived && det.derived.subventionKaltmieteAdjustiert;
+            const sdLocal = (det && det.kalkStammdaten) || sd;
+            const mbvLocal = sdLocal.mieteBeiVerkauf || 0;
+            const modusLocal = String(sdLocal.vermietungsModus || '').toLowerCase();
+            const istNeuLocal = modusLocal.includes('neuvermietung') || modusLocal.includes('staffel') || modusLocal.includes('leer');
             if (adj > 0) {
               return fmtEurMo(adj) + '<div class="text-tertiary text-small">Tag-1 (vorher ' + Math.round(we.kaltmiete || 0).toLocaleString('de-DE') + ' €)</div>';
+            }
+            if (istNeuLocal && mbvLocal > 0) {
+              const vorher = we.kaltmiete > 0 ? Math.round(we.kaltmiete).toLocaleString('de-DE') + ' € alt' : 'leer';
+              return fmtEurMo(mbvLocal) + '<div class="text-tertiary text-small">Neuvermietung (vorher ' + vorher + ')</div>';
             }
             return we.kaltmiete > 0 ? fmtEurMo(we.kaltmiete) : '–';
           })()}</td>

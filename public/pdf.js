@@ -498,9 +498,9 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           </table>
         </div>
       </div>
-      <p class="pdf-c-disclaimer">
-        Diese Investitionsrechnung beruht auf den dokumentierten Annahmen. Keine Anlageberatung im Sinne des WpHG. Vermittlung im Rahmen einer Erlaubnis nach § 34c GewO. Verbindlich ist ausschließlich der notarielle Kaufvertrag. Steuerliche Aspekte (insb. AfA-Rechtsgrundlage und ‑Bemessung) sind mit Deinem Steuerberater abzustimmen. Die ausgewiesene Wertsteigerung und Mietsteigerung sind langfristige Modell-Annahmen; tatsächliche Werte können abweichen. „Modellwert J10" ist eine rechnerische Hochrechnung (Kaufpreis × Wertsteigerung) und kein gutachterlicher Verkehrswert i.S.d. § 194 BauGB. Der Sparbuch-Vergleich rechnet Brutto-Renditen (vor Abgeltungssteuer); die Immobilien-Rendite enthält den persönlichen Steuervorteil aus den angegebenen Werbungskosten. Für die Finanzierungs-Vermittlung berechnen wir Dir keine Provision — eventuelle Bank-Vermittlungs-Provisionen fließen in die Kondition ein und werden von der Bank getragen. Die in der Bonitäts-Box ausgewiesene 80‑%-Anrechnung von Mieteinnahmen entspricht dem Standard unserer Partnerbanken; andere Banken können hiervon abweichen.
-      </p>
+      <!-- QA-Fix 2026-05-23 (Edgar P3): Disclaimer von Seite 5 entfernt — durch B5
+           war er 5× länger und Seite 5 (Annahmen + Cashflow-Tabelle) lief in
+           overflow:hidden über. Disclaimer jetzt auf Seite 7. -->
       <div class="pdf-c-page-foot"><div>05 · Im Detail</div><div class="pdf-c-page-num">Seite 5 von 7</div></div>
     </div>
   `;
@@ -544,6 +544,9 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <div class="pdf-c-bub-foot-item"><strong>Skin in the Game.</strong>Wir behalten regelmäßig Einheiten im eigenen Bestand. Auch die Gesellschafter kaufen privat — wir investieren in das, was wir Dir anbieten.</div>
       </div>
       <div class="pdf-c-bub-sig">${vertrieblerBlock}</div>
+      <p class="pdf-c-disclaimer" style="font-size:7pt;line-height:1.45;margin-top:6mm;">
+        Diese Investitionsrechnung beruht auf den dokumentierten Annahmen. Keine Anlageberatung im Sinne des WpHG. Vermittlung im Rahmen einer Erlaubnis nach § 34c GewO. Verbindlich ist ausschließlich der notarielle Kaufvertrag. Steuerliche Aspekte (insb. AfA-Rechtsgrundlage und ‑Bemessung) sind mit Deinem Steuerberater abzustimmen. Wertsteigerung und Mietsteigerung sind langfristige Modell-Annahmen; tatsächliche Werte können abweichen. „Modellwert J10" ist eine rechnerische Hochrechnung (Kaufpreis × Wertsteigerung) und kein gutachterlicher Verkehrswert i.S.d. § 194 BauGB. Der Sparbuch-Vergleich rechnet Brutto-Renditen (vor Abgeltungssteuer); die Immobilien-Rendite enthält den persönlichen Steuervorteil. Für die Finanzierungs-Vermittlung berechnen wir Dir keine Provision; eventuelle Bank-Vermittlungs-Provisionen fließen in die Kondition ein. Die 80&nbsp;%-Mietanrechnung entspricht dem Standard unserer Partnerbanken; andere Banken können abweichen.
+      </p>
       <div class="pdf-c-page-foot"><div>07 · Brot &amp; Butter</div><div class="pdf-c-page-num">Seite 7 von 7</div></div>
     </div>
   `;
