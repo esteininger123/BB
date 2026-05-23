@@ -497,7 +497,7 @@ window.WE_STAMMDATEN = {
       steigerungProz:       0.15,
       monateSeitMieterhoehung: 0,
       hausgeld:        hausgeldGesamt || Math.round((s.qm || 0)),
-      hgInflation:     0.02,
+      hgInflation:     0, // QA-Fix 2026-05-24 (Edgar): immer 0
       mietverwaltung:  0,                    // optional 29 €, default 0
       hausverwaltung:  s.hausverwaltungMo || 30,
       afaSatz:         ((s.afaGutachtenPct || 2.0) / 100),

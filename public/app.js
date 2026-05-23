@@ -1939,7 +1939,8 @@ async function loadWeIntoKalk(weId) {
       if (sd.wertsteigerung !== null)        state.kalk.wertsteigerung = sd.wertsteigerung;
       if (sd.grEst !== null)                 state.kalk.grEstPct = sd.grEst;
       if (sd.gebaeudeAnteil !== null)        state.kalk.gebaeudeAnteil = sd.gebaeudeAnteil;
-      if (sd.hgInflation !== null)           state.kalk.hgInflation = sd.hgInflation;
+      // QA-Fix 2026-05-24 (Edgar): hgInflation komplett ignoriert — immer 0.
+      state.kalk.hgInflation = 0;
       // Iter 41.9 / 41.15 — Miete bei Verkauf ersetzt NUR die Wohnungs-Kaltmiete.
       // Stellplatzmiete bleibt separat in state.kalk.stellplatzMiete.
       if (sd.mieteBeiVerkauf != null && sd.mieteBeiVerkauf > 0) {
@@ -2121,7 +2122,7 @@ function recalcAndRender() {
               subventionMonate: kalk && kalk.mietzuschussMonate ? kalk.mietzuschussMonate : 0,
               mietsteigerungsModus: 'sprung', steigerungProz: 0.15, monateSeitMieterhoehung: 0,
               hausgeld: (kalk && kalk.hausgeldRuecklage) || Math.round((w.qm || 0)),
-              hgInflation: (kalk && kalk.hgInflation) || 0.02,
+              hgInflation: 0, // QA-Fix 2026-05-24 (Edgar): immer 0
               mietverwaltung: (kalk && kalk.mietverwaltungDefault) || 0,
               hausverwaltung: (kalk && kalk.hausverwaltung) || 30,
               afaSatz: (kalk && kalk.afaGutachten) || 0.02,
@@ -6214,7 +6215,6 @@ function renderAdminStammdatenAudit(audit) {
                     <th class="num">AfA<br>Gut.</th>
                     <th class="num">Geb.-<br>Anteil</th>
                     <th class="num">Wertst.<br>p.a.</th>
-                    <th class="num">HG-<br>Infl.</th>
                     <th class="num">GrESt</th>
                     <th>Mieterh.<br>Modus</th>
                     <th class="num">Letzte<br>Mieterh.</th>
@@ -6241,7 +6241,6 @@ function renderAdminStammdatenAudit(audit) {
                         <td class="num">${sd ? pctN(sd.afaGutachten) : statusBadge(null)}</td>
                         <td class="num">${sd ? pctN(sd.gebaeudeAnteil) : statusBadge(null)}</td>
                         <td class="num">${sd ? pctN(sd.wertsteigerung) : statusBadge(null)}</td>
-                        <td class="num">${sd ? pctN(sd.hgInflation) : statusBadge(null)}</td>
                         <td class="num">${sd ? pctN(sd.grEst) : statusBadge(null)}</td>
                         <td><span class="text-tertiary text-small">${esc((sd && sd.vermietungsModus) || '–')}<br>${esc((sd && sd.kappungsgrenze) || '')}</span></td>
                         <td class="num text-small">${dateN(r.vermietung && r.vermietung.letzteMietsteigerung)}<br><span class="text-tertiary" style="font-size:10px;">${(() => {
@@ -6554,7 +6553,7 @@ function _renderWeListeContent() {
         afaSatz: (detailKalk.afaGutachten || sd.afaGutachten) || base.afaSatz || 0.02,
         gebaeudeAnteil: (detailKalk.gebaeudeAnteil || sd.gebaeudeAnteil) || base.gebaeudeAnteil || 0.85,
         wertsteigerung: (detailKalk.wertsteigerung || sd.wertsteigerung) || base.wertsteigerung || 0.03,
-        hgInflation: (detailKalk.hgInflation || sd.hgInflation) || base.hgInflation || 0.02,
+        hgInflation: 0, // QA-Fix 2026-05-24 (Edgar): immer 0
         steigerungProz: derived && derived.steigerungProz ? derived.steigerungProz
                         : (modus === 'sprung' ? 0.20 : 0.03),
         kappungsgrenze: detailKalk.kappungsgrenze || sd.kappungsgrenze || 0.20,

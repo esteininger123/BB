@@ -853,8 +853,11 @@ function recalc(i) {
     }
     restschuldEcht = Math.max(0, restschuldEcht - tilgungJahr);
 
-    // Hausgeld + Mietverwaltung + Hausverwaltung (WEG) Jahr (inkl. Inflation)
-    const hgFaktor = Math.pow(1 + i.hgInflation, y - 1);
+    // Hausgeld + Mietverwaltung + Hausverwaltung (WEG) Jahr
+    // QA-Fix 2026-05-24 (Edgar): Hausgeld-Inflation komplett raus aus der
+    // Engine. Edgar's Entscheidung: HG bleibt konstant über die Laufzeit.
+    // Folge: kein jährlicher CF-Drift mehr durch HG-Wachstum.
+    const hgFaktor = 1;
     // hgJahr enthält Hausgeld + Mietverwaltung + Hausverwaltung (Gesamt-Verwaltungs-Block für CF-Anzeige)
     // Audit-Fix Iter 49 (19.05.2026): Defensive Default 30 €/Mo, wenn Stammdaten-Feld
     // leer geladen wurde (z.B. Karlsruhe WE 7 in Pre-Flight 19.05.). Sonst null/undefined → 0,
@@ -919,7 +922,8 @@ function recalc(i) {
       balanceM = Math.max(0, balanceM - tilgM);
     }
     // HG + MV + HV pro Monat (jährliche Inflation)
-    const hgFaktorM = Math.pow(1 + (i.hgInflation || 0), y - 1);
+    // QA-Fix 2026-05-24 (Edgar): HG-Inflation komplett raus — Faktor = 1 fix.
+    const hgFaktorM = 1;
     // Audit-Fix Iter 49: gleicher Default-30-Pfad wie oben (siehe Kommentar bei `hausverw`).
     const hausverwBase = (i.hausverwaltung == null || !isFinite(i.hausverwaltung)) ? BB_DEFAULTS.hausverwaltungMo : i.hausverwaltung;
     const hausverwM = hausverwBase * hgFaktorM;

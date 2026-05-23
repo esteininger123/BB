@@ -361,7 +361,10 @@ function kalkStammRecordToApi(rec) {
     letzteMietsteigerung:  f[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG] || null,
     grEst:                 num(f[KALK_STAMMDATEN_FIELDS.GRESt]),
     gebaeudeAnteil:        num(f[KALK_STAMMDATEN_FIELDS.GEBAEUDE_ANTEIL]),
-    hgInflation:           num(f[KALK_STAMMDATEN_FIELDS.HG_INFLATION]),
+    // QA-Fix 2026-05-24 (Edgar): Hausgeld-Inflation komplett deaktiviert.
+    // Backend liefert immer 0 — Airtable-Feld bleibt physisch, wird aber
+    // nicht mehr ausgewertet.
+    hgInflation:           0,
     notizen:               f[KALK_STAMMDATEN_FIELDS.NOTIZEN] || '',
     quelle:                f[KALK_STAMMDATEN_FIELDS.QUELLE] || '',
     // Iter 41.9 — Henry-Feedback 17.05.2026:
@@ -1073,7 +1076,7 @@ module.exports = async (req, res) => {
       const rangeChecks = [
         { key: 'gebaeudeAnteil',   min: 0.50, max: 1.00, label: 'Gebäude-Anteil' },
         { key: 'wertsteigerung',   min: -0.05, max: 0.10, label: 'Wertsteigerung (Inflation)' },
-        { key: 'hgInflation',      min: -0.05, max: 0.10, label: 'Hausgeld-Inflation' },
+        // hgInflation entfernt (Edgar 24.05.2026) — wird nicht mehr verwendet.
         { key: 'indexmiete',       min: 0,     max: 0.20, label: 'Indexmiete' },
         { key: 'mietzuschuss',     min: 0,     max: 5000, label: 'Mietzuschuss €/Mo' },
         { key: 'mietzuschussMonate', min: 0,   max: 120,  label: 'Mietzuschuss Monate' },
@@ -1135,7 +1138,9 @@ module.exports = async (req, res) => {
       if (body.letzteMietsteigerung !== undefined)  fields[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG] = body.letzteMietsteigerung || null;
       if (body.grEst !== undefined)                 fields[KALK_STAMMDATEN_FIELDS.GRESt]                = num(body.grEst);
       if (body.gebaeudeAnteil !== undefined)        fields[KALK_STAMMDATEN_FIELDS.GEBAEUDE_ANTEIL]      = num(body.gebaeudeAnteil);
-      if (body.hgInflation !== undefined)           fields[KALK_STAMMDATEN_FIELDS.HG_INFLATION]         = num(body.hgInflation);
+      // QA-Fix 2026-05-24 (Edgar): hgInflation wird ignoriert — wir schreiben
+      // das Airtable-Feld nicht mehr. Wenn das Feld in Airtable noch existiert,
+      // bleibt der dort gepflegte Wert unangetastet, hat aber keinen Effekt.
       if (body.notizen !== undefined)               fields[KALK_STAMMDATEN_FIELDS.NOTIZEN]              = body.notizen || '';
       // Iter 41.9 — neue Felder
       if (body.mieteBeiVerkauf !== undefined)       fields[KALK_STAMMDATEN_FIELDS.MIETE_BEI_VERKAUF]    = num(body.mieteBeiVerkauf);
