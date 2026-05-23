@@ -64,7 +64,13 @@ function esc(s) {
   }[c]));
 }
 
-function _doPrint(html, mode) {
+function _doPrint(html, mode, filenameHint) {
+  // QA-Fix 2026-05-23 (Audit PD-1): document.title kontrolliert den Default-
+  // Dateinamen im Browser-Druckdialog. Vorher landete jede PDF als
+  // „B&B Kalkulator.pdf" → User-Download-Chaos. Jetzt: kontextspezifischer
+  // Name mit Kunde + WE + Datum. Nach Print zurück auf Original.
+  const origTitle = document.title;
+  if (filenameHint) document.title = filenameHint;
   const tpl = document.getElementById('pdf-template');
   tpl.innerHTML = html;
   document.body.classList.add('pdf-mode');
@@ -74,8 +80,22 @@ function _doPrint(html, mode) {
     setTimeout(() => {
       document.body.classList.remove('pdf-mode');
       document.body.classList.remove('pdf-mode-' + mode);
+      if (filenameHint) document.title = origTitle;
     }, 500);
   }, 100);
+}
+
+// Helper: baut einen sauberen Dateinamen-Hint aus Kontextdaten.
+function _filenameHint(kind, kunde, weMeta) {
+  const heute = new Date();
+  const dStr = `${('0'+heute.getDate()).slice(-2)}.${('0'+(heute.getMonth()+1)).slice(-2)}.${heute.getFullYear()}`;
+  const kundeName = ((kunde && (kunde.vorname || '')) + ' ' + (kunde && (kunde.nachname || ''))).trim() || 'Kunde';
+  const weTag = (weMeta && weMeta.weNr) ? ('WE' + weMeta.weNr) : '';
+  const projTag = (weMeta && weMeta.projektKurz) ? weMeta.projektKurz : '';
+  // Sonderzeichen weg, Spaces zu Bindestrich für Browser-Safety
+  const safe = (s) => String(s || '').replace(/[\\/:*?"<>|]/g, '').trim();
+  return [kind, safe(kundeName), safe([projTag, weTag].filter(Boolean).join(' ')), dStr]
+    .filter(Boolean).join(' - ');
 }
 
 /* ====================================================================
@@ -551,7 +571,14 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
     </div>
   `;
 
-  _doPrint(pdfCStyle + seite1 + seite2 + seite3 + seite4 + seite5 + seite6 + seite7, 'invest');
+  _doPrint(
+    pdfCStyle + seite1 + seite2 + seite3 + seite4 + seite5 + seite6 + seite7,
+    'invest',
+    _filenameHint('Investitions-Doc', kunde, {
+      weNr: kalkInputs && kalkInputs._weNr,
+      projektKurz: kalkInputs && kalkInputs._projektName,
+    })
+  );
 }
 
 /* ====================================================================
@@ -680,7 +707,10 @@ function reservierung(kunde, kalkInputs, user) {
       </div>
     </div>
   `;
-  _doPrint(html, 'reservierung');
+  _doPrint(html, 'reservierung', _filenameHint('Reservierung', kunde, {
+    weNr: kalkInputs && kalkInputs._weNr,
+    projektKurz: kalkInputs && kalkInputs._projektName,
+  }));
 }
 
 /* ====================================================================
@@ -1234,7 +1264,7 @@ function _buildSelbstauskunftBody(kunde, user) {
 // Browser-Print-Wrapper — behält die bestehende API window.PDF.selbstauskunft().
 function selbstauskunft(kunde, user) {
   const body = _buildSelbstauskunftBody(kunde, user);
-  _doPrint(body, 'sa');
+  _doPrint(body, 'sa', _filenameHint('Selbstauskunft', kunde, {}));
 }
 
 // PandaDoc-HTML-Builder: kompletter HTML-Document mit Inline-CSS, fertig zum Upload.

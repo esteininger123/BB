@@ -118,6 +118,47 @@ label {
   display: flex; align-items: center; gap: 8px;
 }
 .logo .accent { color: var(--accent); }
+
+/* QA-Fix 2026-05-23 (Audit D-1 + Logo-Rename): Marken-Block links im Header. */
+.logo-link {
+  display: inline-flex; align-items: center; gap: 10px;
+  text-decoration: none;
+  font-family: inherit;
+}
+.logo-link:hover { opacity: 0.85; }
+.brand-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: -0.5px;
+  border-radius: 6px;
+}
+.brand-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+
+/* QA-Fix 2026-05-23 (Audit D-1): Nav-Link Active-State im Header. */
+.nav-link {
+  display: inline-flex; align-items: center;
+  padding: 6px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+.nav-link:hover { background: var(--bg-section); color: var(--text-primary); }
+.nav-link.nav-link-active {
+  color: var(--accent-dark);
+  background: var(--bg-cream);
+}
 .user-menu {
   display: flex; align-items: center; gap: 12px;
 }

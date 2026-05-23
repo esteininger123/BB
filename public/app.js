@@ -151,18 +151,18 @@ function renderHeader() {
   h.classList.remove('hidden');
   const um = document.getElementById('user-menu');
   const isAdmin = state.user.rolle === 'Admin';
+  // QA-Fix 2026-05-23 (Audit D-1): Active-State pro Nav-Link. User sieht
+  // wo er ist (Dashboard vs Aktive WEs vs Admin).
+  const active = (view) => state.view === view ? ' nav-link-active' : '';
   um.innerHTML = `
-    <a href="#/dashboard" style="font-size:14px;color:var(--text-secondary);">Dashboard</a>
-    <a href="#/we-liste" style="font-size:14px;color:var(--text-secondary);" title="Live-Liste aller aktiven Wohneinheiten mit Kennzahlen">Aktive WEs</a>
-    ${isAdmin ? '<a href="#/admin" style="font-size:14px;color:var(--text-secondary);">Admin</a>' : ''}
-    <button type="button" class="bbk-help-btn" onclick="startTour()" title="Tour starten — wie funktioniert der Kalkulator?">?</button>
+    <a href="#/dashboard" class="nav-link${active('dashboard')}">Dashboard</a>
+    <a href="#/we-liste" class="nav-link${active('we-liste')}" title="Live-Liste aller aktiven Wohneinheiten mit Kennzahlen">Aktive WEs</a>
+    ${isAdmin ? `<a href="#/admin" class="nav-link${active('admin')}">Admin</a>` : ''}
+    <button type="button" class="bbk-help-btn" onclick="startTour()" title="Tour starten — wie funktioniert das Tool?">?</button>
     <div class="user-name">${esc(state.user.name)}</div>
     <div class="avatar">${esc(initialen(state.user.name))}</div>
     <button class="secondary" onclick="doLogout()" title="Abmelden">Logout</button>
   `;
-  // QA-Sprint 2026-05-23 (Audit-J B3): Auto-Start NICHT mehr beim Login — nur beim
-  // ersten Kalkulator-Tab-Aufruf (siehe renderTabKalkulator). Sonst läuft die Tour
-  // auf dem Dashboard und Steps 5-9 highlighten ins Leere.
 }
 
 async function doLogout() {
@@ -831,12 +831,13 @@ function renderTabUebersicht() {
           <div class="text-tertiary text-small mt-8">Auto-Save bei Klick außerhalb. Auto-Events (PandaDoc, Snapshots, Reservierungen) erscheinen unten in der Aktivitäten-Historie.</div>
         </div>
       `;
-      // Aktivitäten-Karte (nur wenn was da)
-      const aktivitaetenCard = (split.activities.length > 0) ? `
+      // Aktivitäten-Karte (nur wenn was da). Sortiert nach TS desc (neueste oben).
+      const sortedActs = split.activities.slice().sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+      const aktivitaetenCard = (sortedActs.length > 0) ? `
         <div class="card mt-16 activity-card">
-          <div class="card-title">Aktivitäten-Historie <span class="text-tertiary text-small" style="font-weight:normal;">· ${split.activities.length} Einträge (automatisch)</span></div>
+          <div class="card-title">Aktivitäten-Historie <span class="text-tertiary text-small" style="font-weight:normal;">· ${sortedActs.length} Einträge (automatisch)</span></div>
           <div class="activity-list">
-            ${split.activities.slice().reverse().map(a => `
+            ${sortedActs.map(a => `
               <div class="activity-row">
                 <div class="activity-ts">${esc(a.ts)}</div>
                 <div class="activity-text">${esc(a.text)}</div>
@@ -1944,6 +1945,19 @@ async function loadWeIntoKalk(weId) {
       if (sd.mieteBeiVerkauf != null && sd.mieteBeiVerkauf > 0) {
         state.kalk.kaltmiete = sd.mieteBeiVerkauf;
         state.kalk._mieteBeiVerkaufActive = true;
+      } else {
+        // QA-Fix 2026-05-23 (Audit-Phase2 Konstellation 2): Wenn Neuvermietung/Leer
+        // UND kaltmiete=0 UND MBV nicht gepflegt → Engine läuft 30 Jahre mit 0€
+        // Kaltmiete, Vermögen-J10 + Cashflow völlig unrealistisch. Fallback auf
+        // marktmiete × qm als geschätzter Mietansatz, mit klarem Hinweis-Flag.
+        const modusLowerEarly = (sd.vermietungsModus || '').toLowerCase();
+        const istNeu = modusLowerEarly.includes('neuvermietung') || modusLowerEarly.includes('staffel') || modusLowerEarly.includes('leer') || modusLowerEarly.includes('frei');
+        const aktKM = parseFloat(state.kalk.kaltmiete) || 0;
+        if (istNeu && aktKM <= 0 && sd.marktmiete > 0 && resp.we && resp.we.qm > 0) {
+          state.kalk.kaltmiete = sd.marktmiete * resp.we.qm;
+          state.kalk._mieteBeiVerkaufActive = true;
+          state.kalk._kaltmieteGeschaetztAusMarktmiete = true; // UI kann darauf reagieren
+        }
       }
       // Iter 63 (20.05.2026): Wenn das Backend signalisiert, dass die letzte
       //   Mietsteigerung > 3 Jahre her ist und die erste Erhöhung beim Käufer
@@ -2565,10 +2579,11 @@ function renderStories(r) {
     </div>
   `);
 
-  // QA-Fix 2026-05-23 (Edgar-Doc Bug-3): „Brot & Butter" — was B&B nach dem
-  // Notartermin für den Käufer übernimmt. Edgar: minimalistisch, einfach,
-  // visuell. Soll Vertrauen schaffen: „Du stehst nicht alleine da."
-  const brotUndButter = story('08 — Brot &amp; Butter', 'Nach dem Notartermin: was wir für Dich übernehmen', `
+  // QA-Fix 2026-05-23 (Edgar-Doc Bug-3 R-1): VORHER hier eingebaut, aber
+  // renderStories() ist seit Iter 89 tot. Der echte Block lebt jetzt in
+  // renderStoryPremium als SECTION_8. Hier nur Stub damit kein leerer Block-
+  // Verweis im concat hängt.
+  const brotUndButter = story('08 — Nach dem Notartermin (DEPRECATED — siehe renderStoryPremium)', 'Wird nicht mehr aus dieser Funktion gerendert', `
     <div class="story-explain" style="grid-column:1/-1;">
       <p style="margin:0 0 18px 0;font-size:15px;line-height:1.55;color:var(--text-primary);">
         Du musst Dich nicht um Mieterhöhungen, Steuerformulare, Übergaben oder Handwerker kümmern. Wir bauen Dich an wie einen alten Bekannten und Du hast direkten Draht über WhatsApp — auch für Dinge, von denen Du noch gar nicht weißt, dass sie auftreten werden.
@@ -3063,6 +3078,54 @@ function renderStoryPremium(r) {
     </section>
   `;
 
+  // ===== SECTION_8 — Nach dem Notartermin (Edgar-Doc Bug-3 R-1) =====
+  // Edgar's Vorgabe: Käufer soll wissen, dass er nach Notar nicht alleine
+  // dasteht. Was B&B konkret für ihn übernimmt — minimalistisch, einfach,
+  // visuell. Re-uses kalk-c-section + kalk-c-bub-grid Klassen für Konsistenz
+  // mit SECTION_7 (Brot & Butter Konzept).
+  const SECTION_8 = `
+    <section class="kalk-c-section kalk-c-bub-section">
+      <div class="kalk-c-section-head">
+        <div class="kalk-c-left">
+          <div class="kalk-c-section-num">08 · Nach dem Notartermin</div>
+          <h2 class="kalk-c-section-title">Du stehst nicht alleine da.</h2>
+        </div>
+        <div class="kalk-c-right">
+          Du musst Dich nicht um Mieterhöhungen, Steuerformulare, Übergaben oder Handwerker kümmern. Wir bauen Dich an wie einen alten Bekannten und Du hast direkten Draht über WhatsApp — auch für Dinge, von denen Du noch gar nicht weißt, dass sie auftreten werden.
+        </div>
+      </div>
+      <div class="kalk-c-bub-grid">
+        <div class="kalk-c-bub-cell">
+          <div class="kalk-c-bub-step">Mietsubvention bankentauglich</div>
+          <div class="kalk-c-bub-body">Wir richten sie so ein, dass die Bank sie als Einkommen anrechnet — positiver Bonitäts-Effekt für Folge-Käufe.</div>
+        </div>
+        <div class="kalk-c-bub-cell">
+          <div class="kalk-c-bub-step">Steuereffekt monatlich</div>
+          <div class="kalk-c-bub-body">Wir reichen die Lohnsteuerermäßigung beim Finanzamt ein, damit Dein Steuervorteil Monat für Monat direkt auf dem Konto landet — nicht erst mit der Steuererklärung.</div>
+        </div>
+        <div class="kalk-c-bub-cell">
+          <div class="kalk-c-bub-step">Restnutzungsdauer-Gutachten</div>
+          <div class="kalk-c-bub-body">Wir übertragen es Dir so, dass es vor dem Finanzamt hält — höhere AfA, mehr Steuervorteil über die volle Laufzeit.</div>
+        </div>
+        <div class="kalk-c-bub-cell">
+          <div class="kalk-c-bub-step">Übergabe &amp; WEG-Integration</div>
+          <div class="kalk-c-bub-body">Wohnungs-Übergabeprotokoll, Ummeldungen Versorger, Mitteilung an die Hausverwaltung — alles in unserer Hand.</div>
+        </div>
+        <div class="kalk-c-bub-cell">
+          <div class="kalk-c-bub-step">Neuvermietung &amp; Renovierung</div>
+          <div class="kalk-c-bub-body">Wenn die Wohnung leer ist: die erste Neuvermietung machen wir umsonst. Bei Renovierung: passende Dienstleister-Empfehlung + Angebots-Prüfung.</div>
+        </div>
+        <div class="kalk-c-bub-cell" style="border-color:var(--positive);">
+          <div class="kalk-c-bub-step" style="color:var(--positive);">WhatsApp-Direktdraht</div>
+          <div class="kalk-c-bub-body">Eine WhatsApp-Gruppe mit B&amp;B — für Fragen die jetzt schon da sind, und für die die später kommen.</div>
+        </div>
+      </div>
+      <div class="kalk-c-bub-foot">
+        <div class="kalk-c-bub-foot-item"><strong>Maßgeschneidert.</strong> Wir betrachten Dein Investment aus drei Perspektiven — steuerlich, wirtschaftlich, Aufwand. Anfänger müssen keine Komplexität verstehen; Fortgeschrittene bekommen alles in die Hand was sie selbst steuern wollen.</div>
+      </div>
+    </section>
+  `;
+
   // ===== CLOSING =====
   const CLOSING = `
     <footer class="kalk-c-closing">
@@ -3228,6 +3291,7 @@ function renderStoryPremium(r) {
     + SECTION_5
     + SECTION_6
     + SECTION_7
+    + SECTION_8 // QA-Fix 2026-05-23 (Edgar-Doc Bug-3 R-1): Nach dem Notartermin
     + CLOSING
     + '</div>'
     + bonModal
@@ -3871,18 +3935,24 @@ async function saveSnapshot() {
   };
   // Bezeichnung & WE-Label kontextbezogen erzeugen (Einzel vs. Paket)
   let weBez, defaultBez;
+  // QA-Fix 2026-05-23 (Audit PD-7): Default-Name mit HH:MM, damit mehrere
+  // Snapshots am gleichen Tag nicht denselben Namen kollidieren. Datum vorne
+  // (sortier-freundlich), dann WE-Bez. Edgar findet so später schneller wieder.
+  const now = new Date();
+  const heuteStr = now.toLocaleDateString('de-DE');
+  const uhrStr = ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2);
+  const dtStr = heuteStr + ' ' + uhrStr;
   if (state.kalk._isPaket && Array.isArray(state.kalk._paketWeIds) && state.kalk._paketWeIds.length > 0) {
     const labels = state.kalk._paketWeIds.map(wid => {
       const w = (state.wohneinheiten || []).find(x => x.id === wid);
       return fmtWeBez(w) || wid;
     });
     weBez = 'Paket: ' + labels.join(' + ');
-    defaultBez = 'Paket (' + state.kalk._paketWeIds.length + ' WE) — ' +
-                 new Date().toLocaleDateString('de-DE');
+    defaultBez = `${dtStr} — Paket (${state.kalk._paketWeIds.length} WE)`;
   } else {
     const w = (state.wohneinheiten || []).find(x => x.id === state.kalk._weId);
     weBez = fmtWeBez(w) || state.kalk._weLage || '';
-    defaultBez = (weBez ? weBez + ' — ' : '') + new Date().toLocaleDateString('de-DE');
+    defaultBez = weBez ? `${dtStr} — ${weBez}` : dtStr;
   }
   // QA-Sprint 2026-05-23 (Audit-G G-B3): Snapshot-Bezeichnung jetzt via Modal statt
   // window.prompt — anti-2003-Optik. Async-Wrapper damit's wie ein normaler Modal-Flow
@@ -4055,10 +4125,10 @@ function openInvestDocModal() {
 }
 window.openInvestDocModal = openInvestDocModal;
 
-// Mail-Send via Backend-Endpoint /api/invest-doc/send-mail (Phase-1 Backend
-// generiert PDF via Puppeteer + Mailversand via PandaDoc-API als Workaround
-// — kein eigener Mail-Server nötig, weil PandaDoc Email kann).
-async function sendInvestDocMail() {
+// QA-Fix 2026-05-23 (Edgar-Doc Bug-10): Mail-Versand pragmatisch — Backend-
+// Endpoint kommt in Phase 2 (braucht SMTP/SendGrid-Setup). Für heute:
+// PDF-Generation + Mailto mit Vorlage + Hinweis dass User PDF anhängen muss.
+function sendInvestDocMail() {
   if (!state.kunde || !state.kunde.email) {
     toast('Kunde hat keine E-Mail in Airtable', 'error');
     return;
@@ -4067,33 +4137,33 @@ async function sendInvestDocMail() {
     toast('Bitte erst eine WE wählen', 'error');
     return;
   }
-  const kundeName = ((state.kunde.vorname || '') + ' ' + (state.kunde.nachname || '')).trim();
-  if (!window.confirm(`Investitions-Doc per Mail an ${state.kunde.email} senden?\n\nKunde: ${kundeName}`)) return;
-  toast('Sende Investitions-Doc per Mail …', 'info');
-  try {
-    if (!window.PDF || typeof window.PDF.investitionsrechnungHtmlForPandaDoc !== 'function') {
-      // Fallback: wenn der HTML-Generator noch nicht im PDF-Modul ist,
-      // user-freundlich abbrechen + Hinweis.
-      toast('Mail-Versand noch nicht voll konfiguriert — bitte vorerst „Herunterladen" und manuell anhängen.', 'warning');
-      return;
-    }
-    const html = window.PDF.investitionsrechnungHtmlForPandaDoc(state.kunde, state.kalk, state.kalkResult, state.user);
-    const resp = await api.post('/api/invest-doc/send-mail', {
-      kundeId: state.kundeId,
-      weId: state.kalk._weId,
-      html,
-    });
-    if (resp && resp.ok) {
-      toast('✓ Investitions-Doc verschickt an ' + state.kunde.email, 'success');
-    } else {
-      toast('Versand-Antwort unklar — bitte in PandaDoc-Drafts prüfen', 'warning');
-    }
-  } catch (e) {
-    const hint = (e.status === 404)
-      ? '\n\nMail-Send-Endpoint noch nicht eingerichtet (Phase 2). Nutze vorerst „Herunterladen" und hänge das PDF manuell an die Mail.'
-      : '';
-    toast('Fehler: ' + (e.message || 'unbekannt') + hint, 'error');
-  }
+  const kundeName = ((state.kunde.vorname || '') + ' ' + (state.kunde.nachname || '')).trim() || 'Investor';
+  const w = (state.wohneinheiten || []).find(x => x.id === state.kalk._weId);
+  const weLabel = w ? ((w.projektName ? w.projektName + ' · ' : '') + (w.lageText || ('WE ' + w.weNr))) : 'unsere besprochene Wohneinheit';
+  const senderName = (state.user && state.user.name) || 'B&B Immo';
+  // Mailto-Body — Edgar's Stil: direkt, kein Floskeln-Marathon.
+  const subject = `Investitions-Analyse · ${weLabel}`;
+  const body = [
+    `Hallo ${state.kunde.vorname || ''},`,
+    '',
+    `anbei wie besprochen die Investitions-Analyse für ${weLabel}.`,
+    '',
+    'Die Analyse zeigt Vermögensaufbau, Cashflow und Bonität auf 7 Seiten. Bei Fragen melde Dich jederzeit — wir sprechen die Zahlen gerne im Detail durch.',
+    '',
+    'Beste Grüße',
+    senderName,
+    '',
+    '— B&B Immo GmbH · Burdastraße 33 · 77746 Schutterwald · HRB 727 814 (Freiburg)',
+  ].join('\n');
+  const mailtoUrl = `mailto:${encodeURIComponent(state.kunde.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  // 1) Erst PDF generieren (Browser-Druckdialog) — User speichert als PDF.
+  toast('PDF wird gleich erzeugt — bitte als „Als PDF speichern" wählen, dann im Mail-Programm anhängen', 'info');
+  exportInvestPdf();
+  // 2) Nach kurzer Verzögerung: Mailclient öffnen (gibt User Zeit, PDF zu speichern).
+  setTimeout(() => {
+    try { window.location.href = mailtoUrl; } catch {}
+    toast('Mail-Vorlage geöffnet — PDF aus Downloads als Anhang anhängen.', 'info');
+  }, 1500);
 }
 window.sendInvestDocMail = sendInvestDocMail;
 
@@ -4566,10 +4636,14 @@ function saCoverage(sa, gemeinsam) {
   // SA-Redesign (22.05.2026): bruttoMo + steuerklasse rein (Bank rechnet Brutto gegen
   //   Steuerklasse für Netto-Plausibilisierung). probezeit + vorAnschrift waren bisher
   //   nur im PDF erfassbar — Frontend↔PDF-Drift geschlossen.
+  // QA-Fix 2026-05-23 (Audit SA-5): IBAN war Pflicht im PandaDoc-Send-Check,
+  // aber NICHT in der Coverage-Box → User sah 100 % grün und drückte Senden,
+  // dann hagelte Confirm-Dialog rein. Jetzt: IBAN in Coverage drin.
   const pflichtPro = [
     { sek: 'Person',          felder: ['vorname','name','geburtsdatum','strasse','plz','ort','staatsangehoerigkeit','telefonPrivat','email','steuerId','familienstand'] },
     { sek: 'Beruf',           felder: ['beruf','firma','beschaeftigtSeit','befristung','probezeit'] },
     { sek: 'Einkommen',       felder: ['bruttoMo','nettoMo','steuerklasse','anzahlGehaelter'] },
+    { sek: 'Bankverbindung',  felder: ['iban'] },
     { sek: 'Fixkosten',       felder: ['mieteMo'] },
     { sek: 'Vermögen',        felder: ['bankguthaben'] },
     { sek: 'GwG-Identität',   felder: ['gwg.ausweisArt','gwg.ausweisNr','gwg.ausweisGueltig'] },
@@ -6474,7 +6548,10 @@ function _renderWeListeContent() {
         letzteMietsteigerung: (derived && derived.subventionKaltmieteAdjustiert > 0)
           ? null
           : (detailVerm.letzteMietsteigerung || verm.letzteMietsteigerung || null),
-        monateSeitMieterhoehung: monateSeit != null ? monateSeit : 0,
+        // QA-Fix 2026-05-23 (Audit R-3): wenn KEINE letzteMietsteigerung gepflegt
+        // ist (auch nicht via Backend-Fallback), konservativ 36 statt 0 — sonst
+        // Bruchsal-3-Jahre-Bug. Spiegelt loadWeIntoKalk-Logic (Z.1899).
+        monateSeitMieterhoehung: monateSeit != null ? monateSeit : (modus === 'sprung' ? 36 : 0),
       });
       const r = window.Kalk.recalc(inputs);
       // Brutto-Rendite Tag 1 = (Effektive Kaltmiete + Stellplatz + Subv-Phase-1) × 12 / KpGesamt
@@ -6883,6 +6960,11 @@ const TOUR_STEPS = [
 
 let _tourActive = false;
 let _tourStep = 0;
+// QA-Fix 2026-05-23 (Audit R-5): _tourStartedAt verhindert stilles Auto-
+// Skip von Steps deren Zustand SCHON beim Tour-Start erfüllt war (z.B.
+// User hat schon eine WE gewählt und startet die Tour danach via ?).
+// Wir merken den Step-1-Start-Zustand pro detectCompleted.
+let _tourStepEnteredStates = {};
 
 function startTour(opts) {
   // QA-Fix 2026-05-23 (Audit-F-1): Wenn die Tour schon läuft und der User
@@ -6894,6 +6976,7 @@ function startTour(opts) {
   }
   _tourStep = (opts && typeof opts.step === 'number') ? opts.step : 0;
   _tourActive = true;
+  _tourStepEnteredStates = {}; // QA-Fix R-5: Reset für neue Tour-Session
   _renderTour();
   document.addEventListener('keydown', _tourKeyHandler);
   window.addEventListener('hashchange', _tourRerender);
@@ -7109,11 +7192,23 @@ function _renderTour() {
   // QA-Fix 2026-05-23 (Edgar-Doc Bug-4): Auto-Advance wenn der aktuelle Step
   // erkennbar erledigt ist (detectCompleted true). Beispiel: Step 6 ist
   // „Snapshot speichern" — sobald state.snapshots.length > 0, weiter zu Step 7.
-  // Edgar: „Erkenne selbst, wenn der Vertriebler den richtigen Schritt ausgesucht
-  // hat oder es bereits ausgeführt hat, und gehe dann automatisch auch weiter."
-  if (typeof step.detectCompleted === 'function' && _tourStep < TOUR_STEPS.length - 1) {
+  // QA-Fix 2026-05-23 (Audit R-5): NICHT auto-skippen wenn der Zustand SCHON
+  // beim Step-Eintritt erfüllt war. Sonst springt die Tour stumm Step 2-4
+  // wenn der User die Tour MITTEN in einer Session via ? startet und schon
+  // einen Kunden/Tab/WE gewählt hat. Lerneffekt = weg.
+  if (typeof step.detectCompleted === 'function') {
     try {
-      if (step.detectCompleted()) {
+      const completed = step.detectCompleted();
+      const stepKey = '_step' + _tourStep;
+      // Bei erstmaligem Render dieses Steps: Anfangs-Zustand speichern
+      if (_tourStepEnteredStates[stepKey] === undefined) {
+        _tourStepEnteredStates[stepKey] = completed;
+      }
+      // Auto-Advance NUR wenn beim Step-Eintritt false war und JETZT true
+      // (= User hat den Step aktiv abgeschlossen)
+      if (_tourStep < TOUR_STEPS.length - 1
+          && completed
+          && _tourStepEnteredStates[stepKey] === false) {
         _tourStep++;
         _renderTour();
         return;

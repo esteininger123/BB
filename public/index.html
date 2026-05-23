@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>B&B Kalkulator</title>
+<title>B&B · Investitions-Doc</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/styles.css?v=161">
+<link rel="stylesheet" href="/styles.css?v=162">
 
 <!-- Chart.js (wie V1) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
@@ -20,7 +20,10 @@
 
 <!-- Header (wird beim Login ausgeblendet) -->
 <header id="app-header" class="header hidden">
-  <div class="logo">B&amp;B <span class="accent">Kalkulator</span></div>
+  <a href="#/dashboard" class="logo-link" title="Zum Dashboard">
+    <span class="brand-mark">B&amp;B</span>
+    <span class="brand-text">Investitions-Doc</span>
+  </a>
   <div id="user-menu" class="user-menu"></div>
 </header>
 
@@ -34,12 +37,12 @@
 <div id="pdf-template" class="pdf-template"></div>
 
 <!-- JS (v26 = Cache-Bust pro Deployment) -->
-<script src="/api.js?v=161"></script>
-<script src="/kalkulator.js?v=161"></script>
-<script src="/we-presets.js?v=161"></script>
-<script src="/we-stammdaten.js?v=161"></script>
-<script src="/pdf.js?v=161"></script>
-<script src="/app.js?v=161"></script>
+<script src="/api.js?v=162"></script>
+<script src="/kalkulator.js?v=162"></script>
+<script src="/we-presets.js?v=162"></script>
+<script src="/we-stammdaten.js?v=162"></script>
+<script src="/pdf.js?v=162"></script>
+<script src="/app.js?v=162"></script>
 
 <!-- Google Sign-In Callback (global) -->
 <script>
