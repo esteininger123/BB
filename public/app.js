@@ -308,10 +308,54 @@ function renderDashboard() {
   const app = document.getElementById('app');
   const meine = state.kunden;
 
-  // Stats per Phase
-  const counts = {};
-  PHASEN.forEach(p => counts[p] = 0);
-  meine.forEach(k => { if (counts[k.phase] !== undefined) counts[k.phase]++; });
+  // QA-Sprint 2026-05-23 (CRM-Redesign): KAV-Phase aus Tracker (statt altem Phase-Feld).
+  // Stats: pro Phase Anzahl + Wiedervorlagen-Status (overdue / today / soon).
+  const phasenCounts = { phase1: 0, phase2: 0, phase3: 0, abgeschlossen: 0 };
+  const wvOverdue = [];
+  const wvToday = [];
+  const wvSoon = [];
+  meine.forEach(k => {
+    const tracker = getKavTracker(k);
+    const phId = kavCurrentPhase(tracker);
+    if (phasenCounts[phId] !== undefined) phasenCounts[phId]++;
+    const wv = kavWiedervorlageStatus(tracker);
+    if (wv.status === 'overdue') wvOverdue.push({ k, wv });
+    else if (wv.status === 'today') wvToday.push({ k, wv });
+    else if (wv.status === 'soon') wvSoon.push({ k, wv });
+  });
+
+  // Wiedervorlagen-Karte oben (nur wenn was zu zeigen ist)
+  const wiedervorlagenCard = (wvOverdue.length + wvToday.length + wvSoon.length > 0) ? `
+    <div class="card wv-card">
+      <div class="card-title" style="display:flex;align-items:center;gap:10px;">
+        <span>🔔 Wiedervorlagen</span>
+        <span class="text-tertiary text-small" style="font-weight:normal;">${wvOverdue.length + wvToday.length} aktiv${wvSoon.length > 0 ? ' · ' + wvSoon.length + ' demnächst' : ''}</span>
+      </div>
+      <div class="wv-rows">
+        ${wvOverdue.map(({k, wv}) => `
+          <div class="wv-row overdue" onclick="go('/kunde/${esc(k.id)}')">
+            <div class="wv-row-status">⚠ ${wv.tageUeber}d überfällig</div>
+            <div class="wv-row-main"><strong>${esc(k.name || (k.vorname + ' ' + k.nachname) || '—')}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
+            <div class="wv-row-date">${esc(new Date(wv.datum).toLocaleDateString('de-DE'))}</div>
+          </div>
+        `).join('')}
+        ${wvToday.map(({k, wv}) => `
+          <div class="wv-row today" onclick="go('/kunde/${esc(k.id)}')">
+            <div class="wv-row-status">🔔 heute</div>
+            <div class="wv-row-main"><strong>${esc(k.name || (k.vorname + ' ' + k.nachname) || '—')}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
+            <div class="wv-row-date">${esc(new Date(wv.datum).toLocaleDateString('de-DE'))}</div>
+          </div>
+        `).join('')}
+        ${wvSoon.map(({k, wv}) => `
+          <div class="wv-row soon" onclick="go('/kunde/${esc(k.id)}')">
+            <div class="wv-row-status">in ${wv.tage}d</div>
+            <div class="wv-row-main"><strong>${esc(k.name || (k.vorname + ' ' + k.nachname) || '—')}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
+            <div class="wv-row-date">${esc(new Date(wv.datum).toLocaleDateString('de-DE'))}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
 
   app.innerHTML = `
     <div class="main">
@@ -323,14 +367,22 @@ function renderDashboard() {
         <button onclick="createNewKunde()">+ Neuer Kunde</button>
       </div>
 
-      <div class="phasen-row">
-        ${['Lead','Kalkulation läuft','Reservierung','Selbstauskunft','Bank-Einreichung','Notar-Termin','Beurkundet'].map(p => `
-          <div class="phase-kpi">
-            <div class="label">${esc(p)}</div>
-            <div class="value">${counts[p] || 0}</div>
+      <div class="phasen-row kav-phasen-row">
+        ${KAV_PHASES.map(ph => `
+          <div class="phase-kpi kav-phase-kpi" style="--kav-accent:${ph.accent};">
+            <div class="label">Phase ${ph.nr} · ${esc(ph.label)}</div>
+            <div class="value">${phasenCounts[ph.id] || 0}</div>
+            <div class="sub">${esc(ph.sub)}</div>
           </div>
         `).join('')}
+        <div class="phase-kpi kav-phase-kpi kav-done-kpi">
+          <div class="label">✓ Abgeschlossen</div>
+          <div class="value">${phasenCounts.abgeschlossen || 0}</div>
+          <div class="sub">Beurkundet</div>
+        </div>
       </div>
+
+      ${wiedervorlagenCard}
 
       <div class="card">
         <div class="card-title">Meine Kunden</div>
@@ -339,11 +391,11 @@ function renderDashboard() {
             Noch keine Kunden. Klick auf <strong>"+ Neuer Kunde"</strong>.
           </div>
         ` : `
-          <table class="table">
+          <table class="table kunden-tbl">
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Phase</th>
+                <th>Phase · Aufgaben</th>
                 <th>E-Mail</th>
                 <th>Letzte Aktivität</th>
               </tr>
@@ -352,7 +404,7 @@ function renderDashboard() {
               ${meine.map(k => `
                 <tr onclick="go('/kunde/${esc(k.id)}')">
                   <td><strong>${esc(k.name || (k.vorname + ' ' + k.nachname) || '—')}</strong></td>
-                  <td><span class="badge ${phaseBadgeClass(k.phase)}">${esc(k.phase || 'Lead')}</span></td>
+                  <td>${kavListeBadges(k)}</td>
                   <td class="text-tertiary">${esc(k.email || '—')}</td>
                   <td class="text-tertiary">${esc(fmtDate(k.lastActivity))}</td>
                 </tr>
@@ -583,22 +635,19 @@ async function renderKunde() {
     <div class="main">
       <div class="breadcrumb"><a href="#/dashboard">Dashboard</a> &rsaquo; ${esc(displayName)}</div>
 
-      <div class="toolbar">
+      <div class="toolbar kav-toolbar">
         <div>
-          <h1 class="page-title">${esc(displayName)}${isArchived ? ' <span class="badge archived" style="background:#7A7A72;color:#fff;font-size:12px;font-weight:600;padding:2px 8px;border-radius:3px;vertical-align:middle;">archiviert</span>' : ''}</h1>
-          <div class="flex gap-12 mt-8">
-            <select id="phase-select" style="max-width:220px">
-              ${PHASEN.map(p => `<option value="${esc(p)}" ${p === k.phase ? 'selected' : ''}>${esc(p)}</option>`).join('')}
-            </select>
-            <span class="badge ${phaseBadgeClass(k.phase)}">${esc(k.phase || 'Lead')}</span>
-          </div>
+          <h1 class="page-title">${esc(displayName)}${isArchived ? ' <span class="kav-archive-pill">archiviert</span>' : ''}</h1>
+          <div class="text-tertiary text-small" style="margin-top:6px;">${esc(k.email || '')}${k.telefon ? ' · ' + esc(k.telefon) : ''}</div>
         </div>
-        <div style="display:flex;gap:8px;">
+        <div style="display:flex;gap:8px;align-items:flex-start;">
           ${isOwner && !isArchived ? `<button class="secondary" onclick="archiveKunde()" title="Kunde archivieren — verschwindet aus Deiner Liste, bleibt aber für Admin zugänglich.">Archivieren</button>` : ''}
           ${isOwner && isArchived ? `<button class="secondary" onclick="unarchiveKunde()" title="Archivierung aufheben — Kunde wird wieder in der normalen Liste angezeigt.">Wiederherstellen</button>` : ''}
-          ${isAdmin ? `<button class="danger" onclick="deleteKunde()" title="Endgültiges Löschen — nur Admin.">Endgültig löschen</button>` : ''}
+          ${isAdmin ? `<button class="danger" onclick="deleteKunde()" title="Endgültiges Löschen — nur Admin.">Löschen</button>` : ''}
         </div>
       </div>
+
+      ${renderKavCockpit(k)}
 
       <div class="tabs">
         ${['uebersicht','kalkulator','selbstauskunft','snapshots'].map(t => `
@@ -615,16 +664,9 @@ async function renderKunde() {
     </div>
   `;
 
-  // Phase-Change-Handler
-  document.getElementById('phase-select').onchange = async (e) => {
-    const newPhase = e.target.value;
-    try {
-      await api.put('/api/kunden/' + k.id, { phase: newPhase });
-      k.phase = newPhase;
-      toast('Phase: ' + newPhase, 'success');
-      renderKunde();
-    } catch (err) { toast('Fehler: ' + err.message, 'error'); }
-  };
+  // QA-Sprint 2026-05-23: Phase-Dropdown ersetzt durch KAV-Cockpit (renderKavCockpit).
+  // Phase wird jetzt automatisch aus den erledigten Aufgaben abgeleitet — kein
+  // manuelles Dropdown mehr.
 
   renderTab();
 }
@@ -6302,3 +6344,351 @@ function applyKalkProfil(profilKey) {
   renderTabKalkulator();
 }
 window.applyKalkProfil = applyKalkProfil;
+
+/* ============================== KAV-CRM-TRACKER ============================== */
+/* QA-Sprint 2026-05-23 (Edgar-Auftrag CRM-Redesign):
+   3-Phasen-Modell mit Aufgaben-Checklisten. Wiedervorlagen mit Markierung.
+   "Was-fehlt"-Anzeige. Auto-Phase-Übergang.
+
+   Datenmodell speichert in NOTIZEN-Feld als JSON-Block (kein Airtable-Schema-Eingriff
+   nötig). Vor dem Block stehen die Free-Text-Notizen des Vertrieblers, der JSON-Block
+   am ENDE der Notizen. So bleiben User-Notizen frei editierbar.
+
+   Persona-Konsens (KAV-Experte / Vertriebs-Coach / Workflow / Orchestrierer):
+   - Phase 1 = Strategie/Akquise: 3 Strategiegespräche, SA eingeholt, Reservierung
+   - Phase 2 = Abwicklung: Bank-Einreichung, Finanzierung, Besichtigung, Notar org
+   - Phase 3 = Notar/Closing: Beurkundung
+   - Wiedervorlage = optional, Bell-Icon + überfällig-Markierung
+*/
+
+const KAV_PHASES = [
+  {
+    id: 'phase1', nr: '1', label: 'Strategie',
+    accent: '#B08A4D',
+    sub: 'Bedarf · Kalkulation · Entscheidung',
+    tasks: [
+      { id: 'strat_1',     label: 'Strategiegespräch 1', hint: 'Bedarfsanalyse · Profil' },
+      { id: 'strat_2',     label: 'Strategiegespräch 2', hint: 'Konkrete WE · Kalkulation' },
+      { id: 'strat_3',     label: 'Strategiegespräch 3', hint: 'Entscheidung · Reservierung anstoßen' },
+      { id: 'sa_eingeholt',           label: 'Selbstauskunft eingeholt',     hint: 'SA komplett ausgefüllt', critical: true },
+      { id: 'reservierung_signed',    label: 'Reservierung unterschrieben',   hint: 'KAV via PandaDoc',       critical: true },
+    ],
+  },
+  {
+    id: 'phase2', nr: '2', label: 'Abwicklung',
+    accent: '#8E6E3D',
+    sub: 'Bank · Finanzierung · Notar-Termin',
+    tasks: [
+      { id: 'sa_an_bank',          label: 'SA an Bank gesendet',          hint: 'PandaDoc-Send oder Bank-Mail' },
+      { id: 'unterlagen_komplett', label: 'Unterlagen-Bundle komplett',   hint: 'Personalausweis, Lohnzettel, Schufa' },
+      { id: 'finanzierungszusage', label: 'Finanzierungszusage erhalten', hint: 'Schriftlich von der Bank',   critical: true },
+      { id: 'besichtigung',        label: 'Besichtigung vor Notar-Termin', hint: 'Pflicht-Vor-Ort-Termin' },
+      { id: 'notartermin_org',     label: 'Notartermin organisiert',       hint: 'Datum + Notar bestätigt',   critical: true },
+    ],
+  },
+  {
+    id: 'phase3', nr: '3', label: 'Notar',
+    accent: '#2D6E47',
+    sub: 'Beurkundung · Closing',
+    tasks: [
+      { id: 'notartermin_durch', label: 'Notartermin durchgeführt', hint: 'Beurkundung erfolgt' },
+      { id: 'beurkundet',        label: 'Beurkundet & abgeschlossen', hint: 'Vertrag final',         critical: true },
+    ],
+  },
+];
+
+const KAV_BLOCK_START = '[KAV-TRACKER]';
+const KAV_BLOCK_END   = '[/KAV-TRACKER]';
+
+function parseKavTracker(notesRaw) {
+  const notes = String(notesRaw || '');
+  const startIdx = notes.indexOf(KAV_BLOCK_START);
+  const endIdx   = notes.indexOf(KAV_BLOCK_END);
+  let data = { tasks: {}, wiedervorlage: null };
+  let cleanNotes = notes;
+  if (startIdx >= 0 && endIdx > startIdx) {
+    const jsonStr = notes.substring(startIdx + KAV_BLOCK_START.length, endIdx).trim();
+    try { data = Object.assign({ tasks: {}, wiedervorlage: null }, JSON.parse(jsonStr)); } catch (e) {}
+    cleanNotes = (notes.substring(0, startIdx) + notes.substring(endIdx + KAV_BLOCK_END.length)).trim();
+  }
+  return { tracker: data, freeNotes: cleanNotes };
+}
+
+function stringifyKavTracker(freeNotes, tracker) {
+  const json = JSON.stringify(tracker || { tasks: {}, wiedervorlage: null });
+  const free = (freeNotes || '').trim();
+  return (free ? free + '\n\n' : '') + KAV_BLOCK_START + '\n' + json + '\n' + KAV_BLOCK_END;
+}
+
+function kavCurrentPhase(tracker) {
+  // Heuristik: aktuelle Phase = letzte Phase, in der mindestens eine kritische Aufgabe
+  // erledigt ist UND nicht alle kritischen erledigt sind. Wenn alle erledigt → nächste Phase.
+  for (let i = 0; i < KAV_PHASES.length; i++) {
+    const ph = KAV_PHASES[i];
+    const critTasks = ph.tasks.filter(t => t.critical);
+    const allCritDone = critTasks.length > 0 && critTasks.every(t => !!(tracker.tasks || {})[t.id]);
+    if (!allCritDone) return ph.id;
+  }
+  return 'abgeschlossen';
+}
+
+function kavTaskCount(tracker, phaseId) {
+  const ph = KAV_PHASES.find(p => p.id === phaseId);
+  if (!ph) return { done: 0, total: 0 };
+  const done = ph.tasks.filter(t => !!(tracker.tasks || {})[t.id]).length;
+  return { done, total: ph.tasks.length };
+}
+
+function kavOpenTasksAcrossAll(tracker) {
+  const open = [];
+  for (const ph of KAV_PHASES) {
+    for (const t of ph.tasks) {
+      if (!(tracker.tasks || {})[t.id]) open.push({ phaseId: ph.id, phaseNr: ph.nr, phaseLabel: ph.label, ...t });
+    }
+  }
+  return open;
+}
+
+function kavNextTask(tracker) {
+  // Erste offene kritische in der aktuellen Phase, sonst erste offene Task der aktuellen Phase
+  const currentPhId = kavCurrentPhase(tracker);
+  if (currentPhId === 'abgeschlossen') return null;
+  const ph = KAV_PHASES.find(p => p.id === currentPhId);
+  if (!ph) return null;
+  const openCrit = ph.tasks.find(t => t.critical && !(tracker.tasks || {})[t.id]);
+  if (openCrit) return { ...openCrit, phaseLabel: ph.label, phaseNr: ph.nr };
+  const open = ph.tasks.find(t => !(tracker.tasks || {})[t.id]);
+  if (open) return { ...open, phaseLabel: ph.label, phaseNr: ph.nr };
+  return null;
+}
+
+function kavWiedervorlageStatus(tracker) {
+  const wv = tracker && tracker.wiedervorlage;
+  if (!wv || !wv.datum) return { status: 'none' };
+  const target = new Date(wv.datum);
+  const now = new Date();
+  target.setHours(0,0,0,0); now.setHours(0,0,0,0);
+  const diffDays = Math.round((target - now) / (1000*60*60*24));
+  if (diffDays < 0) return { status: 'overdue', tageUeber: -diffDays, datum: wv.datum, notiz: wv.notiz || '' };
+  if (diffDays === 0) return { status: 'today', datum: wv.datum, notiz: wv.notiz || '' };
+  if (diffDays <= 3) return { status: 'soon', tage: diffDays, datum: wv.datum, notiz: wv.notiz || '' };
+  return { status: 'future', tage: diffDays, datum: wv.datum, notiz: wv.notiz || '' };
+}
+
+function getKavTracker(kunde) {
+  if (!kunde) return { tasks: {}, wiedervorlage: null, freeNotes: '' };
+  const parsed = parseKavTracker(kunde.notizen || '');
+  return Object.assign({}, parsed.tracker, { freeNotes: parsed.freeNotes });
+}
+
+async function saveKavTracker(kundeId, freeNotes, tracker) {
+  const notizen = stringifyKavTracker(freeNotes, tracker);
+  await api.put('/api/kunden/' + kundeId, { notizen });
+  if (state.kunde && state.kunde.id === kundeId) state.kunde.notizen = notizen;
+  // Liste-Cache invalidieren — kunden ist arrayindiziert
+  if (Array.isArray(state.kunden)) {
+    const idx = state.kunden.findIndex(x => x.id === kundeId);
+    if (idx >= 0) state.kunden[idx].notizen = notizen;
+  }
+}
+
+async function kavToggleTask(taskId) {
+  if (!state.kunde) return;
+  const tracker = getKavTracker(state.kunde);
+  if (!tracker.tasks) tracker.tasks = {};
+  const wasDone = !!tracker.tasks[taskId];
+  tracker.tasks[taskId] = wasDone ? null : new Date().toISOString().split('T')[0];
+  const freeNotes = tracker.freeNotes || '';
+  delete tracker.freeNotes;
+  try {
+    await saveKavTracker(state.kunde.id, freeNotes, tracker);
+    toast(wasDone ? 'Aufgabe wieder offen' : '✓ Aufgabe erledigt', wasDone ? 'info' : 'success');
+    renderKunde();
+  } catch (e) { toast('Fehler beim Speichern: ' + e.message, 'error'); }
+}
+window.kavToggleTask = kavToggleTask;
+
+async function kavSetWiedervorlage() {
+  if (!state.kunde) return;
+  const tracker = getKavTracker(state.kunde);
+  const aktuell = tracker.wiedervorlage || {};
+  const datum = await openWiedervorlageModal(aktuell.datum || '', aktuell.notiz || '');
+  if (datum === null) return; // Cancel
+  // datum kann '' sein → Wiedervorlage löschen
+  tracker.wiedervorlage = datum.datum ? { datum: datum.datum, notiz: datum.notiz || '' } : null;
+  const freeNotes = tracker.freeNotes || '';
+  delete tracker.freeNotes;
+  try {
+    await saveKavTracker(state.kunde.id, freeNotes, tracker);
+    toast(tracker.wiedervorlage ? 'Wiedervorlage gesetzt' : 'Wiedervorlage gelöscht', 'success');
+    renderKunde();
+  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+}
+window.kavSetWiedervorlage = kavSetWiedervorlage;
+
+function openWiedervorlageModal(curDatum, curNotiz) {
+  return new Promise((resolve) => {
+    const existing = document.getElementById('bbk-wv-modal');
+    if (existing) existing.remove();
+    const ov = document.createElement('div');
+    ov.id = 'bbk-wv-modal';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9998;background:rgba(26,26,23,0.5);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit;';
+    ov.innerHTML = `
+      <div style="background:#FBFAF7;border-radius:14px;max-width:480px;width:100%;padding:28px 32px;box-shadow:0 30px 80px rgba(0,0,0,0.25);border:1px solid #C9A572;">
+        <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#8E6E3D;font-weight:600;margin-bottom:8px;">Wiedervorlage</div>
+        <h3 style="font-size:20px;font-weight:300;letter-spacing:-.01em;margin:0 0 16px 0;color:#1A1A17;">Wann willst Du diesen Kunden wieder vornehmen?</h3>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <input type="date" id="bbk-wv-datum" value="${esc(curDatum || '')}" style="padding:10px 12px;font-size:14px;border:1px solid #C9A572;border-radius:4px;background:#fff;font-family:inherit;box-sizing:border-box;">
+          <textarea id="bbk-wv-notiz" placeholder="Notiz (optional): z.B. 'Henry ruft an, Bank-Termin klären'" rows="3" style="padding:10px 12px;font-size:14px;border:1px solid var(--border);border-radius:4px;background:#fff;font-family:inherit;box-sizing:border-box;resize:vertical;">${esc(curNotiz || '')}</textarea>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--text-tertiary);">
+            <span>Schnellwahl:</span>
+            <a href="#" data-days="1" class="bbk-wv-quick" style="color:var(--accent-dark);text-decoration:none;">morgen</a>
+            <a href="#" data-days="3" class="bbk-wv-quick" style="color:var(--accent-dark);text-decoration:none;">+3 Tage</a>
+            <a href="#" data-days="7" class="bbk-wv-quick" style="color:var(--accent-dark);text-decoration:none;">+1 Woche</a>
+            <a href="#" data-days="14" class="bbk-wv-quick" style="color:var(--accent-dark);text-decoration:none;">+2 Wochen</a>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:22px;">
+          ${curDatum ? `<button type="button" id="bbk-wv-clear" style="background:transparent;border:1px solid rgba(154,62,51,0.35);color:var(--negative);font-family:inherit;font-size:12px;padding:7px 14px;border-radius:18px;cursor:pointer;">Wiedervorlage löschen</button>` : '<span></span>'}
+          <div style="display:flex;gap:10px;">
+            <button type="button" id="bbk-wv-cancel" style="background:transparent;border:1px solid #E8E6DD;color:#1A1A17;font-family:inherit;font-size:13px;padding:9px 18px;border-radius:18px;cursor:pointer;">Abbrechen</button>
+            <button type="button" id="bbk-wv-ok" style="background:#8E6E3D;color:#fff;border:none;font-family:inherit;font-size:13px;padding:9px 20px;border-radius:18px;cursor:pointer;font-weight:500;">Speichern</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+    const datumInput = ov.querySelector('#bbk-wv-datum');
+    const notizInput = ov.querySelector('#bbk-wv-notiz');
+    datumInput.focus();
+    function close(val) {
+      ov.remove();
+      document.removeEventListener('keydown', keyHandler);
+      resolve(val);
+    }
+    function keyHandler(e) {
+      if (e.key === 'Escape') close(null);
+    }
+    ov.querySelectorAll('.bbk-wv-quick').forEach(a => {
+      a.onclick = (e) => {
+        e.preventDefault();
+        const d = new Date();
+        d.setDate(d.getDate() + parseInt(a.dataset.days, 10));
+        datumInput.value = d.toISOString().split('T')[0];
+      };
+    });
+    ov.querySelector('#bbk-wv-cancel').onclick = () => close(null);
+    ov.querySelector('#bbk-wv-ok').onclick = () => close({ datum: datumInput.value || '', notiz: notizInput.value || '' });
+    const clearBtn = ov.querySelector('#bbk-wv-clear');
+    if (clearBtn) clearBtn.onclick = () => close({ datum: '', notiz: '' });
+    ov.onclick = (e) => { if (e.target === ov) close(null); };
+    document.addEventListener('keydown', keyHandler);
+  });
+}
+window.openWiedervorlageModal = openWiedervorlageModal;
+
+// ===== RENDER FUNCTIONS =====
+
+function renderKavCockpit(k) {
+  const tracker = getKavTracker(k);
+  const currentPhId = kavCurrentPhase(tracker);
+  const allDone = currentPhId === 'abgeschlossen';
+  const nextTask = kavNextTask(tracker);
+  const wvStatus = kavWiedervorlageStatus(tracker);
+
+  // Stepper
+  const steps = KAV_PHASES.map(ph => {
+    const counts = kavTaskCount(tracker, ph.id);
+    const isCurrent = ph.id === currentPhId;
+    const critTasks = ph.tasks.filter(t => t.critical);
+    const allCritDone = critTasks.length > 0 && critTasks.every(t => !!(tracker.tasks || {})[t.id]);
+    const cls = allCritDone ? 'done' : (isCurrent ? 'current' : 'pending');
+    return `
+      <div class="kav-step kav-step-${cls}" style="--kav-accent:${ph.accent};">
+        <div class="kav-step-num">${ph.nr}</div>
+        <div class="kav-step-body">
+          <div class="kav-step-label">${esc(ph.label)}</div>
+          <div class="kav-step-sub">${esc(ph.sub)} · ${counts.done}/${counts.total}</div>
+        </div>
+      </div>
+    `;
+  }).join('<div class="kav-step-arrow">›</div>');
+
+  // Wiedervorlage-Badge
+  let wvBadge = '';
+  if (wvStatus.status === 'overdue') {
+    wvBadge = `<button class="kav-wv-badge overdue" onclick="kavSetWiedervorlage()" title="Wiedervorlage überfällig — klick zum Anpassen">⚠ ${wvStatus.tageUeber}d überfällig</button>`;
+  } else if (wvStatus.status === 'today') {
+    wvBadge = `<button class="kav-wv-badge today" onclick="kavSetWiedervorlage()">🔔 heute fällig</button>`;
+  } else if (wvStatus.status === 'soon') {
+    wvBadge = `<button class="kav-wv-badge soon" onclick="kavSetWiedervorlage()">🔔 in ${wvStatus.tage}d</button>`;
+  } else if (wvStatus.status === 'future') {
+    wvBadge = `<button class="kav-wv-badge future" onclick="kavSetWiedervorlage()">🔔 ${new Date(wvStatus.datum).toLocaleDateString('de-DE')}</button>`;
+  } else {
+    wvBadge = `<button class="kav-wv-badge none" onclick="kavSetWiedervorlage()">+ Wiedervorlage</button>`;
+  }
+
+  // Next-Action-Hint
+  const nextHint = allDone
+    ? '<div class="kav-next-action done">🎉 Alle Pflicht-Aufgaben erledigt — Kunde abgeschlossen.</div>'
+    : nextTask
+      ? `<div class="kav-next-action"><strong>Nächste Aufgabe:</strong> ${esc(nextTask.label)} <span class="kav-next-hint">— ${esc(nextTask.hint || '')}</span></div>`
+      : '';
+
+  // Aufgaben-Liste der aktuellen Phase (collapsed andere)
+  const allPhasesHtml = KAV_PHASES.map(ph => {
+    const isCurrent = ph.id === currentPhId;
+    const counts = kavTaskCount(tracker, ph.id);
+    const items = ph.tasks.map(t => {
+      const done = !!(tracker.tasks || {})[t.id];
+      const dateStr = done ? (tracker.tasks[t.id] && tracker.tasks[t.id] !== true ? new Date(tracker.tasks[t.id]).toLocaleDateString('de-DE') : '') : '';
+      return `
+        <label class="kav-task ${done ? 'done' : ''} ${t.critical ? 'critical' : ''}">
+          <input type="checkbox" ${done ? 'checked' : ''} onchange="kavToggleTask('${t.id}')" />
+          <span class="kav-task-label">${esc(t.label)}${t.critical ? ' <span class="kav-pflicht">Pflicht</span>' : ''}</span>
+          <span class="kav-task-hint">${esc(t.hint || '')}${dateStr ? ' · ' + dateStr : ''}</span>
+        </label>
+      `;
+    }).join('');
+    return `
+      <details class="kav-phase-card kav-phase-${ph.id} ${isCurrent ? 'is-current' : ''}" style="--kav-accent:${ph.accent};" ${isCurrent ? 'open' : ''}>
+        <summary>
+          <span class="kav-phase-num">${ph.nr}</span>
+          <span class="kav-phase-name">${esc(ph.label)}</span>
+          <span class="kav-phase-counts">${counts.done}/${counts.total}</span>
+        </summary>
+        <div class="kav-tasks">${items}</div>
+      </details>
+    `;
+  }).join('');
+
+  return `
+    <section class="kav-cockpit">
+      <div class="kav-cockpit-head">
+        <div class="kav-stepper">${steps}</div>
+        <div class="kav-cockpit-meta">${wvBadge}</div>
+      </div>
+      ${nextHint}
+      <div class="kav-phases-grid">${allPhasesHtml}</div>
+    </section>
+  `;
+}
+window.renderKavCockpit = renderKavCockpit;
+
+// Liste-Kunde: kompakte Phase + Wiedervorlage-Anzeige
+function kavListeBadges(kunde) {
+  const tracker = getKavTracker(kunde);
+  const currentPhId = kavCurrentPhase(tracker);
+  const ph = KAV_PHASES.find(p => p.id === currentPhId);
+  const wv = kavWiedervorlageStatus(tracker);
+  const counts = ph ? kavTaskCount(tracker, ph.id) : { done: 0, total: 0 };
+  const phaseChip = ph
+    ? `<span class="kav-mini-phase" style="--kav-accent:${ph.accent};">P${ph.nr} · ${esc(ph.label)} <span class="kav-mini-counts">${counts.done}/${counts.total}</span></span>`
+    : `<span class="kav-mini-phase kav-mini-done">✓ Abgeschlossen</span>`;
+  let wvChip = '';
+  if (wv.status === 'overdue') wvChip = `<span class="kav-mini-wv overdue" title="Wiedervorlage überfällig">⚠ ${wv.tageUeber}d</span>`;
+  else if (wv.status === 'today') wvChip = `<span class="kav-mini-wv today" title="heute fällig">🔔 heute</span>`;
+  else if (wv.status === 'soon') wvChip = `<span class="kav-mini-wv soon">🔔 ${wv.tage}d</span>`;
+  return phaseChip + wvChip;
+}
+window.kavListeBadges = kavListeBadges;
