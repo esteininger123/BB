@@ -376,6 +376,7 @@ function renderDashboard() {
         <button onclick="createNewKunde()">+ Neuer Kunde</button>
       </div>
 
+      ${meine.length === 0 ? '' : `
       <div class="phasen-row kav-phasen-row">
         ${KAV_PHASES.map(ph => `
           <div class="phase-kpi kav-phase-kpi" style="--kav-accent:${ph.accent};">
@@ -389,18 +390,24 @@ function renderDashboard() {
           <div class="value">${phasenCounts.abgeschlossen || 0}</div>
           <div class="sub">Beurkundet</div>
         </div>
-      </div>
+      </div>`}
 
       ${wiedervorlagenCard}
 
       <div class="card">
-        <div class="card-title">Meine Kunden</div>
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <span>Meine Kunden ${meine.length > 0 ? `<span class="text-tertiary text-small" style="font-weight:normal;">· ${meine.length}</span>` : ''}</span>
+          ${meine.length > 5 ? `
+            <input type="text" id="kunden-suche" placeholder="Suche Name oder E-Mail …" oninput="filterKundenListe(this.value)"
+              style="font-family:inherit;font-size:13px;padding:7px 12px;border:1px solid #C9A572;border-radius:18px;width:240px;background:#fff;">
+          ` : ''}
+        </div>
         ${meine.length === 0 ? `
           <div class="empty-state">
             Noch keine Kunden. Klick auf <strong>"+ Neuer Kunde"</strong>.
           </div>
         ` : `
-          <table class="table kunden-tbl">
+          <table class="table kunden-tbl" id="kunden-tbl">
             <thead>
               <tr>
                 <th>Name</th>
@@ -411,7 +418,7 @@ function renderDashboard() {
             </thead>
             <tbody>
               ${meine.map(k => `
-                <tr onclick="go('/kunde/${esc(k.id)}')">
+                <tr data-search="${esc(((k.name || (k.vorname + ' ' + k.nachname) || '') + ' ' + (k.email || '')).toLowerCase())}" onclick="go('/kunde/${esc(k.id)}')">
                   <td><strong>${esc(k.name || (k.vorname + ' ' + k.nachname) || '—')}</strong></td>
                   <td>${kavListeBadges(k)}</td>
                   <td class="text-tertiary">${esc(k.email || '—')}</td>
@@ -420,11 +427,34 @@ function renderDashboard() {
               `).join('')}
             </tbody>
           </table>
+          <div id="kunden-tbl-empty" class="empty-state" style="display:none;padding:24px;text-align:center;color:var(--text-tertiary);">
+            Kein Kunde matched „<span id="kunden-tbl-empty-q"></span>".
+          </div>
         `}
       </div>
     </div>
   `;
 }
+
+// QA-Fix 2026-05-23 (Audit-EE-3): Live-Suche auf Dashboard. Nutzt data-search
+// auf jeder Zeile (lower-case Name+Email). Filter ist clientseitig — bei 100+
+// Kunden trotzdem fast instant.
+function filterKundenListe(query) {
+  const q = (query || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('#kunden-tbl tbody tr');
+  let visible = 0;
+  rows.forEach(r => {
+    const text = r.dataset.search || '';
+    const match = !q || text.includes(q);
+    r.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  const empty = document.getElementById('kunden-tbl-empty');
+  const emptyQ = document.getElementById('kunden-tbl-empty-q');
+  if (empty) empty.style.display = visible === 0 && q ? 'block' : 'none';
+  if (emptyQ) emptyQ.textContent = q;
+}
+window.filterKundenListe = filterKundenListe;
 
 // Iter 61 (20.05.2026): Drei sequenzielle `prompt()`-Dialoge durch ein
 // einzelnes Modal ersetzt. Grund: prompt() hat keinen Format-Check, blockiert
@@ -6311,7 +6341,15 @@ window._weListeOpenWe = _weListeOpenWe;
 function render() {
   renderHeader();
   if (state.view === 'login') renderLogin();
-  else if (state.view === 'dashboard') renderDashboard();
+  else if (state.view === 'dashboard') {
+    renderDashboard();
+    // QA-Fix 2026-05-23 (Audit-EE-4): Tour auch im Dashboard triggern, sonst
+    // sieht ein Vertriebler ohne Kunden die Tour NIE (Kalkulator-Tab nicht
+    // erreichbar). Step 0-3 sind kalkulator-unabhängig.
+    if (typeof maybeStartTourOnFirstLogin === 'function') {
+      try { maybeStartTourOnFirstLogin(); } catch {}
+    }
+  }
   else if (state.view === 'kunde') renderKunde();
   else if (state.view === 'admin') renderAdmin();
   else if (state.view === 'we-liste') renderWeListe();
@@ -6405,7 +6443,13 @@ window.addEventListener('load', async () => {
 // QA-Sprint 2026-05-23: Bump auf v2 — Tour jetzt 14 Schritte mit SA/PandaDoc/Snapshots/PDF.
 // User die v1 gesehen haben bekommen v2 automatisch beim nächsten Kalkulator-Open.
 const TOUR_VERSION = 'v2';
-const TOUR_STORAGE_KEY = 'bbk_tour_' + TOUR_VERSION + '_seen';
+// QA-Fix 2026-05-23 (Audit-EE-12): User-Email in den Storage-Key, damit auf einem
+// shared-Browser (Büro-PC, 2 Vertriebler) jeder seine Tour separat sieht.
+// Funktion statt const, weil state.user beim Modul-Laden noch nicht da ist.
+function tourStorageKey() {
+  const email = (state && state.user && state.user.email) || 'anon';
+  return 'bbk_tour_' + TOUR_VERSION + '_' + email + '_seen';
+}
 
 const TOUR_STEPS = [
   {
@@ -6498,7 +6542,7 @@ function endTour(markSeen) {
   document.querySelectorAll('.bbk-tour-highlight').forEach(el => el.classList.remove('bbk-tour-highlight'));
   document.removeEventListener('keydown', _tourKeyHandler);
   if (markSeen) {
-    try { localStorage.setItem(TOUR_STORAGE_KEY, '1'); } catch (e) {}
+    try { localStorage.setItem(tourStorageKey(), '1'); } catch (e) {}
   }
 }
 window.endTour = endTour;
@@ -6601,7 +6645,7 @@ window._tourPrev = _tourPrev;
 // Auto-Start beim ersten Login (wenn noch nicht gesehen)
 function maybeStartTourOnFirstLogin() {
   try {
-    const seen = localStorage.getItem(TOUR_STORAGE_KEY);
+    const seen = localStorage.getItem(tourStorageKey());
     if (!seen) {
       setTimeout(() => startTour(), 1200);
     }
