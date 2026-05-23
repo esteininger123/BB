@@ -124,10 +124,14 @@ module.exports = async (req, res) => {
         id: weRec.id,
         titel,
         weNr: wf[WE_FIELDS.WE_NR] || '',
-        kp:        num(wf[WE_FIELDS.KAUFPREIS]),
-        qm:        num(wf[WE_FIELDS.QM]),
-        kaltmiete: num(wf[WE_FIELDS.KALTMIETE]),
-        qmPreis:   num(wf[WE_FIELDS.QM_PREIS]),
+        // QA-Fix 2026-05-23 (Audit-BB-8): defensives `|| 0` als NaN-Schutz.
+        // `num()` kann null/NaN zurückgeben. Wenn das durch die Pipeline rutscht,
+        // multipliziert die Engine mit null = 0, was zu Geister-Cashflows
+        // führt. Lieber explizit 0 für „nicht gepflegt" als null.
+        kp:        num(wf[WE_FIELDS.KAUFPREIS]) || 0,
+        qm:        num(wf[WE_FIELDS.QM]) || 0,
+        kaltmiete: num(wf[WE_FIELDS.KALTMIETE]) || 0,
+        qmPreis:   num(wf[WE_FIELDS.QM_PREIS]) || 0,
       };
 
       // Stammdaten — Priorität: Aktiv > Entwurf > Archiviert

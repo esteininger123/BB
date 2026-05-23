@@ -1033,6 +1033,31 @@ module.exports = async (req, res) => {
       const body = await readBody(req);
       if (!body || typeof body !== 'object') return res.status(400).json({ error: 'Body fehlt' });
 
+      // QA-Fix 2026-05-23 (Audit-BB-4): Range-Validation für sensitive Felder.
+      // Vorher konnte ein Tippfehler in Airtable-UI (0,15 statt 0,85 → AfA bricht
+      // zusammen, 5,0 statt 0,05 → Inflation 500%) unbemerkt durchrutschen. Jetzt:
+      // klare 400-Antwort, kein Save mit absurden Werten.
+      const rangeChecks = [
+        { key: 'gebaeudeAnteil',   min: 0.50, max: 1.00, label: 'Gebäude-Anteil' },
+        { key: 'wertsteigerung',   min: -0.05, max: 0.10, label: 'Wertsteigerung (Inflation)' },
+        { key: 'hgInflation',      min: -0.05, max: 0.10, label: 'Hausgeld-Inflation' },
+        { key: 'indexmiete',       min: 0,     max: 0.20, label: 'Indexmiete' },
+        { key: 'mietzuschuss',     min: 0,     max: 5000, label: 'Mietzuschuss €/Mo' },
+        { key: 'mietzuschussMonate', min: 0,   max: 120,  label: 'Mietzuschuss Monate' },
+        { key: 'grEst',            min: 0,     max: 0.10, label: 'Grunderwerbsteuer' },
+      ];
+      for (const chk of rangeChecks) {
+        if (body[chk.key] !== undefined && body[chk.key] !== null && body[chk.key] !== '') {
+          const v = num(body[chk.key]);
+          if (v != null && (v < chk.min || v > chk.max)) {
+            return res.status(400).json({
+              error: `${chk.label} außerhalb plausibler Range`,
+              hint: `Erwartet ${chk.min} bis ${chk.max}, erhalten ${v}. Wenn das beabsichtigt ist, bitte beim Admin melden.`
+            });
+          }
+        }
+      }
+
       // Existierenden Datensatz finden (egal welcher Status)
       const existing = await loadKalkStammdatenForWE(weId);
 
