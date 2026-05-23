@@ -1508,14 +1508,30 @@ function kalkInputsThemenHtml(i) {
             const d = new Date(datum);
             if (!isNaN(d.getTime())) {
               const now = new Date();
-              const mo = Math.max(0, Math.round((now - d) / (1000 * 60 * 60 * 24 * 30.44)));
-              monateAnzeige = mo + ' Monate her';
+              const diffMs = now - d;
+              if (diffMs >= 0) {
+                const mo = Math.round(diffMs / (1000 * 60 * 60 * 24 * 30.44));
+                monateAnzeige = mo + ' Monate her';
+              } else {
+                // QA-Fix 2026-05-23 (Edgar-Doc Bug 6+7): zukünftiges Datum
+                // korrekt anzeigen (vorher Math.max(0,…) clamped auf „0 Mo her").
+                const moFuture = Math.round(-diffMs / (1000 * 60 * 60 * 24 * 30.44));
+                monateAnzeige = `in ${moFuture} Monaten geplant`;
+              }
             }
           }
           const quelle = state.kalk._letzteMietsteigerungQuelle || '';
-          const quelleLabel = quelle === 'kalk-stammdaten' ? 'aus Stammdaten' :
-                              quelle === 'mietvertrag-vertragsbeginn' ? 'aus Mietvertrag (Vertragsbeginn)' :
-                              quelle === 'mietvertrag' ? 'aus Mietvertrag' : '';
+          // QA-Fix 2026-05-23 (Edgar-Doc Bug 6+7+8): Quellen-Label klarer:
+          // mietvertrag-anpassung = echte Anpassung (gepflegt)
+          // mietvertrag-vertragsbeginn-alt = nur Vertragsbeginn, > 3J alt (Vermutung)
+          // unbekannt = nichts gepflegt
+          const quelleLabel = quelle === 'kalk-stammdaten' ? 'aus Stammdaten (manuell)' :
+                              quelle === 'mietvertrag-anpassung' ? 'aus Mietvertrag (echte Anpassung)' :
+                              quelle === 'mietvertrag-vertragsbeginn-alt' ? '⚠ aus Vertragsbeginn (keine Anpassung dokumentiert)' :
+                              quelle === 'mietvertrag-vertragsbeginn' ? '⚠ aus Vertragsbeginn' :
+                              quelle === 'mietvertrag' ? 'aus Mietvertrag' :
+                              quelle === 'leerstand-keine' ? '(Leerstand)' :
+                              quelle === 'unbekannt' ? '⚠ nicht gepflegt' : '';
           // Iter 78: Tag-1-Override-Hinweis (Vereinbarung oder Iter63-Annahme)
           let tag1Hint = '';
           if (state.kalk._subventionTag1Erhoehung) {

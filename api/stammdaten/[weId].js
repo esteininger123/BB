@@ -251,21 +251,36 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
     const stplMietsumme = Array.from(jungsteStplMieteByPlatz.values())
       .reduce((s, x) => s + x.miete, 0);
 
+    // QA-Fix 2026-05-23 (Edgar-Doc Bug 6+7+8): Vorher hatte jungsterVertragsbeginn
+    // Vorrang vor jungsteMietsteigerung. ROOT-CAUSE: Bei einem Bestandsmieter
+    // mit Vertragsbeginn 2025 und KEINER dokumentierten Erhöhung wurde
+    // letzteMietsteigerung = 2025 → monateSeit = 0 → Chart zeigt nächste
+    // Erhöhung erst in 3 Jahren. Edgar's Beobachtung „in vielen Fällen
+    // bei Bruchsal".
+    // Jetzt: echte Anpassung (jungsteMietsteigerung) hat ABSOLUTEN Vorrang.
+    // Vertragsbeginn ist NUR Vermutung wenn er > 3 Jahre zurückliegt — dann
+    // ist es plausibel dass „letzte Erhöhung war damals". Bei neuerem Vertrag
+    // ohne dokumentierte Anpassung: letzteMietsteigerung = null → Frontend
+    // setzt monateSeit = 36 (sofort Sprung möglich) statt 0.
+    const heute = new Date();
+    const drei = new Date(heute.getFullYear() - 3, heute.getMonth(), heute.getDate()).toISOString().slice(0, 10);
+    const beginnPlausibel = jungsterVertragsbeginn && jungsterVertragsbeginn < drei;
+    const letzteEchte = jungsteMietsteigerung || (beginnPlausibel ? jungsterVertragsbeginn : null);
     return {
       stellplatzMietsumme: stplMietsumme,
       stellplatzMietsummeNominal: stplMietsummeNominal,
       stellplatzMieteProRata: useProRata && stplMietsummeNominal !== stplMietsumme,
-      stellplatzMieteJuengsterCount: jungsteStplMieteByPlatz.size, // Debug
+      stellplatzMieteJuengsterCount: jungsteStplMieteByPlatz.size,
       vertraegeMitStellplatz,
       vertragVorhanden,
-      // Iter 41.13: Vertragsbeginn ist verlässlicher gepflegt als 'Anpassung gültig ab'.
-      // Iter 76 (21.05.2026): nur Daten ≤ heute — zukünftige Verträge gehören
-      // in geplanteErhoehung, nicht in letzteMietsteigerung.
-      letzteMietsteigerung: jungsterVertragsbeginn || jungsteMietsteigerung || null,
+      letzteMietsteigerung: letzteEchte,
+      letzteMietsteigerungIstAnpassung: !!jungsteMietsteigerung,
+      letzteMietsteigerungIstVertragsbeginn: !jungsteMietsteigerung && beginnPlausibel,
       jungsterVertragsbeginn,
+      jungsteMietsteigerung,
       aktuelleKaltmiete,
       aktuelleKaltmieteDatum,
-      geplanteErhoehung, // { datum, kaltmiete, quelle } | null
+      geplanteErhoehung,
       zukunftsvertraegeCount: zukunftsvertraege.length,
     };
   } catch (e) {
@@ -941,18 +956,33 @@ module.exports = async (req, res) => {
         statusQuelle = vertragInfo.vertragVorhanden ? 'fallback-mietvertrag' : 'fallback-keine-daten';
       }
 
-      // Letzte Mietsteigerung:
-      // - status='vermietet' → erst Kalk-Stammdaten (manuell gepflegt), sonst Mietvertrag, sonst null
-      // - status='leer'      → IMMER null (alte Vertragsdaten dürfen nicht in die Steigerungs-Logik!)
+      // Letzte Mietsteigerung — Quelle-Klärung (Edgar-Doc Bug 6+7+8):
+      // - status='vermietet' → erst Kalk-Stammdaten (Edgar manuell gepflegt),
+      //                        sonst Mietvertrags-Anpassung (jungsteMietsteigerung),
+      //                        sonst Vertragsbeginn nur wenn > 3 Jahre alt,
+      //                        sonst null (Pflegelücke).
+      // - status='leer'      → IMMER null.
       const kalkLetzte = (kalkRec && kalkRec.fields && kalkRec.fields[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG]) || null;
       let letzteMietsteigerung, letzteMietsteigerungQuelle;
       if (statusFinal === 'leer') {
         letzteMietsteigerung = null;
         letzteMietsteigerungQuelle = 'leerstand-keine';
+      } else if (kalkLetzte) {
+        letzteMietsteigerung = kalkLetzte;
+        letzteMietsteigerungQuelle = 'kalk-stammdaten';
+      } else if (vertragInfo.letzteMietsteigerung) {
+        letzteMietsteigerung = vertragInfo.letzteMietsteigerung;
+        // jetzt zwischen echter Anpassung und Vertragsbeginn-Fallback unterscheiden
+        if (vertragInfo.letzteMietsteigerungIstAnpassung) {
+          letzteMietsteigerungQuelle = 'mietvertrag-anpassung';
+        } else if (vertragInfo.letzteMietsteigerungIstVertragsbeginn) {
+          letzteMietsteigerungQuelle = 'mietvertrag-vertragsbeginn-alt';
+        } else {
+          letzteMietsteigerungQuelle = 'mietvertrag';
+        }
       } else {
-        letzteMietsteigerung = kalkLetzte || vertragInfo.letzteMietsteigerung || null;
-        letzteMietsteigerungQuelle = kalkLetzte ? 'kalk-stammdaten' :
-          (vertragInfo.letzteMietsteigerung ? 'mietvertrag-vertragsbeginn' : 'unbekannt');
+        letzteMietsteigerung = null;
+        letzteMietsteigerungQuelle = 'unbekannt';
       }
 
       // Stellplatz-Typ-Aufteilung (Garage vs. Fläche/Stellplatz)
