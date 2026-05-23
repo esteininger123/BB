@@ -2588,6 +2588,31 @@ input[type="range"].spar-zins-range::-moz-range-track {
   vertical-align:middle;
 }
 
+/* QA-Fix 2026-05-23 (Edgar-Doc Bug-9): Aktivitäten-Historie Card-Style.
+   Schmal, chronologisch, deutlich anders als Notizen-Textarea. */
+.activity-card { background: #FBFAF7; }
+.activity-list {
+  max-height: 320px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+.activity-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+}
+.activity-row:last-child { border-bottom: 0; }
+.activity-ts {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.activity-text { color: var(--text-primary); }
+
 /* Kunden-Liste: Phase + Wiedervorlage als Mini-Chips */
 /* QA-Fix 2026-05-23 (Edgar): P1/P2/P3 deutlich unterschiedliche Hintergründe
    und Rahmen — Edgar will auf einen Blick sehen, in welcher Etappe der Kunde

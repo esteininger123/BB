@@ -813,19 +813,40 @@ function renderTabUebersicht() {
       </div>
     </div>
 
-    <div class="card mt-16">
-      <div class="card-title">Notizen</div>
-      <textarea id="f-notizen" onblur="saveNotizen()" placeholder="Frei-Notizen, Gesprächs-Stichpunkte ...">${esc((() => {
-        // QA-Fix 2026-05-23 (Audit-P1): KAV-Tracker-JSON aus Textarea ausblenden.
-        // Vorher sah Vertriebler den rohen [KAV-TRACKER]…[/KAV-TRACKER]-Block + konnte
-        // ihn versehentlich editieren/löschen → silent Daten-Verlust.
-        if (typeof parseKavTracker === 'function') {
-          return parseKavTracker(k.notizen || '').freeNotes;
-        }
-        return k.notizen || '';
-      })())}</textarea>
-      <div class="text-tertiary text-small mt-8">Auto-Save bei Klick außerhalb.</div>
-    </div>
+    ${(() => {
+      // QA-Fix 2026-05-23 (Edgar-Doc Bug-9): Notizen UND Aktivitätshistorie
+      // getrennt rendern. freeNotes enthält Mix aus User-Text und Auto-Events
+      // (PandaDoc-Webhook, Snapshot, Send) — wir trennen via Regex und
+      // zeigen 2 saubere Karten: Notizen (editable Textarea) + Historie
+      // (read-only chronologisch).
+      const parsed = (typeof parseKavTracker === 'function')
+        ? parseKavTracker(k.notizen || '')
+        : { tracker: null, freeNotes: k.notizen || '' };
+      const split = _splitNotesAndActivities(parsed.freeNotes);
+      // Notizen-Karte
+      const notizenCard = `
+        <div class="card mt-16">
+          <div class="card-title">Notizen</div>
+          <textarea id="f-notizen" onblur="saveNotizen()" placeholder="Frei-Notizen, Gesprächs-Stichpunkte ...">${esc(split.notes)}</textarea>
+          <div class="text-tertiary text-small mt-8">Auto-Save bei Klick außerhalb. Auto-Events (PandaDoc, Snapshots, Reservierungen) erscheinen unten in der Aktivitäten-Historie.</div>
+        </div>
+      `;
+      // Aktivitäten-Karte (nur wenn was da)
+      const aktivitaetenCard = (split.activities.length > 0) ? `
+        <div class="card mt-16 activity-card">
+          <div class="card-title">Aktivitäten-Historie <span class="text-tertiary text-small" style="font-weight:normal;">· ${split.activities.length} Einträge (automatisch)</span></div>
+          <div class="activity-list">
+            ${split.activities.slice().reverse().map(a => `
+              <div class="activity-row">
+                <div class="activity-ts">${esc(a.ts)}</div>
+                <div class="activity-text">${esc(a.text)}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : '';
+      return notizenCard + aktivitaetenCard;
+    })()}
   `;
   // Iter 68 (21.05.2026): Auto-Save für Stammdaten — gleiche Logik wie SA-Auto-Save.
   //   Bei jedem `input` wird state.kunde lokal aktualisiert, debounced 600 ms später
@@ -910,17 +931,25 @@ window.saveStammdaten = saveStammdaten;
 async function saveNotizen() {
   const userFreeText = document.getElementById('f-notizen').value;
   // QA-Fix 2026-05-23 (Audit-P1+P2): KAV-Tracker beim Notizen-Save bewahren.
-  // Vorher überschrieb saveNotizen den ganzen Block — Tracker (Phase, Aufgaben,
-  // Wiedervorlage) wurde gelöscht. Plus Race-Schutz: aktuelles Notizen-Feld parsen,
-  // freeNotes vergleichen statt komplettes notizen.
+  // QA-Fix 2026-05-23 (Edgar-Doc Bug-9): Aktivitäten-Lines aus freeNotes auch
+  // bewahren. Textarea zeigt nur User-Notes, aber wir müssen die Auto-Events
+  // im Backend-Feld erhalten — sonst löscht jeder Save die Historie.
   const parsed = typeof parseKavTracker === 'function'
     ? parseKavTracker(state.kunde.notizen || '')
     : { tracker: null, freeNotes: state.kunde.notizen || '' };
-  if (userFreeText === parsed.freeNotes) return;
+  // Activities aus dem alten freeNotes extrahieren und vor User-Text anhängen
+  const split = _splitNotesAndActivities(parsed.freeNotes);
+  // Wenn User-Text identisch zum aktuellen notes (kein realer Edit) → kein Save
+  if (userFreeText.trim() === split.notes.trim()) return;
+  // Neuer freeNotes-Inhalt: User-Notes + alle Activity-Lines
+  const activitiesText = split.activities
+    .map(a => `[${a.ts}] ${a.text}`)
+    .join('\n');
+  const combinedFree = [userFreeText.trim(), activitiesText.trim()].filter(Boolean).join('\n\n');
   const tracker = parsed.tracker;
   const notizen = (typeof stringifyKavTracker === 'function' && tracker)
-    ? stringifyKavTracker(userFreeText, tracker)
-    : userFreeText;
+    ? stringifyKavTracker(combinedFree, tracker)
+    : combinedFree;
   // QA-Fix 2026-05-23 (Audit-P2): state.kunde.notizen OPTIMISTISCH updaten vor PUT,
   // damit ein parallel-laufendes kavToggleTask nicht den alten FreeText überschreibt
   // (Race-Window war ~200 ms zwischen PUT-Send und Response).
@@ -1173,8 +1202,7 @@ function renderTabKalkulator() {
 
       <div class="toolbar mt-16">
         <button onclick="saveSnapshot()">Snapshot speichern</button>
-        <button class="secondary" onclick="exportInvestPdf()">PDF Investitionsrechnung</button>
-        <button class="secondary" onclick="exportReservPdf()">PDF Reservierung</button>
+        <button class="secondary" onclick="openInvestDocModal()">Investitions-Doc senden / herunterladen</button>
         ${state.kalk && state.kalk._isPaket
           ? `<button disabled title="Bei Paket-Auswahl noch nicht unterstützt — bitte einzelne WE wählen" style="opacity:0.45;cursor:not-allowed;">Reservierung digital senden (nur Einzel-WE)</button>`
           : `<button onclick="sendReservierungForSignature()">Reservierung digital senden</button>`}
@@ -2537,7 +2565,47 @@ function renderStories(r) {
     </div>
   `);
 
-  el.innerHTML = (markteinkauf || markteinkaufHint) + cashflowHeute + steuervorteil + dreiHebel + exit10 + bonStory + sparenStory;
+  // QA-Fix 2026-05-23 (Edgar-Doc Bug-3): „Brot & Butter" — was B&B nach dem
+  // Notartermin für den Käufer übernimmt. Edgar: minimalistisch, einfach,
+  // visuell. Soll Vertrauen schaffen: „Du stehst nicht alleine da."
+  const brotUndButter = story('08 — Brot &amp; Butter', 'Nach dem Notartermin: was wir für Dich übernehmen', `
+    <div class="story-explain" style="grid-column:1/-1;">
+      <p style="margin:0 0 18px 0;font-size:15px;line-height:1.55;color:var(--text-primary);">
+        Du musst Dich nicht um Mieterhöhungen, Steuerformulare, Übergaben oder Handwerker kümmern. Wir bauen Dich an wie einen alten Bekannten und Du hast direkten Draht über WhatsApp — auch für Dinge, von denen Du noch gar nicht weißt, dass sie auftreten werden.
+      </p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:20px;">
+        <div style="padding:14px 16px;background:#FBFAF7;border-left:3px solid #8E6E3D;border-radius:4px;">
+          <strong style="display:block;margin-bottom:4px;">Mietsubvention bankentauglich</strong>
+          <span class="text-tertiary text-small">Wir richten sie so ein, dass die Bank sie als Einkommen anrechnet — positiver Bonitäts-Effekt für Folge-Käufe.</span>
+        </div>
+        <div style="padding:14px 16px;background:#FBFAF7;border-left:3px solid #8E6E3D;border-radius:4px;">
+          <strong style="display:block;margin-bottom:4px;">Steuereffekt monatlich</strong>
+          <span class="text-tertiary text-small">Wir reichen die Lohnsteuerermäßigung beim Finanzamt ein, damit Dein Steuervorteil Monat für Monat direkt auf dem Konto landet — nicht erst nach der Steuererklärung.</span>
+        </div>
+        <div style="padding:14px 16px;background:#FBFAF7;border-left:3px solid #8E6E3D;border-radius:4px;">
+          <strong style="display:block;margin-bottom:4px;">Restnutzungsdauer-Gutachten</strong>
+          <span class="text-tertiary text-small">Wir übertragen es Dir so, dass es vor dem Finanzamt hält — höhere AfA, mehr Steuervorteil.</span>
+        </div>
+        <div style="padding:14px 16px;background:#FBFAF7;border-left:3px solid #8E6E3D;border-radius:4px;">
+          <strong style="display:block;margin-bottom:4px;">Übergabe &amp; WEG-Integration</strong>
+          <span class="text-tertiary text-small">Wohnungs-Übergabeprotokoll, Ummeldungen Versorger, Mitteilung an die Hausverwaltung — alles in unserer Hand.</span>
+        </div>
+        <div style="padding:14px 16px;background:#FBFAF7;border-left:3px solid #8E6E3D;border-radius:4px;">
+          <strong style="display:block;margin-bottom:4px;">Neuvermietung &amp; Renovierung</strong>
+          <span class="text-tertiary text-small">Wenn die Wohnung leer ist: die erste Neuvermietung machen wir umsonst. Bei Renovierung: passende Dienstleister + Angebots-Prüfung.</span>
+        </div>
+        <div style="padding:14px 16px;background:#EFF6F1;border-left:3px solid #2D6E47;border-radius:4px;">
+          <strong style="display:block;margin-bottom:4px;">WhatsApp-Direktdraht</strong>
+          <span class="text-tertiary text-small">Eine WhatsApp-Gruppe mit B&amp;B — für Fragen, die jetzt schon da sind, und für die, die später kommen.</span>
+        </div>
+      </div>
+      <p style="margin:0;font-size:13.5px;line-height:1.55;color:var(--text-secondary);background:#F5F2EA;padding:14px 18px;border-radius:4px;">
+        <strong>Maßgeschneidert:</strong> Wir betrachten Dein Investment aus 3 Perspektiven — <em>steuerlich, wirtschaftlich, Aufwand</em>. Als Anfänger musst Du keine komplexen Fälle lösen oder Deinem Steuerberater nichts erklären. Als Fortgeschrittener bekommst Du alles in die Hand, was Du selbst steuern willst.
+      </p>
+    </div>
+  `);
+
+  el.innerHTML = (markteinkauf || markteinkaufHint) + cashflowHeute + steuervorteil + dreiHebel + exit10 + bonStory + sparenStory + brotUndButter;
 }
 
 /* ============================================================
@@ -2679,7 +2747,7 @@ function renderStoryPremium(r) {
         <!-- QA-Fix 2026-05-22 (Audit-G G-B2): PDF/Snapshot Quick-Actions direkt im Hero,
              damit der Vertriebler nicht 9× zur Section 5 scrollen muss. -->
         <div class="kalk-c-hero-actions" style="margin-top:32px;display:flex;gap:12px;flex-wrap:wrap;">
-          <button type="button" onclick="exportInvestPdf()" style="background:var(--accent-dark);color:#fff;border:none;font-family:inherit;font-size:13px;letter-spacing:.06em;padding:11px 22px;border-radius:22px;cursor:pointer;font-weight:500;">PDF erstellen</button>
+          <button type="button" onclick="openInvestDocModal()" style="background:var(--accent-dark);color:#fff;border:none;font-family:inherit;font-size:13px;letter-spacing:.06em;padding:11px 22px;border-radius:22px;cursor:pointer;font-weight:500;">Investitions-Doc</button>
           <button type="button" onclick="saveSnapshot()" style="background:transparent;color:var(--text-primary);border:1px solid var(--border);font-family:inherit;font-size:13px;letter-spacing:.06em;padding:11px 22px;border-radius:22px;cursor:pointer;font-weight:500;">Snapshot speichern</button>
         </div>
       </div>
@@ -3928,6 +3996,106 @@ function exportSaPdf() {
 window.exportInvestPdf = exportInvestPdf;
 window.exportReservPdf = exportReservPdf;
 window.exportSaPdf = exportSaPdf;
+
+// QA-Fix 2026-05-23 (Edgar-Doc Bug-10): Modal für Invest-Doc — wählen zwischen
+// Per Mail an Kunden senden oder als PDF herunterladen.
+function openInvestDocModal() {
+  if (!state.kunde || !state.kundeId) {
+    toast('Erst einen Kunden auswählen', 'warning');
+    return;
+  }
+  if (!state.kalk || !state.kalk._weId) {
+    toast('Erst eine Wohneinheit im Kalkulator wählen', 'warning');
+    return;
+  }
+  _reservEnsureStyles();
+  const existing = document.getElementById('bbk-invest-modal');
+  if (existing) existing.remove();
+  const ov = document.createElement('div');
+  ov.id = 'bbk-invest-modal';
+  ov.className = 'reserv-modal-overlay';
+  const kEmail = state.kunde.email || '';
+  const kName = (state.kunde.vorname || '') + ' ' + (state.kunde.nachname || '');
+  ov.innerHTML = `
+    <div class="reserv-modal">
+      <h2>Investitions-Doc</h2>
+      <div class="reserv-modal-body">
+        <p style="margin:0 0 16px 0;line-height:1.5;">Wähle, wie Du die Investitions-Doc weitergeben willst:</p>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <button type="button" class="reserv-confirm" id="invest-mail-btn" ${kEmail ? '' : 'disabled title="Kunde hat keine E-Mail in Airtable"'} style="width:100%;text-align:left;padding:14px 18px;">
+            ✉ Per Mail an Kunden senden
+            <div style="font-size:11px;font-weight:normal;margin-top:4px;opacity:0.85;">${esc(kEmail || '(keine E-Mail hinterlegt)')}</div>
+          </button>
+          <button type="button" class="reserv-confirm" id="invest-download-btn" style="width:100%;text-align:left;padding:14px 18px;background:#fff;color:#1A1A17;border:1px solid var(--accent);">
+            ⬇ Als PDF herunterladen
+            <div style="font-size:11px;font-weight:normal;margin-top:4px;opacity:0.7;">Browser-Druckdialog → „Als PDF speichern"</div>
+          </button>
+        </div>
+      </div>
+      <div class="reserv-modal-actions">
+        <button class="reserv-cancel" id="invest-cancel-btn">Abbrechen</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ov);
+  const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+  document.getElementById('invest-cancel-btn').onclick = close;
+  document.getElementById('invest-download-btn').onclick = () => {
+    close();
+    exportInvestPdf();
+  };
+  const mailBtn = document.getElementById('invest-mail-btn');
+  if (mailBtn) mailBtn.onclick = async () => {
+    close();
+    sendInvestDocMail();
+  };
+}
+window.openInvestDocModal = openInvestDocModal;
+
+// Mail-Send via Backend-Endpoint /api/invest-doc/send-mail (Phase-1 Backend
+// generiert PDF via Puppeteer + Mailversand via PandaDoc-API als Workaround
+// — kein eigener Mail-Server nötig, weil PandaDoc Email kann).
+async function sendInvestDocMail() {
+  if (!state.kunde || !state.kunde.email) {
+    toast('Kunde hat keine E-Mail in Airtable', 'error');
+    return;
+  }
+  if (!state.kalk || !state.kalk._weId) {
+    toast('Bitte erst eine WE wählen', 'error');
+    return;
+  }
+  const kundeName = ((state.kunde.vorname || '') + ' ' + (state.kunde.nachname || '')).trim();
+  if (!window.confirm(`Investitions-Doc per Mail an ${state.kunde.email} senden?\n\nKunde: ${kundeName}`)) return;
+  toast('Sende Investitions-Doc per Mail …', 'info');
+  try {
+    if (!window.PDF || typeof window.PDF.investitionsrechnungHtmlForPandaDoc !== 'function') {
+      // Fallback: wenn der HTML-Generator noch nicht im PDF-Modul ist,
+      // user-freundlich abbrechen + Hinweis.
+      toast('Mail-Versand noch nicht voll konfiguriert — bitte vorerst „Herunterladen" und manuell anhängen.', 'warning');
+      return;
+    }
+    const html = window.PDF.investitionsrechnungHtmlForPandaDoc(state.kunde, state.kalk, state.kalkResult, state.user);
+    const resp = await api.post('/api/invest-doc/send-mail', {
+      kundeId: state.kundeId,
+      weId: state.kalk._weId,
+      html,
+    });
+    if (resp && resp.ok) {
+      toast('✓ Investitions-Doc verschickt an ' + state.kunde.email, 'success');
+    } else {
+      toast('Versand-Antwort unklar — bitte in PandaDoc-Drafts prüfen', 'warning');
+    }
+  } catch (e) {
+    const hint = (e.status === 404)
+      ? '\n\nMail-Send-Endpoint noch nicht eingerichtet (Phase 2). Nutze vorerst „Herunterladen" und hänge das PDF manuell an die Mail.'
+      : '';
+    toast('Fehler: ' + (e.message || 'unbekannt') + hint, 'error');
+  }
+}
+window.sendInvestDocMail = sendInvestDocMail;
 
 // QA-Fix 2026-05-23 (Audit-X4): Doppelklick-Schutz. Vorher erzeugte ein versehentlicher
 // 2. Klick einen zweiten PandaDoc-Vorgang → 2 Docs, doppelte Reservierung, Verwirrung
@@ -7317,6 +7485,32 @@ const KAV_PHASES = [
 
 const KAV_BLOCK_START = '[KAV-TRACKER]';
 const KAV_BLOCK_END   = '[/KAV-TRACKER]';
+
+// QA-Fix 2026-05-23 (Edgar-Doc Bug-9): freeNotes-Text in zwei Buckets aufteilen:
+//   - notes: alle Zeilen die der User selbst geschrieben hat (Frei-Text)
+//   - activities: Zeilen die durch Auto-Events entstanden sind (Pattern:
+//     `[YYYY-MM-DD HH:MM] <Quelle> ...`). Diese werden separat als
+//     Aktivitäten-Historie angezeigt, damit die Notizen sauber bleiben.
+function _splitNotesAndActivities(text) {
+  const out = { notes: '', activities: [] };
+  if (!text || typeof text !== 'string') return out;
+  const lines = text.split('\n');
+  const notesLines = [];
+  // Activity-Pattern: beginnt mit [YYYY-MM-DD HH:MM] gefolgt von erkennbarem Source.
+  // Quellen die wir erkennen: PandaDoc, Reservierung, Selbstauskunft, Snapshot,
+  // Doc-Erstellung, alle vom Backend automatisch geschrieben.
+  const activityRegex = /^\[(\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}(?::\d{2})?)\]\s*(.+)$/;
+  for (const line of lines) {
+    const m = line.match(activityRegex);
+    if (m) {
+      out.activities.push({ ts: m[1].replace('T', ' '), text: m[2].trim() });
+    } else {
+      notesLines.push(line);
+    }
+  }
+  out.notes = notesLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return out;
+}
 
 function parseKavTracker(notesRaw) {
   const notes = String(notesRaw || '');
