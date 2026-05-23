@@ -6244,7 +6244,19 @@ function renderAdminStammdatenAudit(audit) {
                         <td class="num">${sd ? pctN(sd.hgInflation) : statusBadge(null)}</td>
                         <td class="num">${sd ? pctN(sd.grEst) : statusBadge(null)}</td>
                         <td><span class="text-tertiary text-small">${esc((sd && sd.vermietungsModus) || '–')}<br>${esc((sd && sd.kappungsgrenze) || '')}</span></td>
-                        <td class="num text-small">${dateN(r.vermietung && r.vermietung.letzteMietsteigerung)}<br><span class="text-tertiary" style="font-size:10px;">${esc((r.vermietung && r.vermietung.letzteMietsteigerungQuelle) || '')}</span></td>
+                        <td class="num text-small">${dateN(r.vermietung && r.vermietung.letzteMietsteigerung)}<br><span class="text-tertiary" style="font-size:10px;">${(() => {
+                          // QA-Fix 2026-05-23 (Audit R-8): deutsche Labels statt Slug.
+                          const q = (r.vermietung && r.vermietung.letzteMietsteigerungQuelle) || '';
+                          return esc(
+                            q === 'kalk-stammdaten' ? 'manuell' :
+                            q === 'mietvertrag-anpassung' ? 'Anpassung' :
+                            q === 'mietvertrag-vertragsbeginn-alt' ? '⚠ Vertragsbeginn >3J' :
+                            q === 'mietvertrag-vertragsbeginn' ? '⚠ Vertragsbeginn' :
+                            q === 'mietvertrag' ? 'Mietvertrag' :
+                            q === 'leerstand-keine' ? 'leer' :
+                            q === 'unbekannt' ? '⚠ nicht gepflegt' : q
+                          );
+                        })()}</span></td>
                         <td class="text-tertiary text-small">${esc((sd && sd.quelle) || '–')}${sd && sd.notizen ? '<br><em>' + esc((sd.notizen || '').slice(0, 80)) + '…</em>' : ''}</td>
                       </tr>
                     `;
