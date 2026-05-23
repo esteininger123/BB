@@ -2193,6 +2193,53 @@ input[type="range"].spar-zins-range::-moz-range-track {
   padding:24px 0 8px 0;
   box-shadow:none;
 }
+/* QA-Sprint 2026-05-23 (Edgar-Feedback Screenshot): Eingabe-Bereich visuell vom
+   Magazin-Story-Block absetzen. Subtiler Cream-Background + linke Akzent-Kante.
+   Wirkt als „Inputs"-Zone vs. „Output"-Zone (Magazin). */
+.we-picker.kalk-input-minimal,
+.kalk-input-minimal:not(.we-picker){
+  background:var(--bg-section);
+  padding:24px 28px 20px 28px;
+  border-left:3px solid var(--accent);
+  border-radius:0;
+}
+.we-picker.kalk-input-minimal{ margin-bottom:0; }
+.we-picker.kalk-input-minimal + .kalk-input-minimal.mt-16{
+  margin-top:0;
+  border-top:1px solid rgba(176,138,77,0.22);
+  padding-top:20px;
+}
+/* Step-3 (Bonität) — selbe Layout-Klassen wie Step 01/02 */
+.we-picker-bon-row{
+  display:flex; align-items:stretch; gap:8px;
+}
+.we-picker-bon-select{ flex:1; min-width:0; }
+.we-picker-reset-btn{
+  flex:0 0 auto;
+  width:36px; height:36px;
+  display:inline-flex; align-items:center; justify-content:center;
+  background:transparent;
+  border:1px solid var(--border);
+  border-radius:2px;
+  color:var(--text-tertiary);
+  cursor:pointer;
+  transition:all .15s ease;
+  padding:0;
+  font-family:inherit;
+}
+.we-picker-reset-btn:hover{
+  background:var(--bg-cream);
+  color:var(--accent-dark);
+  border-color:var(--accent);
+}
+.we-picker-reset-btn:active{ transform:scale(0.95); }
+.we-picker-reset-btn svg{ display:block; }
+/* Magazin-Story-Block — zur visuellen Abgrenzung von der Eingabe-Zone */
+.kalk-c-magazine{
+  margin-top:32px;
+  padding-top:24px;
+  border-top:1px solid var(--border);
+}
 /* Iter 91.3 (22.05.): Card-Title prominenter — als klare Section-Überschrift
    (statt versteckte Eyebrow-Linie). Damit der Anfang der Eingabemaske
    visuell klar definiert ist. */

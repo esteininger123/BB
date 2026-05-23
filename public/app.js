@@ -965,15 +965,19 @@ function renderTabKalkulator() {
             ` : ''}
           `}
         </div>
-        <div>
+        <div class="we-picker-step">
+          <span class="we-picker-step-num">03</span>
           <label>Bonitäts-Quelle</label>
-          <select id="bon-modus-select">
-            <option value="quick" ${(!i.bonModus || i.bonModus === 'quick') ? 'selected' : ''}>Quick (manuelle Eingabe)</option>
-            <option value="detail" ${i.bonModus === 'detail' ? 'selected' : ''}>Detail (aus Selbstauskunft)</option>
-          </select>
-          <div class="mt-12">
-            <button class="secondary" onclick="resetKalk()">Auf Default zurücksetzen</button>
+          <div class="we-picker-bon-row">
+            <select id="bon-modus-select" class="we-picker-bon-select">
+              <option value="quick" ${(!i.bonModus || i.bonModus === 'quick') ? 'selected' : ''}>Quick (manuelle Eingabe)</option>
+              <option value="detail" ${i.bonModus === 'detail' ? 'selected' : ''}>Detail (aus Selbstauskunft)</option>
+            </select>
+            <button class="we-picker-reset-btn" onclick="resetKalk()" title="Auf Default zurücksetzen" aria-label="Auf Default zurücksetzen" type="button">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 3v6h6"></path></svg>
+            </button>
           </div>
+          <div class="we-picker-hint">${i.bonModus === 'detail' ? 'Aus Selbstauskunft' : 'Schnell-Eingabe ohne SA'}</div>
         </div>
       </div>
     </div>
@@ -5756,54 +5760,81 @@ window.addEventListener('load', async () => {
    überspringbar.
 */
 
-const TOUR_VERSION = 'v1';
+// QA-Sprint 2026-05-23: Bump auf v2 — Tour jetzt 14 Schritte mit SA/PandaDoc/Snapshots/PDF.
+// User die v1 gesehen haben bekommen v2 automatisch beim nächsten Kalkulator-Open.
+const TOUR_VERSION = 'v2';
 const TOUR_STORAGE_KEY = 'bbk_tour_' + TOUR_VERSION + '_seen';
 
 const TOUR_STEPS = [
   {
     title: 'Willkommen im B&B Kalkulator',
-    text: 'Kurze Tour in 9 Schritten. Esc oder Überspringen-Button beendet sie. Du kannst sie jederzeit über das „?"-Symbol oben rechts wieder starten.',
+    text: 'Kurze Tour in 14 Schritten — von der Kunden-Anlage bis zur digitalen Signatur via PandaDoc. Esc oder „Überspringen" beendet sie. Wieder aufrufbar über das „?"-Symbol oben rechts.',
     target: null,
   },
   {
     title: 'Dein Dashboard',
-    text: 'Auf der Startseite siehst Du Deine Kunden. „+ Neuer Kunde" oben rechts. Du siehst nur Deine eigenen Kunden (Admin sieht alle).',
-    target: '.bbk-help-btn',
+    text: 'Auf der Startseite siehst Du Deine Kunden. „+ Neuer Kunde" oben rechts. Du siehst nur Deine eigenen Kunden (Admin sieht alle). Archivieren statt Löschen ist Vertriebs-Standard.',
+    target: 'a[href="#/dashboard"]',
   },
   {
     title: 'Kunde anlegen',
-    text: 'Pflichtfelder: Vorname, Nachname, Email. Geburtsdatum hilft später bei der Bonität. Notizen kannst Du jederzeit nachpflegen, Archivieren statt Löschen — Vertrieb-Standard.',
-    target: '.bbk-help-btn',
+    text: 'Pflichtfelder: Vorname, Nachname, Email. Geburtsdatum hilft später bei der Bonität. Notizen jederzeit nachpflegbar. Phase markiert wo der Kunde im Funnel steht (Lead → Kalkulation → Reservierung → Selbstauskunft → Notar → Beurkundet).',
+    target: null,
   },
   {
     title: 'Wohneinheit wählen',
-    text: 'Im Kunden-Detail wechsle in den „Kalkulator"-Tab. Dropdown oben: zuerst Projekt, dann WE. Nur WEs mit Status „Vermarktung" und vollständigen Stammdaten erscheinen.',
+    text: 'Im Kunden-Detail wechsle in den „Kalkulator"-Tab. Oben zwei Dropdowns: zuerst Projekt, dann WE. Nur WEs mit Status „Vermarktung" und vollständigen Stammdaten erscheinen. Status-Pille zeigt vermietet/leer; Stellplätze laden automatisch dazu.',
     target: '.tab[data-tab="kalkulator"]',
   },
   {
+    title: 'Eingabe-Bereich (Cream-Hintergrund)',
+    text: 'Alles im Cream-Block oben ist Deine Eingabe-Zone: Objekt-Auswahl, WE, Bonitäts-Quelle (Quick = manuell, Detail = aus Selbstauskunft), plus die Themen-Sektionen (Stammdaten, Miete, Hausgeld, Steuern, Finanzierung, Bonität). Reset-Icon rechts neben Bonität = alles auf Default.',
+    target: '.we-picker',
+  },
+  {
     title: 'Hero — die wichtigste Zahl',
-    text: 'Was der Kunde in 10 Jahren aufgebaut hat. Darunter zwei Quick-Action-Buttons: PDF erstellen und Snapshot speichern. Tipp: vor Wert-Änderungen einen Snapshot machen — als Anker.',
-    target: '.kalk-c-hero, .kalk-c-hero-headline',
+    text: 'Was der Kunde in 10 Jahren aufgebaut hat (Vermögenszuwachs Netto). Darunter zwei Quick-Action-Buttons: PDF erstellen und Snapshot speichern. Tipp: vor Wert-Änderungen einen Snapshot machen — als Anker.',
+    target: '.kalk-c-hero-headline',
   },
   {
     title: 'Section 1 — Eckdaten + Markt-Anker',
-    text: 'Kaufpreis, Markt-Schnitt (ImmoScout + Homeday), Markteinkauf-Vorteil oder Aufschlag. Hover auf „Marktpreis je qm" zeigt die Quellen. Darunter: Kaufnebenkosten + Eigenkapital = der echte Einsatz.',
+    text: 'Kaufpreis, Markt-Schnitt (ImmoScout + Homeday — Hover auf „Marktpreis je qm" zeigt beide Quellen), Markteinkauf-Vorteil oder Markt-Aufschlag (rot bei KP > Markt). Darunter: Kaufnebenkosten + Eigenkapital = der echte Einsatz.',
     target: '.kalk-c-objekt-list',
   },
   {
     title: 'Section 2 — Belastung Jahr 1',
-    text: 'Annuität minus Miete minus Steuervorteil = effektive monatliche Belastung. Bei aktiver Mietsubvention glättet das 2-Phasen-Modell die Anlaufphase. Chart: Cashflow nach Steuern Monat für Monat über 10 Jahre.',
+    text: 'Annuität minus Miete minus Steuervorteil = effektive monatliche Belastung. Bei aktiver Mietsubvention glättet das 2-Phasen-Modell die Anlaufphase. Chart zeigt Cashflow nach Steuern Monat für Monat über 10 Jahre — bei Sprung-Modus erkennst Du die 3-Jahres-Sprünge.',
     target: '#chart-c-belastung',
   },
   {
     title: 'Section 3 — Vermögensaufbau',
-    text: 'Zwei zentrale Größen: „Modellwert J10" (Markthochrechnung Kaufpreis × Wertsteigerung^10) und „Mein Anteil J10" (Verkaufserlös plus kumulierte Cashflows). Toggle „Restschuld einblenden" zeigt die Bank-Seite.',
+    text: 'Zwei Größen, klar getrennt: „Modellwert J10" = Markthochrechnung (Kaufpreis × Wertsteigerung^10, kein gutachterlicher Verkehrswert). „Mein Anteil J10" = Verkaufserlös plus kumulierte Cashflows. Toggle „Restschuld einblenden" zeigt die Bank-Seite mit.',
     target: '#chart-c-vermoegen-magazin',
   },
   {
-    title: 'Section 5 — Detail-Drilldowns',
-    text: 'Vier Modals für den tiefen Blick: Bonität (so rechnet die Bank, 80% anrechenbare Miete), Cashflow J1–J10 (Jahres-Tabelle), Vermögen (kumuliert), Annahmen (alle Parameter inkl. Sparzins-Slider). PDF + Snapshot auch oben im Hero.',
+    title: 'Detail-Drilldowns (4 Modals)',
+    text: 'Tiefer Blick auf Klick: Bonität („so rechnet die Bank" — 80% anrechenbare Miete, Annuität, freies EK), Cashflow J1–J10 (Jahres-Tabelle), Vermögen (kumuliert), Annahmen (alle Parameter inkl. Sparzins-Slider — live updaten).',
     target: '.kalk-c-drill-links',
+  },
+  {
+    title: 'Snapshots — Versionen sichern',
+    text: 'Snapshot-Tab speichert eine Kalkulation als unveränderlichen Zwischenstand (Datum/Uhrzeit). Beim Reload zeigt ein Toast „Werte eingefroren" — alte Snapshots werden auto-angepasst (gebaeudeAnteil 0.8 → 0.85). Umbenennen + löschen geht. Tipp: vor jedem größeren Wert-Sprung einen Snapshot — als Diskussions-Anker mit dem Kunden.',
+    target: '.tab[data-tab="snapshots"]',
+  },
+  {
+    title: 'PDF-Export — Investitions-Analyse',
+    text: 'PDF-Button (oben im Hero oder unten in Section 5) erstellt 7-Seiten Investitions-Analyse: Cover mit B&B HRB, Eckdaten + Plan, Vermögenszuwachs, Sparbuch-Vergleich, Bonität wie Bank rechnet, Cashflow-Detail, Annahmen + Disclaimer. Geht via Browser-Druckdialog — Druck oder Speichern als PDF.',
+    target: '.kalk-c-hero-actions',
+  },
+  {
+    title: 'Selbstauskunft → digital signiert',
+    text: 'SA-Tab füllt die Bank-Selbstauskunft. Antragsteller + optional Mitantragsteller. Baukasten für beliebige Vermögens-/Einnahmen-/Ausgaben-Positionen. Auto-Save aktiv. „SA an Bank senden" generiert PDF + lädt es zu PandaDoc → beide Personen unterschreiben digital. Pflichtfeld-Check vor Send (Steuer-ID, IBAN, Brutto, Steuerklasse) verhindert halb-leere Anträge.',
+    target: '.tab[data-tab="selbstauskunft"]',
+  },
+  {
+    title: 'Reservierung → KAV via PandaDoc',
+    text: 'In der Übersicht oder Snapshots: „Reservierung erstellen" → Kaufabsichtserklärung (30 Tage Frist) wird via PandaDoc-Editor erzeugt. Verkäufer- und Käufer-Daten ziehen automatisch aus SA + State. Du editierst noch im PandaDoc-Editor (Doc-Name, Frist), dann „Senden" — Kunde unterschreibt digital. Status-Updates landen automatisch in den Kunden-Notizen via Webhook.',
+    target: '.tab[data-tab="uebersicht"]',
   },
 ];
 
@@ -5869,17 +5900,26 @@ function _renderTour() {
   const last = _tourStep === TOUR_STEPS.length - 1;
   const first = _tourStep === 0;
 
+  // QA-Sprint 2026-05-23 (Edgar-Feedback Screenshot): Tour-Auto-Scroll war unzuverlässig —
+  // User sah die Card aber nicht das erklärte Element. Jetzt: target VORAB suchen, wenn
+  // nicht da → kleinen Hinweis im Card-Body anzeigen („Element nicht auf dieser Seite").
+  const targetEl = step.target ? document.querySelector(step.target) : null;
+  const targetHint = (step.target && !targetEl)
+    ? `<div style="margin-top:12px;padding:10px 14px;background:#FAEEDB;border-left:3px solid #C9A572;font-size:12px;color:#7A5C28;line-height:1.5;">Diese UI siehst Du nicht auf dieser Seite — navigiere ggf. zum Kunden-Detail mit Kalkulator-/SA-/Snapshots-Tab. Die Tour läuft trotzdem weiter.</div>`
+    : '';
+
   ov.innerHTML = `
-    <div style="pointer-events:auto;background:#FBFAF7;border-radius:14px;max-width:380px;width:100%;padding:24px 28px;box-shadow:0 30px 80px rgba(0,0,0,0.25);border:1px solid #C9A572;">
+    <div style="pointer-events:auto;background:#FBFAF7;border-radius:14px;max-width:400px;width:100%;padding:24px 28px;box-shadow:0 30px 80px rgba(0,0,0,0.25);border:1px solid #C9A572;">
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
         <span style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#8E6E3D;font-weight:600;">Tour — Schritt ${_tourStep + 1} / ${TOUR_STEPS.length}</span>
         <button type="button" onclick="endTour(true)" style="background:transparent;border:none;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#7A7A72;cursor:pointer;font-family:inherit;">Überspringen ×</button>
       </div>
       <h3 style="font-size:20px;font-weight:300;letter-spacing:-.01em;margin:0 0 12px 0;color:#1A1A17;line-height:1.25;">${step.title}</h3>
-      <p style="font-size:14px;line-height:1.6;color:#3A3A35;margin:0 0 24px 0;">${step.text}</p>
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <p style="font-size:14px;line-height:1.6;color:#3A3A35;margin:0 0 8px 0;">${step.text}</p>
+      ${targetHint}
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;">
         <button type="button" onclick="window._tourPrev()" ${first ? 'disabled' : ''} style="background:transparent;border:1px solid #E8E6DD;color:${first ? '#C9C9C0' : '#1A1A17'};font-family:inherit;font-size:13px;padding:8px 16px;border-radius:18px;cursor:${first ? 'not-allowed' : 'pointer'};">← Zurück</button>
-        <div style="display:flex;gap:5px;">
+        <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center;max-width:140px;">
           ${TOUR_STEPS.map((_, idx) => `<span style="width:6px;height:6px;border-radius:50%;background:${idx === _tourStep ? '#8E6E3D' : '#E8E6DD'};display:inline-block;"></span>`).join('')}
         </div>
         <button type="button" onclick="window._tourNext()" style="background:#8E6E3D;color:#fff;border:none;font-family:inherit;font-size:13px;padding:8px 18px;border-radius:18px;cursor:pointer;font-weight:500;">${last ? 'Fertig ✓' : 'Weiter →'}</button>
@@ -5887,15 +5927,30 @@ function _renderTour() {
     </div>
   `;
 
-  // Target hervorheben falls vorhanden + scrollen
+  // QA-Sprint 2026-05-23: robusteres Auto-Scroll — 2 Versuche mit längeren Delays,
+  // weil DOM ggf. erst nach Render-Tick verfügbar ist. Plus offset-Korrektur damit das
+  // Element nicht von Sticky-Header (60px) oder Tour-Card (oben rechts) verdeckt wird.
+  // Wir scrollen das Element 120px UNTER den Viewport-Top — gut sichtbar.
+  function _scrollTo(selector) {
+    const el = document.querySelector(selector);
+    if (!el) return false;
+    el.classList.add('bbk-tour-highlight');
+    try {
+      const rect = el.getBoundingClientRect();
+      const targetY = window.scrollY + rect.top - 120;
+      window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+    } catch (e) {
+      try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e2) { el.scrollIntoView(); }
+    }
+    return true;
+  }
   if (step.target) {
-    setTimeout(() => {
-      const el = document.querySelector(step.target);
-      if (el) {
-        el.classList.add('bbk-tour-highlight');
-        try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { el.scrollIntoView(); }
+    // Erst sofort, dann nochmal nach 250ms — falls Render-Lifecycle das Element gerade tauscht
+    requestAnimationFrame(() => {
+      if (!_scrollTo(step.target)) {
+        setTimeout(() => _scrollTo(step.target), 300);
       }
-    }, 50);
+    });
   }
 }
 window._tourNext = _tourNext;
