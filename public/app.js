@@ -727,6 +727,7 @@ async function deleteKunde() {
     await api.delete('/api/kunden/' + state.kundeId);
     state.kunden = state.kunden.filter(x => x.id !== state.kundeId);
     state.kunde = null;
+    state.kundeId = null; // QA-Fix 2026-05-23 (UW-2): konsistent mit archiveKunde.
     toast('Kunde endgültig gelöscht', 'success');
     go('/dashboard');
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
@@ -740,6 +741,9 @@ async function archiveKunde() {
     await api.put('/api/kunden/' + state.kundeId, { archiviert: true });
     state.kunden = state.kunden.filter(x => x.id !== state.kundeId);
     state.kunde = null;
+    // QA-Fix 2026-05-23 (Audit-UW-2/T3-4): state.kundeId nach Archivierung nullen,
+    // damit Tour-Jump-Links nicht auf einen nicht-mehr-existierenden Kunden zeigen.
+    state.kundeId = null;
     toast('Kunde archiviert', 'success');
     go('/dashboard');
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
@@ -6666,6 +6670,9 @@ const TOUR_STEPS = [
     tip: 'Auto-Save ist aktiv — jede Änderung wird sofort gespeichert. Pflichtfelder (Brutto, Steuerklasse, IBAN, Steuer-ID) werden vor dem digitalen Send geprüft.',
     target: '.tab[data-tab="selbstauskunft"]',
     needsView: 'kunde',
+    // needsTab kein Wert (User klickt erst hier auf den Tab); Auto-Advance
+    // greift wenn er den Tab geklickt hat und Step 10 (needsTab=selbstauskunft)
+    // matched.
   },
   {
     title: 'Schritt 10 — Snapshots-Tab anschauen',
@@ -6673,6 +6680,7 @@ const TOUR_STEPS = [
     tip: 'Snapshots kannst Du laden (Werte werden in den Kalkulator zurückgespielt) oder löschen. Beim Laden eines Snapshots ist die Kalkulation eingefroren — Stammdaten werden nicht neu aus Airtable gezogen.',
     target: '.tab[data-tab="snapshots"]',
     needsView: 'kunde',
+    needsTab: 'selbstauskunft', // damit Tour synct sobald User auf SA klickt
   },
   {
     title: 'Schritt 11 — Reservierung-Button (NICHT klicken)',
@@ -6691,7 +6699,7 @@ const TOUR_STEPS = [
   },
   {
     title: 'Schritt 13 — Test-Kunde aufräumen',
-    action: 'Geh zurück zum Test-Kunden (Dashboard → Test Vertrieb anklicken). Im Header der Kundenseite ist der Button „Archivieren" — klick ihn an, der Kunde verschwindet aus Deiner Liste.',
+    action: 'Geh zurück zum Test-Kunden (Dashboard → Test Vertrieb anklicken). Im Header der Kundenseite ist der Button „Archivieren" — klick ihn an. Nach dem Archivieren landest Du wieder auf dem Dashboard — dort dann rechts auf „Fertig ✓" klicken.',
     tip: 'Vertrieb darf nicht endgültig löschen, nur archivieren. Edgar als Admin kann später echte Löschungen durchführen. Damit ist die Tour fertig — Du bist startklar! 🎉',
     target: 'button[onclick*="archiveKunde"]',
     needsView: 'kunde',
@@ -6708,6 +6716,32 @@ function startTour(opts) {
   document.addEventListener('keydown', _tourKeyHandler);
   window.addEventListener('hashchange', _tourRerender);
   window.addEventListener('resize', _tourRerender);
+  // QA-Fix 2026-05-23 (Audit-UW-1): Modal-Open auch detektieren (nicht nur
+  // -close), damit Tour-Card sofort versteckt wird sobald ein Modal aufgeht.
+  _ensureModalOpenObserver();
+}
+
+// Permanenter Body-Observer der bei JEDER Body-Child-Mutation prüft ob
+// Tour-Card+Modal-Status neu gerendert werden muss. Wird in startTour
+// aktiviert und in endTour disconnectet.
+let _tourBodyObserver = null;
+function _ensureModalOpenObserver() {
+  if (_tourBodyObserver) return;
+  _tourBodyObserver = new MutationObserver((mutations) => {
+    if (!_tourActive) return;
+    // Nur reagieren wenn ein Modal-Knoten hinzugefügt oder entfernt wurde —
+    // sonst spammen Toasts/Chart-Tooltips.
+    const relevant = mutations.some(m => {
+      for (const n of [...(m.addedNodes||[]), ...(m.removedNodes||[])]) {
+        if (n.nodeType !== 1) continue;
+        if (n.matches && n.matches('.reserv-modal-overlay, #bbk-snapshot-modal, #bbk-wv-modal, .modal, [role="dialog"]')) return true;
+        if (n.querySelector && n.querySelector('.reserv-modal-overlay, #bbk-snapshot-modal, #bbk-wv-modal, .modal, [role="dialog"]')) return true;
+      }
+      return false;
+    });
+    if (relevant) _tourRerender();
+  });
+  _tourBodyObserver.observe(document.body, { childList: true, subtree: false });
 }
 window.startTour = startTour;
 
@@ -6717,6 +6751,7 @@ function endTour(markSeen) {
   // damit kein Zombie-Render NACH endTour eine neue Card erzeugt.
   if (_tourRerenderTimer) { clearTimeout(_tourRerenderTimer); _tourRerenderTimer = null; }
   if (_tourModalObserver) { _tourModalObserver.disconnect(); _tourModalObserver = null; }
+  if (_tourBodyObserver) { _tourBodyObserver.disconnect(); _tourBodyObserver = null; }
   const ov = document.getElementById('bbk-tour-overlay');
   if (ov) ov.remove();
   const card = document.getElementById('bbk-tour-card');
@@ -6744,8 +6779,11 @@ function _tourRerender() {
   }, 80);
 }
 
-// QA-Fix 2026-05-23 (Audit-T-8): MutationObserver triggert _tourRerender wenn
-// ein Modal aus dem DOM verschwindet — Tour-Card kommt automatisch wieder.
+// QA-Fix 2026-05-23 (Audit-T-8 + T3-1 + T3-2): MutationObserver triggert
+// _tourRerender wenn ein Modal aus dem DOM verschwindet — Tour-Card kommt
+// automatisch wieder. subtree:true damit verschachtelte Modal-Strukturen
+// erkannt werden. Wird NUR während ein Modal offen ist aktiviert (T3-2),
+// sonst spammen Toasts/Charts den Observer.
 let _tourModalObserver = null;
 function _ensureModalCloseObserver() {
   if (_tourModalObserver) return;
@@ -6754,9 +6792,15 @@ function _ensureModalCloseObserver() {
     const stillOpen = !!document.querySelector(
       '.reserv-modal-overlay, #bbk-snapshot-modal, #bbk-wv-modal, .modal, [role="dialog"]'
     );
-    if (!stillOpen) _tourRerender();
+    if (!stillOpen) {
+      // Modal weg → Observer abschalten (wird beim nächsten Modal-open
+      // wieder via _ensureModalCloseObserver aktiviert).
+      _tourModalObserver.disconnect();
+      _tourModalObserver = null;
+      _tourRerender();
+    }
   });
-  _tourModalObserver.observe(document.body, { childList: true, subtree: false });
+  _tourModalObserver.observe(document.body, { childList: true, subtree: true });
 }
 window.endTour = endTour;
 
@@ -6782,6 +6826,15 @@ function _tourPrev() {
     _renderTour();
   }
 }
+
+// QA-Fix 2026-05-23 (Audit-UW-2/UW-4): Direkt zu spezifischem Step springen.
+function _tourGotoStep(idx) {
+  if (!_tourActive) return;
+  if (idx < 0 || idx >= TOUR_STEPS.length) return;
+  _tourStep = idx;
+  _renderTour();
+}
+window._tourGotoStep = _tourGotoStep;
 
 function _renderTour() {
   // QA-Sprint 2026-05-23 (Edgar live): komplett umgebaut.
@@ -6862,7 +6915,28 @@ function _renderTour() {
 
   // Bei View-Mismatch: klarer Block + Auto-Hinbringen
   let viewMismatchBlock = '';
-  if (!viewMatches) {
+  if (!viewMatches && last) {
+    // QA-Fix 2026-05-23 (Walkthrough): letzter Step + Mismatch heißt meist
+    // „User hat den Schritt erfolgreich abgeschlossen und ist weiter navigiert"
+    // (z.B. Archivieren → Dashboard). Statt Hinbringen-Button: Fertig-Hinweis.
+    viewMismatchBlock = `<div class="bbk-tour-warn">
+         <strong>🎉 Tour abgeschlossen!</strong>
+         Klick rechts auf „Fertig ✓" und leg los. Wieder aufrufbar über das „?"-Symbol oben rechts.
+       </div>`;
+  } else if (!viewMatches && needsView === 'kunde' && !state.kundeId) {
+    // QA-Fix 2026-05-23 (Audit-UW-2/UW-4): Tour-Step braucht Kunde aber keiner
+    // ausgewählt — kein sinnvoller Sprung-Link möglich, „Dorthin springen"
+    // führte sonst auf Dashboard (Dead-End-Schleife). Stattdessen: zurück
+    // zu Step 1 (Kunde anlegen) erzwingen.
+    viewMismatchBlock = `<div class="bbk-tour-warn">
+         <strong>Erst einen Kunden anlegen.</strong>
+         Dieser Schritt braucht einen geöffneten Kunden. Geh zurück zu Schritt 1
+         und leg einen Test-Kunden an.
+         <div style="margin-top:10px;">
+           <button type="button" class="bbk-tour-jumpbtn" onclick="window._tourGotoStep(1)">← Zurück zu Schritt 1</button>
+         </div>
+       </div>`;
+  } else if (!viewMatches) {
     viewMismatchBlock = `<div class="bbk-tour-warn">
          <strong>Du bist nicht auf der richtigen Seite.</strong>
          Dieser Schritt ist auf der Seite „${esc(viewLabel)}".
@@ -6939,11 +7013,14 @@ function _renderTour() {
     setTimeout(() => _positionTourCard(targetEl, card), 350);
   } else {
     // Kein Target → Card mittig
+    // QA-Fix 2026-05-23 (Audit-T3-8): card.style.width zurücksetzen, sonst bleibt
+    // die Pixel-Breite vom vorherigen Step gesetzt.
     card.style.top  = '50%';
     card.style.left = '50%';
     card.style.transform = 'translate(-50%, -50%)';
     card.style.right = 'auto';
     card.style.bottom = 'auto';
+    card.style.width = '';
   }
 }
 
