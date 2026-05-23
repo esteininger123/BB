@@ -6554,76 +6554,122 @@ function tourStorageKey() {
   return 'bbk_tour_' + TOUR_VERSION + '_' + email + '_seen';
 }
 
+// QA-Sprint 2026-05-23 (Edgar live): Tour komplett umgebaut zu interaktivem
+// Hands-On-Onboarding. Vertriebler legt einen Test-Kunden an, klickt durch
+// alle wichtigen Tabs, exportiert ein PDF — lernt durch Tun statt durch Lesen.
+// Jeder Schritt:
+//   - title: Kurzname „Schritt N — Aufgabe"
+//   - action: Konkreter Aufruf was JETZT zu tun ist (1-2 Sätze, imperativ)
+//   - tip:    optionale Hintergrund-Erklärung warum / nützlich
+//   - target: CSS-Selector des UI-Elements, das gehighlightet wird (Spotlight)
+//   - needsView: erwartete state.view ('dashboard'|'kunde'|...). Wenn aktuelle
+//                View nicht matched, zeigt Tour einen „Hinbringen"-Button und
+//                blockiert das Weiter bis der User dort ist.
 const TOUR_STEPS = [
   {
-    title: 'Willkommen im B&B Kalkulator',
-    text: 'Kurze Tour in 14 Schritten — von der Kunden-Anlage bis zur digitalen Signatur via PandaDoc. Esc oder „Überspringen" beendet sie. Wieder aufrufbar über das „?"-Symbol oben rechts.',
+    title: 'Willkommen — wir machen die Tour zusammen',
+    action: 'Wir legen gleich einen Test-Kunden an und gehen einmal komplett durch den Prozess: Kalkulieren → Snapshot → PDF → Selbstauskunft → Reservierung. Klick „Weiter →".',
+    tip: 'Dauer ca. 5 Minuten. Den Test-Kunden archivierst Du am Ende. Tour jederzeit über „?" oben rechts wieder startbar.',
     target: null,
+    needsView: 'dashboard',
   },
   {
-    title: 'Dein Dashboard',
-    text: 'Auf der Startseite siehst Du Deine Kunden. „+ Neuer Kunde" oben rechts. Du siehst nur Deine eigenen Kunden (Admin sieht alle). Archivieren statt Löschen ist Vertriebs-Standard.',
-    target: 'a[href="#/dashboard"]',
+    title: 'Schritt 1 — Test-Kunde anlegen',
+    action: 'Klick oben rechts auf den Button „+ Neuer Kunde". Trage als Vornamen „Test" ein, als Nachnamen „Vertrieb", E-Mail „test.vertrieb@bub-immo.de". Dann auf „Anlegen" klicken.',
+    tip: 'Pflichtfelder: Vorname, Nachname, E-Mail. Geburtsdatum hilft später bei der Bonität — kannst Du auch leer lassen.',
+    target: 'button[onclick*="createNewKunde"]',
+    needsView: 'dashboard',
   },
   {
-    title: 'Kunde anlegen',
-    text: 'Pflichtfelder: Vorname, Nachname, Email. Geburtsdatum hilft später bei der Bonität. Notizen jederzeit nachpflegbar. Phase markiert wo der Kunde im Funnel steht (Lead → Kalkulation → Reservierung → Selbstauskunft → Notar → Beurkundet).',
-    target: null,
+    title: 'Schritt 2 — Test-Kunden öffnen',
+    action: 'Klick in der Liste „Meine Kunden" auf den eben angelegten „Test Vertrieb".',
+    tip: 'Jede Zeile ist klickbar. Die Phase-Pille rechts (P1 · Strategie 0/5) zeigt, wo der Kunde im Funnel steht — wird sich gleich ändern wenn Du Aufgaben abhakst.',
+    target: '#kunden-tbl tbody tr',
+    needsView: 'dashboard',
   },
   {
-    title: 'Wohneinheit wählen',
-    text: 'Im Kunden-Detail wechsle in den „Kalkulator"-Tab. Oben zwei Dropdowns: zuerst Projekt, dann WE. Nur WEs mit Status „Vermarktung" und vollständigen Stammdaten erscheinen. Status-Pille zeigt vermietet/leer; Stellplätze laden automatisch dazu.',
+    title: 'Schritt 3 — Zum Kalkulator wechseln',
+    action: 'Du bist jetzt im Kunden-Detail. Klick oben auf den Tab „Kalkulator".',
+    tip: 'Der Kalkulator ist Dein Haupt-Tool für den Vertriebs-Pitch. SA und Snapshots erreichst Du über die anderen Tabs.',
     target: '.tab[data-tab="kalkulator"]',
+    needsView: 'kunde',
   },
   {
-    title: 'Eingabe-Bereich (Cream-Hintergrund)',
-    text: 'Alles im Cream-Block oben ist Deine Eingabe-Zone: Objekt-Auswahl, WE, Bonitäts-Quelle (Quick = manuell, Detail = aus Selbstauskunft), plus die Themen-Sektionen (Stammdaten, Miete, Hausgeld, Steuern, Finanzierung, Bonität). Reset-Icon rechts neben Bonität = alles auf Default.',
-    target: '.we-picker',
+    title: 'Schritt 4 — Projekt wählen',
+    action: 'Im Cream-Bereich oben siehst Du zwei Dropdowns. Wähle ein Projekt aus dem ersten Dropdown.',
+    tip: 'Es erscheinen nur Projekte, in denen B&B aktuell aktive Wohneinheiten vermarktet. Wenn keins da ist → Domi/Henry pingen wegen Stammdaten-Pflege.',
+    target: '#projekt-select',
+    needsView: 'kunde',
   },
   {
-    title: 'Hero — die wichtigste Zahl',
-    text: 'Was der Kunde in 10 Jahren aufgebaut hat (Vermögenszuwachs Netto). Darunter zwei Quick-Action-Buttons: PDF erstellen und Snapshot speichern. Tipp: vor Wert-Änderungen einen Snapshot machen — als Anker.',
+    title: 'Schritt 5 — Wohneinheit wählen',
+    action: 'Wähle jetzt eine konkrete Wohneinheit im zweiten Dropdown. Die Berechnung lädt automatisch.',
+    tip: 'Status-Pille zeigt vermietet/leer. Stellplätze (Garagen/Außenstellplätze) werden automatisch dazugeladen, wenn welche zur WE gehören.',
+    target: '#we-select',
+    needsView: 'kunde',
+  },
+  {
+    title: 'Schritt 6 — Hero anschauen',
+    action: 'Scroll runter zur grünen Hero-Kachel. Da steht „Mein Anteil J10" — der Vermögensaufbau in 10 Jahren. Das ist die wichtigste Zahl im Vertriebs-Gespräch.',
+    tip: 'Darunter zwei Quick-Buttons: Snapshot speichern + PDF erstellen. Tipp: vor jedem Wert-Sprung einen Snapshot — als Diskussions-Anker mit dem Kunden.',
     target: '.kalk-c-hero-headline',
+    needsView: 'kunde',
   },
   {
-    title: 'Section 1 — Eckdaten + Markt-Anker',
-    text: 'Kaufpreis, Markt-Schnitt (ImmoScout + Homeday — Hover auf „Marktpreis je qm" zeigt beide Quellen), Markteinkauf-Vorteil oder Markt-Aufschlag (rot bei KP > Markt). Darunter: Kaufnebenkosten + Eigenkapital = der echte Einsatz.',
-    target: '.kalk-c-objekt-list',
+    title: 'Schritt 7 — Profil wählen (Bonität)',
+    action: 'Oben rechts findest Du das „Profil"-Dropdown (Standard / Premium / Spitze). Wähle „Premium" — Steuersatz springt auf 35 %, Cashflow ändert sich.',
+    tip: 'Standard = 30 % StSatz · Premium = 35 % · Spitze = 42 %. Den Steuersatz kannst Du auch individuell überschreiben — Profil-Wechsel danach fragt vor dem Überschreiben nach.',
+    target: '#kalk-profil-select',
+    needsView: 'kunde',
   },
   {
-    title: 'Section 2 — Belastung Jahr 1',
-    text: 'Annuität minus Miete minus Steuervorteil = effektive monatliche Belastung. Bei aktiver Mietsubvention glättet das 2-Phasen-Modell die Anlaufphase. Chart zeigt Cashflow nach Steuern Monat für Monat über 10 Jahre — bei Sprung-Modus erkennst Du die 3-Jahres-Sprünge.',
-    target: '#chart-c-belastung',
+    title: 'Schritt 8 — Snapshot speichern',
+    action: 'Scroll runter zur Toolbar (unter den Stories) und klick auf „Snapshot speichern". Vergib eine Bezeichnung, z.B. „Premium-Profil Test".',
+    tip: 'Snapshots sind eingefrorene Zwischenstände — sie ändern sich nicht mehr, auch wenn Stammdaten sich ändern. Beim Reload kommt ein Toast „Werte eingefroren".',
+    target: 'button[onclick*="saveSnapshot"]',
+    needsView: 'kunde',
   },
   {
-    title: 'Section 3 — Vermögensaufbau',
-    text: 'Zwei Größen, klar getrennt: „Modellwert J10" = Markthochrechnung (Kaufpreis × Wertsteigerung^10, kein gutachterlicher Verkehrswert). „Mein Anteil J10" = Verkaufserlös plus kumulierte Cashflows. Toggle „Restschuld einblenden" zeigt die Bank-Seite mit.',
-    target: '#chart-c-vermoegen-magazin',
+    title: 'Schritt 9 — PDF Investitionsrechnung exportieren',
+    action: 'In der gleichen Toolbar klick auf „PDF Investitionsrechnung". Der Browser öffnet den Druckdialog — wähle „Als PDF speichern" oder druck es echt aus.',
+    tip: '7-Seiten Investitionsrechnung mit Cover, Eckdaten, Vermögensaufbau, Cashflow, Bonität wie die Bank rechnet, Annahmen. Edgars Standard-Pitch-Doc.',
+    target: 'button[onclick*="exportInvestPdf"]',
+    needsView: 'kunde',
   },
   {
-    title: 'Detail-Drilldowns (4 Modals)',
-    text: 'Tiefer Blick auf Klick: Bonität („so rechnet die Bank" — 80% anrechenbare Miete, Annuität, freies EK), Cashflow J1–J10 (Jahres-Tabelle), Vermögen (kumuliert), Annahmen (alle Parameter inkl. Sparzins-Slider — live updaten).',
-    target: '.kalk-c-drill-links',
-  },
-  {
-    title: 'Snapshots — Versionen sichern',
-    text: 'Snapshot-Tab speichert eine Kalkulation als unveränderlichen Zwischenstand (Datum/Uhrzeit). Beim Reload zeigt ein Toast „Werte eingefroren" — alte Snapshots werden auto-angepasst (gebaeudeAnteil 0.8 → 0.85). Umbenennen + löschen geht. Tipp: vor jedem größeren Wert-Sprung einen Snapshot — als Diskussions-Anker mit dem Kunden.',
-    target: '.tab[data-tab="snapshots"]',
-  },
-  {
-    title: 'PDF-Export — Investitions-Analyse',
-    text: 'PDF-Button (oben im Hero oder unten in Section 5) erstellt 7-Seiten Investitions-Analyse: Cover mit B&B HRB, Eckdaten + Plan, Vermögenszuwachs, Sparbuch-Vergleich, Bonität wie Bank rechnet, Cashflow-Detail, Annahmen + Disclaimer. Geht via Browser-Druckdialog — Druck oder Speichern als PDF.',
-    target: '.kalk-c-hero-actions',
-  },
-  {
-    title: 'Selbstauskunft → digital signiert',
-    text: 'SA-Tab füllt die Bank-Selbstauskunft. Antragsteller + optional Mitantragsteller. Baukasten für beliebige Vermögens-/Einnahmen-/Ausgaben-Positionen. Auto-Save aktiv. Der Button „→ Selbstauskunft via PandaDoc senden" unten im SA-Tab generiert PDF + lädt es zu PandaDoc → beide Personen unterschreiben digital. Pflichtfeld-Check vor Send (Steuer-ID, IBAN, Brutto, Steuerklasse) verhindert halb-leere Anträge.',
+    title: 'Schritt 10 — Selbstauskunft öffnen',
+    action: 'Wechsel oben auf den Tab „Selbstauskunft". Du siehst das SA-Formular für Antragsteller (+ optional Mit-Antragsteller).',
+    tip: 'Auto-Save ist aktiv — jede Änderung wird sofort gespeichert. Pflichtfelder (Brutto, Steuerklasse, IBAN, Steuer-ID) werden vor dem digitalen Send geprüft.',
     target: '.tab[data-tab="selbstauskunft"]',
+    needsView: 'kunde',
   },
   {
-    title: 'Reservierung → KAV via PandaDoc',
-    text: 'Im Kalkulator-Tab (rechte Seite oben) findest Du den Button „Reservierung digital senden". Kaufabsichtserklärung (30 Tage Frist) wird via PandaDoc-Editor erzeugt. Verkäufer- und Käufer-Daten ziehen automatisch aus SA + State. Du editierst noch im PandaDoc-Editor (Doc-Name, Frist), dann „Senden" — Kunde unterschreibt digital. Status-Updates landen automatisch in den Kunden-Notizen via Webhook.',
-    target: '.tab[data-tab="uebersicht"]',
+    title: 'Schritt 11 — Snapshots-Tab anschauen',
+    action: 'Wechsel oben auf den Tab „Snapshots". Da siehst Du Deinen eben gespeicherten Snapshot „Premium-Profil Test".',
+    tip: 'Snapshots kannst Du laden (Werte werden in den Kalkulator zurückgespielt) oder löschen. Beim Laden eines Snapshots ist die Kalkulation eingefroren — Stammdaten werden nicht neu aus Airtable gezogen.',
+    target: '.tab[data-tab="snapshots"]',
+    needsView: 'kunde',
+  },
+  {
+    title: 'Schritt 12 — Reservierung digital senden (NICHT klicken)',
+    action: 'Wechsel zurück zum Kalkulator-Tab. Scroll runter zur Toolbar — da ist der Button „Reservierung digital senden". Klick ihn NICHT, das würde ein echtes PandaDoc-Doc an die Test-Mail schicken.',
+    tip: 'Was passiert würde: PandaDoc öffnet sich, Käufer- und Verkäufer-Daten werden automatisch eingesetzt, Frist 30 Tage. Kunde unterschreibt digital. Status landet automatisch in Kunden-Notizen via Webhook.',
+    target: '.tab[data-tab="kalkulator"]',
+    needsView: 'kunde',
+  },
+  {
+    title: 'Schritt 13 — Aktive WEs im Überblick',
+    action: 'Klick oben in der Navigation auf „Aktive WEs". Du siehst alle Wohneinheiten in Vermarktung, pro Projekt gruppiert, mit Kennzahlen.',
+    tip: 'Profil-Dropdown oben rechts wechselt zwischen 12 Bank-Szenarien (3 Steuersätze × 2 Zinssätze × KNK ja/nein). Jede WE-Zeile ist klickbar — öffnet direkt im Kalkulator.',
+    target: 'a[href="#/we-liste"]',
+    needsView: null,
+  },
+  {
+    title: 'Schritt 14 — Test-Kunde aufräumen',
+    action: 'Geh zurück zum Dashboard. Öffne den Test-Kunden, klick auf „Archivieren" (oder lösche ihn über das Admin-Menü). So bleibt Deine Kunden-Liste sauber.',
+    tip: 'Vertrieb darf nicht endgültig löschen, nur archivieren. Edgar als Admin kann später echte Löschungen durchführen. Damit ist die Tour fertig — Du bist startklar! 🎉',
+    target: 'a[href="#/dashboard"]',
+    needsView: null,
   },
 ];
 
@@ -6635,6 +6681,8 @@ function startTour(opts) {
   _tourActive = true;
   _renderTour();
   document.addEventListener('keydown', _tourKeyHandler);
+  window.addEventListener('hashchange', _tourRerender);
+  window.addEventListener('resize', _tourRerender);
 }
 window.startTour = startTour;
 
@@ -6642,10 +6690,23 @@ function endTour(markSeen) {
   _tourActive = false;
   const ov = document.getElementById('bbk-tour-overlay');
   if (ov) ov.remove();
+  const card = document.getElementById('bbk-tour-card');
+  if (card) card.remove();
   document.querySelectorAll('.bbk-tour-highlight').forEach(el => el.classList.remove('bbk-tour-highlight'));
   document.removeEventListener('keydown', _tourKeyHandler);
+  window.removeEventListener('hashchange', _tourRerender);
+  window.removeEventListener('resize', _tourRerender);
   if (markSeen) {
     try { localStorage.setItem(tourStorageKey(), '1'); } catch (e) {}
+  }
+}
+// QA-Sprint 2026-05-23 (Edgar live): Tour neu rendern wenn der User die
+// Seite wechselt — so wird der View-Match-Hinweis live aktualisiert sobald
+// der User auf den richtigen Tab klickt.
+function _tourRerender() {
+  if (_tourActive) {
+    // Kleiner Delay, sodass DOM bereits gerendert ist nach hashchange
+    setTimeout(() => { if (_tourActive) _renderTour(); }, 50);
   }
 }
 window.endTour = endTour;
@@ -6674,73 +6735,141 @@ function _tourPrev() {
 }
 
 function _renderTour() {
-  // Backdrop + Card neu rendern
-  let ov = document.getElementById('bbk-tour-overlay');
-  if (!ov) {
-    ov = document.createElement('div');
-    ov.id = 'bbk-tour-overlay';
-    ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(26,26,23,0.55);backdrop-filter:blur(2px);display:flex;align-items:flex-start;justify-content:flex-end;padding:80px 32px 32px 32px;pointer-events:none;font-family:inherit;';
-    document.body.appendChild(ov);
-  }
-  // Highlight altes Target entfernen
+  // QA-Sprint 2026-05-23 (Edgar live): komplett umgebaut.
+  //  - Spotlight via box-shadow auf das Target → Element bleibt voll sichtbar,
+  //    alles drumherum kommt dunkel.
+  //  - View-Check: wenn der Step eine bestimmte view braucht (dashboard/kunde),
+  //    bietet die Tour einen „Hinbringen"-Button statt nur Hinweis-Toast.
+  //  - Card-Position dynamisch (oben/unten je nach Target-Position).
+
+  // Highlight altes Target entfernen, falls noch da
   document.querySelectorAll('.bbk-tour-highlight').forEach(el => el.classList.remove('bbk-tour-highlight'));
+
+  // Tour-Card-Element holen oder neu anlegen
+  let card = document.getElementById('bbk-tour-card');
+  if (!card) {
+    card = document.createElement('div');
+    card.id = 'bbk-tour-card';
+    card.className = 'bbk-tour-card';
+    document.body.appendChild(card);
+  }
 
   const step = TOUR_STEPS[_tourStep];
   const last = _tourStep === TOUR_STEPS.length - 1;
   const first = _tourStep === 0;
 
-  // QA-Sprint 2026-05-23 (Edgar-Feedback Screenshot): Tour-Auto-Scroll war unzuverlässig —
-  // User sah die Card aber nicht das erklärte Element. Jetzt: target VORAB suchen, wenn
-  // nicht da → kleinen Hinweis im Card-Body anzeigen („Element nicht auf dieser Seite").
-  const targetEl = step.target ? document.querySelector(step.target) : null;
-  const targetHint = (step.target && !targetEl)
-    ? `<div style="margin-top:12px;padding:10px 14px;background:#FAEEDB;border-left:3px solid #C9A572;font-size:12px;color:#7A5C28;line-height:1.5;">Diese UI siehst Du nicht auf dieser Seite — navigiere ggf. zum Kunden-Detail mit Kalkulator-/SA-/Snapshots-Tab. Die Tour läuft trotzdem weiter.</div>`
+  // View-Check: aktuelle state.view passt zur needsView?
+  const needsView = step.needsView || null;
+  const viewMatches = !needsView || state.view === needsView;
+  const viewLabel = { dashboard: 'Dashboard', kunde: 'Kunde-Detail-Seite', 'we-liste': 'Aktive WEs', admin: 'Admin' }[needsView] || needsView;
+  const viewHref = { dashboard: '#/dashboard', kunde: state.kundeId ? ('#/kunde/' + state.kundeId) : '#/dashboard', 'we-liste': '#/we-liste', admin: '#/admin' }[needsView] || '#/dashboard';
+
+  const targetEl = (viewMatches && step.target) ? document.querySelector(step.target) : null;
+
+  // Bei View-Mismatch: klarer Block + Auto-Hinbringen
+  const viewMismatchBlock = (!viewMatches)
+    ? `<div class="bbk-tour-warn">
+         <strong>Du bist nicht auf der richtigen Seite.</strong>
+         Dieser Schritt ist auf der Seite „${esc(viewLabel)}".
+         <div style="margin-top:10px;">
+           <a href="${viewHref}" class="bbk-tour-jumpbtn">→ Dorthin springen</a>
+         </div>
+       </div>`
     : '';
 
-  ov.innerHTML = `
-    <div style="pointer-events:auto;background:#FBFAF7;border-radius:14px;max-width:400px;width:100%;padding:24px 28px;box-shadow:0 30px 80px rgba(0,0,0,0.25);border:1px solid #C9A572;">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
-        <span style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#8E6E3D;font-weight:600;">Tour — Schritt ${_tourStep + 1} / ${TOUR_STEPS.length}</span>
-        <button type="button" onclick="endTour(true)" style="background:transparent;border:none;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#7A7A72;cursor:pointer;font-family:inherit;">Überspringen ×</button>
+  // Bei View-Match aber Element fehlt: Hinweis (z.B. Tab noch nicht geklickt)
+  const targetMissingBlock = (viewMatches && step.target && !targetEl)
+    ? `<div class="bbk-tour-warn">
+         <strong>Element gerade nicht sichtbar.</strong>
+         Vielleicht musst Du einen Tab wechseln oder etwas scrollen. Die Tour läuft trotzdem weiter.
+       </div>`
+    : '';
+
+  card.innerHTML = `
+    <div class="bbk-tour-card-inner">
+      <div class="bbk-tour-card-head">
+        <span class="bbk-tour-eyebrow">Tour — Schritt ${_tourStep + 1} / ${TOUR_STEPS.length}</span>
+        <button type="button" class="bbk-tour-skip" onclick="endTour(true)">Überspringen ×</button>
       </div>
-      <h3 style="font-size:20px;font-weight:300;letter-spacing:-.01em;margin:0 0 12px 0;color:#1A1A17;line-height:1.25;">${step.title}</h3>
-      <p style="font-size:14px;line-height:1.6;color:#3A3A35;margin:0 0 8px 0;">${step.text}</p>
-      ${targetHint}
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;">
-        <button type="button" onclick="window._tourPrev()" ${first ? 'disabled' : ''} style="background:transparent;border:1px solid #E8E6DD;color:${first ? '#C9C9C0' : '#1A1A17'};font-family:inherit;font-size:13px;padding:8px 16px;border-radius:18px;cursor:${first ? 'not-allowed' : 'pointer'};">← Zurück</button>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center;max-width:140px;">
-          ${TOUR_STEPS.map((_, idx) => `<span style="width:6px;height:6px;border-radius:50%;background:${idx === _tourStep ? '#8E6E3D' : '#E8E6DD'};display:inline-block;"></span>`).join('')}
+      <h3 class="bbk-tour-title">${esc(step.title)}</h3>
+      <p class="bbk-tour-action">${esc(step.action || '')}</p>
+      ${step.tip ? `<p class="bbk-tour-tip">${esc(step.tip)}</p>` : ''}
+      ${viewMismatchBlock}
+      ${targetMissingBlock}
+      <div class="bbk-tour-foot">
+        <button type="button" class="bbk-tour-nav-btn bbk-tour-prev" onclick="window._tourPrev()" ${first ? 'disabled' : ''}>← Zurück</button>
+        <div class="bbk-tour-dots">
+          ${TOUR_STEPS.map((_, idx) => `<span class="bbk-tour-dot${idx === _tourStep ? ' active' : ''}"></span>`).join('')}
         </div>
-        <button type="button" onclick="window._tourNext()" style="background:#8E6E3D;color:#fff;border:none;font-family:inherit;font-size:13px;padding:8px 18px;border-radius:18px;cursor:pointer;font-weight:500;">${last ? 'Fertig ✓' : 'Weiter →'}</button>
+        <button type="button" class="bbk-tour-nav-btn bbk-tour-next" onclick="window._tourNext()">${last ? 'Fertig ✓' : 'Weiter →'}</button>
       </div>
     </div>
   `;
 
-  // QA-Sprint 2026-05-23: robusteres Auto-Scroll — 2 Versuche mit längeren Delays,
-  // weil DOM ggf. erst nach Render-Tick verfügbar ist. Plus offset-Korrektur damit das
-  // Element nicht von Sticky-Header (60px) oder Tour-Card (oben rechts) verdeckt wird.
-  // Wir scrollen das Element 120px UNTER den Viewport-Top — gut sichtbar.
-  function _scrollTo(selector) {
-    const el = document.querySelector(selector);
-    if (!el) return false;
-    el.classList.add('bbk-tour-highlight');
+  // Backdrop-Overlay (transparent, pointer-events:none, damit der User mit der App
+  // interagieren kann — der Spotlight kommt durch das box-shadow auf dem Target).
+  let ov = document.getElementById('bbk-tour-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'bbk-tour-overlay';
+    ov.className = 'bbk-tour-overlay';
+    document.body.appendChild(ov);
+  }
+  // Bei nicht-passender View ODER ohne Target: kompletter dunkler Backdrop
+  // (kein Spotlight möglich, also den ganzen Screen abdunkeln).
+  ov.classList.toggle('bbk-tour-overlay-full', !targetEl);
+
+  // Spotlight + Scroll
+  if (targetEl) {
+    targetEl.classList.add('bbk-tour-highlight');
+    // Smooth-Scroll, sodass das Element gut sichtbar ist
     try {
-      const rect = el.getBoundingClientRect();
-      const targetY = window.scrollY + rect.top - 120;
+      const rect = targetEl.getBoundingClientRect();
+      const targetY = window.scrollY + rect.top - 140;
       window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
     } catch (e) {
-      try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e2) { el.scrollIntoView(); }
+      try { targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
     }
-    return true;
+    // Card-Position relativ zum Target: wenn Target oben in der Seite, Card unten und
+    // umgekehrt, damit sich die nicht überlagern.
+    setTimeout(() => _positionTourCard(targetEl, card), 350);
+  } else {
+    // Kein Target → Card mittig
+    card.style.top  = '50%';
+    card.style.left = '50%';
+    card.style.transform = 'translate(-50%, -50%)';
+    card.style.right = 'auto';
+    card.style.bottom = 'auto';
   }
-  if (step.target) {
-    // Erst sofort, dann nochmal nach 250ms — falls Render-Lifecycle das Element gerade tauscht
-    requestAnimationFrame(() => {
-      if (!_scrollTo(step.target)) {
-        setTimeout(() => _scrollTo(step.target), 300);
-      }
-    });
+}
+
+// Hilfsfunktion: positioniert die Tour-Card so, dass sie das Target nicht verdeckt.
+function _positionTourCard(targetEl, card) {
+  if (!targetEl || !card) return;
+  const tRect = targetEl.getBoundingClientRect();
+  const vh = window.innerHeight;
+  const vw = window.innerWidth;
+  const cardW = Math.min(420, vw - 40);
+  const cardH = card.offsetHeight || 320;
+  const margin = 24;
+
+  // Target nimmt obere oder untere Hälfte ein?
+  const targetMid = tRect.top + tRect.height / 2;
+  const placeBelow = targetMid < vh / 2; // Target oben → Card unten
+  let top, left;
+  if (placeBelow) {
+    top  = Math.min(tRect.bottom + margin, vh - cardH - margin);
+    left = Math.max(margin, Math.min(vw - cardW - margin, tRect.left + tRect.width / 2 - cardW / 2));
+  } else {
+    top  = Math.max(margin, tRect.top - cardH - margin);
+    left = Math.max(margin, Math.min(vw - cardW - margin, tRect.left + tRect.width / 2 - cardW / 2));
   }
+  card.style.top    = top + 'px';
+  card.style.left   = left + 'px';
+  card.style.right  = 'auto';
+  card.style.bottom = 'auto';
+  card.style.transform = 'none';
+  card.style.width  = cardW + 'px';
 }
 window._tourNext = _tourNext;
 window._tourPrev = _tourPrev;

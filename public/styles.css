@@ -144,20 +144,173 @@ label {
 }
 .bbk-help-btn:hover { background: var(--bg-cream); }
 
-/* Tour-Target-Highlight */
+/* QA-Sprint 2026-05-23 (Edgar live): Tour-Spotlight komplett überarbeitet.
+   Target bekommt prominenten Pulse-Ring + Spotlight via box-shadow (alles
+   drumherum dunkel). Card seitlich, nicht überlagernd. */
+
+/* Tour-Target-Highlight: Element bleibt voll sichtbar + leuchtet, alles drumherum dunkel */
 .bbk-tour-highlight {
-  outline: 3px solid #C9A572 !important;
-  outline-offset: 4px !important;
-  border-radius: 4px;
   position: relative;
-  z-index: 10000;
-  box-shadow: 0 0 0 9999px rgba(26,26,23,0.55);
-  animation: bbk-tour-pulse 1.5s ease-in-out infinite alternate;
+  z-index: 10001 !important;
+  outline: 4px solid #FAD78A !important;
+  outline-offset: 6px !important;
+  border-radius: 6px;
+  box-shadow:
+    0 0 0 9999px rgba(26, 26, 23, 0.68),
+    0 0 30px 8px rgba(250, 215, 138, 0.4);
+  animation: bbk-tour-pulse 1.4s ease-in-out infinite alternate;
+  /* Klick-Events durchlassen — User soll mit dem Element interagieren können */
+  pointer-events: auto !important;
 }
 @keyframes bbk-tour-pulse {
-  from { outline-color: #C9A572; }
-  to   { outline-color: #8E6E3D; }
+  from { outline-color: #FAD78A; box-shadow: 0 0 0 9999px rgba(26,26,23,0.68), 0 0 20px 4px rgba(250,215,138,0.3); }
+  to   { outline-color: #C9A572; box-shadow: 0 0 0 9999px rgba(26,26,23,0.68), 0 0 40px 12px rgba(250,215,138,0.55); }
 }
+
+/* Overlay: nur dunkler Backdrop wenn KEIN Target da ist (kein Spotlight möglich). */
+.bbk-tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: none;
+  background: transparent;
+  transition: background 0.2s ease;
+}
+.bbk-tour-overlay.bbk-tour-overlay-full {
+  background: rgba(26, 26, 23, 0.68);
+  backdrop-filter: blur(2px);
+}
+
+/* Tour-Card */
+.bbk-tour-card {
+  position: fixed;
+  z-index: 10002;
+  width: 420px;
+  max-width: calc(100vw - 40px);
+  pointer-events: auto;
+  font-family: inherit;
+  /* Position wird via JS gesetzt (top/left/right/bottom) */
+}
+.bbk-tour-card-inner {
+  background: #FBFAF7;
+  border-radius: 14px;
+  padding: 24px 28px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(201, 165, 114, 0.5);
+  border: 1px solid #C9A572;
+}
+.bbk-tour-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+.bbk-tour-eyebrow {
+  font-size: 10px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #8E6E3D;
+  font-weight: 700;
+}
+.bbk-tour-skip {
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #7A7A72;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 4px 6px;
+}
+.bbk-tour-skip:hover { color: #1A1A17; }
+.bbk-tour-title {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  margin: 0 0 12px 0;
+  color: #1A1A17;
+  line-height: 1.25;
+}
+.bbk-tour-action {
+  font-size: 14px;
+  line-height: 1.55;
+  color: #1A1A17;
+  margin: 0 0 10px 0;
+  font-weight: 500;
+}
+.bbk-tour-tip {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #6E6E66;
+  margin: 0 0 8px 0;
+  padding: 8px 12px;
+  background: #F5F2EA;
+  border-radius: 6px;
+  border-left: 2px solid #C9A572;
+}
+.bbk-tour-warn {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #7A5C28;
+  margin: 12px 0 0 0;
+  padding: 12px 14px;
+  background: #FAEEDB;
+  border-left: 3px solid #C9A572;
+  border-radius: 4px;
+}
+.bbk-tour-warn strong { color: #1A1A17; display: block; margin-bottom: 4px; }
+.bbk-tour-jumpbtn {
+  display: inline-block;
+  background: #8E6E3D;
+  color: #fff !important;
+  text-decoration: none;
+  padding: 7px 14px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.bbk-tour-jumpbtn:hover { background: #7A5A24; }
+.bbk-tour-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+.bbk-tour-nav-btn {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: 18px;
+  cursor: pointer;
+  border: 1px solid #E8E6DD;
+  background: transparent;
+  color: #1A1A17;
+}
+.bbk-tour-nav-btn:disabled { color: #C9C9C0; cursor: not-allowed; }
+.bbk-tour-next {
+  background: #8E6E3D !important;
+  color: #fff !important;
+  border-color: #8E6E3D !important;
+  font-weight: 600;
+}
+.bbk-tour-next:hover { background: #7A5A24 !important; }
+.bbk-tour-dots {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 160px;
+}
+.bbk-tour-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #E8E6DD;
+  display: inline-block;
+}
+.bbk-tour-dot.active { background: #8E6E3D; }
 
 /* ============================== MAIN ============================== */
 .main {
