@@ -2601,20 +2601,23 @@ input[type="range"].spar-zins-range::-moz-range-track {
   letter-spacing:.02em;
 }
 /* Spezifische Farben + Hintergründe pro Phase */
+/* QA-Fix 2026-05-23 (Edgar-Doc Bug-2): P1/P2 hatten zu ähnliche Sand/Bronze-
+   Töne — Edgar konnte Leads kaum von Abwicklung unterscheiden. P1 jetzt
+   deutlich heller (fast weiß-cream) + dunkler Rahmen, P2 sattes Bronze. */
 .kav-mini-phase.kav-phase-p1 {
-  background:#F7EDDA;          /* sandig hell */
-  border-color:#B08A4D;
-  color:#7A5A24;
+  background:#FFFBEE;          /* hell-cream — Lead, noch nicht aktiv bearbeitet */
+  border-color:#C9A572;
+  color:#5C4416;
 }
 .kav-mini-phase.kav-phase-p2 {
-  background:#FAEEDB;          /* bronze hell */
-  border-color:#8E6E3D;
-  color:#5F4520;
+  background:#E8D5A8;          /* SATTES bronze — Abwicklung, in Arbeit */
+  border-color:#6B4F25;
+  color:#3A2A0C;
 }
 .kav-mini-phase.kav-phase-p3 {
-  background:#DEEFE3;          /* grün hell, Notar = Ziel-Phase */
-  border-color:#2D6E47;
-  color:#1F4F33;
+  background:#A8D4B8;          /* SATTES grün — Notar/Ziel-Phase */
+  border-color:#1F5230;
+  color:#0F2E18;
 }
 .kav-mini-counts{ color:inherit; opacity:0.75; font-variant-numeric:tabular-nums; font-weight:500; }
 .kav-mini-phase.kav-mini-done{
@@ -2662,19 +2665,19 @@ input[type="range"].spar-zins-range::-moz-range-track {
   background:#fff; border:1px solid var(--border); border-left:4px solid var(--kav-accent);
   border-radius:6px; padding:14px 16px;
 }
-/* QA-Fix 2026-05-23 (Edgar): kräftigere Hintergründe pro Phase auch auf den
-   Dashboard-KPI-Kacheln, damit die 3 Phasen visuell klar trennbar sind. */
+/* QA-Fix 2026-05-23 (Edgar-Doc Bug-2): KPI-Kacheln deutlicher differenzieren.
+   P1 hell-cream (Lead), P2 sattes bronze (Aktiv), P3 sattes grün (Ziel). */
 .kav-phasen-row .kav-phase-kpi:nth-child(1){
-  background:#FBF5E7;          /* P1: sandig */
-  border-left-color:#B08A4D;
+  background:#FFFBEE;
+  border-left:6px solid #C9A572;
 }
 .kav-phasen-row .kav-phase-kpi:nth-child(2){
-  background:#FBEFD8;          /* P2: bronze */
-  border-left-color:#8E6E3D;
+  background:#E8D5A8;
+  border-left:6px solid #6B4F25;
 }
 .kav-phasen-row .kav-phase-kpi:nth-child(3){
-  background:#E6F1EA;          /* P3: grün — Ziel-Phase */
-  border-left-color:#2D6E47;
+  background:#A8D4B8;
+  border-left:6px solid #1F5230;
 }
 .kav-phase-kpi .label{
   font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;

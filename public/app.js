@@ -1149,29 +1149,11 @@ function renderTabKalkulator() {
     <div class="card kalk-input-minimal mt-16">
       <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
         <span>${isPaket ? 'Persönliche Eingaben · Paket' : 'Eingaben · ' + esc((i._weNr ? 'WE ' + i._weNr + ' · ' : '') + (i._weLage || ''))}</span>
-        <!-- QA-Sprint 2026-05-23 (Audit-G G-B4): Profil-Switcher in der UI. Vorher
-             nur als interne Inferenz aus Steuersatz — Vertriebler konnte nicht
-             aktiv toggeln. Jetzt: Select mit 3 Profilen direkt in der Eingabe-Card. -->
-        <span style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:normal;letter-spacing:.02em;">
-          <span class="text-tertiary" style="text-transform:uppercase;letter-spacing:.08em;font-size:10px;">Käufer-Profil</span>
-          <select id="kalk-profil-select" onchange="applyKalkProfil(this.value)" style="font-size:13px;padding:5px 10px;">
-            ${(() => {
-              // QA-Fix 2026-05-23 (Audit-S1+S2): explizites _profil-Feld bevorzugen
-              // (von applyKalkProfil persistiert) — Heuristik nur als Fallback bei
-              // alten Snapshots. Sonst zeigt Dropdown bei Mischzuständen falsch.
-              const active = state.kalk._profil
-                || ((i.steuersatz >= 0.28 && i.steuersatz <= 0.32) ? 'standard'
-                  : (i.steuersatz >= 0.33 && i.steuersatz <= 0.37) ? 'premium'
-                  : (i.steuersatz >= 0.40 && i.steuersatz <= 0.45) ? 'spitze' : '');
-              const opts = [
-                ['standard', 'Standard · 30 %'],
-                ['premium',  'Premium · 35 %'],
-                ['spitze',   'Spitze · 42 %'],
-              ];
-              return opts.map(([v, l]) => `<option value="${v}"${active === v ? ' selected' : ''}>${l}</option>`).join('');
-            })()}
-          </select>
-        </span>
+        <!-- QA-Sprint 2026-05-23 (Edgar-Doc Bug-5): Käufer-Profil-Switcher entfernt.
+             Steuersatz wird über den Quick-Rechner / Detail-SA gesetzt. Profil-
+             Dropdown verwirrte mehr als es half. PROFILES bleiben als Backend-
+             Defaults — werden nur intern beim Paket-Modus oder Snapshot-Bridge
+             genutzt. -->
       </div>
       <div class="kalk-section-grid">
         ${isPaket ? kalkInputsPaketHtml(i) : kalkInputsThemenHtml(i)}
@@ -2025,6 +2007,9 @@ async function loadWeIntoKalk(weId) {
   // eine andere WE gewählt hat — sonst Re-Render mit obsoleten Daten.
   if (myToken !== _loadWeToken) return;
   renderTabKalkulator();
+  // QA-Fix 2026-05-23 (Edgar-Doc Bug-4): Tour re-rendern für detectCompleted
+  // (Projekt-/WE-Wahl).
+  if (typeof _tourRerender === 'function') _tourRerender();
 }
 window.loadWeIntoKalk = loadWeIntoKalk;
 
@@ -3850,6 +3835,9 @@ async function saveSnapshot() {
     toast('Snapshot "' + bez + '" gespeichert', 'success');
     // Wenn wir gerade im Snapshots-Tab sind, sofort neu rendern.
     if (state.tab === 'snapshots') renderTabSnapshots();
+    // QA-Fix 2026-05-23 (Edgar-Doc Bug-4): Tour re-rendern damit detectCompleted
+    // für „Snapshot speichern" greift und automatisch zum nächsten Step springt.
+    if (typeof _tourRerender === 'function') _tourRerender();
   } catch (e) { toast('Fehler: ' + e.message, 'error'); }
 }
 window.saveSnapshot = saveSnapshot;
@@ -6164,6 +6152,9 @@ function _renderWeListeContent() {
   const fmtEur = (v) => (v == null || !isFinite(v)) ? '–' : Math.round(v).toLocaleString('de-DE') + ' €';
   const fmtEurMo = (v) => (v == null || !isFinite(v)) ? '–' : Math.round(v).toLocaleString('de-DE') + ' €/Mo';
   const fmtPct  = (v) => (v == null || !isFinite(v)) ? '–' : (v * 100).toFixed(1).replace('.', ',') + ' %';
+  // QA-Sprint 2026-05-23 (Edgar-Doc Bug-1): €/qm + qm im WE-Liste anzeigen.
+  const fmtQm = (v) => (v == null || !isFinite(v) || v <= 0) ? '–' : v.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' qm';
+  const fmtEurPerQm = (kp, qm) => (qm > 0 && kp > 0) ? Math.round(kp / qm).toLocaleString('de-DE') + ' €/qm' : '';
 
   // Pro Zeile: Engine durchrechnen
   function _berechne(row) {
@@ -6361,18 +6352,18 @@ function _renderWeListeContent() {
       if (calc && calc.incomplete) {
         return `
           <tr class="we-liste-row" onclick="window._weListeOpenWe('${esc(we.id || '')}')" style="opacity:0.55;">
-            <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}</div></td>
+            <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}${we.qm > 0 ? ' · ' + fmtQm(we.qm) : ''}</div></td>
             <td>${modusBadge}</td>
-            <td class="num">${fmtEur(we.kp)}</td>
+            <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
             <td colspan="8" style="text-align:center;color:var(--negative);font-style:italic;font-size:13px;">⚠ ${esc(calc.reason || 'unkalkulierbar')}</td>
           </tr>
         `;
       }
       return `
         <tr class="we-liste-row" onclick="window._weListeOpenWe('${esc(we.id || '')}')">
-          <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}</div></td>
+          <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}${we.qm > 0 ? ' · ' + fmtQm(we.qm) : ''}</div></td>
           <td>${modusBadge}</td>
-          <td class="num">${fmtEur(we.kp)}</td>
+          <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
           <td class="num">${(() => {
             // QA-Fix 2026-05-23 (P2): Effektive Kaltmiete = was der Käufer ab Tag 1 kassiert.
             //  - Bestand mit Tag-1-Vereinbarung → subventionKaltmieteAdjustiert (angehoben)
@@ -6609,6 +6600,7 @@ const TOUR_STEPS = [
     tip: 'Pflichtfelder: Vorname, Nachname, E-Mail. Geburtsdatum hilft später bei der Bonität — kannst Du auch leer lassen.',
     target: 'button[onclick*="createNewKunde"]',
     needsView: 'dashboard',
+    detectCompleted: () => !!state.kundeId,
   },
   {
     title: 'Schritt 2 — Zum Kalkulator wechseln',
@@ -6616,6 +6608,7 @@ const TOUR_STEPS = [
     tip: 'Der Kalkulator ist Dein Haupt-Tool für den Vertriebs-Pitch. SA und Snapshots erreichst Du über die anderen Tabs.',
     target: '.tab[data-tab="kalkulator"]',
     needsView: 'kunde',
+    detectCompleted: () => state.tab === 'kalkulator',
   },
   {
     title: 'Schritt 3 — Projekt wählen',
@@ -6624,6 +6617,7 @@ const TOUR_STEPS = [
     target: '#projekt-select',
     needsView: 'kunde',
     needsTab: 'kalkulator',
+    detectCompleted: () => !!(state.kalk && (state.kalk._projektFilter || state.kalk._weId)),
   },
   {
     title: 'Schritt 4 — Wohneinheit wählen',
@@ -6632,6 +6626,7 @@ const TOUR_STEPS = [
     target: '#we-select',
     needsView: 'kunde',
     needsTab: 'kalkulator',
+    detectCompleted: () => !!(state.kalk && state.kalk._weId),
   },
   {
     title: 'Schritt 5 — Hero anschauen',
@@ -6640,68 +6635,61 @@ const TOUR_STEPS = [
     target: '.kalk-c-hero-headline',
     needsView: 'kunde',
     needsTab: 'kalkulator',
+    // Bewusst kein Auto-Advance — soll explizit angeschaut + Weiter geklickt werden.
   },
   {
-    title: 'Schritt 6 — Profil wählen (Bonität)',
-    action: 'Oben rechts findest Du das „Profil"-Dropdown (Standard / Premium / Spitze). Wähle „Premium" — Steuersatz springt auf 35 %, Cashflow ändert sich.',
-    tip: 'Standard = 30 % StSatz · Premium = 35 % · Spitze = 42 %. Den Steuersatz kannst Du auch individuell überschreiben — Profil-Wechsel danach fragt vor dem Überschreiben nach.',
-    target: '#kalk-profil-select',
-    needsView: 'kunde',
-    needsTab: 'kalkulator',
-  },
-  {
-    title: 'Schritt 7 — Snapshot speichern',
-    action: 'Scroll ganz nach unten zur Toolbar und klick auf „Snapshot speichern". Vergib eine Bezeichnung, z.B. „Premium-Profil Test".',
+    title: 'Schritt 6 — Snapshot speichern',
+    action: 'Scroll ganz nach unten zur Toolbar und klick auf „Snapshot speichern". Vergib eine Bezeichnung, z.B. „Pitch 1".',
     tip: 'Snapshots sind eingefrorene Zwischenstände — sie ändern sich nicht mehr, auch wenn Stammdaten sich ändern. Beim Reload kommt ein Toast „Werte eingefroren".',
     target: '.toolbar button[onclick*="saveSnapshot"]',
     needsView: 'kunde',
     needsTab: 'kalkulator',
+    detectCompleted: () => Array.isArray(state.snapshots) && state.snapshots.length > 0,
   },
   {
-    title: 'Schritt 8 — PDF Investitionsrechnung exportieren',
-    action: 'In der gleichen Toolbar klick auf „PDF Investitionsrechnung". Der Browser öffnet den Druckdialog — wähle „Als PDF speichern" oder druck es echt aus.',
-    tip: '7-Seiten Investitionsrechnung mit Cover, Eckdaten, Vermögensaufbau, Cashflow, Bonität wie die Bank rechnet, Annahmen. Edgars Standard-Pitch-Doc.',
+    title: 'Schritt 7 — Investitions-Doc senden oder herunterladen',
+    action: 'In der Toolbar klick auf „Investitions-Doc". Du wirst gefragt: per Mail an den Kunden senden ODER als PDF runterladen.',
+    tip: 'Die Investitions-Doc ist Edgars Standard-Pitch: 7 Seiten mit Cover, Eckdaten, Vermögensaufbau, Cashflow, Bonität-aus-Bank-Sicht, Annahmen. Beim Mail-Send geht sie direkt an die Kunden-Mail mit kurzem Begleittext.',
     target: '.toolbar button[onclick*="exportInvestPdf"]',
     needsView: 'kunde',
     needsTab: 'kalkulator',
+    detectCompleted: () => false, // PDF-Klick lässt sich nicht zuverlässig detektieren
   },
   {
-    title: 'Schritt 9 — Selbstauskunft öffnen',
+    title: 'Schritt 8 — Selbstauskunft öffnen',
     action: 'Wechsel oben auf den Tab „Selbstauskunft". Du siehst das SA-Formular für Antragsteller (+ optional Mit-Antragsteller).',
     tip: 'Auto-Save ist aktiv — jede Änderung wird sofort gespeichert. Pflichtfelder (Brutto, Steuerklasse, IBAN, Steuer-ID) werden vor dem digitalen Send geprüft.',
     target: '.tab[data-tab="selbstauskunft"]',
     needsView: 'kunde',
-    // needsTab kein Wert (User klickt erst hier auf den Tab); Auto-Advance
-    // greift wenn er den Tab geklickt hat und Step 10 (needsTab=selbstauskunft)
-    // matched.
+    detectCompleted: () => state.tab === 'selbstauskunft',
   },
   {
-    title: 'Schritt 10 — Snapshots-Tab anschauen',
-    action: 'Wechsel oben auf den Tab „Snapshots". Da siehst Du Deinen eben gespeicherten Snapshot „Premium-Profil Test".',
+    title: 'Schritt 9 — Snapshots-Tab anschauen',
+    action: 'Wechsel oben auf den Tab „Snapshots". Da siehst Du Deinen eben gespeicherten Snapshot.',
     tip: 'Snapshots kannst Du laden (Werte werden in den Kalkulator zurückgespielt) oder löschen. Beim Laden eines Snapshots ist die Kalkulation eingefroren — Stammdaten werden nicht neu aus Airtable gezogen.',
     target: '.tab[data-tab="snapshots"]',
     needsView: 'kunde',
-    // needsTab bewusst weggelassen: Tab-Elemente sind immer im DOM, egal
-    // welcher Tab aktiv ist. needsTab würde fälschlich „Falscher Tab" zeigen
-    // sobald der User den gewünschten Snapshots-Tab anklickt.
+    detectCompleted: () => state.tab === 'snapshots',
   },
   {
-    title: 'Schritt 11 — Reservierung-Button (NICHT klicken)',
+    title: 'Schritt 10 — Reservierung-Button (NICHT klicken)',
     action: 'Wechsel zurück zum Kalkulator-Tab. In der Toolbar ganz unten ist der Button „Reservierung digital senden". NICHT klicken — würde ein echtes PandaDoc-Doc an die Test-Mail schicken.',
-    tip: 'Was passieren würde: PandaDoc öffnet sich, Käufer- und Verkäufer-Daten werden automatisch eingesetzt, Frist 30 Tage. Kunde unterschreibt digital. Status landet automatisch in Kunden-Notizen via Webhook.',
+    tip: 'Was passieren würde: PandaDoc öffnet sich, Käufer- und Verkäufer-Daten werden automatisch eingesetzt, Frist 30 Tage. Kunde unterschreibt digital. Status landet automatisch in der Aktivitäten-Historie via Webhook.',
     target: '.toolbar button[onclick*="sendReservierungForSignature"]',
     needsView: 'kunde',
     needsTab: 'kalkulator',
+    // Kein detectCompleted — User soll NICHT klicken, sondern nur Weiter.
   },
   {
-    title: 'Schritt 12 — Aktive WEs im Überblick',
+    title: 'Schritt 11 — Aktive WEs im Überblick',
     action: 'Klick oben in der Navigation auf „Aktive WEs". Du siehst alle Wohneinheiten in Vermarktung, pro Projekt gruppiert, mit Kennzahlen.',
-    tip: 'Profil-Dropdown oben rechts wechselt zwischen 12 Bank-Szenarien (3 Steuersätze × 2 Zinssätze × KNK ja/nein). Jede WE-Zeile ist klickbar — öffnet direkt im Kalkulator.',
+    tip: 'Profil-Dropdown oben rechts wechselt zwischen 6 Bank-Szenarien (3 Steuersätze × KNK ohne/mit). KNK „mit" = 4,8 % Zins (Bank-Aufschlag), „ohne" = 4,5 %. Jede WE-Zeile ist klickbar.',
     target: 'a[href="#/we-liste"]',
     needsView: null,
+    detectCompleted: () => state.view === 'we-liste',
   },
   {
-    title: 'Schritt 13 — Test-Kunde aufräumen',
+    title: 'Schritt 12 — Test-Kunde aufräumen',
     action: 'Geh zurück zum Test-Kunden (Dashboard → Test Vertrieb anklicken). Im Header der Kundenseite ist der Button „Archivieren" — klick ihn an. Nach dem Archivieren landest Du wieder auf dem Dashboard — dort dann rechts auf „Fertig ✓" klicken.',
     tip: 'Vertrieb darf nicht endgültig löschen, nur archivieren. Edgar als Admin kann später echte Löschungen durchführen. Damit ist die Tour fertig — Du bist startklar! 🎉',
     target: 'button[onclick*="archiveKunde"]',
@@ -6932,6 +6920,21 @@ function _renderTour() {
       _renderTour();
       return;
     }
+  }
+
+  // QA-Fix 2026-05-23 (Edgar-Doc Bug-4): Auto-Advance wenn der aktuelle Step
+  // erkennbar erledigt ist (detectCompleted true). Beispiel: Step 6 ist
+  // „Snapshot speichern" — sobald state.snapshots.length > 0, weiter zu Step 7.
+  // Edgar: „Erkenne selbst, wenn der Vertriebler den richtigen Schritt ausgesucht
+  // hat oder es bereits ausgeführt hat, und gehe dann automatisch auch weiter."
+  if (typeof step.detectCompleted === 'function' && _tourStep < TOUR_STEPS.length - 1) {
+    try {
+      if (step.detectCompleted()) {
+        _tourStep++;
+        _renderTour();
+        return;
+      }
+    } catch (e) { /* detectCompleted darf nicht crashen — Tour läuft normal weiter */ }
   }
   const viewLabel = { dashboard: 'Dashboard', kunde: 'Kunde-Detail-Seite', 'we-liste': 'Aktive WEs', admin: 'Admin' }[needsView] || needsView;
   const viewHref = { dashboard: '#/dashboard', kunde: state.kundeId ? ('#/kunde/' + state.kundeId) : '#/dashboard', 'we-liste': '#/we-liste', admin: '#/admin' }[needsView] || '#/dashboard';
