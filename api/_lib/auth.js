@@ -183,7 +183,12 @@ function isSafeOrigin(req) {
   try {
     const u = new URL(origin);
     const originRoot = `${u.protocol}//${u.host}`;
-    return allowed.includes(originRoot);
+    if (allowed.includes(originRoot)) return true;
+    // QA-Fix 2026-05-23 (Audit B-11): Vercel-Preview-Deploys haben URLs wie
+    // `https://bb-brown-pi-git-xyz.vercel.app`. Pattern-Match auf *.vercel.app
+    // erlauben — sonst kann Edgar auf Preview-Branches keine Mutations testen.
+    if (u.protocol === 'https:' && u.host.endsWith('.vercel.app')) return true;
+    return false;
   } catch {
     return false;
   }

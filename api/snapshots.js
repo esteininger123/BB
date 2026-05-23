@@ -84,6 +84,17 @@ module.exports = async (req, res) => {
       const allowed = await canAccessKunde(session, body.kundeId);
       if (!allowed) return res.status(403).json({ error: 'Kein Zugriff auf diesen Kunden' });
 
+      // QA-Fix 2026-05-23 (Audit B-12): Airtable-Long-Text-Limit ist 100k
+      // Zeichen. Vor dem Write prüfen, damit User klare Fehlermeldung sieht
+      // statt generisches Airtable 422.
+      const kalkStr = body.kalkJson ? JSON.stringify(body.kalkJson) : '';
+      if (kalkStr.length > 95000) {
+        return res.status(413).json({
+          error: 'Snapshot zu groß',
+          hint: `Kalk-Daten sind ${Math.round(kalkStr.length / 1024)} kB groß, Limit liegt bei 95 kB. Bitte z.B. Sondertilgungen / Notizen kürzen.`,
+        });
+      }
+
       const fields = snapshotBodyToFields(body, { erstelltVon: session.vertrieblerId });
       const created = await airtable('create', TABLES.SNAPSHOTS, { fields });
 

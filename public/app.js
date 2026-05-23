@@ -4100,15 +4100,15 @@ function openInvestDocModal() {
     <div class="reserv-modal">
       <h2>Investitions-Doc</h2>
       <div class="reserv-modal-body">
-        <p style="margin:0 0 16px 0;line-height:1.5;">Wähle, wie Du die Investitions-Doc weitergeben willst:</p>
+        <p style="margin:0 0 16px 0;line-height:1.5;">Wähle wie Du die Investitions-Doc weitergeben willst:</p>
         <div style="display:flex;flex-direction:column;gap:12px;">
-          <button type="button" class="reserv-confirm" id="invest-mail-btn" ${kEmail ? '' : 'disabled title="Kunde hat keine E-Mail in Airtable"'} style="width:100%;text-align:left;padding:14px 18px;">
-            ✉ Per Mail an Kunden senden
-            <div style="font-size:11px;font-weight:normal;margin-top:4px;opacity:0.85;">${esc(kEmail || '(keine E-Mail hinterlegt)')}</div>
-          </button>
-          <button type="button" class="reserv-confirm" id="invest-download-btn" style="width:100%;text-align:left;padding:14px 18px;background:#fff;color:#1A1A17;border:1px solid var(--accent);">
+          <button type="button" class="reserv-confirm" id="invest-download-btn" style="width:100%;text-align:left;padding:14px 18px;">
             ⬇ Als PDF herunterladen
-            <div style="font-size:11px;font-weight:normal;margin-top:4px;opacity:0.7;">Browser-Druckdialog → „Als PDF speichern"</div>
+            <div style="font-size:11px;font-weight:normal;margin-top:4px;opacity:0.85;">Browser-Druckdialog → „Als PDF speichern". Empfohlen — Du kannst die PDF dann anschauen und selbst per Mail/WhatsApp weitergeben.</div>
+          </button>
+          <button type="button" class="reserv-confirm" id="invest-mail-btn" ${kEmail ? '' : 'disabled title="Kunde hat keine E-Mail in Airtable"'} style="width:100%;text-align:left;padding:14px 18px;background:#fff;color:#1A1A17;border:1px solid var(--accent);">
+            ✉ Mail-Vorlage öffnen
+            <div style="font-size:11px;font-weight:normal;margin-top:4px;opacity:0.7;">Empfänger: ${esc(kEmail || '(keine E-Mail)')}. Achtung: 2-Schritt-Prozess — erst speichert sich das PDF (Druckdialog), dann öffnet Dein Mail-Programm mit vorgefülltem Text. Du musst die PDF noch manuell anhängen.</div>
           </button>
         </div>
       </div>

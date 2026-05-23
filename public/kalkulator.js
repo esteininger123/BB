@@ -979,7 +979,10 @@ function recalc(i) {
   // (~30-49 %) konvergieren, obwohl mathematisch keine sinnvolle Anfangsinvestition
   // existiert. Semantisch ist die Rendite-Aussage „Eigenkapital-Rendite" bei EK=0
   // undefiniert — Frontend ersetzt das durch den Zuwachs-Satz (renditeSatz).
-  const irrValue = (ekBedarf <= 0.01) ? null : irr(irrSeries, 0.10);
+  // QA-Fix 2026-05-23 (Audit E-10): Cap-Schwelle 0.01 → 1 €. Bei sehr
+  // kleinem ekBedarf (z.B. 0,50 € durch Rundung) konvergierte irr() auf
+  // absurde Raten (500%+) → User sah Schwachsinn-IRR.
+  const irrValue = (ekBedarf <= 1) ? null : irr(irrSeries, 0.10);
 
   // Belastung Jahr 1
   const cf1 = cf[0];
@@ -1239,7 +1242,10 @@ function recalcPaket(weInputsArr, personSettings) {
   irrSeries.push(cf[9].cfJahr + vermoegen[10].verkaufserloes);
   // QA-Fix 2026-05-22 (Phase-2a Bug #3): Paket-IRR ebenfalls null bei EK=0
   // (Konvergenz-Artefakte vermeiden, semantisch undefiniert).
-  const irrValue = (ekBedarf <= 0.01) ? null : irr(irrSeries, 0.10);
+  // QA-Fix 2026-05-23 (Audit E-10): Cap-Schwelle 0.01 → 1 €. Bei sehr
+  // kleinem ekBedarf (z.B. 0,50 € durch Rundung) konvergierte irr() auf
+  // absurde Raten (500%+) → User sah Schwachsinn-IRR.
+  const irrValue = (ekBedarf <= 1) ? null : irr(irrSeries, 0.10);
 
   // 6. Sparen-vs-Investieren auf Paket-Ebene
   // Iter 67 (21.05.2026): siehe kalkRecalc — 1:1-Vergleich des in die Immobilie
