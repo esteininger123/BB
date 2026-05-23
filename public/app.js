@@ -5459,27 +5459,28 @@ function saHerkunftEkHtml(h) {
   const aktiv = (key) => !!h[key] || (parseFloat(h[key + 'Betrag']) || 0) > 0;
   const anyAktiv = ['ersparnisse','schenkung','verkauf','bauspar','lv','wertpapier','immobilien','erbe','eigenleistung','darlehen','sonstiges'].some(aktiv);
 
+  // QA-Fix 2026-05-24 (Edgar): Inline-Styles → CSS-Klassen (.sa-ek-* siehe styles.css)
+  // → konsistent zum restlichen System.
   const zeile = (key, label, extraInputKey, extraPlaceholder) => {
     const istAktiv = aktiv(key);
     const extraInputHtml = extraInputKey
-      ? `<input type="text" data-sa="sa.herkunftEk.${extraInputKey}" placeholder="${esc(extraPlaceholder || '')}" value="${esc(h[extraInputKey] || '')}" style="font-size:12px;padding:4px 6px;border:1px solid #D6D2C8;border-radius:2px;background:white;width:100%;">`
+      ? `<input type="text" data-sa="sa.herkunftEk.${extraInputKey}" placeholder="${esc(extraPlaceholder || '')}" value="${esc(h[extraInputKey] || '')}" class="sa-ek-extra">`
       : '';
     return `
-      <div style="display:grid;grid-template-columns:20px 1fr ${extraInputKey ? '1.2fr' : ''} 110px;gap:8px;align-items:center;padding:4px 0;">
-        <input type="checkbox" data-sa="sa.herkunftEk.${key}" ${istAktiv ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;margin:0;">
-        <label style="font-size:13px;cursor:pointer;margin:0;font-weight:400;text-transform:none;letter-spacing:0;">${esc(label)}</label>
+      <div class="sa-ek-row${extraInputKey ? ' has-extra' : ''}">
+        <input type="checkbox" data-sa="sa.herkunftEk.${key}" ${istAktiv ? 'checked' : ''}>
+        <label>${esc(label)}</label>
         ${extraInputKey ? `<div>${extraInputHtml}</div>` : ''}
-        <div style="position:relative;">
-          <input type="number" step="any" placeholder="€" data-sa="sa.herkunftEk.${key}Betrag" value="${(parseFloat(h[key + 'Betrag']) || '') || ''}" style="width:100%;text-align:right;padding:4px 22px 4px 6px;font-size:13px;border:1px solid #D6D2C8;border-radius:2px;background:white;">
-          <span style="position:absolute;right:6px;top:50%;transform:translateY(-50%);color:#aaa;pointer-events:none;font-size:11px;">€</span>
+        <div class="sa-ek-betrag-wrap">
+          <input type="number" step="any" placeholder="€" data-sa="sa.herkunftEk.${key}Betrag" value="${(parseFloat(h[key + 'Betrag']) || '') || ''}" class="sa-ek-betrag">
         </div>
       </div>`;
   };
 
   return `
     <details class="sa-section" data-sec-state="sa-ek-herkunft" ${isSaSectionOpen('sa-ek-herkunft') || anyAktiv ? 'open' : ''}>
-      <summary style="font-size:14px;">Eigenkapital · Herkunft <span class="text-tertiary text-small" style="font-weight:normal;">(GwG-Vorabfrage — Bank verlangt sie ohnehin)</span></summary>
-      <div style="background:#FAF7F0;padding:8px 12px;border-radius:3px;margin-top:6px;">
+      <summary>Eigenkapital · Herkunft <span class="text-tertiary text-small" style="font-weight:normal;">(GwG-Vorabfrage — Bank verlangt sie ohnehin)</span></summary>
+      <div class="sa-ek-list">
         ${zeile('ersparnisse', 'Eigene Ersparnisse')}
         ${zeile('schenkung', 'Schenkung / Erbschaft', 'schenkGeber', 'Schenker / Erblasser')}
         ${zeile('verkauf', 'Verkaufserlös (Immobilie, Wertpapiere)', 'verkaufObjekt', 'Objekt + Jahr')}
@@ -5487,8 +5488,8 @@ function saHerkunftEkHtml(h) {
         ${zeile('lv', 'Lebens-/Rentenversicherung', 'lvAnbieter', 'Versicherer')}
         ${zeile('sonstiges', 'Sonstige Quelle', 'sonstQuelle', 'z.B. AG-Darlehen, Eigenleistung')}
       </div>
-      <div style="margin-top:8px;">
-        <input type="text" data-sa="sa.herkunftEk.erlaeuterung" placeholder="Anmerkung (optional) — z.B. „Notarvertrag liegt vor", „Schenkung Eltern Mai 2026"" value="${esc(h.erlaeuterung || '')}" style="width:100%;font-size:13px;padding:6px 10px;border:1px solid #D6D2C8;border-radius:3px;background:#FAF7F0;">
+      <div class="sa-ek-erlauterung">
+        <input type="text" data-sa="sa.herkunftEk.erlaeuterung" placeholder="Anmerkung (optional) — z.B. „Notarvertrag liegt vor"" value="${esc(h.erlaeuterung || '')}">
       </div>
     </details>
   `;

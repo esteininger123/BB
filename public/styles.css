@@ -1267,10 +1267,12 @@ input[type="range"].spar-zins-range::-moz-range-track {
 }
 
 /* ============================== Selbstauskunft-Sektionen ============================== */
+/* sa-section — gleicher Look wie sa-block + kalk-section. Wird nur noch für
+   den EK-Herkunft-Block in der SA verwendet. */
 .sa-section {
   border: 1px solid var(--border);
   border-radius: 6px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   background: var(--bg-cream-subtle, #fafaf6);
 }
 .sa-section > summary {
@@ -1297,10 +1299,17 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .sa-section > .grid-2,
 .sa-section > div {
   padding: 4px 14px 14px;
+  background: var(--bg-card);
 }
+.sa-section > div:first-of-type {
+  border-top: 1px solid var(--border);
+}
+/* QA-Fix 2026-05-24 (Edgar): Inputs konsistent zur Größe der anderen Seiten —
+   vorher 12px (zu klein), jetzt 14px wie überall. */
 .sa-section input,
 .sa-section select {
-  font-size: 12px;
+  font-size: 14px;
+  padding: 7px 10px;
 }
 
 /* ============================== Reservierungs-PDF (B&B-Template) ============================== */
@@ -1633,6 +1642,18 @@ input[type="range"].spar-zins-range::-moz-range-track {
 /* --- Auswertung-Block in der SA-Form (live, nicht-PDF) ---
    Audit-Fix Iter 49 (19.05.2026): vorher mit hardkodiertem Material-Blau (#2c5282)
    und Cool-Grey-Tönen. Jetzt im Cream/Bronze/Wald-System verankert. */
+/* QA-Fix 2026-05-24 (Edgar): section-title in SA (Antragsteller 1/2-Header)
+   konsistenter — kleiner, weniger Hervorhebung. */
+.card .section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-dark);
+  margin: 4px 0 10px;
+  letter-spacing: -0.1px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
 .sa-auswertung-card {
   background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-section) 100%);
   border: 2px solid var(--accent);
@@ -2163,16 +2184,29 @@ input[type="range"].spar-zins-range::-moz-range-track {
   margin-top: 12px;
 }
 
-/* SA „Gemeinsamer Antrag"-Toggle — vorher mit doppeltem width-Attr (Markup-Bug) */
+/* SA „Gemeinsamer Antrag"-Toggle — kompakt, im Card-Look. */
 .sa-gemeinsam-toggle {
-  display: flex; align-items: center; gap: 8px;
+  display: inline-flex; align-items: center; gap: 8px;
   text-transform: none; letter-spacing: 0;
   cursor: pointer; user-select: none;
   margin: 0;
+  padding: 8px 14px;
+  background: var(--bg-cream-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  transition: background 0.15s, border-color 0.15s;
+}
+.sa-gemeinsam-toggle:hover {
+  background: rgba(176,138,77,0.08);
+  border-color: var(--accent);
 }
 .sa-gemeinsam-toggle input[type="checkbox"] {
-  width: 18px; height: 18px;
+  width: 16px; height: 16px;
   cursor: pointer;
+  accent-color: var(--accent);
 }
 
 /* Toast bei recalc-Fehler */
@@ -3034,104 +3068,119 @@ input[type="range"].spar-zins-range::-moz-range-track {
    durch B&B-Tokens. Grundstruktur (4 Blöcke + Baukasten) unverändert.
    ============================================================ */
 
-/* Intro — kompakte 4-Zeilen-Erklärung */
+/* QA-Fix 2026-05-24 (Edgar): SA-Design an Kalkulator-/Kunden-Stil angeglichen.
+   Vorher hatte SA komplett eigene Block-Container mit dickem border-left,
+   eigener Padding-Logik, 22px Block-Num. Jetzt: gleicher Look wie
+   .kalk-section — Cream-subtle Background, 6px Radius, ▾-Marker, dezente
+   Header. Übersichtlichkeit + Funktionalität bleiben. */
+
+/* Intro — dezent wie eine .kalk-section */
 .sa-intro {
   background: var(--bg-cream-subtle);
-  border-left: 3px solid var(--accent-light);
-  border-radius: var(--radius-sm);
-  margin: 8px 0 20px;
-  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin: 8px 0 16px;
+  font-size: 13px;
   line-height: 1.55;
   color: var(--text-secondary);
 }
 .sa-intro > summary {
-  padding: 12px 18px;
+  padding: 10px 14px;
   cursor: pointer;
   font-weight: 600;
-  font-size: 15px;
-  color: var(--accent-dark);
+  font-size: 13px;
+  color: var(--text-primary);
   list-style: none;
   user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .sa-intro > summary::-webkit-details-marker { display: none; }
 .sa-intro > summary::after {
-  content: '⌃';
-  float: right;
+  content: '▾';
+  font-size: 11px;
   color: var(--text-tertiary);
-  transition: transform 0.2s ease;
-  transform: rotate(180deg);
+  transition: transform 0.15s;
 }
-.sa-intro[open] > summary::after { transform: rotate(0deg); }
-.sa-intro-body { padding: 0 18px 14px; }
-.sa-intro-body p { margin: 0 0 8px; }
+.sa-intro[open] > summary::after { transform: rotate(180deg); }
+.sa-intro > summary:hover { background: rgba(176,138,77,0.08); }
+.sa-intro-body { padding: 4px 14px 14px; }
+.sa-intro-body p { margin: 0 0 6px; font-size: 13px; }
 .sa-intro-body p:last-child { margin-bottom: 0; }
 
-/* Block-Container — tonal statt Material-Ampel */
+/* Block-Container — selbe Optik wie .kalk-section */
 .sa-block {
-  margin: 16px 0;
-  background: var(--bg-card);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--border-strong);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
-  transition: border-left-color 0.2s ease, box-shadow 0.2s ease;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  background: var(--bg-cream-subtle, #fafaf6);
 }
-.sa-block[open] { box-shadow: var(--shadow-card-hover); }
-.sa-block.is-in       { border-left-color: var(--positive); }
-.sa-block.is-out      { border-left-color: var(--negative); }
-.sa-block.is-neutral  { border-left-color: var(--accent); }
-.sa-block.is-gray     { border-left-color: var(--border-strong); }
-
 .sa-block > summary {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 16px 20px;
+  padding: 10px 14px;
   cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
   list-style: none;
   user-select: none;
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .sa-block > summary::-webkit-details-marker { display: none; }
 .sa-block > summary::after {
-  content: '⌃';
-  margin-left: auto;
+  content: '▾';
+  font-size: 11px;
   color: var(--text-tertiary);
-  font-size: 14px;
-  transition: transform 0.2s ease;
-  transform: rotate(180deg);
+  transition: transform 0.15s;
+  margin-left: auto;
 }
-.sa-block[open] > summary::after { transform: rotate(0deg); }
-.sa-block > summary:hover { background: rgba(176,138,77,0.04); }
+.sa-block[open] > summary::after { transform: rotate(180deg); }
+.sa-block > summary:hover { background: rgba(176,138,77,0.08); }
+
+/* Dezente Akzent-Marker pro Block-Typ — nur ein 3px-Strich links, kein
+   großer Hervorhebungs-Block mehr. */
+.sa-block.is-in      { border-left: 3px solid var(--positive); }
+.sa-block.is-out     { border-left: 3px solid var(--negative); }
+.sa-block.is-neutral { border-left: 3px solid var(--accent); }
+.sa-block.is-gray    { border-left: 3px solid var(--border-strong); }
 
 .sa-block-num {
-  font-size: 22px;
-  font-weight: 400;
-  color: var(--accent);
-  letter-spacing: -0.5px;
-  min-width: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-dark);
+  background: rgba(176,138,77,0.12);
+  border-radius: 4px;
+  padding: 0 6px;
+  letter-spacing: 0;
 }
 .sa-block-title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
-  letter-spacing: -0.2px;
+  letter-spacing: 0;
 }
 .sa-block-sub {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-tertiary);
-  text-transform: none;
-  letter-spacing: 0;
-  margin-left: 8px;
+  margin-left: 4px;
 }
 .sa-block-body {
-  padding: 16px 20px 20px;
+  padding: 12px 14px 14px;
   border-top: 1px solid var(--border);
   background: var(--bg-card);
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
 }
 
-/* Inputs in der SA — weiß wenn gefüllt, Cream-subtle wenn leer */
+/* Inputs — wie überall im System (Größe, Focus-Ring). */
 .sa-block-body input[type="text"],
 .sa-block-body input[type="number"],
 .sa-block-body input[type="date"],
@@ -3139,11 +3188,9 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .sa-block-body input[type="tel"],
 .sa-block-body select,
 .sa-block-body textarea {
+  font-size: 14px;
+  padding: 7px 10px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-}
-.sa-block-body input[type="text"]:placeholder-shown:not(:focus),
-.sa-block-body input[type="number"]:placeholder-shown:not(:focus) {
-  background: var(--bg-cream-subtle);
 }
 .sa-block-body input:focus,
 .sa-block-body select:focus,
@@ -3152,40 +3199,54 @@ input[type="range"].spar-zins-range::-moz-range-track {
   box-shadow: 0 0 0 3px rgba(176,138,77,0.12);
   outline: none;
 }
+/* Labels: konsistent klein-übersichtlich. */
+.sa-block-body label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  margin-bottom: 3px;
+}
 
-/* Baukasten — Sub-Header + Rows */
+/* Baukasten — kompakter, einheitliche Spacings */
 .sa-baukasten {
-  margin-top: 14px;
-  padding-top: 14px;
+  margin-top: 12px;
+  padding-top: 12px;
   border-top: 1px dashed var(--border);
 }
 .sa-baukasten-head {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .sa-baukasten-title {
   font-weight: 600;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 13px;
+}
+.sa-zusatz-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .sa-zusatz-row {
   display: grid;
   grid-template-columns: 1.2fr 1.5fr 1fr auto;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  margin-bottom: 6px;
 }
 .sa-zusatz-row.is-doppel {
   grid-template-columns: 1.2fr 1.5fr 1fr 1fr auto;
 }
+.sa-zusatz-row input {
+  font-size: 13px;
+  padding: 6px 9px;
+}
 .sa-zusatz-empty {
   color: var(--text-tertiary);
-  font-size: 13px;
+  font-size: 12.5px;
   font-style: italic;
-  margin-bottom: 6px;
-  padding: 8px 12px;
+  padding: 6px 12px;
   background: var(--bg-cream-subtle);
   border-radius: var(--radius-sm);
 }
@@ -3193,10 +3254,10 @@ input[type="range"].spar-zins-range::-moz-range-track {
   background: transparent;
   color: var(--accent-dark);
   border: 1px dashed var(--accent-light);
-  padding: 8px 14px;
-  font-size: 13px;
+  padding: 7px 12px;
+  font-size: 12.5px;
   font-weight: 500;
-  margin-top: 10px;
+  margin-top: 8px;
   width: 100%;
   text-align: left;
   cursor: pointer;
@@ -3211,8 +3272,8 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .sa-zusatz-remove {
   background: transparent;
   color: var(--text-tertiary);
-  padding: 4px 10px;
-  font-size: 16px;
+  padding: 3px 9px;
+  font-size: 15px;
   line-height: 1;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
@@ -3225,37 +3286,42 @@ input[type="range"].spar-zins-range::-moz-range-track {
   background: var(--negative-bg);
 }
 
-/* Checkliste — bleibt Cream/Bronze, leicht überarbeitet */
+/* Checkliste — kompakter, weniger Cream-Lastigkeit */
 .sa-checklist {
   background: var(--bg-cream-subtle);
   border-left: 3px solid var(--accent-light);
-  padding: 12px 16px;
-  margin: 0 0 16px;
+  padding: 10px 14px;
+  margin: 0 0 12px;
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: 12.5px;
   line-height: 1.55;
   color: var(--text-secondary);
 }
 .sa-checklist-title {
   font-weight: 600;
   color: var(--accent-dark);
-  margin-bottom: 8px;
-  font-size: 12px;
+  margin-bottom: 6px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.6px;
 }
-.sa-checklist ul { margin: 0; padding-left: 18px; }
-.sa-checklist li + li { margin-top: 4px; }
+.sa-checklist ul { margin: 0; padding-left: 16px; }
+.sa-checklist li { font-size: 12.5px; }
+.sa-checklist li + li { margin-top: 3px; }
 .sa-checklist strong { color: var(--text-primary); }
 
-/* Immobilien-Karten */
+/* Immobilien-Karten — weiß statt cream, an Card-Look angeglichen */
+.sa-immo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 .sa-immo-card {
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent-light);
-  border-radius: var(--radius-sm);
-  padding: 14px 16px;
-  margin-bottom: 12px;
-  background: var(--bg-cream-subtle);
+  border-radius: 6px;
+  padding: 12px 14px;
+  background: #fff;
 }
 .sa-immo-card-head {
   display: flex;
@@ -3266,19 +3332,29 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .sa-immo-card-title {
   font-weight: 600;
   color: var(--text-primary);
+  font-size: 13px;
 }
 .sa-immo-section-label {
   color: var(--text-tertiary);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
   margin-bottom: 6px;
+}
+.sa-immo-card .grid-2 > div > label {
+  font-size: 11.5px;
+}
+.sa-immo-card input {
+  font-size: 13px;
+  padding: 6px 9px;
 }
 .sa-immo-hint-banner {
   background: var(--bg-cream-subtle);
   border-left: 3px solid var(--accent);
   padding: 6px 10px;
   margin-bottom: 8px;
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--accent-dark);
   border-radius: var(--radius-sm);
 }
@@ -3303,6 +3379,85 @@ input[type="range"].spar-zins-range::-moz-range-track {
   .sa-zusatz-row > input { grid-column: 1 / -1; }
   .sa-zusatz-row > input:first-child { grid-column: 1 / 2; }
   .sa-zusatz-row > button { grid-column: 2 / 3; }
+}
+
+/* QA-Fix 2026-05-24 (Edgar): EK-Herkunft konsistent zum SA-Block-Stil. */
+.sa-ek-list {
+  background: var(--bg-card);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+}
+.sa-ek-row {
+  display: grid;
+  grid-template-columns: 20px 1fr 110px;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 0;
+}
+.sa-ek-row.has-extra {
+  grid-template-columns: 20px 1fr 1.2fr 110px;
+}
+.sa-ek-row + .sa-ek-row {
+  border-top: 1px solid rgba(176,138,77,0.08);
+}
+.sa-ek-row input[type="checkbox"] {
+  width: 16px; height: 16px;
+  cursor: pointer;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.sa-ek-row > label {
+  font-size: 13px;
+  cursor: pointer;
+  margin: 0;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-primary);
+}
+.sa-ek-row input.sa-ek-extra {
+  font-size: 12.5px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  width: 100%;
+}
+.sa-ek-betrag-wrap {
+  position: relative;
+}
+.sa-ek-row input.sa-ek-betrag {
+  width: 100%;
+  text-align: right;
+  padding: 5px 22px 5px 8px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.sa-ek-betrag-wrap::after {
+  content: '€';
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  pointer-events: none;
+  font-size: 11px;
+}
+.sa-ek-erlauterung {
+  margin-top: 10px;
+}
+.sa-ek-erlauterung input {
+  width: 100%;
+  font-size: 13px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-cream-subtle);
 }
 
 /* Save-Badge im SA-Card-Title — live State-Feedback */
