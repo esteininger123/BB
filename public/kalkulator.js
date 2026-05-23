@@ -96,31 +96,46 @@ function getDefaults() {
 //  saSteuersatz = unabhängiger Steuersatz für den Detail-Modus (aus Selbstauskunft).
 //  Wird beim Render und beim recalc-Aufruf verwendet, sodass der Quick-Wert in
 //  `steuersatz` nicht überschrieben wird, wenn der Vertriebler im SA-Modus rechnet.
+// QA-Sprint 2026-05-23 (Edgar live WE-Liste): Profil-Matrix erweitert um
+// 12 Kombinationen (3 Steuersätze × 2 Zinssätze × KNK ja/nein), alle mit
+// 1 % Tilgung. Edgar's Vorgabe: Vertrieb soll die WE-Liste schnell durch
+// alle Bank-Szenarien bewerten. Die 3 alten Profile (standard/premium/spitze)
+// bleiben für Backward-Compat — der Profile-Switcher in der Kunden-Kalkulation
+// nutzt die noch.
+//
+// Naming-Schema: s{stSatz}z{zinsx10}{knk|ohne}
+//   s30z45ohne = 30 % StSatz · 4,5 % Zins · KNK NICHT mitfinanziert
+//   s42z48knk  = 42 % StSatz · 4,8 % Zins · KNK mitfinanziert
 const PROFILES = {
+  // Legacy (Kunden-Kalkulator-Profile-Switcher)
   standard: {
-    zins: 0.045,
-    tilgung: 0.01,
-    knkMitfinanziert: false,
-    steuersatz: 0.30,
-    saSteuersatz: 0.30,
+    zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
+    steuersatz: 0.30, saSteuersatz: 0.30,
     bonEinnahmen: 4000, bonAusgaben: 1800, bonVermoegen: 20000,
   },
   premium: {
-    zins: 0.045,
-    tilgung: 0.01,
-    knkMitfinanziert: false,
-    steuersatz: 0.35,
-    saSteuersatz: 0.35,
+    zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
+    steuersatz: 0.35, saSteuersatz: 0.35,
     bonEinnahmen: 5500, bonAusgaben: 2200, bonVermoegen: 20000,
   },
   spitze: {
-    zins: 0.045,
-    tilgung: 0.01,
-    knkMitfinanziert: false,
-    steuersatz: 0.42,
-    saSteuersatz: 0.42,
+    zins: 0.045, tilgung: 0.01, knkMitfinanziert: false,
+    steuersatz: 0.42, saSteuersatz: 0.42,
     bonEinnahmen: 8000, bonAusgaben: 3000, bonVermoegen: 20000,
   },
+  // 12er-Matrix für WE-Liste
+  s30z45ohne: { zins: 0.045, tilgung: 0.01, knkMitfinanziert: false, steuersatz: 0.30, saSteuersatz: 0.30, bonEinnahmen: 4000, bonAusgaben: 1800, bonVermoegen: 20000 },
+  s30z45knk:  { zins: 0.045, tilgung: 0.01, knkMitfinanziert: true,  steuersatz: 0.30, saSteuersatz: 0.30, bonEinnahmen: 4000, bonAusgaben: 1800, bonVermoegen: 20000 },
+  s30z48ohne: { zins: 0.048, tilgung: 0.01, knkMitfinanziert: false, steuersatz: 0.30, saSteuersatz: 0.30, bonEinnahmen: 4000, bonAusgaben: 1800, bonVermoegen: 20000 },
+  s30z48knk:  { zins: 0.048, tilgung: 0.01, knkMitfinanziert: true,  steuersatz: 0.30, saSteuersatz: 0.30, bonEinnahmen: 4000, bonAusgaben: 1800, bonVermoegen: 20000 },
+  s35z45ohne: { zins: 0.045, tilgung: 0.01, knkMitfinanziert: false, steuersatz: 0.35, saSteuersatz: 0.35, bonEinnahmen: 5500, bonAusgaben: 2200, bonVermoegen: 20000 },
+  s35z45knk:  { zins: 0.045, tilgung: 0.01, knkMitfinanziert: true,  steuersatz: 0.35, saSteuersatz: 0.35, bonEinnahmen: 5500, bonAusgaben: 2200, bonVermoegen: 20000 },
+  s35z48ohne: { zins: 0.048, tilgung: 0.01, knkMitfinanziert: false, steuersatz: 0.35, saSteuersatz: 0.35, bonEinnahmen: 5500, bonAusgaben: 2200, bonVermoegen: 20000 },
+  s35z48knk:  { zins: 0.048, tilgung: 0.01, knkMitfinanziert: true,  steuersatz: 0.35, saSteuersatz: 0.35, bonEinnahmen: 5500, bonAusgaben: 2200, bonVermoegen: 20000 },
+  s42z45ohne: { zins: 0.045, tilgung: 0.01, knkMitfinanziert: false, steuersatz: 0.42, saSteuersatz: 0.42, bonEinnahmen: 8000, bonAusgaben: 3000, bonVermoegen: 20000 },
+  s42z45knk:  { zins: 0.045, tilgung: 0.01, knkMitfinanziert: true,  steuersatz: 0.42, saSteuersatz: 0.42, bonEinnahmen: 8000, bonAusgaben: 3000, bonVermoegen: 20000 },
+  s42z48ohne: { zins: 0.048, tilgung: 0.01, knkMitfinanziert: false, steuersatz: 0.42, saSteuersatz: 0.42, bonEinnahmen: 8000, bonAusgaben: 3000, bonVermoegen: 20000 },
+  s42z48knk:  { zins: 0.048, tilgung: 0.01, knkMitfinanziert: true,  steuersatz: 0.42, saSteuersatz: 0.42, bonEinnahmen: 8000, bonAusgaben: 3000, bonVermoegen: 20000 },
 };
 
 /**

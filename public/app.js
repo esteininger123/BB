@@ -6000,7 +6000,9 @@ function renderAdminStammdatenAudit(audit) {
 */
 
 let _weListeCache = null;
-let _weListeProfil = 'standard';
+// QA-Sprint 2026-05-23 (Edgar live): Default ist „30% StSatz, 4,5% Zins, KP ohne KNK".
+// Entspricht dem alten 'standard'-Profil.
+let _weListeProfil = 's30z45ohne';
 
 async function renderWeListe() {
   const app = document.getElementById('app');
@@ -6013,10 +6015,42 @@ async function renderWeListe() {
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
           <label class="text-tertiary text-small" for="we-liste-profil" style="white-space:nowrap;">Kennzahlen für Profil</label>
-          <select id="we-liste-profil" onchange="window._weListeSetProfil(this.value)" style="padding:6px 10px;font-size:13px;">
-            <option value="standard"${_weListeProfil === 'standard' ? ' selected' : ''}>Standard (30 % StSatz, 4,5 % Zins)</option>
-            <option value="premium"${_weListeProfil === 'premium' ? ' selected' : ''}>Premium (35 % StSatz)</option>
-            <option value="spitze"${_weListeProfil === 'spitze' ? ' selected' : ''}>Spitze (42 % StSatz)</option>
+          <select id="we-liste-profil" onchange="window._weListeSetProfil(this.value)" style="padding:6px 10px;font-size:13px;min-width:340px;">
+            ${(() => {
+              // QA-Sprint 2026-05-23 (Edgar live): 12er-Matrix: 3 Steuersätze ×
+              // 2 Zinssätze × 2 KNK-Varianten, alle mit 1 % Tilgung.
+              const stSaetze = [30, 35, 42];
+              const zinse    = [4.5, 4.8];
+              const knkOpts  = [
+                { key: 'ohne', label: 'KP ohne KNK' },
+                { key: 'knk',  label: 'KP + KNK finanziert' },
+              ];
+              const opts = [];
+              for (const st of stSaetze) {
+                for (const z of zinse) {
+                  for (const knk of knkOpts) {
+                    const val = `s${st}z${(z*10).toFixed(0)}${knk.key}`;
+                    const label = `${st} % StSatz · ${String(z).replace('.', ',')} % Zins · 1 % Tilg. · ${knk.label}`;
+                    opts.push(`<option value="${val}"${_weListeProfil === val ? ' selected' : ''}>${label}</option>`);
+                  }
+                  // Visueller Trenner zwischen den Zins-Blöcken (optgroup wäre cleaner,
+                  // aber visuell zu schwer)
+                }
+                // optgroup pro Steuersatz für klare Struktur
+              }
+              // Reorganisieren via optgroup-Markup
+              return stSaetze.map(st => {
+                const groupOpts = [];
+                for (const z of zinse) {
+                  for (const knk of knkOpts) {
+                    const val = `s${st}z${(z*10).toFixed(0)}${knk.key}`;
+                    const label = `${String(z).replace('.', ',')} % Zins · ${knk.label}`;
+                    groupOpts.push(`<option value="${val}"${_weListeProfil === val ? ' selected' : ''}>${label}</option>`);
+                  }
+                }
+                return `<optgroup label="${st} % Steuersatz · 1 % Tilgung">${groupOpts.join('')}</optgroup>`;
+              }).join('');
+            })()}
           </select>
           <button class="secondary" onclick="window._weListeReload()" style="font-size:13px;">⟳ Neu laden</button>
         </div>
@@ -6377,11 +6411,14 @@ function _renderWeListeContent() {
     `;
   }).join('');
 
+  // QA-Sprint 2026-05-23 (Edgar live): Profil-Label aus Profil-Daten ableiten
+  // statt nur den Slug-Key zu zeigen.
+  const profilObj = (window.Kalk && window.Kalk.PROFILES && window.Kalk.PROFILES[_weListeProfil]) || {};
+  const profilLabel = `${Math.round((profilObj.steuersatz || 0) * 100)} % StSatz · ${(profilObj.zins * 100).toFixed(1).replace('.', ',')} % Zins · ${Math.round((profilObj.tilgung || 0) * 100)} % Tilg. · ${profilObj.knkMitfinanziert ? 'KP+KNK finanziert' : 'KP ohne KNK'}`;
   el.innerHTML = `
     <div class="text-tertiary text-small" style="margin:0 0 8px;">
       <strong>${audit.length} aktive WEs</strong> über ${projekte.length} ${projekte.length === 1 ? 'Projekt' : 'Projekte'} ·
-      Kennzahlen berechnet mit Profil <strong>${esc(_weListeProfil)}</strong> +
-      Profil-Default-Zinsen (4,5 % / 1 %) + Standardsteuersatz, Wertsteigerung 3 %/a, AfA aus Stammdaten.
+      Profil: <strong>${esc(profilLabel)}</strong> · Wertsteigerung 3 %/a, AfA aus Stammdaten.
     </div>
     ${sections}
   `;
