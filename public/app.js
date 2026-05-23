@@ -6680,7 +6680,9 @@ const TOUR_STEPS = [
     tip: 'Snapshots kannst Du laden (Werte werden in den Kalkulator zurückgespielt) oder löschen. Beim Laden eines Snapshots ist die Kalkulation eingefroren — Stammdaten werden nicht neu aus Airtable gezogen.',
     target: '.tab[data-tab="snapshots"]',
     needsView: 'kunde',
-    needsTab: 'selbstauskunft', // damit Tour synct sobald User auf SA klickt
+    // needsTab bewusst weggelassen: Tab-Elemente sind immer im DOM, egal
+    // welcher Tab aktiv ist. needsTab würde fälschlich „Falscher Tab" zeigen
+    // sobald der User den gewünschten Snapshots-Tab anklickt.
   },
   {
     title: 'Schritt 11 — Reservierung-Button (NICHT klicken)',
@@ -6963,6 +6965,15 @@ function _renderTour() {
        </div>`
     : '';
 
+  // QA-Fix 2026-05-23 (Audit-T3-16): Step 1 (Test-Kunde anlegen) für
+  // existierende User mit Kundenliste angepasst — „Test-Kunde anlegen ODER
+  // einen bestehenden öffnen" wirkt weniger befremdlich als zwanghafter
+  // Test-Kunde bei 15 echten Kunden.
+  let _actionText = step.action || '';
+  if (_tourStep === 1 && Array.isArray(state.kunden) && state.kunden.length > 0) {
+    _actionText = 'Klick oben rechts auf „+ Neuer Kunde" für einen Test-Vertrieb, ODER öffne einen bestehenden Kunden in der Liste unten. Beides ist OK — die Tour läuft mit jedem Kunden.';
+  }
+
   card.innerHTML = `
     <div class="bbk-tour-card-inner">
       <div class="bbk-tour-card-head">
@@ -6970,7 +6981,7 @@ function _renderTour() {
         <button type="button" class="bbk-tour-skip" onclick="endTour(true)">Überspringen ×</button>
       </div>
       <h3 class="bbk-tour-title">${esc(step.title)}</h3>
-      <p class="bbk-tour-action">${esc(step.action || '')}</p>
+      <p class="bbk-tour-action">${esc(_actionText)}</p>
       ${step.tip ? `<p class="bbk-tour-tip">${esc(step.tip)}</p>` : ''}
       ${viewMismatchBlock}
       ${targetMissingBlock}
