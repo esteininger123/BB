@@ -164,6 +164,17 @@ label {
   /* Klick-Events durchlassen — User soll mit dem Element interagieren können */
   pointer-events: auto !important;
 }
+/* QA-Fix 2026-05-23 (Audit-T3-17): Sanfter Spotlight für Tab-Buttons +
+   Nav-Links — sonst werden die Schwester-Tabs/Links komplett dunkel
+   überdeckt und User verliert Orientierung. */
+.bbk-tour-highlight.bbk-tour-highlight-soft {
+  box-shadow:
+    0 0 0 4px rgba(250, 215, 138, 0.35),
+    0 0 30px 8px rgba(250, 215, 138, 0.55) !important;
+}
+.bbk-tour-highlight.bbk-tour-highlight-soft + * {
+  /* Geschwister-Sichtbarkeit beibehalten (kein Verdunkeln durch box-shadow) */
+}
 @keyframes bbk-tour-pulse {
   from { outline-color: #FAD78A; box-shadow: 0 0 0 9999px rgba(26,26,23,0.68), 0 0 20px 4px rgba(250,215,138,0.3); }
   to   { outline-color: #C9A572; box-shadow: 0 0 0 9999px rgba(26,26,23,0.68), 0 0 40px 12px rgba(250,215,138,0.55); }

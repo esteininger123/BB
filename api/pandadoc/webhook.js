@@ -136,7 +136,6 @@ module.exports = async (req, res) => {
 
       const kunde = kundenRecs[0];
       const statusText = describeEvent(evName, docStatus, ev);
-      const oldNotizen = (kunde.fields && kunde.fields[KUNDEN_FIELDS.NOTIZEN]) || '';
       // Iter 84 (22.05.2026): Doc-Typ aus docName extrahieren (erstes Wort vor " – ").
       //   So sieht Edgar in der Notiz auf einen Blick „Selbstauskunft" vs. „Reservierung".
       //   Wenn docName fehlt oder Pattern nicht matcht, bleibt der Zusatz einfach weg.
@@ -146,33 +145,62 @@ module.exports = async (req, res) => {
         : '';
       const neueZeile = `[${stempel}] PandaDoc ${docId}${docTypSuffix}: ${statusText}`;
 
+      // QA-Fix 2026-05-23 (Audit-K-3): Re-Read-before-Write — Race-Window
+      // verkürzen zwischen Webhook und Frontend-saveKavTracker.
+      // Vorher: oldNotizen wurde minutenfrüher beim Kunden-Lookup gelesen;
+      // wenn der User in der Zwischenzeit Tasks abgehakt hat, ging der
+      // KAV-Tracker-State verloren beim Webhook-Write.
+      // Jetzt: direkt vor dem Write nochmal frisch holen.
+      let freshNotizen = (kunde.fields && kunde.fields[KUNDEN_FIELDS.NOTIZEN]) || '';
+      try {
+        const fresh = await airtable('get', TABLES.KUNDEN, { recordId: kunde.id });
+        freshNotizen = (fresh && fresh.fields && fresh.fields[KUNDEN_FIELDS.NOTIZEN]) || '';
+      } catch (e) {
+        // Re-Read fehlgeschlagen — Fallback auf den ersten Read (akzeptables Risiko)
+        console.warn('[pandadoc-webhook] Re-Read fehlgeschlagen, nutze ersten Read als Fallback:', e && e.message);
+      }
+
       // Iter-3 W5 (21.05.2026): Idempotenz — wenn PandaDoc das gleiche Event retried
       // (z.B. weil unser 200 nicht durchkam), nicht doppelt in die Notiz schreiben.
-      // Wir suchen den letzten Block vom gleichen DocId und vergleichen den Status-Text.
-      // Wenn der jüngste Eintrag identisch ist (gleicher Stempel auf die Minute genau
-      // oder gleicher Status-Text innerhalb der letzten Minute), überspringen wir.
-      //
-      // QA-Fix 2026-05-22 (Audit-B B4): Regex hat den Iter-84-docTypSuffix
-      // („ (Selbstauskunft)" / „ (Reservierung)") nicht berücksichtigt. Bei Retries
-      // wurden Notizen-Einträge doppelt geschrieben. Regex erlaubt jetzt optional
-      // den Suffix vor dem Doppelpunkt. Außerdem: docId wird escaped, weil PandaDoc-
-      // IDs zwar alphanumerisch sind, defensiv aber sicher.
+      // QA-Fix 2026-05-22 (Audit-B B4): Regex erlaubt optionalen Suffix vor `:`.
+      // QA-Fix 2026-05-23 (Audit-K-3): Idempotenz-Check gegen freshNotizen statt
+      // gegen stale oldNotizen.
       const escId = String(docId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const docMarkerRegex = new RegExp(`PandaDoc ${escId}(?:\\s*\\([^)]+\\))?: (.+)`, 'g');
-      const matches = [...oldNotizen.matchAll(docMarkerRegex)];
+      const matches = [...freshNotizen.matchAll(docMarkerRegex)];
       const letzterStatusZuDoc = matches.length > 0 ? matches[matches.length - 1][1].trim() : null;
       if (letzterStatusZuDoc === statusText.trim()) {
         ergebnisse.push({ event: evName, docId, kundeId: kunde.id, ok: true, status: statusText, skipped: 'duplicate' });
         continue;
       }
 
+      // QA-Fix 2026-05-23 (Audit-K-3): KAV-Block-aware Insert. Vorher wurde
+      // die neue Zeile stumpf ans Datei-Ende gehängt — wenn der KAV-Tracker
+      // im Notizen-Feld ist (Standard, am Ende), landete die neue Zeile
+      // dahinter. Beim nächsten parseKavTracker im Frontend wurde sie als
+      // freeNotes interpretiert. Beim nächsten saveKavTracker wurde sie
+      // vor den Block geschoben — funktional OK, aber Race-Risiko gegen
+      // gleichzeitige Frontend-Saves: Frontend-State enthält KEIN Wissen
+      // über die Webhook-Zeile bis zum nächsten loadKunde.
+      // Jetzt: Wenn KAV-Block existiert, neue Zeile VOR den Block einfügen
+      // (in den freeNotes-Bereich). Block bleibt intakt.
+      const KAV_START_MARKER = '[KAV-TRACKER]';
+      const kavStartIdx = freshNotizen.indexOf(KAV_START_MARKER);
+      let kombinierte;
+      if (kavStartIdx >= 0) {
+        const head = freshNotizen.substring(0, kavStartIdx).trimEnd();
+        const tail = freshNotizen.substring(kavStartIdx);
+        kombinierte = (head ? head + '\n' : '') + neueZeile + '\n\n' + tail;
+      } else {
+        kombinierte = freshNotizen ? `${freshNotizen}\n${neueZeile}` : neueZeile;
+      }
+
       // Iter-3 W4 (21.05.2026): Notizen-Cutoff — Airtable Long-Text-Felder vertragen
       // 100k Zeichen, aber das Frontend (Kunden-Detail-Notiz-Anzeige) wird bei großen
-      // Notizen unübersichtlich. Wir behalten nur die letzten 100 Zeilen. Ältere werden
-      // mit Hinweis abgeschnitten — Edgar kann die Snapshot-History eh primär in der
-      // Snapshot-Tabelle nachvollziehen.
+      // Notizen unübersichtlich. Wir behalten nur die letzten 100 Zeilen.
+      // QA-Fix 2026-05-23 (Audit-K-3): Cutoff schneidet vorne ab (älteste Einträge);
+      // KAV-Block steht garantiert hinten und wird nicht abgeschnitten.
       const MAX_NOTIZ_ZEILEN = 100;
-      const kombinierte = oldNotizen ? `${oldNotizen}\n${neueZeile}` : neueZeile;
       const zeilen = kombinierte.split('\n');
       let neueNotizen;
       if (zeilen.length > MAX_NOTIZ_ZEILEN) {

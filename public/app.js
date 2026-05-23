@@ -6712,6 +6712,13 @@ let _tourActive = false;
 let _tourStep = 0;
 
 function startTour(opts) {
+  // QA-Fix 2026-05-23 (Audit-F-1): Wenn die Tour schon läuft und der User
+  // den ?-Button erneut klickt — KEIN Reset auf Step 0 (das würde 8 Schritte
+  // Fortschritt zerstören). Stattdessen einfach re-rendern.
+  if (_tourActive) {
+    _renderTour();
+    return;
+  }
   _tourStep = (opts && typeof opts.step === 'number') ? opts.step : 0;
   _tourActive = true;
   _renderTour();
@@ -6758,7 +6765,7 @@ function endTour(markSeen) {
   if (ov) ov.remove();
   const card = document.getElementById('bbk-tour-card');
   if (card) card.remove();
-  document.querySelectorAll('.bbk-tour-highlight').forEach(el => el.classList.remove('bbk-tour-highlight'));
+  document.querySelectorAll('.bbk-tour-highlight').forEach(el => el.classList.remove('bbk-tour-highlight', 'bbk-tour-highlight-soft'));
   document.removeEventListener('keydown', _tourKeyHandler);
   window.removeEventListener('hashchange', _tourRerender);
   window.removeEventListener('resize', _tourRerender);
@@ -6838,6 +6845,22 @@ function _tourGotoStep(idx) {
 }
 window._tourGotoStep = _tourGotoStep;
 
+// QA-Fix 2026-05-23 (Audit-F): Hinbringen-Button mit Safety-Net-Re-Render —
+// triggert _tourRerender selbst wenn der hash unverändert bleibt (kein
+// hashchange-Event von go(currentHash) → Tour blieb sonst stuck).
+function _tourJumpTo(hash) {
+  const cleaned = (hash || '').replace(/^#/, '');
+  if (window.location.hash === '#' + cleaned || window.location.hash === cleaned) {
+    // Schon dort → direkt re-rendern statt warten auf nicht-feuernden hashchange
+    _tourRerender();
+  } else {
+    window.location.hash = cleaned;
+    // Safety-Net: hashchange feuert üblicherweise, aber bei race nochmal
+    setTimeout(() => _tourRerender(), 120);
+  }
+}
+window._tourJumpTo = _tourJumpTo;
+
 function _renderTour() {
   // QA-Sprint 2026-05-23 (Edgar live): komplett umgebaut.
   //  - Spotlight via box-shadow auf das Target → Element bleibt voll sichtbar,
@@ -6847,7 +6870,7 @@ function _renderTour() {
   //  - Card-Position dynamisch (oben/unten je nach Target-Position).
 
   // Highlight altes Target entfernen, falls noch da
-  document.querySelectorAll('.bbk-tour-highlight').forEach(el => el.classList.remove('bbk-tour-highlight'));
+  document.querySelectorAll('.bbk-tour-highlight').forEach(el => el.classList.remove('bbk-tour-highlight', 'bbk-tour-highlight-soft'));
 
   // Tour-Card-Element holen oder neu anlegen
   let card = document.getElementById('bbk-tour-card');
@@ -6939,11 +6962,15 @@ function _renderTour() {
          </div>
        </div>`;
   } else if (!viewMatches) {
+    // QA-Fix 2026-05-23 (Audit-F): Button statt <a href> — wenn User schon auf
+    // gleichem Hash ist (z.B. /dashboard und Tour will /dashboard), triggert
+    // <a href> KEINEN hashchange → Tour bleibt mismatched. Mit Button + JS
+    // setzen wir hash UND triggern _tourRerender explizit als Safety-Net.
     viewMismatchBlock = `<div class="bbk-tour-warn">
          <strong>Du bist nicht auf der richtigen Seite.</strong>
          Dieser Schritt ist auf der Seite „${esc(viewLabel)}".
          <div style="margin-top:10px;">
-           <a href="${viewHref}" class="bbk-tour-jumpbtn">→ Dorthin springen</a>
+           <button type="button" class="bbk-tour-jumpbtn" onclick="window._tourJumpTo('${esc(viewHref)}')">→ Dorthin springen</button>
          </div>
        </div>`;
   } else if (!tabMatches) {
@@ -7011,6 +7038,15 @@ function _renderTour() {
   // Spotlight + Scroll
   if (targetEl) {
     targetEl.classList.add('bbk-tour-highlight');
+    // QA-Fix 2026-05-23 (Audit-T3-17): Für Tab-Buttons und Nav-Links
+    // sanften Highlight ohne 9999px-Spotlight — sonst werden Schwester-
+    // Tabs komplett dunkel und User verliert Orientierung.
+    const isTab = step.target && (
+      step.target.includes('data-tab=') ||
+      step.target.includes('#/we-liste') ||
+      step.target.includes('#/dashboard')
+    );
+    if (isTab) targetEl.classList.add('bbk-tour-highlight-soft');
     // Smooth-Scroll, sodass das Element gut sichtbar ist
     try {
       const rect = targetEl.getBoundingClientRect();
