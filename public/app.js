@@ -75,6 +75,8 @@ function route() {
     state.tab = parts[2] || 'uebersicht';
   } else if (hash === '/admin') {
     state.view = (state.user.rolle === 'Admin') ? 'admin' : 'dashboard';
+  } else if (hash === '/we-liste' || hash === '/aktive-we' || hash === '/vertrieb') {
+    state.view = 'we-liste';
   } else {
     state.view = 'dashboard';
   }
@@ -143,6 +145,7 @@ function renderHeader() {
   const isAdmin = state.user.rolle === 'Admin';
   um.innerHTML = `
     <a href="#/dashboard" style="font-size:14px;color:var(--text-secondary);">Dashboard</a>
+    <a href="#/we-liste" style="font-size:14px;color:var(--text-secondary);" title="Live-Liste aller aktiven Wohneinheiten mit Kennzahlen">Aktive WEs</a>
     ${isAdmin ? '<a href="#/admin" style="font-size:14px;color:var(--text-secondary);">Admin</a>' : ''}
     <button type="button" class="bbk-help-btn" onclick="startTour()" title="Tour starten — wie funktioniert der Kalkulator?">?</button>
     <div class="user-name">${esc(state.user.name)}</div>
@@ -991,7 +994,20 @@ function renderTabKalkulator() {
     </div>
     ` : `
     <div class="card kalk-input-minimal mt-16">
-      <div class="card-title">${isPaket ? 'Persönliche Eingaben · Paket' : 'Eingaben · ' + esc((i._weNr ? 'WE ' + i._weNr + ' · ' : '') + (i._weLage || ''))}</div>
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        <span>${isPaket ? 'Persönliche Eingaben · Paket' : 'Eingaben · ' + esc((i._weNr ? 'WE ' + i._weNr + ' · ' : '') + (i._weLage || ''))}</span>
+        <!-- QA-Sprint 2026-05-23 (Audit-G G-B4): Profil-Switcher in der UI. Vorher
+             nur als interne Inferenz aus Steuersatz — Vertriebler konnte nicht
+             aktiv toggeln. Jetzt: Select mit 3 Profilen direkt in der Eingabe-Card. -->
+        <span style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:normal;letter-spacing:.02em;">
+          <span class="text-tertiary" style="text-transform:uppercase;letter-spacing:.08em;font-size:10px;">Käufer-Profil</span>
+          <select id="kalk-profil-select" onchange="applyKalkProfil(this.value)" style="font-size:13px;padding:5px 10px;">
+            <option value="standard"${(i.steuersatz >= 0.28 && i.steuersatz <= 0.32) ? ' selected' : ''}>Standard · 30 %</option>
+            <option value="premium"${(i.steuersatz >= 0.33 && i.steuersatz <= 0.37) ? ' selected' : ''}>Premium · 35 %</option>
+            <option value="spitze"${(i.steuersatz >= 0.40 && i.steuersatz <= 0.45) ? ' selected' : ''}>Spitze · 42 %</option>
+          </select>
+        </span>
+      </div>
       <div class="kalk-section-grid">
         ${isPaket ? kalkInputsPaketHtml(i) : kalkInputsThemenHtml(i)}
       </div>
@@ -3596,7 +3612,10 @@ async function saveSnapshot() {
     weBez = fmtWeBez(w) || state.kalk._weLage || '';
     defaultBez = (weBez ? weBez + ' — ' : '') + new Date().toLocaleDateString('de-DE');
   }
-  const bez = prompt('Bezeichnung für Snapshot?', defaultBez);
+  // QA-Sprint 2026-05-23 (Audit-G G-B3): Snapshot-Bezeichnung jetzt via Modal statt
+  // window.prompt — anti-2003-Optik. Async-Wrapper damit's wie ein normaler Modal-Flow
+  // läuft. Bei „Abbrechen" → Promise resolved zu null.
+  const bez = await openSnapshotNameModal(defaultBez);
   if (!bez) return;
   try {
     const snap = await api.post('/api/snapshots', {
@@ -5243,7 +5262,7 @@ async function renameSnapshot(id) {
     toast('Snapshot nicht in Liste — bitte Seite aktualisieren', 'error');
     return;
   }
-  const neu = prompt('Neue Bezeichnung:', s.bezeichnung || '');
+  const neu = await openSnapshotNameModal(s.bezeichnung || '', 'Snapshot umbenennen');
   if (neu === null) return;                       // Cancel
   const trimmed = String(neu).trim();
   if (trimmed === (s.bezeichnung || '').trim()) return;  // unverändert
@@ -5667,12 +5686,259 @@ function renderAdminStammdatenAudit(audit) {
 // ===== MODUL: bootstrap (render-Dispatch + Boot-Handler) =====
 /* ============================== RENDER DISPATCH ============================== */
 
+/* ============================== WE-LISTE (Vertriebs-Übersicht) ==============================
+   QA-Sprint 2026-05-23: Edgar-Auftrag — Vertrieb braucht eine Live-Liste aller aktiven WEs
+   mit den wichtigsten Kennzahlen (KP, Garage, Subv, Vermietung, Rendite, CF J1, Vermögen J10).
+   Pro Projekt sortiert. Klick auf eine WE öffnet die Kalkulation mit dieser WE vorausgewählt.
+
+   Datenquelle: /api/stammdaten (Admin-Audit-Endpoint, liefert pro WE: we, stellplaetze,
+   vermietung, stammdaten). Vertriebs-KPIs werden client-side mit Kalk.recalc() berechnet,
+   damit wir nicht extra Backend-Logik bauen müssen.
+*/
+
+let _weListeCache = null;
+let _weListeProfil = 'standard';
+
+async function renderWeListe() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="main">
+      <div class="we-liste-head" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;margin-bottom:18px;">
+        <div>
+          <h1 class="page-title" style="margin:0 0 6px;">Aktive Wohneinheiten</h1>
+          <div class="text-tertiary text-small">Live-Liste aller in Vermarktung — pro Projekt sortiert. Klick auf eine WE öffnet die Kalkulation.</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <label class="text-tertiary text-small" for="we-liste-profil" style="white-space:nowrap;">Kennzahlen für Profil</label>
+          <select id="we-liste-profil" onchange="window._weListeSetProfil(this.value)" style="padding:6px 10px;font-size:13px;">
+            <option value="standard"${_weListeProfil === 'standard' ? ' selected' : ''}>Standard (30 % StSatz, 4,5 % Zins)</option>
+            <option value="premium"${_weListeProfil === 'premium' ? ' selected' : ''}>Premium (35 % StSatz)</option>
+            <option value="spitze"${_weListeProfil === 'spitze' ? ' selected' : ''}>Spitze (42 % StSatz)</option>
+          </select>
+          <button class="secondary" onclick="window._weListeReload()" style="font-size:13px;">⟳ Neu laden</button>
+        </div>
+      </div>
+      <div id="we-liste-content">
+        <div class="empty-state" style="padding:48px;text-align:center;color:var(--text-tertiary);">Lade Wohneinheiten + Stammdaten …</div>
+      </div>
+    </div>
+  `;
+  // Daten laden + rendern
+  try {
+    if (!_weListeCache) {
+      _weListeCache = await api.get('/api/stammdaten');
+    }
+    _renderWeListeContent();
+  } catch (e) {
+    document.getElementById('we-liste-content').innerHTML = `
+      <div class="empty-state" style="padding:48px;text-align:center;color:var(--negative);">Fehler beim Laden: ${esc(e.message || 'unbekannt')}</div>
+    `;
+  }
+}
+
+function _weListeReload() {
+  _weListeCache = null;
+  renderWeListe();
+}
+window._weListeReload = _weListeReload;
+
+function _weListeSetProfil(p) {
+  _weListeProfil = p;
+  _renderWeListeContent();
+}
+window._weListeSetProfil = _weListeSetProfil;
+
+function _renderWeListeContent() {
+  const el = document.getElementById('we-liste-content');
+  if (!el || !_weListeCache) return;
+
+  // Nur aktive Stammdaten zeigen — der Vertrieb braucht keine Entwurf-/Fehlt-WEs
+  const audit = _weListeCache.filter(row => row.stammdaten && row.stammdaten.status === 'Aktiv');
+
+  // Nach Projekt gruppieren (aus WE-Titel ableiten)
+  const projektAus = (titel) => {
+    const parts = (titel || '').split(',').map(s => s.trim());
+    if (parts.length < 4) return parts.slice(2).join(', ') || 'unbekannt';
+    return parts.slice(2).join(', ');
+  };
+  const byProjekt = {};
+  audit.forEach(row => {
+    const t = (row.we && row.we.titel) || '';
+    const p = projektAus(t);
+    if (!byProjekt[p]) byProjekt[p] = [];
+    byProjekt[p].push(row);
+  });
+  const projekte = Object.keys(byProjekt).sort();
+
+  if (audit.length === 0) {
+    el.innerHTML = `<div class="empty-state" style="padding:48px;text-align:center;color:var(--text-tertiary);">Keine aktiven Wohneinheiten gefunden.</div>`;
+    return;
+  }
+
+  const fmtEur = (v) => (v == null || !isFinite(v)) ? '–' : Math.round(v).toLocaleString('de-DE') + ' €';
+  const fmtEurMo = (v) => (v == null || !isFinite(v)) ? '–' : Math.round(v).toLocaleString('de-DE') + ' €/Mo';
+  const fmtPct  = (v) => (v == null || !isFinite(v)) ? '–' : (v * 100).toFixed(1).replace('.', ',') + ' %';
+
+  // Pro Zeile: Engine durchrechnen
+  function _berechne(row) {
+    if (!window.Kalk || !window.Kalk.recalc) return null;
+    try {
+      const sd = row.stammdaten || {};
+      const we = row.we || {};
+      const stpl = row.stellplaetze || {};
+      const verm = row.vermietung || {};
+
+      const base = window.Kalk.getDefaults ? window.Kalk.getDefaults() : {};
+      const profile = (window.Kalk.PROFILES && window.Kalk.PROFILES[_weListeProfil]) || {};
+
+      // Vermietungs-Modus auf Engine-Modus mappen
+      const modusRaw = String(sd.vermietungsModus || '').toLowerCase();
+      let modus = 'sprung';
+      if (verm.status === 'leer' || modusRaw.includes('neuvermietung')) modus = 'staffel';
+      else if (modusRaw.includes('bestand')) modus = 'sprung';
+      else if (modusRaw.includes('index')) modus = 'index';
+
+      // Subv-Phase aus Mietzuschuss + Auto-Subv ableiten
+      const subvMo = (sd.mietzuschuss != null && sd.mietzuschuss > 0) ? sd.mietzuschuss : 0;
+      const subvMonate = sd.mietzuschussMonate || (subvMo > 0 ? 36 : 0);
+      const subventionPhasen = subvMo > 0 ? [{ mo: subvMo, monate: subvMonate }] : [];
+
+      // Marktpreis-Schnitt
+      const isP = sd.marktpreisImmoscout || 0;
+      const hdP = sd.marktpreisHomeday || 0;
+      let marktwertProQm = 0;
+      if (isP > 0 && hdP > 0) marktwertProQm = (isP + hdP) / 2;
+      else if (isP > 0) marktwertProQm = isP;
+      else if (hdP > 0) marktwertProQm = hdP;
+
+      const inputs = Object.assign({}, base, profile, {
+        kaufpreis: we.kp || 0,
+        qm: we.qm || 0,
+        kaltmiete: we.kaltmiete || 0,
+        stellplatzKp: (stpl.kaufpreisSumme || 0),
+        stellplatzMiete: (stpl.mieteMoSumme || 0),
+        marktwertProQm,
+        marktmieteEurQm: sd.marktmiete || 0,
+        hausgeld: sd.hausgeldRuecklage,
+        hausverwaltung: sd.hausverwaltung,
+        mietverwaltung: sd.mietverwaltungDefault,
+        afaSatz: sd.afaGutachten || base.afaSatz || 0.02,
+        gebaeudeAnteil: sd.gebaeudeAnteil || base.gebaeudeAnteil || 0.85,
+        wertsteigerung: sd.wertsteigerung || base.wertsteigerung || 0.03,
+        hgInflation: sd.hgInflation || base.hgInflation || 0.02,
+        mietsteigerungsModus: modus,
+        subventionPhasen,
+        subventionMo: subvMo,
+        subventionMonate: subvMonate,
+        letzteMietsteigerung: verm.letzteMietsteigerung || null,
+      });
+      const r = window.Kalk.recalc(inputs);
+      // Brutto-Rendite Tag 1 = (Kaltmiete + Stellplatz + Subv) × 12 / KpGesamt
+      const mieteMo = (we.kaltmiete || 0) + (stpl.mieteMoSumme || 0) + subvMo;
+      const bruttoRendite = (r.kpGesamt > 0) ? (mieteMo * 12 / r.kpGesamt) : null;
+      return {
+        belastungMo: r.belastungMo,
+        irr: r.irr,
+        vermoegenNetto10: r.vermoegenNetto10,
+        bruttoRendite,
+      };
+    } catch (e) { return null; }
+  }
+
+  const sections = projekte.map(pn => {
+    const rows = byProjekt[pn].sort((a, b) => (parseInt(a.we.weNr) || 0) - (parseInt(b.we.weNr) || 0));
+    const trs = rows.map(row => {
+      const we = row.we || {};
+      const sd = row.stammdaten || {};
+      const stpl = row.stellplaetze || {};
+      const verm = row.vermietung || {};
+      const calc = _berechne(row) || {};
+      const vermBadge = verm.status === 'vermietet'
+        ? '<span class="audit-pill size-sm vermietet">vermietet</span>'
+        : verm.status === 'leer'
+          ? '<span class="audit-pill size-sm leer">leer</span>'
+          : '<span class="audit-cell-missing">–</span>';
+      // Pflege-Zustand: vollständig vs. Lücken
+      const lueckenAnzahl = [
+        sd.mieteBeiVerkauf, sd.marktmiete, sd.marktpreisImmoscout || sd.marktpreisHomeday,
+        sd.vermietungsModus, sd.gebaeudeAnteil
+      ].filter(v => v == null || v === 0 || v === '').length;
+      const zustand = lueckenAnzahl === 0
+        ? '<span class="audit-pill size-sm aktiv">vollständig</span>'
+        : `<span class="audit-pill size-sm entwurf" title="${lueckenAnzahl} Pflichtfelder leer">${lueckenAnzahl} Lücken</span>`;
+      return `
+        <tr class="we-liste-row" onclick="window._weListeOpenWe('${esc(we.id || '')}')">
+          <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong><div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}</div></td>
+          <td>${vermBadge}</td>
+          <td>${zustand}</td>
+          <td class="num">${fmtEur(we.kp)}</td>
+          <td class="num">${(stpl.anzahl > 0) ? fmtEur(stpl.kaufpreisSumme) : '–'}</td>
+          <td class="num">${(stpl.anzahl > 0 && stpl.mieteMoSumme > 0) ? fmtEurMo(stpl.mieteMoSumme) : '–'}</td>
+          <td class="num">${sd.mietzuschuss > 0 ? fmtEurMo(sd.mietzuschuss) + ' × ' + (sd.mietzuschussMonate || 36) + ' Mo' : '–'}</td>
+          <td class="num">${fmtPct(calc.bruttoRendite)}</td>
+          <td class="num ${calc.belastungMo < 0 ? 'cell-neg' : 'cell-pos'}">${fmtEurMo(calc.belastungMo)}</td>
+          <td class="num">${fmtEur(calc.vermoegenNetto10)}</td>
+          <td class="num"><strong>${fmtPct(calc.irr)}</strong></td>
+        </tr>
+      `;
+    }).join('');
+    return `
+      <details open style="margin-top:16px;">
+        <summary class="admin-audit-summary-bar"><strong>${esc(pn)}</strong> <span class="text-tertiary text-small" style="font-weight:normal;margin-left:8px;">${rows.length} WEs</span></summary>
+        <div style="overflow-x:auto;">
+          <table class="table mt-8 we-liste-table">
+            <thead>
+              <tr>
+                <th style="min-width:170px;">Wohneinheit</th>
+                <th>Vermietung</th>
+                <th>Zustand</th>
+                <th class="num">Kaufpreis WHG</th>
+                <th class="num">Garage KP</th>
+                <th class="num">Garage Miete</th>
+                <th class="num">Mietsubvention</th>
+                <th class="num">Brutto-Rendite</th>
+                <th class="num">Cashflow J1</th>
+                <th class="num">Vermögen J10</th>
+                <th class="num">IRR 10 J</th>
+              </tr>
+            </thead>
+            <tbody>${trs}</tbody>
+          </table>
+        </div>
+      </details>
+    `;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="text-tertiary text-small" style="margin:0 0 8px;">
+      <strong>${audit.length} aktive WEs</strong> über ${projekte.length} ${projekte.length === 1 ? 'Projekt' : 'Projekte'} ·
+      Kennzahlen berechnet mit Profil <strong>${esc(_weListeProfil)}</strong> +
+      Profil-Default-Zinsen (4,5 % / 1 %) + Standardsteuersatz, Wertsteigerung 3 %/a, AfA aus Stammdaten.
+    </div>
+    ${sections}
+  `;
+}
+
+function _weListeOpenWe(weId) {
+  if (!weId) return;
+  // Ohne ausgewählten Kunden → in den Dashboard schicken und Hinweis
+  if (!state.kundeId) {
+    toast('Erst Kunde im Dashboard wählen, dann WE laden', 'warning');
+    go('/dashboard');
+    return;
+  }
+  go('/kunde/' + state.kundeId + '/kalkulator');
+  setTimeout(() => { if (typeof loadWeIntoKalk === 'function') loadWeIntoKalk(weId); }, 200);
+}
+window._weListeOpenWe = _weListeOpenWe;
+
 function render() {
   renderHeader();
   if (state.view === 'login') renderLogin();
   else if (state.view === 'dashboard') renderDashboard();
   else if (state.view === 'kunde') renderKunde();
   else if (state.view === 'admin') renderAdmin();
+  else if (state.view === 'we-liste') renderWeListe();
 }
 
 /* ============================== BOOT ============================== */
@@ -5966,3 +6232,73 @@ function maybeStartTourOnFirstLogin() {
   } catch (e) { /* localStorage disabled — skip */ }
 }
 window.maybeStartTourOnFirstLogin = maybeStartTourOnFirstLogin;
+
+/* ============================== SNAPSHOT-MODAL ============================== */
+/* QA-Sprint 2026-05-23 (Audit-G G-B3): ersetzt window.prompt() für die
+   Snapshot-Bezeichnung. Promise-basiert, gleiche Optik wie die anderen Modals. */
+
+function openSnapshotNameModal(defaultValue, title) {
+  return new Promise((resolve) => {
+    const existing = document.getElementById('bbk-snapshot-modal');
+    if (existing) existing.remove();
+    const ov = document.createElement('div');
+    ov.id = 'bbk-snapshot-modal';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9998;background:rgba(26,26,23,0.5);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit;';
+    ov.innerHTML = `
+      <div style="background:#FBFAF7;border-radius:14px;max-width:520px;width:100%;padding:28px 32px;box-shadow:0 30px 80px rgba(0,0,0,0.25);border:1px solid #C9A572;">
+        <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#8E6E3D;font-weight:600;margin-bottom:8px;">${title || 'Snapshot speichern'}</div>
+        <h3 style="font-size:20px;font-weight:300;letter-spacing:-.01em;margin:0 0 18px 0;color:#1A1A17;">Bezeichnung für den Snapshot</h3>
+        <input id="bbk-snap-input" type="text" value="${esc(defaultValue || '')}" style="width:100%;padding:12px 14px;font-size:15px;border:1px solid #C9A572;border-radius:4px;background:#fff;font-family:inherit;box-sizing:border-box;" placeholder="z.B. Henry Wacker — H21 WE 6 — Premium-Profil">
+        <p style="font-size:12px;color:#7A7A72;margin:10px 0 22px;line-height:1.5;">Snapshots sind eingefrorene Zwischenstände — beim Laden eines Snapshots werden Stammdaten NICHT neu aus Airtable gezogen. Tipp: Profil + Datum im Namen.</p>
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <button type="button" id="bbk-snap-cancel" style="background:transparent;border:1px solid #E8E6DD;color:#1A1A17;font-family:inherit;font-size:13px;padding:9px 18px;border-radius:18px;cursor:pointer;">Abbrechen</button>
+          <button type="button" id="bbk-snap-ok" style="background:#8E6E3D;color:#fff;border:none;font-family:inherit;font-size:13px;padding:9px 20px;border-radius:18px;cursor:pointer;font-weight:500;">Speichern</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+    const input = ov.querySelector('#bbk-snap-input');
+    input.focus();
+    input.select();
+    function close(val) {
+      ov.remove();
+      document.removeEventListener('keydown', keyHandler);
+      resolve(val);
+    }
+    function keyHandler(e) {
+      if (e.key === 'Escape') close(null);
+      if (e.key === 'Enter') close((input.value || '').trim() || null);
+    }
+    ov.querySelector('#bbk-snap-cancel').onclick = () => close(null);
+    ov.querySelector('#bbk-snap-ok').onclick = () => close((input.value || '').trim() || null);
+    ov.onclick = (e) => { if (e.target === ov) close(null); };
+    document.addEventListener('keydown', keyHandler);
+  });
+}
+window.openSnapshotNameModal = openSnapshotNameModal;
+
+/* ============================== PROFIL-SWITCHER ============================== */
+/* QA-Sprint 2026-05-23 (Audit-G G-B4): Aktiver Wechsel zwischen Standard/Premium/Spitze.
+   Nutzt window.Kalk.PROFILES — überträgt steuersatz, saSteuersatz, bonEinnahmen,
+   bonAusgaben, bonVermoegen. WE-/Stammdaten-Felder bleiben unangetastet. */
+
+function applyKalkProfil(profilKey) {
+  if (!window.Kalk || !window.Kalk.PROFILES) return;
+  const p = window.Kalk.PROFILES[profilKey];
+  if (!p) return;
+  // Wir kopieren die persönlichen Profil-Felder direkt rein. Zins/Tilgung übernehmen
+  // wir auch — aber NICHT überschreiben, wenn der User sie manuell geändert hat
+  // (heuristik: 4,5/1,0 ist Default — wenn etwas anderes, behalten).
+  const isDefaultZins = Math.abs((state.kalk.zins || 0) - 0.045) < 1e-4;
+  const isDefaultTilg = Math.abs((state.kalk.tilgung || 0) - 0.01) < 1e-4;
+  state.kalk.steuersatz   = p.steuersatz;
+  state.kalk.saSteuersatz = p.saSteuersatz || p.steuersatz;
+  state.kalk.bonEinnahmen = p.bonEinnahmen;
+  state.kalk.bonAusgaben  = p.bonAusgaben;
+  state.kalk.bonVermoegen = p.bonVermoegen;
+  if (isDefaultZins) state.kalk.zins = p.zins;
+  if (isDefaultTilg) state.kalk.tilgung = p.tilgung;
+  toast('Käufer-Profil auf "' + profilKey + '" gesetzt (Steuersatz ' + (p.steuersatz * 100).toFixed(0) + ' %)', 'info');
+  renderTabKalkulator();
+}
+window.applyKalkProfil = applyKalkProfil;

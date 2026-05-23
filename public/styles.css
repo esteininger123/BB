@@ -2240,6 +2240,17 @@ input[type="range"].spar-zins-range::-moz-range-track {
   padding-top:24px;
   border-top:1px solid var(--border);
 }
+
+/* QA-Sprint 2026-05-23: Vertriebs-WE-Liste */
+.we-liste-table{ width:100%; font-size:13px; }
+.we-liste-table th{ font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--text-tertiary); font-weight:500; padding:8px 10px; }
+.we-liste-table td{ padding:10px; border-bottom:1px solid var(--border); vertical-align:top; }
+.we-liste-row{ cursor:pointer; transition:background .12s ease; }
+.we-liste-row:hover{ background:var(--bg-section); }
+.we-liste-table td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+.we-liste-table td.cell-neg{ color:var(--negative); }
+.we-liste-table td.cell-pos{ color:var(--positive); }
+.we-liste-table .text-small{ font-size:11px; line-height:1.4; margin-top:2px; }
 /* Iter 91.3 (22.05.): Card-Title prominenter — als klare Section-Überschrift
    (statt versteckte Eyebrow-Linie). Damit der Anfang der Eingabemaske
    visuell klar definiert ist. */
