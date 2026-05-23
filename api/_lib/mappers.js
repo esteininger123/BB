@@ -19,6 +19,11 @@ function kundeRecordToBasic(rec, ownerNameById = {}) {
     ownerId:   ownerId || null,
     ownerName: ownerId ? (ownerNameById[ownerId] || '') : '',
     lastActivity: f[KUNDEN_FIELDS.LAST_ACTIVITY] || null,
+    // QA-Fix 2026-05-23 (Edgar live Aylin): notizen IM LIST-Endpoint mitliefern,
+    // damit das Dashboard den KAV-Tracker parsen kann. Vorher fehlte das Feld
+    // → kavListeBadges sah immer leere tasks → ALLE Kunden auf P1 0/5,
+    // egal was Edgar in der Detail-Ansicht abgehakt hat.
+    notizen:  f[KUNDEN_FIELDS.NOTIZEN]  || '',
     // Iter 52: archiviert-Flag durchreichen (für Vertrieb-Filter und Admin-Ansicht)
     archiviert: !!f[KUNDEN_FIELDS.ARCHIVIERT]
   };
