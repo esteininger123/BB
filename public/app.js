@@ -768,7 +768,15 @@ function renderTabUebersicht() {
 
     <div class="card mt-16">
       <div class="card-title">Notizen</div>
-      <textarea id="f-notizen" onblur="saveNotizen()" placeholder="Frei-Notizen, Gesprächs-Stichpunkte ...">${esc(k.notizen || '')}</textarea>
+      <textarea id="f-notizen" onblur="saveNotizen()" placeholder="Frei-Notizen, Gesprächs-Stichpunkte ...">${esc((() => {
+        // QA-Fix 2026-05-23 (Audit-P1): KAV-Tracker-JSON aus Textarea ausblenden.
+        // Vorher sah Vertriebler den rohen [KAV-TRACKER]…[/KAV-TRACKER]-Block + konnte
+        // ihn versehentlich editieren/löschen → silent Daten-Verlust.
+        if (typeof parseKavTracker === 'function') {
+          return parseKavTracker(k.notizen || '').freeNotes;
+        }
+        return k.notizen || '';
+      })())}</textarea>
       <div class="text-tertiary text-small mt-8">Auto-Save bei Klick außerhalb.</div>
     </div>
   `;
@@ -836,13 +844,31 @@ async function saveStammdaten(opts) {
 window.saveStammdaten = saveStammdaten;
 
 async function saveNotizen() {
-  const notizen = document.getElementById('f-notizen').value;
-  if (notizen === state.kunde.notizen) return;
+  const userFreeText = document.getElementById('f-notizen').value;
+  // QA-Fix 2026-05-23 (Audit-P1+P2): KAV-Tracker beim Notizen-Save bewahren.
+  // Vorher überschrieb saveNotizen den ganzen Block — Tracker (Phase, Aufgaben,
+  // Wiedervorlage) wurde gelöscht. Plus Race-Schutz: aktuelles Notizen-Feld parsen,
+  // freeNotes vergleichen statt komplettes notizen.
+  const parsed = typeof parseKavTracker === 'function'
+    ? parseKavTracker(state.kunde.notizen || '')
+    : { tracker: null, freeNotes: state.kunde.notizen || '' };
+  if (userFreeText === parsed.freeNotes) return;
+  const tracker = parsed.tracker;
+  const notizen = (typeof stringifyKavTracker === 'function' && tracker)
+    ? stringifyKavTracker(userFreeText, tracker)
+    : userFreeText;
+  // QA-Fix 2026-05-23 (Audit-P2): state.kunde.notizen OPTIMISTISCH updaten vor PUT,
+  // damit ein parallel-laufendes kavToggleTask nicht den alten FreeText überschreibt
+  // (Race-Window war ~200 ms zwischen PUT-Send und Response).
+  const prev = state.kunde.notizen;
+  state.kunde.notizen = notizen;
   try {
     await api.put('/api/kunden/' + state.kundeId, { notizen });
-    state.kunde.notizen = notizen;
     toast('Notizen gespeichert');
-  } catch (e) { toast('Fehler: ' + e.message, 'error'); }
+  } catch (e) {
+    state.kunde.notizen = prev; // Rollback bei Fehler
+    toast('Fehler: ' + e.message, 'error');
+  }
 }
 window.saveNotizen = saveNotizen;
 
@@ -5895,19 +5921,31 @@ function _renderWeListeContent() {
         subventionPhasen = [{ mo: subvMoPhase1, monate: subvMonatePhase1 }];
       }
 
-      // Tag-1-Vereinbarung: wenn aktiv (derived.subventionKaltmieteAdjustiert),
-      // nutze die angehobene Kaltmiete + monateSeit=36 (Tag-1).
+      // QA-Fix 2026-05-23 (Audit-O1 / Edgar-Doc B2): Tag-1-Vereinbarung = Mieter-Anhebung
+      // wurde gerade gerade vereinbart → letzte Erhöhung effektiv heute → monateSeit=0,
+      // damit nächster Sprung NICHT sofort in Monat 1 nochmal greift (Doppel-Anhebung).
+      // App-Live in loadWeIntoKalk:1791 setzt exakt diesen Wert.
+      // Plus (Audit-N1): Bei Neuvermietung WE.kaltmiete=0 → nutze MBV (mieteBeiVerkauf)
+      // aus Stammdaten als geplante Käufer-Miete. Sonst rechnet die Engine mit 0 €
+      // Miete → −400 €/Mo Belastung statt realistischer ~−25 €/Mo.
       let effKaltmiete = detailWe.kaltmiete || we.kaltmiete || 0;
+      const istNeuvermietung = modus === 'staffel';
+      const mbv = detailKalk.mieteBeiVerkauf || sd.mieteBeiVerkauf || 0;
+      if (istNeuvermietung && effKaltmiete < 100 && mbv > 0) {
+        // Leerstand oder bald neu vermietet → Käufer-Miete = MBV
+        effKaltmiete = mbv;
+      }
       let monateSeit = null;
       if (derived && derived.subventionKaltmieteAdjustiert && derived.subventionKaltmieteAdjustiert > 0) {
         effKaltmiete = derived.subventionKaltmieteAdjustiert;
-        monateSeit = 36; // Tag-1
+        monateSeit = 0; // Tag-1 gilt als „gerade gemacht" — nächster Sprung in 36 Mo
+      } else if (istNeuvermietung) {
+        // Neuvermietung ab Tag 1 → Staffel sofort
+        monateSeit = 36;
       } else if (detailVerm.letzteMietsteigerung) {
         const lastDate = new Date(detailVerm.letzteMietsteigerung);
         const now = new Date();
         monateSeit = Math.max(0, Math.round((now - lastDate) / (1000*60*60*24*30.44)));
-      } else if (detailVerm.status === 'leer') {
-        monateSeit = 36;
       }
 
       // Marktpreis-Schnitt aus derived (sicher) oder selbst rechnen

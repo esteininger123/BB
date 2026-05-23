@@ -336,7 +336,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <div class="pdf-c-obj-row"><span class="k">Darlehenshöhe</span><span class="v">${Math.round((r.darlehen != null ? r.darlehen : (i.knkMitfinanziert ? r.kpGesamt + knk : r.kpGesamt))).toLocaleString('de-DE')}<span class="unit">€${i.knkMitfinanziert ? ' · inkl. KNK' : ''}</span></span></div>
         </div>
         <div class="pdf-c-p2-right">
-          <div class="hero-line">Annuität <span class="pdf-c-num">${fmtMo(r.annuityMo)}</span> &nbsp;·&nbsp; Miete <span class="pdf-c-num">${fmtMo(r.mieteJ1Mo)}</span> &nbsp;·&nbsp; Steuervorteil <span class="pdf-c-num">${fmtMo(r.stVorteilJ1Mo)}</span></div>
+          <div class="hero-line">Annuität <span class="pdf-c-num">${fmtMo(r.annuityMo)}</span> &nbsp;·&nbsp; Miete <span class="pdf-c-num">${fmtMo(r.mieteJ1Mo)}</span> &nbsp;·&nbsp; HG+HV+MV <span class="pdf-c-num">${fmtMo((r.hausgeldNurMo||0) + (r.hausverwaltungMo||0) + (r.mietverwaltungMo||0))}</span> &nbsp;·&nbsp; Steuervorteil <span class="pdf-c-num">${fmtMo(r.stVorteilJ1Mo)}</span></div>
           <p class="narrative">${r.belastungMo >= 0
             ? `Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst — Miete und Steuervorteil decken alle laufenden Kosten und liefern einen monatlichen Überschuss von ${fmtMo(r.belastungMo)}.`
             : `Die Wohnung trägt sich aus laufender Miete und Steuervorteil zu rund ${selbsttragungPct} % selbst. Den Rest leistest Du als Eigenleistung — Jahr für Jahr kleiner werdend.`}</p>

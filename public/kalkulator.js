@@ -459,10 +459,18 @@ function computeBonitaetDetailed(sa, gemeinsam) {
   // Iter 73 (21.05.2026): Legacy-Felder (pkvMo, leasingMo, unterhaltZahlungMo) komplett
   //   raus aus der Berechnung. Wenn der Kunde noch alte Werte hat, kann der Vertriebler
   //   sie via „Legacy-Daten bereinigen"-Button im Stammdaten-Tab entfernen.
+  // QA-Fix 2026-05-23 (Audit-P3 / Edgar-Doc B6): Iter-73-Entscheidung war zu strikt.
+  //   Maurice hatte 760 €/Mo PKV als Pflichtfeld eingetragen → wurde komplett ignoriert
+  //   → App-Bonität war 760 € zu optimistisch im Vergleich zu SA-PDF (das B6-Fix
+  //   die Felder reinholt). Konsistent: auch hier pkvMo/leasingMo/unterhaltZahlungMo
+  //   wieder zählen.
   function fixkosten(p) {
     if (!p) return 0;
     return (parseFloat(p.mieteMo) || 0)
          + (parseFloat(p.lebenshaltungMo) || 0)
+         + (parseFloat(p.pkvMo) || 0)
+         + (parseFloat(p.leasingMo) || 0)
+         + (parseFloat(p.unterhaltZahlungMo) || 0)
          + sumZusatz(p, 'zusatzAusgaben', 'mo');
   }
   const fixA = fixkosten(a);
