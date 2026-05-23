@@ -6716,6 +6716,7 @@ function endTour(markSeen) {
   // QA-Fix 2026-05-23 (Audit-T-Code-1): pending rerender-Timer canceln,
   // damit kein Zombie-Render NACH endTour eine neue Card erzeugt.
   if (_tourRerenderTimer) { clearTimeout(_tourRerenderTimer); _tourRerenderTimer = null; }
+  if (_tourModalObserver) { _tourModalObserver.disconnect(); _tourModalObserver = null; }
   const ov = document.getElementById('bbk-tour-overlay');
   if (ov) ov.remove();
   const card = document.getElementById('bbk-tour-card');
@@ -6741,6 +6742,21 @@ function _tourRerender() {
     _tourRerenderTimer = null;
     if (_tourActive) _renderTour();
   }, 80);
+}
+
+// QA-Fix 2026-05-23 (Audit-T-8): MutationObserver triggert _tourRerender wenn
+// ein Modal aus dem DOM verschwindet — Tour-Card kommt automatisch wieder.
+let _tourModalObserver = null;
+function _ensureModalCloseObserver() {
+  if (_tourModalObserver) return;
+  _tourModalObserver = new MutationObserver(() => {
+    if (!_tourActive) return;
+    const stillOpen = !!document.querySelector(
+      '.reserv-modal-overlay, #bbk-snapshot-modal, #bbk-wv-modal, .modal, [role="dialog"]'
+    );
+    if (!stillOpen) _tourRerender();
+  });
+  _tourModalObserver.observe(document.body, { childList: true, subtree: false });
 }
 window.endTour = endTour;
 
@@ -6787,6 +6803,25 @@ function _renderTour() {
     document.body.appendChild(card);
   }
 
+  // QA-Fix 2026-05-23 (Audit-T-8): Wenn ein Modal offen ist (Reservierung,
+  // Snapshot-Name, Wiedervorlage, Kunde-Anlegen), Tour-Card und Overlay
+  // temporär verstecken — sonst überlagern sie das Modal. MutationObserver
+  // unten reagiert auf Modal-Schließen und rendert die Tour neu.
+  const modalOffen = !!document.querySelector(
+    '.reserv-modal-overlay, #bbk-snapshot-modal, #bbk-wv-modal, .modal, [role="dialog"]'
+  );
+  if (modalOffen) {
+    card.style.display = 'none';
+    const ovHide = document.getElementById('bbk-tour-overlay');
+    if (ovHide) ovHide.style.display = 'none';
+    _ensureModalCloseObserver();
+    return; // restliches Rendering überspringen
+  } else {
+    card.style.display = '';
+    const ovShow = document.getElementById('bbk-tour-overlay');
+    if (ovShow) ovShow.style.display = '';
+  }
+
   const step = TOUR_STEPS[_tourStep];
   const last = _tourStep === TOUR_STEPS.length - 1;
   const first = _tourStep === 0;
@@ -6796,6 +6831,29 @@ function _renderTour() {
   const needsTab  = step.needsTab  || null;
   const viewMatches = !needsView || state.view === needsView;
   const tabMatches  = !needsTab  || state.tab  === needsTab;
+
+  // QA-Fix 2026-05-23 (Walkthrough-Test): Auto-Advance wenn aktueller Step
+  // nicht mehr matched ABER der nächste Step EXPLIZIT eine View/Tab vorgibt
+  // die genau zur aktuellen Lage passt. Beispiel: Step 1 ist „Test-Kunde
+  // anlegen" (Dashboard), User klickt + Neuer Kunde → Modal → Anlegen →
+  // automatische Navigation zu '/kunde/X' → state.view = 'kunde'.
+  // Vorher zeigte Card „Du bist nicht auf der richtigen Seite" obwohl der
+  // User genau das gemacht hat was die Tour wollte. Jetzt: springt direkt
+  // zum nächsten Step der zu state.view='kunde' passt.
+  // WICHTIG: nur auto-advance wenn nextStep EXPLIZIT needsView/needsTab hat
+  // und es matched — sonst skippen wir Steps mit needsView:null (die immer
+  // matchen würden).
+  if ((!viewMatches || !tabMatches) && _tourStep < TOUR_STEPS.length - 1) {
+    const nextStep = TOUR_STEPS[_tourStep + 1];
+    const nextHasExplicit = !!(nextStep.needsView || nextStep.needsTab);
+    const nextViewMatches = !nextStep.needsView || state.view === nextStep.needsView;
+    const nextTabMatches  = !nextStep.needsTab  || state.tab  === nextStep.needsTab;
+    if (nextHasExplicit && nextViewMatches && nextTabMatches) {
+      _tourStep++;
+      _renderTour();
+      return;
+    }
+  }
   const viewLabel = { dashboard: 'Dashboard', kunde: 'Kunde-Detail-Seite', 'we-liste': 'Aktive WEs', admin: 'Admin' }[needsView] || needsView;
   const viewHref = { dashboard: '#/dashboard', kunde: state.kundeId ? ('#/kunde/' + state.kundeId) : '#/dashboard', 'we-liste': '#/we-liste', admin: '#/admin' }[needsView] || '#/dashboard';
   const tabLabel = { uebersicht: 'Übersicht', kalkulator: 'Kalkulator', selbstauskunft: 'Selbstauskunft', snapshots: 'Snapshots' }[needsTab] || needsTab;
