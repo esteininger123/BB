@@ -6020,17 +6020,22 @@ function renderAdminStammdatenAudit(audit) {
 */
 
 let _weListeCache = null;
-// QA-Sprint 2026-05-23 (Edgar live): Default ist „30% StSatz, 4,5% Zins, KP ohne KNK".
-// Entspricht dem alten 'standard'-Profil.
-// QA-Fix 2026-05-23 (Audit-P-2): Auswahl in localStorage persistieren — vor F5
-// musste Edgar das Profil jedes Mal neu wählen.
+// QA-Sprint 2026-05-23 (Edgar live): Default ist „30% StSatz · 4,5% Zins · KP ohne KNK".
+// QA-Fix 2026-05-23 (Audit-P-2): Auswahl in localStorage persistieren.
+// 2026-05-23 Edgar-Korrektur: 6er-Matrix statt 12er — KNK koppelt sich an
+// den Zins (mit=4,8%, ohne=4,5%). Naming-Schema s{StSatz}{ohne|knk}.
 const _WE_LISTE_PROFIL_LS_KEY = 'bbk_we_liste_profil';
 let _weListeProfil = (() => {
   try {
     const saved = localStorage.getItem(_WE_LISTE_PROFIL_LS_KEY);
-    if (saved && /^s\d{2}z\d{2}(ohne|knk)$/.test(saved)) return saved;
+    if (saved && /^s\d{2}(ohne|knk)$/.test(saved)) return saved;
+    // Migration: alte 12er-Slugs (s30z45ohne etc.) → neue 6er-Slugs
+    if (saved && /^s\d{2}z\d{2}(ohne|knk)$/.test(saved)) {
+      const m = saved.match(/^s(\d{2})z\d{2}(ohne|knk)$/);
+      if (m) return `s${m[1]}${m[2]}`;
+    }
   } catch {}
-  return 's30z45ohne';
+  return 's30ohne';
 })();
 
 async function renderWeListe() {
@@ -6046,25 +6051,21 @@ async function renderWeListe() {
           <label class="text-tertiary text-small" for="we-liste-profil" style="white-space:nowrap;">Kennzahlen für Profil</label>
           <select id="we-liste-profil" onchange="window._weListeSetProfil(this.value)" style="padding:6px 10px;font-size:13px;min-width:340px;">
             ${(() => {
-              // QA-Sprint 2026-05-23 (Edgar live): 12er-Matrix: 3 Steuersätze ×
-              // 2 Zinssätze × 2 KNK-Varianten, alle mit 1 % Tilgung.
-              // QA-Fix 2026-05-23 (Audit-P-1): toter Code entfernt — nur optgroup-Loop bleibt.
+              // QA-Sprint 2026-05-23 (Edgar-Korrektur): 6er-Matrix — pro StSatz
+              // nur 2 Varianten. KNK koppelt automatisch den Zins:
+              //   ohne KNK → 4,5 % Zins (Standard-KP-Finanzierung)
+              //   mit KNK  → 4,8 % Zins (Bank-Aufschlag bei höherem Beleihungsauslauf)
               const stSaetze = [30, 35, 42];
-              const zinse    = [4.5, 4.8];
-              const knkOpts  = [
-                { key: 'ohne', label: 'KP ohne KNK' },
-                { key: 'knk',  label: 'KP + KNK finanziert' },
+              const varianten = [
+                { key: 'ohne', label: 'KP ohne KNK (4,5 % Zins)' },
+                { key: 'knk',  label: 'KP + KNK finanziert (4,8 % Zins)' },
               ];
               return stSaetze.map(st => {
-                const groupOpts = [];
-                for (const z of zinse) {
-                  for (const knk of knkOpts) {
-                    const val = `s${st}z${(z*10).toFixed(0)}${knk.key}`;
-                    const label = `${String(z).replace('.', ',')} % Zins · ${knk.label}`;
-                    groupOpts.push(`<option value="${val}"${_weListeProfil === val ? ' selected' : ''}>${label}</option>`);
-                  }
-                }
-                return `<optgroup label="${st} % Steuersatz · 1 % Tilgung">${groupOpts.join('')}</optgroup>`;
+                const groupOpts = varianten.map(v => {
+                  const val = `s${st}${v.key}`;
+                  return `<option value="${val}"${_weListeProfil === val ? ' selected' : ''}>${v.label}</option>`;
+                }).join('');
+                return `<optgroup label="${st} % Steuersatz · 1 % Tilgung">${groupOpts}</optgroup>`;
               }).join('');
             })()}
           </select>
