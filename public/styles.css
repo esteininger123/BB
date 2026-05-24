@@ -3870,6 +3870,15 @@ input[type="range"].spar-zins-range::-moz-range-track {
     min-width: 44px;
     min-height: 44px;
   }
+  /* FS-3f (Audit Frontend P2-1 25.05.2026): Nav-Links auf Mobile mit
+     Touch-Target ≥ 44px laut Apple-Guideline. Vorher 6px×10px Padding +
+     14px Font ≈ 32px Höhe → Vertriebler verklickte sich. */
+  .nav-link {
+    min-height: 44px;
+    padding: 12px 14px;
+    display: inline-flex;
+    align-items: center;
+  }
 }
 
 /* ============================================================

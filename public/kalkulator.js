@@ -807,8 +807,13 @@ function recalc(i) {
       let monateBisher = 0;
       for (const ph of i.subventionPhasen) {
         const phaseStartMo = monateBisher;
-        const phaseEndMo   = monateBisher + (ph && ph.monate ? ph.monate : 0);
-        if (ph && ph.mo && m > phaseStartMo && m <= phaseEndMo) {
+        const phaseEndMo   = monateBisher + (ph && ph.monate > 0 ? ph.monate : 0);
+        // FS-3e (Audit Engine P2 25.05.2026): `ph.mo > 0` statt truthy-Check.
+        // Iter-62 erlaubt Phase 2 mit p2Mo=0 (xFinal - mieterErhoehungP2 = 0),
+        // vorher fiel die Phase mit falsy-mo komplett raus → Käufer-Cashflow
+        // sprang ab Phase-2-Start abrupt um die volle Mieter-Erhöhung
+        // statt sanft via Subv-Glättung.
+        if (ph && ph.mo > 0 && ph.monate > 0 && m > phaseStartMo && m <= phaseEndMo) {
           return Math.max(0, effektivZielGlobal - kaltmieteM);
         }
         monateBisher = phaseEndMo;

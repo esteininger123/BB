@@ -746,7 +746,9 @@ function _kfReset() {
   _kfState.phase = null;  // FS-2p
   _kfState.wv = null;     // FS-2p
   _kfPersist();
-  document.querySelectorAll('#kf-bl-popup .kf-bl-opt input[type=checkbox]').forEach(cb => cb.checked = false);
+  // FS-3f (Audit Frontend P2-2 25.05.2026): BL-Popup-Listener vor Re-Render
+  // schließen — sonst sammelt sich pro Reset ein verwaister Document-Listener.
+  if (typeof _kfBlClose === 'function') { try { _kfBlClose(); } catch {} }
   _kfRefreshDropdownTrigger();
   // FS-2p: bei Phase/WV-Reset auch re-render damit Chips ihren Aktiv-State aktualisieren
   renderDashboard();
@@ -3915,7 +3917,7 @@ function renderStoryPremium(r) {
     };
 
     return `
-    <section class="kalk-c-section">
+    <section class="kalk-c-section" id="section-was-waere-wenn">
       <div class="kalk-c-section-head">
         <div class="kalk-c-left">
           <div class="kalk-c-section-num">06 · Was wäre wenn</div>
@@ -4984,7 +4986,7 @@ function openInvestDocModal() {
             ⬇ Als PDF herunterladen
             <div style="font-size:11px;font-weight:normal;margin-top:4px;opacity:0.85;">Browser-Druckdialog → „Als PDF speichern". Empfohlen — Du kannst die PDF dann anschauen und selbst per Mail/WhatsApp weitergeben.</div>
           </button>
-          <button type="button" class="reserv-confirm" id="invest-mail-btn" ${kEmail ? '' : 'disabled title="Kunde hat keine E-Mail in Airtable"'} style="width:100%;text-align:left;padding:14px 18px;background:#fff;color:#1A1A17;border:1px solid var(--accent);">
+          <button type="button" class="reserv-confirm" id="invest-mail-btn" ${kEmail ? '' : 'disabled title="Kunde hat keine E-Mail in Airtable"'} style="width:100%;text-align:left;padding:14px 18px;background:#fff;color:#1A1A17;border:1px solid var(--accent);${kEmail ? '' : 'opacity:.45;cursor:not-allowed;'}">
             ✉ Mail-Vorlage öffnen
             <div style="font-size:11px;font-weight:normal;margin-top:4px;opacity:0.7;">Empfänger: ${esc(kEmail || '(keine E-Mail)')}. Öffnet Dein Mail-Programm mit vorgefülltem Text — Du wählst, was Du anhängst (z.B. das vorher heruntergeladene PDF).</div>
           </button>
@@ -8367,10 +8369,12 @@ const TOUR_STEPS = [
     needsTab: 'kalkulator',
   },
   {
+    // FS-3d (Audit Tour-Step P3.4 25.05.2026): (?)-Tooltips im Magazin gibt es
+    // nicht — Quellen findet man im Annahmen-Modal. Action ehrlich formuliert.
     title: 'Schritt 14 — Annahmen-Modal: Wo kommen die Zahlen her?',
-    action: 'Jede Zahl im Magazin hat einen Quelle-Tooltip (kleines (?)-Icon). Probier eines an, z.B. neben dem AfA-Wert. Das öffnet eine Erklärung mit Quelle (Gutachter, Airtable-Feld, Formel).',
-    tip: 'Das ist Dein Banker-Modus: jede Zahl ist nachvollziehbar, jede Annahme dokumentiert. Wenn der Kunde fragt „woher kommt das?" — Klick auf den Tooltip, fertig.',
-    target: '.kalk-c-section',
+    action: 'Scroll im Magazin zur Sektion „05 · Im Detail". Dort findest Du den Trigger „Annahmen anzeigen" — Klick öffnet eine Übersicht aller Annahmen mit Quelle (AfA-Gutachter, Airtable-Stammdaten, Engine-Formel).',
+    tip: 'Das ist Dein Banker-Modus: jede Zahl ist nachvollziehbar, jede Annahme dokumentiert. Wenn der Kunde fragt „woher kommt das?" — Annahmen-Modal öffnen.',
+    target: 'button[onclick*="openAnnahmen"], .kalk-c-trigger-annahmen',
     needsView: 'kunde',
     needsTab: 'kalkulator',
   },
@@ -8378,7 +8382,7 @@ const TOUR_STEPS = [
     title: 'Schritt 15 — Was-wäre-wenn (Sensitivität)',
     action: 'Scroll weiter zur Sektion „06 · Was wäre wenn". Drei Szenarien als Karten: Basis (grün), Konservativ (Zins +1 %, 1 Mo Leerstand), Stress-Test (Zins +2 %, 3 Mo Leerstand).',
     tip: 'Bank-Sprache statt Wetter-Metaphorik. Das ist Deine Antwort wenn der Kunde fragt „und wenn die Zinsen steigen?" — die Kalkulation ist robust gerechnet.',
-    target: '.kalk-c-section',
+    target: '#section-was-waere-wenn',
     needsView: 'kunde',
     needsTab: 'kalkulator',
   },
