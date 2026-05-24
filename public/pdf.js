@@ -663,7 +663,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         </div>
         <div class="pdf-c-bub-cell">
           <div class="pdf-c-bub-step" style="font-size:13pt">Restnutzungsdauer-Gutachten</div>
-          <div class="pdf-c-bub-text">Wir bereiten es so vor, dass es üblicherweise vom Finanzamt anerkannt wird — höhere AfA, mehr Steuervorteil über die Laufzeit. Letzte Entscheidung trifft das zuständige Finanzamt.</div>
+          <div class="pdf-c-bub-text">Wir beauftragen Sprengnetter — Marktführer mit hoher Durchsetzungs-Quote beim Finanzamt. Ergebnis: höhere AfA über die Laufzeit. Letzte Entscheidung trifft das zuständige Finanzamt.</div>
         </div>
         <div class="pdf-c-bub-cell">
           <div class="pdf-c-bub-step" style="font-size:13pt">Übergabe &amp; WEG</div>
@@ -692,11 +692,10 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <div class="pdf-c-section-num">09 · Wer wir sind</div>
       <h2 class="pdf-c-section-title">Brot &amp; Butter.</h2>
       <p class="pdf-c-lead" style="max-width:60ch">Unser Name ist unser Geschäftsmodell. Wir kaufen die großen Brote und veredeln sie mit Butter — bevor wir scheibenweise an Dich weitergeben.</p>
-      <div class="pdf-c-bub-grid">
-        <div class="pdf-c-bub-cell"><div class="pdf-c-bub-step">Brot</div><div class="pdf-c-bub-text">Wir kaufen bei großen Immobiliengesellschaften ganze Bestände zu Preisen, die für Einzelkäufer nie sichtbar werden. Volumen schafft den Einkaufsvorteil — das ist das Leibbrot.</div></div>
-        <div class="pdf-c-bub-cell"><div class="pdf-c-bub-step">Teilen</div><div class="pdf-c-bub-text">Aus dem Bestand werden einzelne Scheiben — einzelne Wohneinheiten, die wir vermarktungsfähig machen. Jede Einheit bekommt ihren eigenen Pfad.</div></div>
-        <div class="pdf-c-bub-cell"><div class="pdf-c-bub-step">Butter</div><div class="pdf-c-bub-text">Veredelung. Bevor eine Wohnung zu Dir kommt, machen wir den Hausverwaltungs-Wechsel, prüfen die Rücklage, setzen notwendige Maßnahmen an und begutachten den Zustand sehr genau.</div></div>
-        <div class="pdf-c-bub-cell"><div class="pdf-c-bub-step">Weitergabe</div><div class="pdf-c-bub-text">Portionsgerecht. Nicht jeder kann ein Mehrfamilienhaus kaufen — eine einzelne Wohnung schon. So machen wir den Sachwert für Privatanleger zugänglich.</div></div>
+      <div class="pdf-c-bub-grid" style="grid-template-columns:repeat(3,1fr);">
+        <div class="pdf-c-bub-cell"><div class="pdf-c-bub-step">Brot kaufen</div><div class="pdf-c-bub-text">Wir kaufen bei großen Immobiliengesellschaften ganze Bestände — zu Volumen-Preisen, die für Einzelkäufer nie sichtbar werden.</div></div>
+        <div class="pdf-c-bub-cell"><div class="pdf-c-bub-step">Butter veredeln</div><div class="pdf-c-bub-text">Bevor eine Wohnung zu Dir kommt: Hausverwaltungs-Wechsel, Rücklage-Prüfung, Substanz-Check, notwendige Maßnahmen. Veredelung vor Weitergabe.</div></div>
+        <div class="pdf-c-bub-cell"><div class="pdf-c-bub-step">Scheibenweise weitergeben</div><div class="pdf-c-bub-text">Aus dem Bestand werden einzelne Wohnungen — portionsgerecht für Privatanleger. So machen wir den Sachwert zugänglich.</div></div>
       </div>
       <div class="pdf-c-bub-foot">
         <div class="pdf-c-bub-foot-item"><strong>Keine zusätzliche Vermittlungs-Provision.</strong>Du zahlst keinen Aufschlag oben drauf. Unsere Marge kalkulieren wir transparent in den Einkaufs-Verkauf-Spread — auf Wunsch erklären wir Dir das Modell konkret im Termin.</div>

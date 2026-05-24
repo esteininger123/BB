@@ -160,8 +160,8 @@ function renderHeader() {
   // wo er ist (Dashboard vs Aktive WEs vs Admin).
   const active = (view) => state.view === view ? ' nav-link-active' : '';
   um.innerHTML = `
-    <a href="#/dashboard" class="nav-link${active('dashboard')}">Dashboard</a>
-    <a href="#/we-liste" class="nav-link${active('we-liste')}" title="Live-Liste aller aktiven Wohneinheiten mit Kennzahlen">Aktive WEs</a>
+    <a href="#/dashboard" class="nav-link${active('dashboard')}" title="Deine Kunden + Pipeline">Meine Kunden</a>
+    <a href="#/we-liste" class="nav-link${active('we-liste')}" title="Alle Wohnungen in aktiver Vermarktung mit Kennzahlen">Wohnungen</a>
     ${isAdmin ? `<a href="#/admin" class="nav-link${active('admin')}">Admin</a>` : ''}
     <button type="button" class="bbk-help-btn" onclick="startTour()" title="Tour starten — wie funktioniert das Tool?">?</button>
     <div class="user-name">${esc(state.user.name)}</div>
@@ -413,12 +413,8 @@ function renderDashboard() {
       ${wiedervorlagenCard}
 
       <div class="card">
-        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div class="card-title">
           <span>Meine Kunden ${meine.length > 0 ? `<span class="text-tertiary text-small" style="font-weight:normal;">· ${meine.length}</span>` : ''}</span>
-          ${meine.length > 5 ? `
-            <input type="text" id="kunden-suche" placeholder="Suche Name oder E-Mail …" oninput="filterKundenListe(this.value)"
-              style="font-family:inherit;font-size:13px;padding:7px 12px;border:1px solid #C9A572;border-radius:18px;width:240px;background:#fff;">
-          ` : ''}
         </div>
 
         ${meine.length === 0 ? `
@@ -1338,84 +1334,87 @@ window._wpClearAll = _wpClearAll;
 function renderTabUebersicht() {
   const el = document.getElementById('tab-content');
   const k = state.kunde;
-  el.innerHTML = `
-    <div class="card">
-      <div class="card-title">Stammdaten <span class="text-tertiary text-small" style="font-weight:normal;">(Auto-Save aktiv · spiegelt sich in die Selbstauskunft)</span></div>
-      <div class="grid-2">
-        <div>
-          <label>Vorname</label>
-          <input id="f-vorname" data-stamm="vorname" value="${esc(k.vorname || '')}">
+
+  // FS-2i (Edgar 24.05.2026): Reihenfolge umgedreht für Telefon-Workflow.
+  // Aktivitäten zuerst (was haben wir besprochen), dann Notizen (Stichworte),
+  // dann Wunsch-Profil (Bedarf), dann Stammdaten (collapsed, statisch).
+  const stammCard = `
+    <details class="card mt-16">
+      <summary style="cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;">
+        <span class="card-title" style="margin:0;border-bottom:none;padding-bottom:0;">Stammdaten <span class="text-tertiary text-small" style="font-weight:normal;">· Klick zum Bearbeiten</span></span>
+        <span style="font-size:12px;color:var(--text-tertiary);">${esc((k.email || ''))}${k.telefon ? ' · ' + esc(k.telefon) : ''}</span>
+      </summary>
+      <div style="margin-top:14px;">
+        <div class="grid-2">
+          <div>
+            <label>Vorname</label>
+            <input id="f-vorname" data-stamm="vorname" value="${esc(k.vorname || '')}">
+          </div>
+          <div>
+            <label>Nachname</label>
+            <input id="f-nachname" data-stamm="nachname" value="${esc(k.nachname || '')}">
+          </div>
+          <div>
+            <label>E-Mail</label>
+            <input id="f-email" data-stamm="email" type="email" value="${esc(k.email || '')}">
+          </div>
+          <div>
+            <label>Telefon</label>
+            <input id="f-telefon" data-stamm="telefon" value="${esc(k.telefon || '')}">
+          </div>
+          <div>
+            <label>Geburtsdatum</label>
+            <input id="f-geburtsdatum" data-stamm="geburtsdatum" type="date" value="${esc(k.geburtsdatum || '')}">
+          </div>
         </div>
-        <div>
-          <label>Nachname</label>
-          <input id="f-nachname" data-stamm="nachname" value="${esc(k.nachname || '')}">
-        </div>
-        <div>
-          <label>E-Mail</label>
-          <input id="f-email" data-stamm="email" type="email" value="${esc(k.email || '')}">
-        </div>
-        <div>
-          <label>Telefon</label>
-          <input id="f-telefon" data-stamm="telefon" value="${esc(k.telefon || '')}">
-        </div>
-        <div>
-          <label>Geburtsdatum</label>
-          <input id="f-geburtsdatum" data-stamm="geburtsdatum" type="date" value="${esc(k.geburtsdatum || '')}">
+        <div class="mt-16">
+          <span id="stamm-save-status" class="text-tertiary text-small">Auto-Save aktiv · spiegelt sich in die Selbstauskunft</span>
         </div>
       </div>
-      <div class="mt-16">
-        <span id="stamm-save-status" class="text-tertiary text-small"></span>
+    </details>
+  `;
+
+  // Parse Notizen für Activities + Notes split
+  const parsed = (typeof parseKavTracker === 'function')
+    ? parseKavTracker(k.notizen || '')
+    : { tracker: null, freeNotes: k.notizen || '' };
+  const split = _splitNotesAndActivities(parsed.freeNotes);
+  const sortedActs = split.activities.slice().sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+
+  // 1. AKTIVITÄTEN-Karte (zuerst — was war zuletzt?)
+  const aktivitaetenCard = `
+    <div class="card activity-card">
+      <div class="card-title">Aktivitäten-Historie <span class="text-tertiary text-small" style="font-weight:normal;">· ${sortedActs.length} Einträge</span></div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input type="text" id="activity-new-input" placeholder="Neue Aktivität / Notiz mit Datum festhalten …" style="flex:1;padding:8px 12px;font-size:13px;border:1px solid var(--border);border-radius:4px;font-family:inherit;" onkeydown="if(event.key==='Enter'){event.preventDefault();addActivityEntry();}">
+        <button type="button" onclick="addActivityEntry()" class="secondary" style="padding:6px 14px;font-size:12px;white-space:nowrap;">+ Eintrag</button>
+      </div>
+      ${sortedActs.length > 0 ? `
+        <div class="activity-list">
+          ${sortedActs.map(a => `
+            <div class="activity-row">
+              <div class="activity-ts">${esc(a.ts)}</div>
+              <div class="activity-text">${esc(a.text)}</div>
+            </div>
+          `).join('')}
+        </div>
+      ` : '<div class="text-tertiary text-small" style="padding:14px 0;">Noch keine Einträge. Aktivitäten von PandaDoc, Snapshot-Speichern oder Reservierungen landen hier automatisch — manuelle Einträge oben ergänzen.</div>'}
+    </div>
+  `;
+
+  // 2. NOTIZEN-Karte (Scratchpad)
+  const notizenCard = `
+    <div class="card mt-16">
+      <div class="card-title">Notizen <span class="text-tertiary text-small" style="font-weight:normal;">· Scratchpad für laufende Stichpunkte</span></div>
+      <textarea id="f-notizen" onblur="saveNotizen()" placeholder="Frei-Notizen, Gesprächs-Stichpunkte … Klick „An Historie senden" um sie dauerhaft mit Datum zu speichern.">${esc(split.notes)}</textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;">
+        <span class="text-tertiary text-small">Auto-Save bei Klick außerhalb.</span>
+        <button type="button" onclick="sendNotizToHistory()" class="secondary" style="padding:6px 14px;font-size:12px;">→ An Historie senden</button>
       </div>
     </div>
-
-    ${(() => {
-      // QA-Fix 2026-05-23 (Edgar-Doc Bug-9): Notizen UND Aktivitätshistorie
-      // getrennt rendern. freeNotes enthält Mix aus User-Text und Auto-Events.
-      // QA-Fix 2026-05-24 (Edgar): Notizen mit Send-Button („An Historie senden")
-      // + Aktivitäten-Card mit eigenem Eintrag-Input. Notizen-Textarea ist
-      // jetzt Scratchpad für Stichpunkte — beim Senden landet's mit Timestamp
-      // dauerhaft in der Historie. Aktivitäten-Card ist immer sichtbar.
-      const parsed = (typeof parseKavTracker === 'function')
-        ? parseKavTracker(k.notizen || '')
-        : { tracker: null, freeNotes: k.notizen || '' };
-      const split = _splitNotesAndActivities(parsed.freeNotes);
-      // Notizen-Karte mit Send-Button
-      const notizenCard = `
-        <div class="card mt-16">
-          <div class="card-title">Notizen <span class="text-tertiary text-small" style="font-weight:normal;">· Scratchpad für laufende Stichpunkte</span></div>
-          <textarea id="f-notizen" onblur="saveNotizen()" placeholder="Frei-Notizen, Gesprächs-Stichpunkte … Klick „An Historie senden" um sie dauerhaft mit Datum zu speichern.">${esc(split.notes)}</textarea>
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;">
-            <span class="text-tertiary text-small">Auto-Save bei Klick außerhalb.</span>
-            <button type="button" onclick="sendNotizToHistory()" class="secondary" style="padding:6px 14px;font-size:12px;">→ An Historie senden</button>
-          </div>
-        </div>
-      `;
-      // Aktivitäten-Karte — immer sichtbar, mit Input für manuelle Einträge.
-      const sortedActs = split.activities.slice().sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
-      const aktivitaetenCard = `
-        <div class="card mt-16 activity-card">
-          <div class="card-title">Aktivitäten-Historie <span class="text-tertiary text-small" style="font-weight:normal;">· ${sortedActs.length} Einträge</span></div>
-          <div style="display:flex;gap:8px;margin-bottom:12px;">
-            <input type="text" id="activity-new-input" placeholder="Neue Aktivität / Notiz mit Datum festhalten …" style="flex:1;padding:8px 12px;font-size:13px;border:1px solid var(--border);border-radius:4px;font-family:inherit;" onkeydown="if(event.key==='Enter'){event.preventDefault();addActivityEntry();}">
-            <button type="button" onclick="addActivityEntry()" class="secondary" style="padding:6px 14px;font-size:12px;white-space:nowrap;">+ Eintrag</button>
-          </div>
-          ${sortedActs.length > 0 ? `
-            <div class="activity-list">
-              ${sortedActs.map(a => `
-                <div class="activity-row">
-                  <div class="activity-ts">${esc(a.ts)}</div>
-                  <div class="activity-text">${esc(a.text)}</div>
-                </div>
-              `).join('')}
-            </div>
-          ` : '<div class="text-tertiary text-small" style="padding:14px 0;">Noch keine Einträge. Aktivitäten von PandaDoc, Snapshot-Speichern oder Reservierungen landen hier automatisch — manuelle Einträge oben ergänzen.</div>'}
-        </div>
-      `;
-      return notizenCard + aktivitaetenCard;
-    })()}
-
-    ${renderWunschProfilCard(k)}
   `;
+
+  el.innerHTML = aktivitaetenCard + notizenCard + renderWunschProfilCard(k) + stammCard;
   // Iter 68 (21.05.2026): Auto-Save für Stammdaten — gleiche Logik wie SA-Auto-Save.
   //   Bei jedem `input` wird state.kunde lokal aktualisiert, debounced 600 ms später
   //   das PUT abgesetzt. saveStammdaten ruft syncStammdatenInSa auf, damit die
@@ -3691,10 +3690,9 @@ function renderStoryPremium(r) {
         </div>
       </div>
       <div class="kalk-c-bub-grid">
-        <div class="kalk-c-bub-cell"><div class="kalk-c-bub-step">Brot</div><div class="kalk-c-bub-body">Wir kaufen bei großen Immobiliengesellschaften ganze Bestände zu Preisen, die für Einzelkäufer nie sichtbar werden. Volumen schafft den Einkaufsvorteil — das ist das Leibbrot.</div></div>
-        <div class="kalk-c-bub-cell"><div class="kalk-c-bub-step">Teilen</div><div class="kalk-c-bub-body">Aus dem Bestand werden einzelne Scheiben — einzelne Wohneinheiten, die wir vermarktungsfähig machen. Jede Einheit bekommt ihren eigenen Pfad.</div></div>
-        <div class="kalk-c-bub-cell"><div class="kalk-c-bub-step">Butter</div><div class="kalk-c-bub-body">Veredelung. Bevor eine Wohnung zu Dir kommt, machen wir den Hausverwaltungs-Wechsel, prüfen die Rücklage, setzen notwendige Maßnahmen an und begutachten den Zustand sehr genau.</div></div>
-        <div class="kalk-c-bub-cell"><div class="kalk-c-bub-step">Weitergabe</div><div class="kalk-c-bub-body">Portionsgerecht. Nicht jeder kann ein Mehrfamilienhaus kaufen — eine einzelne Wohnung schon. So machen wir den Sachwert für Privatanleger zugänglich.</div></div>
+        <div class="kalk-c-bub-cell"><div class="kalk-c-bub-step">Brot kaufen</div><div class="kalk-c-bub-body">Wir kaufen bei großen Immobiliengesellschaften ganze Bestände — zu Volumen-Preisen, die für Einzelkäufer nie sichtbar werden.</div></div>
+        <div class="kalk-c-bub-cell"><div class="kalk-c-bub-step">Butter veredeln</div><div class="kalk-c-bub-body">Bevor eine Wohnung zu Dir kommt: Hausverwaltungs-Wechsel, Rücklage-Prüfung, Substanz-Check, notwendige Maßnahmen. Veredelung vor Weitergabe.</div></div>
+        <div class="kalk-c-bub-cell"><div class="kalk-c-bub-step">Scheibenweise weitergeben</div><div class="kalk-c-bub-body">Aus dem Bestand werden einzelne Wohnungen — portionsgerecht für Privatanleger. So machen wir den Sachwert zugänglich.</div></div>
       </div>
       <div class="kalk-c-bub-foot">
         <div class="kalk-c-bub-foot-item"><strong>Keine zusätzliche Vermittlungs-Provision.</strong> Du zahlst keinen Aufschlag oben drauf. Unsere Marge kalkulieren wir transparent in den Einkaufs-Verkauf-Spread — auf Wunsch erklären wir Dir das Modell konkret im Termin.</div>
@@ -3730,7 +3728,7 @@ function renderStoryPremium(r) {
         </div>
         <div class="kalk-c-bub-cell">
           <div class="kalk-c-bub-step">Restnutzungsdauer-Gutachten</div>
-          <div class="kalk-c-bub-body">Wir bereiten es so vor, dass es üblicherweise vom Finanzamt anerkannt wird — höhere AfA, mehr Steuervorteil über die Laufzeit. Letzte Entscheidung trifft das zuständige Finanzamt.</div>
+          <div class="kalk-c-bub-body">Wir beauftragen Sprengnetter — Marktführer mit hoher Durchsetzungs-Quote beim Finanzamt. Ergebnis: höhere AfA über die Laufzeit. Letzte Entscheidung trifft das zuständige Finanzamt.</div>
         </div>
         <div class="kalk-c-bub-cell">
           <div class="kalk-c-bub-step">Übergabe &amp; WEG-Integration</div>
@@ -3856,15 +3854,29 @@ function renderStoryPremium(r) {
     `;
   })();
 
-  // ===== CLOSING =====
+  // ===== CLOSING (FS-2i, Edgar 24.05.2026): CTA-Block vor Disclaimer =====
+  // Käufer hat 9 Sektionen gelesen — letzter Aufruf zum Handeln.
+  const _ctaPhone = u.telefon ? esc(u.telefon).replace(/[^0-9+]/g, '') : '';
+  const _ctaWhatsApp = _ctaPhone ? `https://wa.me/${_ctaPhone.replace(/^00/, '').replace(/^\+/, '')}` : '';
+  const _ctaMail = u.email ? `mailto:${esc(u.email)}?subject=${encodeURIComponent('Termin / Rückfrage zur Wohnung')}` : '';
   const CLOSING = `
+    <section class="kalk-c-cta-section">
+      <div class="kalk-c-cta-inner">
+        <h2 class="kalk-c-cta-title">Bereit für den nächsten Schritt?</h2>
+        <p class="kalk-c-cta-sub">Termin vereinbaren · Rückfragen klären · oder direkt die Wohnung reservieren — wir sind erreichbar.</p>
+        <div class="kalk-c-cta-buttons">
+          ${_ctaWhatsApp ? `<a href="${_ctaWhatsApp}" target="_blank" rel="noopener" class="kalk-c-cta-btn kalk-c-cta-btn-primary">WhatsApp Direktdraht</a>` : ''}
+          ${_ctaMail ? `<a href="${_ctaMail}" target="_blank" rel="noopener" class="kalk-c-cta-btn kalk-c-cta-btn-secondary">Termin / Rückfrage per Mail</a>` : ''}
+        </div>
+      </div>
+    </section>
     <footer class="kalk-c-closing">
       <div class="kalk-c-signature">
         <strong>${esc(u.name || 'Edgar Steininger')}</strong>${u.name ? '' : ' · B&amp;B Immo GmbH'}<br>
         ${esc(u.email || '')}${u.telefon ? ' · ' + esc(u.telefon) : ''}
       </div>
       <p class="kalk-c-disclaimer">
-        Diese Investitionsrechnung beruht auf den dokumentierten Annahmen. Keine Anlageberatung im Sinne des WpHG. Verbindlich ist ausschließlich der notarielle Kaufvertrag. Steuerliche Aspekte sind mit Deinem Steuerberater abzustimmen.
+        Diese Rechnung beruht auf den Annahmen aus dieser Analyse. Keine Anlageberatung im Sinne des WpHG. Vermittlung im Rahmen einer Erlaubnis nach § 34c GewO. Verbindlich ist ausschließlich der notarielle Kaufvertrag. Steuerliche Aspekte mit Deinem Steuerberater abstimmen.
       </p>
     </footer>
   `;
@@ -3979,7 +3991,7 @@ function renderStoryPremium(r) {
       case 'wert': return 'Vorsichts-Default 3 % p.a. (Bulwiengesa-Median 2010-2024 lag bei ~4 %)';
       case 'miete': return '§ 558 BGB: max. 15 % in 3 Jahren bei Bestand. Bei Neuvermietung: Mietspiegel-Konformität';
       case 'st': return 'Persönlicher Grenzsteuersatz — aus Selbstauskunft oder Annahme';
-      case 'afa': return (i.afaSatz > 0.025) ? 'Restnutzungsdauer-Gutachten (höhere AfA als Standard 2 %)' : 'Standard 2 % linear nach § 7 EStG';
+      case 'afa': return (i.afaSatz > 0.025) ? 'Restnutzungsdauer-Gutachten (Sprengnetter — Marktführer, gute Durchsetzungs-Quote beim Finanzamt)' : 'Standard 2 % linear nach § 7 EStG';
       case 'subv': return 'B&B-Glättungs-Modell — Phase 1 absichern Marktmiete-Cap (§ 558 BGB)';
       case 'spar': return 'Tagesgeld-Vergleichszins — frei wählbar';
       case 'markt': return 'Aus Immoscout/Homeday-Vergleichswerten (Stand letzter Marktanker)';
