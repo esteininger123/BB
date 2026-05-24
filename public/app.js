@@ -998,15 +998,13 @@ async function renderKunde() {
         </div>
       </div>
 
-      ${renderKavCockpit(k)}
-
       <div class="tabs">
         ${['uebersicht','kalkulator','selbstauskunft','snapshots'].map(t => `
           <button class="tab ${state.tab === t ? 'active' : ''}" data-tab="${t}"
                   onclick="setTab('${t}')">
             ${t === 'uebersicht' ? 'Übersicht' :
               t === 'kalkulator' ? 'Kalkulator' :
-              t === 'selbstauskunft' ? 'Selbstauskunft' : 'Snapshots'}
+              t === 'selbstauskunft' ? 'Selbstauskunft' : 'SA-Snapshots'}
           </button>
         `).join('')}
       </div>
@@ -1414,7 +1412,10 @@ function renderTabUebersicht() {
     </div>
   `;
 
-  el.innerHTML = aktivitaetenCard + notizenCard + renderWunschProfilCard(k) + stammCard;
+  // FS-2j (Edgar 24.05.2026 18:50): Phasen-Tracker ist jetzt das oberste
+  // Element im Übersicht-Tab — nicht mehr global über allen Tabs. Vermeidet
+  // visuelle Wiederholung im Kalkulator/SA/Snapshots.
+  el.innerHTML = renderKavCockpit(k) + aktivitaetenCard + notizenCard + renderWunschProfilCard(k) + stammCard;
   // Iter 68 (21.05.2026): Auto-Save für Stammdaten — gleiche Logik wie SA-Auto-Save.
   //   Bei jedem `input` wird state.kunde lokal aktualisiert, debounced 600 ms später
   //   das PUT abgesetzt. saveStammdaten ruft syncStammdatenInSa auf, damit die

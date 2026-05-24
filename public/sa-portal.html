@@ -40,22 +40,26 @@ header.top {
 }
 .brand {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
   margin-bottom: 10px;
+  line-height: 1.05;
+  gap: 4px;
 }
 .brand-mark {
-  background: #1A1A17;
-  color: #FBFAF7;
-  padding: 4px 10px;
-  font-weight: 700;
-  font-size: 14px;
-  border-radius: 3px;
-  letter-spacing: .02em;
+  font-family: 'Helvetica Neue','Inter',Helvetica,Arial,sans-serif;
+  font-weight: 200;
+  font-size: 26px;
+  color: #1a1a1a;
+  letter-spacing: -0.6px;
+  background: none;
+  padding: 0;
 }
 .brand-text {
-  font-size: 14px;
-  color: var(--text-secondary);
+  font-family: 'Helvetica Neue','Inter',Helvetica,Arial,sans-serif;
+  font-size: 11px;
+  color: #888;
+  font-style: italic;
+  letter-spacing: 0.02em;
 }
 h1 {
   font-size: 24px;
@@ -406,7 +410,7 @@ function esc(s) {
 function renderError(msg) {
   document.getElementById('app').innerHTML = `
     <header class="top">
-      <div class="brand"><span class="brand-mark">B&amp;B</span><span class="brand-text">Selbstauskunft</span></div>
+      <div class="brand"><span class="brand-mark">Brot &amp; Butter</span><span class="brand-text">Immobilien</span></div>
       <h1>Hoppla.</h1>
       <div class="error-state">${esc(msg)}</div>
     </header>`;
@@ -414,7 +418,7 @@ function renderError(msg) {
 function renderSuccess() {
   document.getElementById('app').innerHTML = `
     <header class="top">
-      <div class="brand"><span class="brand-mark">B&amp;B</span><span class="brand-text">Selbstauskunft</span></div>
+      <div class="brand"><span class="brand-mark">Brot &amp; Butter</span><span class="brand-text">Immobilien</span></div>
     </header>
     <div class="success-state">
       <h2>✓ Vielen Dank!</h2>
@@ -436,7 +440,7 @@ function render() {
   const app = document.getElementById('app');
   app.innerHTML = `
     <header class="top">
-      <div class="brand"><span class="brand-mark">B&amp;B</span><span class="brand-text">Investitions-Doc · Selbstauskunft</span></div>
+      <div class="brand"><span class="brand-mark">Brot &amp; Butter</span><span class="brand-text">Immobilien</span></div>
       <h1>Selbstauskunft für ${esc((state.kunde.vorname || '') + ' ' + (state.kunde.nachname || '')).trim() || 'Dich'}</h1>
       <div class="subtitle">Diese Daten brauchen wir &amp; die finanzierende Bank — sie bleiben vertraulich.</div>
       <div class="intro">
