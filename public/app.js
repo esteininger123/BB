@@ -7442,31 +7442,22 @@ function _renderWeListeContent() {
         subventionPhasen = [{ mo: subvMoPhase1, monate: subvMonatePhase1 }];
       }
 
-      // QA-Fix 2026-05-23 (Audit-O1 / Edgar-Doc B2): Tag-1-Vereinbarung = Mieter-Anhebung
-      // wurde gerade gerade vereinbart → letzte Erhöhung effektiv heute → monateSeit=0,
-      // damit nächster Sprung NICHT sofort in Monat 1 nochmal greift (Doppel-Anhebung).
-      // App-Live in loadWeIntoKalk:1791 setzt exakt diesen Wert.
-      // Plus (Audit-N1): Bei Neuvermietung WE.kaltmiete=0 → nutze MBV (mieteBeiVerkauf)
-      // aus Stammdaten als geplante Käufer-Miete. Sonst rechnet die Engine mit 0 €
-      // Miete → −400 €/Mo Belastung statt realistischer ~−25 €/Mo.
+      // FS-2r (Edgar 25.05.2026, Option A): MBV (Miete bei Verkauf) ist
+      // Source-of-Truth für „was der Käufer ab Tag 1 kassiert" — egal ob
+      // Bestand oder Neuvermietung. Henry pflegt MBV als Anker-Wert für die
+      // Käufer-Story. Vorher: MBV wurde nur bei Neuvermietung verwendet, bei
+      // Bestand wurde die IST-Miete aus dem Mietvertrag genommen — selbst wenn
+      // Henry's MBV höher gepflegt war (Beispiel WE 11 Heidelberger 21: IST=860,
+      // MBV=1032 → Backstube rechnete mit 860, Rendite zu niedrig).
+      // Jetzt: MBV gewinnt immer wenn gepflegt. IST bleibt als Fallback wenn
+      // MBV fehlt. Bei Modus = Neuvermietung + beide leer = unkalkulierbar.
       let effKaltmiete = detailWe.kaltmiete || we.kaltmiete || 0;
       const istNeuvermietung = modus === 'staffel';
       const mbv = detailKalk.mieteBeiVerkauf || sd.mieteBeiVerkauf || 0;
-      if (istNeuvermietung) {
-        // QA-Fix 2026-05-23 (Edgar P2): Bei Neuvermietung IMMER MBV nutzen — die
-        // alte Kaltmiete (z.B. von einem Vor-Mieter der ausgezogen ist) ist NICHT
-        // die Miete die der neue Mieter zahlen wird. MBV = vertraglich vereinbarte
-        // neue Miete. Vorher: Fallback nur bei kaltmiete<100 → bei WE 5 mit alter
-        // Kaltmiete > 100 zeigte WE-Liste die alte Miete obwohl der Käufer die MBV
-        // kassieren wird.
-        if (mbv > 0) {
-          effKaltmiete = mbv;
-        } else if (effKaltmiete < 100) {
-          // Beide null → unkalkulierbar (z.B. Wesseling WE 4 Pflege-Lücke).
-          return { incomplete: true, reason: 'Kaltmiete und MBV fehlen — Pflege in Stammdaten' };
-        }
-        // Falls effKaltmiete vorhanden aber MBV fehlt: zumindest mit alter Miete
-        // rechnen + ⚠-Hinweis (sd.mieteBeiVerkauf Pflege-Empfehlung).
+      if (mbv > 0) {
+        effKaltmiete = mbv;
+      } else if (istNeuvermietung && effKaltmiete < 100) {
+        return { incomplete: true, reason: 'Kaltmiete und MBV fehlen — Pflege in Stammdaten' };
       }
       let monateSeit = null;
       if (derived && derived.subventionKaltmieteAdjustiert && derived.subventionKaltmieteAdjustiert > 0) {
@@ -7628,24 +7619,30 @@ function _renderWeListeContent() {
           <td>${modusBadge}</td>
           <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
           <td class="num">${(() => {
-            // QA-Fix 2026-05-23 (P2): Effektive Kaltmiete = was der Käufer ab Tag 1 kassiert.
-            //  - Bestand mit Tag-1-Vereinbarung → subventionKaltmieteAdjustiert (angehoben)
-            //  - Neuvermietung → MBV (zukünftige Miete, alte ist irrelevant)
-            //  - Bestand ohne Vereinbarung → aktuelle Kaltmiete
+            // FS-2r (Edgar 25.05.2026, Option A): Anzeige spiegelt die effektive
+            // Käufer-Miete = MBV wenn gepflegt, sonst IST. Bei Bestand mit
+            // MBV-Override (MBV != IST) zeigen wir beide Werte (MBV oben, IST
+            // als „Mietvertrag aktuell X €" Sub-Info).
             const det = detailById && detailById[we.id];
             const adj = det && det.derived && det.derived.subventionKaltmieteAdjustiert;
             const sdLocal = (det && det.kalkStammdaten) || sd;
             const mbvLocal = sdLocal.mieteBeiVerkauf || 0;
+            const istLocal = we.kaltmiete || 0;
             const modusLocal = String(sdLocal.vermietungsModus || '').toLowerCase();
             const istNeuLocal = modusLocal.includes('neuvermietung') || modusLocal.includes('staffel') || modusLocal.includes('leer');
             if (adj > 0) {
-              return fmtEurMo(adj) + '<div class="text-tertiary text-small">Tag-1 (vorher ' + Math.round(we.kaltmiete || 0).toLocaleString('de-DE') + ' €)</div>';
+              return fmtEurMo(adj) + '<div class="text-tertiary text-small">Tag-1 (vorher ' + Math.round(istLocal).toLocaleString('de-DE') + ' €)</div>';
             }
             if (istNeuLocal && mbvLocal > 0) {
-              const vorher = we.kaltmiete > 0 ? Math.round(we.kaltmiete).toLocaleString('de-DE') + ' € alt' : 'leer';
+              const vorher = istLocal > 0 ? Math.round(istLocal).toLocaleString('de-DE') + ' € alt' : 'leer';
               return fmtEurMo(mbvLocal) + '<div class="text-tertiary text-small">Neuvermietung (vorher ' + vorher + ')</div>';
             }
-            return we.kaltmiete > 0 ? fmtEurMo(we.kaltmiete) : '–';
+            // Bestand: MBV vor IST. Wenn Differenz > 5 €, IST als Sub-Info.
+            if (mbvLocal > 0 && Math.abs(mbvLocal - istLocal) > 5) {
+              return fmtEurMo(mbvLocal) + '<div class="text-tertiary text-small">MBV-Pflege (Vertrag aktuell ' + Math.round(istLocal).toLocaleString('de-DE') + ' €)</div>';
+            }
+            if (mbvLocal > 0) return fmtEurMo(mbvLocal);
+            return istLocal > 0 ? fmtEurMo(istLocal) : '–';
           })()}</td>
           <td class="num">${(stpl.anzahl > 0) ? fmtEur(stpl.kaufpreisSumme) : '–'}</td>
           <td class="num">${(stpl.anzahl > 0 && stpl.mieteMoSumme > 0) ? fmtEurMo(stpl.mieteMoSumme) : '–'}</td>
@@ -7770,8 +7767,12 @@ function _renderWeVergleichModal() {
       const derived = (detail.derived) || {};
       const profile = (window.Kalk.PROFILES && window.Kalk.PROFILES[_weListeProfil]) || {};
 
+      // FS-2r (Edgar 25.05.2026, Option A): MBV gewinnt immer wenn gepflegt,
+      // egal welcher Vermietungs-Modus. Henry-Pflege = was der Käufer ab Tag 1
+      // kassiert. derived.subventionKaltmieteAdjustiert hat Vorrang (Tag-1-Erhöhung).
       let effKaltmiete = derived.subventionKaltmieteAdjustiert
-        || (sd.mieteBeiVerkauf > 0 && /neuvermietung|staffel|leer/i.test(String(sd.vermietungsModus || '')) ? sd.mieteBeiVerkauf : we.kaltmiete) || 0;
+        || (sd.mieteBeiVerkauf > 0 ? sd.mieteBeiVerkauf : we.kaltmiete)
+        || 0;
 
       let subventionPhasen = [];
       if (Array.isArray(derived.subventionPhasen) && derived.subventionPhasen.length > 0) {
