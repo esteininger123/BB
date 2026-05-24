@@ -7758,6 +7758,14 @@ function _renderWeVergleichModal() {
 
   // Pro WE: berechnen mit aktuellem Profil
   const calcByWeId = {};
+  // FS-2s (Edgar 25.05.2026, 01:00): Modal nutzt jetzt die GLEICHEN Stammdaten-
+  // Feldnamen + Logik wie `_berechne` in der WE-Liste. Vorher hatte die Modal-
+  // recalc eine separate Implementierung mit FALSCHEN Feld-Namen (sd.hausgeld
+  // statt sd.hausgeldRuecklage, sd.afaSatz statt sd.afaGutachten, sd.grEstPct
+  // statt sd.grEst, wertsteigerung 0.03 hardcoded) — die Engine fiel auf
+  // Defaults zurück, Cashflow/IRR/Vermögen wichen massiv von der WE-Liste ab.
+  // Edgar-Befund: WE 1 zeigt IRR 21,5 % in Liste, aber 17,7 % im Modal.
+  const base = (window.Kalk && window.Kalk.getDefaults) ? window.Kalk.getDefaults() : {};
   for (const row of audit) {
     try {
       const sd = (detailById[row.we.id] && detailById[row.we.id].kalkStammdaten) || row.stammdaten || {};
@@ -7765,36 +7773,90 @@ function _renderWeVergleichModal() {
       const we = (detail.we) || row.we || {};
       const stpl = (detail.stellplaetze) || row.stellplaetze || {};
       const derived = (detail.derived) || {};
+      const verm = (detail.vermietung) || row.vermietung || {};
       const profile = (window.Kalk.PROFILES && window.Kalk.PROFILES[_weListeProfil]) || {};
 
-      // FS-2r (Edgar 25.05.2026, Option A): MBV gewinnt immer wenn gepflegt,
-      // egal welcher Vermietungs-Modus. Henry-Pflege = was der Käufer ab Tag 1
-      // kassiert. derived.subventionKaltmieteAdjustiert hat Vorrang (Tag-1-Erhöhung).
-      let effKaltmiete = derived.subventionKaltmieteAdjustiert
-        || (sd.mieteBeiVerkauf > 0 ? sd.mieteBeiVerkauf : we.kaltmiete)
-        || 0;
+      // Modus aus Stammdaten — analog _berechne
+      const modusRaw = String(sd.vermietungsModus || '').toLowerCase();
+      let modus = 'sprung';
+      if (modusRaw.includes('neuvermietung') || modusRaw.includes('staffel')) modus = 'staffel';
+      else if (modusRaw.includes('bestand')) modus = 'sprung';
+      else if (modusRaw.includes('index')) modus = 'index';
+      else if (modusRaw.includes('leer') || modusRaw.includes('frei')) modus = 'staffel';
 
+      // Subventions-Phasen (analog _berechne — 3-Stufen-Fallback)
       let subventionPhasen = [];
-      if (Array.isArray(derived.subventionPhasen) && derived.subventionPhasen.length > 0) {
+      let subvMoPhase1 = 0;
+      let subvMonatePhase1 = 0;
+      if (derived && Array.isArray(derived.subventionPhasen) && derived.subventionPhasen.length > 0) {
         subventionPhasen = derived.subventionPhasen;
-      } else if (sd.mietzuschuss > 0) {
-        subventionPhasen = [{ mo: sd.mietzuschuss, monate: sd.mietzuschussMonate || 36 }];
+        subvMoPhase1 = subventionPhasen[0] && subventionPhasen[0].mo || 0;
+        subvMonatePhase1 = subventionPhasen[0] && subventionPhasen[0].monate || 0;
+      } else if (sd.mietzuschuss != null && sd.mietzuschuss > 0) {
+        subvMoPhase1 = sd.mietzuschuss;
+        subvMonatePhase1 = sd.mietzuschussMonate || 36;
+        subventionPhasen = [{ mo: subvMoPhase1, monate: subvMonatePhase1 }];
+      } else if (sd.autoSubvMo != null && sd.autoSubvMo > 0) {
+        subvMoPhase1 = sd.autoSubvMo;
+        subvMonatePhase1 = sd.mietzuschussMonate || 36;
+        subventionPhasen = [{ mo: subvMoPhase1, monate: subvMonatePhase1 }];
       }
 
-      const inputs = Object.assign({
-        kaufpreis: we.kp || 0, stellplatzKp: stpl.kaufpreisSumme || 0, qm: we.qm || 0,
-        kaltmiete: effKaltmiete, stellplatzMiete: stpl.mieteMoSumme || 0,
-        subventionMo: subventionPhasen[0] ? subventionPhasen[0].mo : 0,
-        subventionMonate: subventionPhasen[0] ? subventionPhasen[0].monate : 0,
+      // MBV-Source-of-Truth (FS-2r)
+      let effKaltmiete = we.kaltmiete || 0;
+      const istNeuvermietung = modus === 'staffel';
+      const mbv = sd.mieteBeiVerkauf || 0;
+      if (mbv > 0) effKaltmiete = mbv;
+      let monateSeit = null;
+      if (derived && derived.subventionKaltmieteAdjustiert && derived.subventionKaltmieteAdjustiert > 0) {
+        effKaltmiete = derived.subventionKaltmieteAdjustiert;
+        monateSeit = 0;
+      } else if (istNeuvermietung) {
+        monateSeit = 36;
+      } else if (verm.letzteMietsteigerung) {
+        const lastDate = new Date(verm.letzteMietsteigerung);
+        monateSeit = Math.max(0, Math.round((Date.now() - lastDate) / (1000*60*60*24*30.44)));
+      }
+
+      // Markt-Schnitt
+      let marktwertProQm = (derived && derived.marktpreisGemittelt) || 0;
+      if (!marktwertProQm) {
+        const isP = sd.marktpreisImmoscout || 0;
+        const hdP = sd.marktpreisHomeday || 0;
+        if (isP > 0 && hdP > 0) marktwertProQm = (isP + hdP) / 2;
+        else if (isP > 0) marktwertProQm = isP;
+        else if (hdP > 0) marktwertProQm = hdP;
+      }
+      const marktmieteEurQm = (derived && derived.marktmieteEurQm) || sd.marktmiete || 0;
+
+      const inputs = Object.assign({}, base, profile, {
+        kaufpreis: we.kp || 0,
+        qm: we.qm || 0,
+        kaltmiete: effKaltmiete,
+        stellplatzKp: stpl.kaufpreisSumme || 0,
+        stellplatzMiete: stpl.mieteMoSumme || 0,
+        marktwertProQm,
+        marktmieteEurQm,
+        // KORREKTE Stammdaten-Feldnamen (vorher waren das die Bugs):
+        hausgeld: sd.hausgeldRuecklage != null ? sd.hausgeldRuecklage : (base.hausgeld || 60),
+        hausverwaltung: sd.hausverwaltung != null ? sd.hausverwaltung : (base.hausverwaltung || 30),
+        mietverwaltung: sd.mietverwaltungDefault != null ? sd.mietverwaltungDefault : (base.mietverwaltung || 0),
+        afaSatz: sd.afaGutachten || base.afaSatz || 0.02,
+        gebaeudeAnteil: sd.gebaeudeAnteil || base.gebaeudeAnteil || 0.85,
+        wertsteigerung: sd.wertsteigerung || base.wertsteigerung || 0.03,
+        grEstPct: sd.grEst || base.grEstPct || 0.05,
+        hgInflation: 0,
+        // Subv + Mietsteigerung
+        subventionMo: subvMoPhase1,
+        subventionMonate: subvMonatePhase1,
         subventionPhasen,
-        mietsteigerungsModus: /neuvermietung|staffel/i.test(String(sd.vermietungsModus || '')) ? 'staffel' : 'sprung',
-        steigerungProz: 0.15, monateSeitMieterhoehung: 0,
-        hausgeld: sd.hausgeld || 60, hgInflation: 0,
-        mietverwaltung: sd.mietverwaltung || 0, hausverwaltung: sd.hausverwaltung || 30,
-        afaSatz: (sd.afaSatz || 0.02), gebaeudeAnteil: (sd.gebaeudeAnteil || 0.85), afaBemessung: 'kaufpreis',
-        wertsteigerung: 0.03, marktwertProQm: sd.marktpreisImmoscout || sd.marktpreisHomeday || 0,
-        grEstPct: sd.grEstPct || 0.05,
-      }, profile);
+        mietsteigerungsModus: modus,
+        steigerungProz: derived && derived.steigerungProz ? derived.steigerungProz : (base.steigerungProz || 0.15),
+        letzteMietsteigerung: (derived && derived.subventionKaltmieteAdjustiert > 0)
+          ? null
+          : (verm.letzteMietsteigerung || null),
+        monateSeitMieterhoehung: monateSeit != null ? monateSeit : (modus === 'sprung' ? 36 : 0),
+      });
       calcByWeId[row.we.id] = window.Kalk.recalc(inputs);
     } catch (e) {
       calcByWeId[row.we.id] = null;
