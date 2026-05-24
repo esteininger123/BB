@@ -8015,10 +8015,9 @@ window.addEventListener('load', async () => {
 // in der Aktivität, WE-Match.
 // Bump auf v3 — alle User sehen die neue Tour automatisch beim nächsten Login.
 const TOUR_VERSION = 'v3';
-// Loom-Intro-Video: Edgar nimmt das noch auf. Bis dahin Platzhalter — die Tour
-// funktioniert auch ohne Video, das Video ist optional zur tieferen Erklärung.
-// TODO Edgar: Loom-Link hier einsetzen, sobald Video aufgenommen.
-const TOUR_LOOM_URL = ''; // z.B. 'https://www.loom.com/share/xxxxxxxxxxxx'
+// Loom-Intro-Video von Edgar (24.05.2026 22:15) — kurze Einführung in die
+// Backstube, läuft als allererster Schritt der Tour als klickbarer Button.
+const TOUR_LOOM_URL = 'https://www.loom.com/share/cac666dbd7bb4d2ca4244baa40f6ecf9';
 
 // QA-Fix 2026-05-23 (Audit-EE-12): User-Email in den Storage-Key, damit auf einem
 // shared-Browser (Büro-PC, 2 Vertriebler) jeder seine Tour separat sieht.
