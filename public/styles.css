@@ -2734,6 +2734,9 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .kav-mini-wv.overdue{ background:rgba(154,62,51,0.12); color:var(--negative); }
 .kav-mini-wv.today{ background:#FAEEDB; color:var(--accent-dark); }
 .kav-mini-wv.soon{ background:rgba(176,138,77,0.12); color:var(--accent-dark); }
+/* FS-2o (Edgar 24.05.2026): future = WV gesetzt aber > 3 Tage entfernt; none = keine WV gesetzt */
+.kav-mini-wv.future{ background:rgba(120,130,140,0.10); color:#6b7480; }
+.kav-mini-wv.none{ background:transparent; color:#b0b6bb; border:1px dashed #d0d4d8; }
 
 @media (max-width: 760px){
   .kav-stepper{ flex-wrap:wrap; }

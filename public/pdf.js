@@ -463,7 +463,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <div class="pdf-c-saldo-row"><span>+ Anrechenbare Miete (80 %)</span><span class="pdf-c-pos">+ ${fmtMo(r.bonMieteAnr || 0)}</span></div>
           <div class="pdf-c-saldo-row"><span>− Annuität</span><span class="pdf-c-neg">− ${fmtMo(r.bonAnnuMo || 0)}</span></div>
           ${r.bonModus === 'detail' ? `
-          <div class="pdf-c-saldo-row"><span>− Hausgeld (konservativ)</span><span class="pdf-c-neg">− ${fmtMo(r.hausgeldNurMo || 0)}</span></div>
+          <div class="pdf-c-saldo-row"><span>− Rücklage</span><span class="pdf-c-neg">− ${fmtMo(r.hausgeldNurMo || 0)}</span></div>
           <div class="pdf-c-saldo-row"><span>− Hausverwaltung</span><span class="pdf-c-neg">− ${fmtMo(r.hausverwaltungMo || 0)}</span></div>` : ''}
           <div class="pdf-c-saldo-row tot"><span>Nach Investment</span><span class="${(r.bonNach || 0) < 0 ? 'pdf-c-neg' : ''}">${fmtMo(r.bonNach || 0)}</span></div>
           <h5>Freies Eigenkapital</h5>

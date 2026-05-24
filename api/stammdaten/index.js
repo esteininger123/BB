@@ -229,7 +229,7 @@ module.exports = async (req, res) => {
           letzteMietsteigerung:  sf[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG] || null,
           grEst:                 num(sf[KALK_STAMMDATEN_FIELDS.GRESt]),
           gebaeudeAnteil:        num(sf[KALK_STAMMDATEN_FIELDS.GEBAEUDE_ANTEIL]),
-          hgInflation:           num(sf[KALK_STAMMDATEN_FIELDS.HG_INFLATION]),
+          hgInflation:           0, // FS-2o (Edgar 24.05.2026): Rücklage-Inflation komplett deaktiviert, immer 0
           notizen:               sf[KALK_STAMMDATEN_FIELDS.NOTIZEN] || '',
           quelle:                sf[KALK_STAMMDATEN_FIELDS.QUELLE] || '',
           // Iter 41.9

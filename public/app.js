@@ -509,6 +509,15 @@ function _computeKundeFilterData(k) {
 function _renderKundeRow(k) {
   const fd = _kundeFilterData(k);
   const REG = window.REGIONEN || {};
+  // FS-2o (Edgar 24.05.2026 23:00, Loom-Bugs): Name-Fallback robuster.
+  // Wenn name + vorname + nachname alle leer → fall back auf E-Mail, dann ID-Suffix.
+  const _displayName = k.name
+    || ((k.vorname || '') + ' ' + (k.nachname || '')).trim()
+    || k.email
+    || ('Kunde ' + (k.id || '').slice(-6));
+  const _hasSa = !!k.saJson;
+  // Letzte Aktivität: wenn null → klarer Hinweis statt leerer Zelle
+  const _lastActAt = k.lastActivity ? fmtDate(k.lastActivity) : '— noch keine —';
   // Anzeige Wunschregionen: Bundesland-Namen + Kreis-Anzahl
   const regCells = [...fd.blSet].map(bl => {
     const krCount = [...fd.kreisSet].filter(key => key.startsWith(bl + ':')).length;
@@ -517,19 +526,26 @@ function _renderKundeRow(k) {
   }).join('');
   const blsCsv = [...fd.blSet].join(',');
   const kreisCsv = [...fd.kreisSet].join('|');
+  // EK / Einkommen: wenn keine SA → klarer „SA fehlt"-Hinweis statt „—"
+  const _ekCell = _hasSa
+    ? (fd.liquid > 0 ? Math.round(fd.liquid).toLocaleString('de-DE') + ' €' : '<span class="text-tertiary">0 €</span>')
+    : '<span class="text-tertiary text-small" title="Selbstauskunft noch nicht ausgefüllt">SA fehlt</span>';
+  const _einkCell = _hasSa
+    ? (fd.ueber !== 0 ? `<span style="color:${fd.ueber > 0 ? 'var(--positive)' : 'var(--negative)'}">${Math.round(fd.ueber).toLocaleString('de-DE')} €</span>` : '<span class="text-tertiary">0 €</span>')
+    : '<span class="text-tertiary text-small" title="Selbstauskunft noch nicht ausgefüllt">SA fehlt</span>';
   return `
-    <tr data-search="${esc(((k.name || (k.vorname + ' ' + k.nachname) || '') + ' ' + (k.email || '')).toLowerCase())}"
+    <tr data-search="${esc((_displayName + ' ' + (k.email || '')).toLowerCase())}"
         data-ek="${Math.round(fd.liquid)}"
         data-eink="${Math.round(fd.ueber)}"
         data-bls="${esc(blsCsv)}"
         data-kreise="${esc(kreisCsv)}"
         onclick="go('/kunde/${esc(k.id)}')">
-      <td><strong>${esc(k.name || (k.vorname + ' ' + k.nachname) || '—')}</strong>${k.email ? `<div class="text-tertiary text-small">${esc(k.email)}</div>` : ''}</td>
+      <td><strong>${esc(_displayName)}</strong>${k.email && _displayName !== k.email ? `<div class="text-tertiary text-small">${esc(k.email)}</div>` : ''}</td>
       <td>${kavListeBadges(k)}</td>
-      <td class="num">${fd.liquid > 0 ? Math.round(fd.liquid).toLocaleString('de-DE') + ' €' : '<span class="text-tertiary">–</span>'}</td>
-      <td class="num">${fd.ueber !== 0 ? `<span style="color:${fd.ueber > 0 ? 'var(--positive)' : 'var(--negative)'}">${Math.round(fd.ueber).toLocaleString('de-DE')} €</span>` : '<span class="text-tertiary">–</span>'}</td>
+      <td class="num">${_ekCell}</td>
+      <td class="num">${_einkCell}</td>
       <td>${regCells || '<span class="text-tertiary text-small">—</span>'}</td>
-      <td class="text-tertiary">${esc(fmtDate(k.lastActivity))}</td>
+      <td class="text-tertiary">${esc(_lastActAt)}</td>
     </tr>
   `;
 }
@@ -2194,7 +2210,7 @@ function kalkInputsThemenHtml(i) {
     <details class="kalk-section" ${sec('hg')} data-sec="hg" ontoggle="toggleKalkSection('hg', this)">
       <summary>3 · Hausgeld &amp; Verwaltung</summary>
       <div class="grid-1">
-        ${sliderEur('Hausgeld inkl. Rücklage', 'hausgeld', 0, 500, 5, '€/Mo')}
+        ${sliderEur('Rücklage', 'hausgeld', 0, 500, 5, '€/Mo')}
         ${sliderEur('Mietverwaltung (SEV)', 'mietverwaltung', 0, 100, 5, '€/Mo')}
         ${sliderEur('Hausverwaltung (WEG)', 'hausverwaltung', 0, 100, 1, '€/Mo')}
       </div>
@@ -2823,8 +2839,11 @@ function recalcAndRender() {
         const totalStr = (totalPct * 100).toFixed(1) + ' %';
         return `Dein Eigenkapital beim Kauf: Kaufnebenkosten (GrESt ${grEstStr} + Notar 1,5 % + Grundbuch 0,5 % = ${totalStr} vom Kaufpreis). Wenn Du die KNK mitfinanzierst: 0 €.`;
       })()),
-    kpiCard('Deine Belastung / Monat', fmtEurMo(r.belastungMo),
-      'Was Dir monatlich in Jahr 1 aus der Tasche geht oder bleibt. Deine Mieten + Subvention − Annuität − Hausgeld − Hausverwaltung − Mietverwaltung + Dein Steuervorteil. Positiv = Cashflow positiv für Dich.', cls(r.belastungMo)),
+    // FS-2o (Edgar 24.05.2026 23:00, Loom-Bug): bei Überschuss heißt es nicht
+    // mehr „Belastung" (irreführend) sondern „Überschuss". Wert bleibt gleich,
+    // nur das Label switcht je nach Vorzeichen.
+    kpiCard(r.belastungMo >= 0 ? 'Dein Überschuss / Monat' : 'Deine Belastung / Monat', fmtEurMo(r.belastungMo),
+      'Was Dir monatlich in Jahr 1 aus der Tasche geht oder bleibt. Deine Mieten + Subvention − Annuität − Rücklage − Hausverwaltung − Mietverwaltung + Dein Steuervorteil. Positiv = Cashflow positiv für Dich (= Überschuss).', cls(r.belastungMo)),
     kpiCard('Deine EK-Rendite (IRR) 10 J.', fmtPct(r.irr),
       'Interner Zinsfuß auf Dein eingesetztes EK über 10 Jahre inkl. Exit-Erlös. Berücksichtigt: Dein eingesetztes EK, Deine jährlichen Cashflows, Dein Verkaufserlös nach §23-EStG-Frist.'),
     // Iter 67 (20.05.2026): „Gesamtvermögen 10 J." raus, stattdessen Bruttorendite.
@@ -2986,7 +3005,7 @@ function renderStories(r) {
         <tr><td><strong>Deine Mieteinnahmen gesamt Jahr 1</strong>${hatDrift ? ' <span class="text-tertiary text-small" title="Jahres-Durchschnitt aus 12 Monaten — Subv-Phasen sind über die Vereinbarungs-Monate geglättet">(Ø Jahres-Mittel)</span>' : ''}</td><td class="num pos"><strong>+ ${fmtEurMo(j1Mean)}</strong></td></tr>
         ${mieteAufschluesselung}
         <tr><td>Deine Annuität an die Bank</td><td class="num neg">− ${fmtEurMo(r.annuityMo || 0)}</td></tr>
-        <tr><td>Hausgeld inkl. Rücklage</td><td class="num neg">− ${fmtEurMo(r.hausgeldNurMo || 0)}</td></tr>
+        <tr><td>Rücklage</td><td class="num neg">− ${fmtEurMo(r.hausgeldNurMo || 0)}</td></tr>
         <tr><td>Mietverwaltung (SEV)</td><td class="num neg">− ${fmtEurMo(r.mietverwaltungMo || 0)}</td></tr>
         <tr><td>Hausverwaltung (WEG)</td><td class="num neg">− ${fmtEurMo(r.hausverwaltungMo || 0)}</td></tr>
         <tr><td>Dein Steuervorteil (AfA + Zinsen + MV + HV)</td><td class="num pos">+ ${fmtEurMo(r.stVorteilJ1Mo || 0)}</td></tr>
@@ -3432,7 +3451,7 @@ function renderStoryPremium(r) {
           ${r.markteinkaufVorteil ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">${r.markteinkaufVorteil > 0 ? 'Markteinkauf-Vorteil' : 'Markt-Aufschlag'}</span><span class="kalk-c-v ${r.markteinkaufVorteil > 0 ? '' : 'kalk-c-neg'}">${fmt(Math.abs(r.markteinkaufVorteil))}${r.markteinkaufVorteil > 0 ? '' : ' über Markt'}</span></div>` : ''}
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaltmiete</span><span class="kalk-c-v">${Math.round(i.kaltmiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Stellplatz-Miete</span><span class="kalk-c-v">${Math.round(i.stellplatzMiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>
-          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Hausgeld · HV · MV</span><span class="kalk-c-v">${Math.round(i.hausgeld || 0)} / ${Math.round(i.hausverwaltung || 0)} / ${Math.round(i.mietverwaltung || 0)}<span class="kalk-c-unit">€/Mo</span></span></div>
+          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Rücklage · HV · MV</span><span class="kalk-c-v">${Math.round(i.hausgeld || 0)} / ${Math.round(i.hausverwaltung || 0)} / ${Math.round(i.mietverwaltung || 0)}<span class="kalk-c-unit">€/Mo</span></span></div>
         </div>
       </div>
       <div class="kalk-c-einsatz-block">
@@ -7092,7 +7111,7 @@ function renderAdminStammdatenAudit(audit) {
                     <th class="num">m²</th>
                     <th class="num">Kaltmiete</th>
                     <th class="num">+Stellpl.<br>KP / Miete</th>
-                    <th class="num">Hausgeld<br>+Rücklage</th>
+                    <th class="num">Rücklage</th>
                     <th class="num">Hausverw.</th>
                     <th class="num">Mietzu-<br>schuss / Mo</th>
                     <th class="num">AfA<br>Gut.</th>
@@ -7516,7 +7535,7 @@ function _renderWeListeContent() {
         { feld: 'Vermietungs-Modus', value: sd.vermietungsModus, rolle: 'Viktor · Objektpflege', pflicht: true },
         { feld: 'Gebäude-Anteil', value: sd.gebaeudeAnteil, rolle: 'Viktor · Objektpflege', pflicht: true },
         { feld: 'AfA-Gutachten-Satz', value: sd.afaGutachten, rolle: 'Viktor · Objektpflege', pflicht: false },
-        { feld: 'Hausgeld', value: sd.hausgeldRuecklage, rolle: 'Viktor · Objektpflege', pflicht: false },
+        { feld: 'Rücklage', value: sd.hausgeldRuecklage, rolle: 'Viktor · Objektpflege', pflicht: false },
         { feld: 'Hausverwaltung', value: sd.hausverwaltung, rolle: 'Viktor · Objektpflege', pflicht: false },
       ];
       const lueckenLeer = lueckenDetails.filter(d => d.value == null || d.value === 0 || d.value === '');
@@ -9452,10 +9471,15 @@ function kavListeBadges(kunde) {
   const phaseChip = ph
     ? `<span class="kav-mini-phase kav-phase-p${ph.nr}" style="--kav-accent:${ph.accent};">P${ph.nr} · ${esc(ph.label)} <span class="kav-mini-counts">${counts.done}/${counts.total}</span></span>`
     : `<span class="kav-mini-phase kav-mini-done">✓ Abgeschlossen</span>`;
+  // FS-2o (Edgar 24.05.2026 23:00, Loom-Bug): Glocke jetzt IMMER sichtbar in der
+  // Kundenliste — auch bei future + none. So sieht der Vertriebler auf einen
+  // Blick, wer eine WV hat und wer nicht.
   let wvChip = '';
   if (wv.status === 'overdue') wvChip = `<span class="kav-mini-wv overdue" title="Wiedervorlage überfällig">⚠ ${wv.tageUeber}d</span>`;
   else if (wv.status === 'today') wvChip = `<span class="kav-mini-wv today" title="heute fällig">🔔 heute</span>`;
   else if (wv.status === 'soon') wvChip = `<span class="kav-mini-wv soon">🔔 ${wv.tage}d</span>`;
+  else if (wv.status === 'future') wvChip = `<span class="kav-mini-wv future" title="Wiedervorlage am ${fmtDate(wv.datum)}">🔔 ${wv.tage}d</span>`;
+  else wvChip = `<span class="kav-mini-wv none" title="Keine Wiedervorlage gesetzt">🔔 —</span>`;
   return phaseChip + wvChip;
 }
 window.kavListeBadges = kavListeBadges;
