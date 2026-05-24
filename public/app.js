@@ -49,6 +49,11 @@ const state = {
   loadingData: false,
   lastError: null,
 };
+// FS-2f BLOCKER (24.05.2026 Edgar 14:30 — Bug-Sweep BUG-1): state als window.state
+// exportieren. Sonst greift stringifyKavTracker-Fallback auf undefined →
+// Wunsch-Profil wird bei jedem nachfolgenden saveNotizen/Activity-Save GELÖSCHT.
+// Das war Edgar's „bei anderen Kunden klickbar"-Symptom.
+window.state = state;
 
 const PHASEN = ['Lead','Kalkulation läuft','Reservierung','Selbstauskunft','Bank-Einreichung','Notar-Termin','Beurkundet','Abgebrochen'];
 
@@ -292,6 +297,10 @@ async function loadInitialData() {
 
 async function loadKunde(id) {
   try {
+    // FS-2f BLOCKER (24.05.2026 Bug-Sweep BUG-6): Queue beim Kunden-Wechsel
+    // resetten. Sonst hängen alle Notizen-Mutations bei Kunde B in der Queue
+    // hinter einem evtl. blockierten Save von Kunde A → „Buttons reagieren nicht".
+    _kavSaveQueue = Promise.resolve();
     const k = await api.get('/api/kunden/' + id);
     state.kunde = k;
     state.snapshots = await api.get('/api/snapshots?kundeId=' + id).catch(() => []);
@@ -1233,9 +1242,24 @@ function _wpRender() {
   oldCard.replaceWith(newCard);
 }
 
+// FS-2f BLOCKER (24.05.2026 Bug-Sweep BUG-9): EK + Einkommens-Eingaben aus
+// dem DOM einsammeln BEVOR sie durch _wpRender verschwinden. Sonst tippt
+// User „25000" → klickt BL-Pill → Input weg ohne blur → Wert verloren.
+function _wpCaptureSchwellen(wp) {
+  const ekEl = document.getElementById('wp-ek-min');
+  const einkEl = document.getElementById('wp-eink-min');
+  if (ekEl && document.activeElement === ekEl) {
+    wp.ekMin = parseFloat(ekEl.value) || 0;
+  }
+  if (einkEl && document.activeElement === einkEl) {
+    wp.einkommenMin = parseFloat(einkEl.value) || 0;
+  }
+  return wp;
+}
+
 async function _wpToggleBl(bl) {
   if (!state.kunde) return;
-  const wp = parseWunschProfil(state.kunde.notizen || '');
+  const wp = _wpCaptureSchwellen(parseWunschProfil(state.kunde.notizen || ''));
   const reg = (window.REGIONEN || {})[bl];
   if (!reg) return;
   const hasAny = (wp.regionen || []).some(r => r.startsWith(bl + ':'));
@@ -1252,7 +1276,7 @@ window._wpToggleBl = _wpToggleBl;
 
 async function _wpAllKreise(bl, aktivieren) {
   if (!state.kunde) return;
-  const wp = parseWunschProfil(state.kunde.notizen || '');
+  const wp = _wpCaptureSchwellen(parseWunschProfil(state.kunde.notizen || ''));
   const reg = (window.REGIONEN || {})[bl];
   if (!reg) return;
   wp.regionen = (wp.regionen || []).filter(r => !r.startsWith(bl + ':'));
@@ -1269,7 +1293,7 @@ window._wpAllKreise = _wpAllKreise;
 
 async function _wpToggleKreis(bl, kreis) {
   if (!state.kunde) return;
-  const wp = parseWunschProfil(state.kunde.notizen || '');
+  const wp = _wpCaptureSchwellen(parseWunschProfil(state.kunde.notizen || ''));
   const key = bl + ':' + kreis;
   const list = (wp.regionen || []).filter(r => r !== bl + ':*');
   if (list.includes(key)) {
@@ -3635,7 +3659,7 @@ function renderStoryPremium(r) {
     <section class="kalk-c-section">
       <div class="kalk-c-section-head">
         <div class="kalk-c-left">
-          <div class="kalk-c-section-num">06 · Wie es weitergeht</div>
+          <div class="kalk-c-section-num">07 · Wie es weitergeht</div>
           <h2 class="kalk-c-section-title">Sechs Schritte bis zum Notartermin.</h2>
         </div>
         <div class="kalk-c-right">
@@ -3659,7 +3683,7 @@ function renderStoryPremium(r) {
     <section class="kalk-c-section kalk-c-bub-section">
       <div class="kalk-c-section-head">
         <div class="kalk-c-left">
-          <div class="kalk-c-section-num">07 · Wer wir sind</div>
+          <div class="kalk-c-section-num">09 · Wer wir sind</div>
           <h2 class="kalk-c-section-title">Brot &amp; Butter.</h2>
         </div>
         <div class="kalk-c-right">
@@ -3727,171 +3751,105 @@ function renderStoryPremium(r) {
     </section>
   `;
 
-  // ===== SECTION_9 — Sensitivitäts-Matrix (Welle 1, 2026-05-24) =====
-  // Maurice (Käufer-Persona) sagt: Vertrauen entsteht durch Transparenz,
-  // nicht durch geschöntes PDF. Hier sieht der Käufer auf einen Blick was
-  // passiert wenn die Zinsen steigen oder die Wohnung mal leer steht.
+  // ===== SECTION_9 — Was wäre wenn (vereinfacht v3, Edgar 24.05.2026 14:30)
+  // 3 klare Szenario-Karten + kurzer Renov-Block. Statt 5×4-Matrix die für
+  // Käufer überfordernd war.
   const SECTION_9 = (() => {
-    // Pure Berechnung — die window.Kalk.sensitivitaetsMatrix nutzt die
-    // gleichen Inputs wie die normale Kalkulation, variiert dann pro Zelle.
-    if (!window.Kalk || !window.Kalk.sensitivitaetsMatrix || !r.inputs) return '';
-    let m, s;
+    if (!window.Kalk || !window.Kalk.recalc || !r.inputs) return '';
+    // Basis (heute) + Normal-Wind + Sturm rechnen
+    const base = r; // schon vorhanden
+    let wind = null, sturm = null;
     try {
-      m = window.Kalk.sensitivitaetsMatrix(r.inputs);
-      s = window.Kalk.stressSzenario(r.inputs);
+      // Wind: Zins +1%, 1 Mo/J Leerstand
+      const inputsWind = Object.assign({}, r.inputs, {
+        zins: (r.inputs.zins || 0.045) + 0.01,
+        kaltmiete: (r.inputs.kaltmiete || 0) * 11/12,
+        stellplatzMiete: (r.inputs.stellplatzMiete || 0) * 11/12,
+      });
+      wind = window.Kalk.recalc(inputsWind);
+      // Sturm: Zins +2%, 3 Mo/J Leerstand + 0,5% Mietausfall
+      const sturmFaktor = 9/12 * 0.995;
+      const inputsSturm = Object.assign({}, r.inputs, {
+        zins: (r.inputs.zins || 0.045) + 0.02,
+        kaltmiete: (r.inputs.kaltmiete || 0) * sturmFaktor,
+        stellplatzMiete: (r.inputs.stellplatzMiete || 0) * sturmFaktor,
+      });
+      sturm = window.Kalk.recalc(inputsSturm);
     } catch (e) { return ''; }
-    if (!m || !s) return '';
+    if (!base || !wind || !sturm) return '';
 
-    // Farbcode für IRR-Zellen: < 0% rot, 0-5% gelb, 5-10% beige, >10% grün-akzent
-    const irrColor = (irr) => {
-      if (irr === null || irr === undefined) return 'var(--text-tertiary)';
-      const p = irr * 100;
-      if (p < 0) return '#9A3E33';
-      if (p < 5) return '#C77A30';
-      if (p < 10) return '#B08A4D';
-      return '#2D6E47';
-    };
-    const irrBg = (irr) => {
-      if (irr === null || irr === undefined) return 'transparent';
-      const p = irr * 100;
-      if (p < 0) return 'rgba(154,62,51,.08)';
-      if (p < 5) return 'rgba(199,122,48,.08)';
-      if (p < 10) return 'rgba(176,138,77,.08)';
-      return 'rgba(45,110,71,.08)';
-    };
+    const fmtIRR = (x) => x !== null && isFinite(x) ? (x * 100).toFixed(1).replace('.', ',') + ' %' : 'n.v.';
+    const fmtEUR = (x) => Math.round(x).toLocaleString('de-DE') + ' €';
 
-    const headerRow = `
-      <tr>
-        <th style="text-align:left;padding:8px 10px;color:var(--text-tertiary);font-weight:500;font-size:11px;letter-spacing:.04em;text-transform:uppercase;">Leerstand ↓ · Zins →</th>
-        ${m.zinsDeltas.map(d => {
-          const abs = (m.baseZins + d) * 100;
-          const sign = d > 0 ? '+' : (d < 0 ? '' : '');
-          return `<th style="text-align:right;padding:8px 10px;color:var(--text-tertiary);font-weight:500;font-size:11px;">
-            <div style="font-size:13px;color:var(--text-primary);font-weight:600;">${abs.toFixed(1).replace('.', ',')}%</div>
-            <div style="font-size:10px;">(${sign}${(d * 100).toFixed(1).replace('.', ',')}%)</div>
-          </th>`;
-        }).join('')}
-      </tr>
+    // Renov-Story: kompakt
+    const stSatz = (r.inputs.steuersatz || 0.30);
+    const gebAnteil = (r.inputs.gebaeudeAnteil || 0.85);
+    const afaSatz = (r.inputs.afaSatz || 0.02);
+    const zins = (r.inputs.zins || 0.045);
+    const tilg = (r.inputs.tilgung || 0.01);
+    const renovBetrag = 5000;
+    const renovStErstattung = Math.round(renovBetrag * gebAnteil * afaSatz * stSatz * 10);
+    const renovEffektivEK = renovBetrag - renovStErstattung;
+    const renovMonatlichBrutto = Math.round(renovBetrag * (zins + tilg) / 12);
+    const renovMonatlichNetto = Math.round(renovMonatlichBrutto * (1 - stSatz * 0.5));
+
+    const szenarioCard = (titel, sub, accent, irr, belastung, vermoegen) => `
+      <div style="background:${accent.bg};border:1px solid ${accent.border};border-radius:8px;padding:16px 18px;">
+        <div style="font-size:11px;color:${accent.text};text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">${titel}</div>
+        <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px;">${sub}</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div><div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;">Rendite (IRR)</div><div style="font-size:22px;font-weight:600;color:${accent.text};">${fmtIRR(irr)}</div></div>
+          <div><div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;">Belastung €/Mo</div><div style="font-size:14px;font-weight:500;color:var(--text-primary);">${fmtEUR(belastung)}</div></div>
+          <div><div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;">Vermögen nach 10 J</div><div style="font-size:14px;font-weight:500;color:var(--text-primary);">${fmtEUR(vermoegen)}</div></div>
+        </div>
+      </div>
     `;
-    const bodyRows = m.cells.map((row, yi) => {
-      const lMo = m.leerstandMonate[yi];
-      return `<tr>
-        <td style="padding:8px 10px;color:var(--text-secondary);font-size:12px;border-top:1px solid var(--border);">
-          ${lMo === 0 ? 'voll vermietet' : `${lMo} Mo/Jahr leer`}
-        </td>
-        ${row.map(c => {
-          if (!c) return `<td style="padding:8px 10px;text-align:right;color:var(--text-tertiary);border-top:1px solid var(--border);">—</td>`;
-          const irrPct = c.irr !== null ? (c.irr * 100).toFixed(1).replace('.', ',') + '%' : 'n.v.';
-          return `<td style="padding:8px 10px;text-align:right;border-top:1px solid var(--border);background:${irrBg(c.irr)};">
-            <div style="font-size:13px;font-weight:600;color:${irrColor(c.irr)};">${irrPct}</div>
-            <div style="font-size:10px;color:var(--text-tertiary);">${Math.round(c.cfJ1)} €/J</div>
-          </td>`;
-        }).join('')}
-      </tr>`;
-    }).join('');
 
-    // Stress-Satz: kurz und ehrlich
-    const stressMo = s.stress.belastungMo;
-    const baseMo = s.base.belastungMo;
-    const stressVerm = s.stress.vermoegenNetto10;
-    const baseVerm = s.base.vermoegenNetto10;
-    const stressIrrPct = s.stress.irr !== null ? (s.stress.irr * 100).toFixed(1).replace('.', ',') + '%' : 'n.v.';
-    const baseIrrPct = s.base.irr !== null ? (s.base.irr * 100).toFixed(1).replace('.', ',') + '%' : 'n.v.';
+    const accents = {
+      base:  { bg: 'rgba(45,110,71,.07)',  border: 'rgba(45,110,71,.25)',  text: '#2D6E47' },
+      wind:  { bg: 'rgba(176,138,77,.07)', border: 'rgba(176,138,77,.25)', text: '#8E6E3D' },
+      sturm: { bg: 'rgba(154,62,51,.06)',  border: 'rgba(154,62,51,.25)',  text: '#9A3E33' },
+    };
 
     return `
     <section class="kalk-c-section">
       <div class="kalk-c-section-head">
         <div class="kalk-c-left">
-          <div class="kalk-c-section-num">09 · Was wäre wenn</div>
-          <h2 class="kalk-c-section-title">Wir zeigen Dir auch die unbequeme Sicht.</h2>
+          <div class="kalk-c-section-num">06 · Was wäre wenn</div>
+          <h2 class="kalk-c-section-title">Drei Szenarien — vom Normalfall bis Sturm.</h2>
         </div>
         <div class="kalk-c-right">
-          Die Tabelle unten zeigt Dir die Rendite auf Dein eingesetztes Eigenkapital, wenn Zinsen steigen oder die Wohnung mal leer steht. Jede Zelle ist eine eigene komplette Berechnung über 10 Jahre — keine Schätzung.
+          Wir zeigen Dir nicht nur die schöne Sicht. Hier siehst Du, wie sich Deine Rendite verändert, wenn Zinsen steigen oder die Wohnung mal leer steht. Jede Karte ist eine eigene Berechnung über 10 Jahre.
         </div>
       </div>
-      <div style="margin-top:16px;background:var(--bg-cream-subtle);border:1px solid var(--border);border-radius:8px;padding:14px 18px;">
-        <table style="width:100%;border-collapse:collapse;">
-          <thead>${headerRow}</thead>
-          <tbody>${bodyRows}</tbody>
-        </table>
-        <div style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text-tertiary);">
-          <div><span style="display:inline-block;width:10px;height:10px;background:rgba(45,110,71,.5);border-radius:2px;vertical-align:middle;"></span> &gt;10 % IRR</div>
-          <div><span style="display:inline-block;width:10px;height:10px;background:rgba(176,138,77,.5);border-radius:2px;vertical-align:middle;"></span> 5–10 %</div>
-          <div><span style="display:inline-block;width:10px;height:10px;background:rgba(199,122,48,.5);border-radius:2px;vertical-align:middle;"></span> 0–5 %</div>
-          <div><span style="display:inline-block;width:10px;height:10px;background:rgba(154,62,51,.5);border-radius:2px;vertical-align:middle;"></span> negativ</div>
-          <div style="margin-left:auto;">Große Zahl: IRR über 10 J · Kleine Zahl: Cashflow Jahr 1</div>
-        </div>
-      </div>
-      <div style="margin-top:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:14px 18px;">
-          <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Basis-Kalkulation</div>
-          <div style="font-size:18px;font-weight:600;color:var(--text-primary);">IRR ${baseIrrPct}</div>
-          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Belastung ${Math.round(baseMo)} €/Mo · Vermögen nach 10 J: ${Math.round(baseVerm).toLocaleString('de-DE')} €</div>
-        </div>
-        <div style="background:rgba(154,62,51,.05);border:1px solid rgba(154,62,51,.25);border-radius:8px;padding:14px 18px;">
-          <div style="font-size:11px;color:#9A3E33;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Stress-Szenario (Zins +2 %, 3 Mo Leerstand p.a., 0,5 % Mietausfall)</div>
-          <div style="font-size:18px;font-weight:600;color:#9A3E33;">IRR ${stressIrrPct}</div>
-          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Belastung ${Math.round(stressMo)} €/Mo · Vermögen nach 10 J: ${Math.round(stressVerm).toLocaleString('de-DE')} €</div>
-        </div>
-      </div>
-      <div style="margin-top:14px;font-size:12px;color:var(--text-tertiary);line-height:1.55;">
-        <strong>Annahmen-Hinweis:</strong> Die Matrix variiert nur Zins und Leerstand — alle anderen Parameter bleiben wie in der Hauptkalkulation. Kein Modell ersetzt eine eigene Einschätzung; die Tabelle hilft Dir, Spannbreiten realistisch einzuschätzen.
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px;">
+        ${szenarioCard('Normal — heutige Annahmen', 'Die Zahlen aus dieser Berechnung', accents.base, base.irr, base.belastungMo, base.vermoegenNetto10)}
+        ${szenarioCard('Mit Wind — leicht verschärft', 'Zins +1 %, 1 Mo/Jahr Leerstand', accents.wind, wind.irr, wind.belastungMo, wind.vermoegenNetto10)}
+        ${szenarioCard('Sturm — Worst-Case', 'Zins +2 %, 3 Mo/Jahr Leerstand', accents.sturm, sturm.irr, sturm.belastungMo, sturm.vermoegenNetto10)}
       </div>
 
-      ${(() => {
-        // Renovierungs-STORY v2 (Edgar 24.05.2026 10:30): nicht mehr Tabelle.
-        // Stattdessen narrative Geschichte: konkretes Beispiel, EK vs. Finanzierung,
-        // Steuererstattung, Wertsteigerung, „nimmt dem Kunden die Angst".
-        if (!window.Kalk || !window.Kalk.recalc || !r.inputs) return '';
-        // Basis-Default für die Story: 5000 € nach Jahr 1, Mieter zieht aus
-        const stSatz = (r.inputs.steuersatz || 0.30);
-        const gebAnteil = (r.inputs.gebaeudeAnteil || 0.85);
-        const afaSatz = (r.inputs.afaSatz || 0.02);
-        const zins = (r.inputs.zins || 0.045);
-        const tilg = (r.inputs.tilgung || 0.01);
-        const vermBrutto10 = (r.vermoegen && r.vermoegen[10] && r.vermoegen[10].vermoegenBrutto) || r.vermoegenBrutto10 || 0;
-        return `
-        <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border);">
-          <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Was, wenn nach einem Jahr noch etwas in die Wohnung muss?</div>
-          <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:14px;">
-            Stell Dir vor, nach einem Jahr zieht der Mieter aus, oder es kommt eine Reparatur,
-            oder Du willst die Wohnung für eine Neuvermietung frisch machen. Du steckst <strong>5.000 €</strong>
-            in die Renovierung. Was bedeutet das?
+      <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border);">
+        <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:6px;">Und wenn die Wohnung mal Renovierung braucht?</div>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:14px;">
+          Sagen wir, Du steckst irgendwann <strong>${fmtEUR(renovBetrag)}</strong> in die Wohnung. Zwei Wege — beide funktionieren:
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div style="background:${accents.base.bg};border:1px solid ${accents.base.border};border-radius:6px;padding:12px 14px;font-size:13px;line-height:1.6;color:var(--text-secondary);">
+            <strong style="color:${accents.base.text};">Aus Eigenkapital:</strong> ${fmtEUR(renovBetrag)} vom Konto, ca. <strong>${fmtEUR(renovStErstattung)}</strong> über 10 Jahre per AfA zurück → effektiv <strong>${fmtEUR(renovEffektivEK)}</strong>.
           </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
-            <div style="background:rgba(45,110,71,.06);border:1px solid rgba(45,110,71,.25);border-radius:8px;padding:14px 16px;">
-              <div style="font-size:11px;color:var(--green-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Variante A · Aus Eigenkapital</div>
-              <div style="font-size:13px;color:var(--text-primary);line-height:1.7;">
-                <strong>5.000 €</strong> sofort vom Konto.<br>
-                <span style="color:var(--text-secondary);">→ Davon holst Du Dir über die Steuer ca. <strong style="color:var(--green-dark);">${Math.round(5000 * gebAnteil * afaSatz * stSatz * 10).toLocaleString('de-DE')} €</strong> über 10 Jahre wieder zurück (linear über AfA).</span>
-              </div>
-              <div style="margin-top:10px;font-size:12px;color:var(--text-secondary);line-height:1.6;">
-                Effektiv kostet Dich die Renov also etwa <strong>${Math.round(5000 - 5000 * gebAnteil * afaSatz * stSatz * 10).toLocaleString('de-DE')} €</strong> über 10 Jahre — und die Wohnung ist um die volle Renov-Summe mehr wert.
-              </div>
-            </div>
-            <div style="background:rgba(176,138,77,.06);border:1px solid rgba(176,138,77,.25);border-radius:8px;padding:14px 16px;">
-              <div style="font-size:11px;color:var(--accent-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Variante B · Aus Finanzierung</div>
-              <div style="font-size:13px;color:var(--text-primary);line-height:1.7;">
-                Darlehen um <strong>5.000 €</strong> aufstocken.<br>
-                <span style="color:var(--text-secondary);">→ Monatlich ca. <strong style="color:var(--accent-dark);">${Math.round(5000 * (zins + tilg) / 12).toLocaleString('de-DE')} €/Mo</strong> mehr Annuität.</span>
-              </div>
-              <div style="margin-top:10px;font-size:12px;color:var(--text-secondary);line-height:1.6;">
-                Die Bank zieht zusätzlich Steuervorteil aus Zinsen — Netto-Mehrbelastung ca. <strong>${Math.round(5000 * (zins + tilg) / 12 * (1 - stSatz * 0.5)).toLocaleString('de-DE')} €/Mo</strong>. Dein Kontostand bleibt unangetastet.
-              </div>
-            </div>
-          </div>
-
-          <div style="background:var(--bg-cream-subtle);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:14px 18px;font-size:13px;line-height:1.65;color:var(--text-secondary);">
-            <strong style="color:var(--text-primary);">Und das Vermögen?</strong> Eine sauber gepflegte Wohnung hält ihren Marktwert besser als der Marktdurchschnitt. Bei einer 5.000-€-Renov gehen wir davon aus, dass die Wohnung diesen Betrag <strong>mindestens</strong> als zusätzlichen Marktwert trägt. Statt ${Math.round(vermBrutto10).toLocaleString('de-DE')} € Bruttovermögen nach 10 Jahren landest Du dann etwa bei <strong style="color:var(--green-dark);">${Math.round(vermBrutto10 + 5000).toLocaleString('de-DE')} €</strong> — abzüglich der initial gesetzten Mittel.
-          </div>
-
-          <div style="margin-top:12px;font-size:12px;color:var(--text-tertiary);line-height:1.6;">
-            <strong style="color:var(--text-secondary);">In Kurz:</strong> Eine spätere Renov ist kein Stress-Szenario, sondern ein normaler Vorgang — der sich entweder über die Steuer (EK-Variante) oder über die Monatsbelastung (Finanzierungs-Variante) verdaut und am Ende den Marktwert trägt. <em>Beide Wege funktionieren, wir besprechen die richtige Wahl, wenn es soweit ist.</em>
+          <div style="background:${accents.wind.bg};border:1px solid ${accents.wind.border};border-radius:6px;padding:12px 14px;font-size:13px;line-height:1.6;color:var(--text-secondary);">
+            <strong style="color:${accents.wind.text};">Aus Finanzierung:</strong> Darlehen um ${fmtEUR(renovBetrag)} aufstocken → ca. <strong>${fmtEUR(renovMonatlichNetto)}/Mo</strong> Netto-Mehrbelastung. Konto bleibt voll.
           </div>
         </div>
-        `;
-      })()}
+        <div style="font-size:12px;color:var(--text-tertiary);line-height:1.6;">
+          Die Wohnung trägt diesen Mehrwert. <em>Welcher Weg für Dich besser passt, besprechen wir wenn es soweit ist.</em>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;font-size:11px;color:var(--text-tertiary);line-height:1.55;font-style:italic;">
+        Die Szenarien variieren nur Zins + Leerstand. Andere Annahmen bleiben wie in der Hauptkalkulation.
+      </div>
     </section>
     `;
   })();
@@ -4077,18 +4035,21 @@ function renderStoryPremium(r) {
     </div>
   `;
 
-  // ===== Concat + Render =====
+  // FS-2g (24.05.2026, Edgar 14:30 + Story-Architekt):
+  // Chronologie: 1 Objekt → 2 Cashflow → 3 Vermögen → 4 Vergleich → 5 Detail
+  // → 6 Was-wäre-wenn (vor Aktionsmodus) → 7 Wie weitergeht → 8 Nach Notartermin
+  // → 9 Brot & Butter (am Ende). Identische Chronologie in PDF.
   el.innerHTML = '<div class="kalk-c-magazine">'
     + HERO
-    + SECTION_1
-    + SECTION_2
-    + SECTION_3
-    + SECTION_4
-    + SECTION_5
-    + SECTION_6
-    + SECTION_7
-    + SECTION_8 // QA-Fix 2026-05-23 (Edgar-Doc Bug-3 R-1): Nach dem Notartermin
-    + SECTION_9 // Welle 1 (2026-05-24): Sensitivitäts-Matrix / Was-wäre-wenn
+    + SECTION_1   // 01 Objekt
+    + SECTION_2   // 02 Cashflow J1
+    + SECTION_3   // 03 Vermögen J10
+    + SECTION_4   // 04 Vergleich (Sparbuch/Hebel)
+    + SECTION_5   // 05 Im Detail
+    + SECTION_9   // 06 Was wäre wenn (NEU verschoben — vor Aktionsmodus)
+    + SECTION_6   // 07 Wie es weitergeht (vor Notar)
+    + SECTION_8   // 08 Nach dem Notartermin
+    + SECTION_7   // 09 Brot & Butter (NEU am ENDE)
     + CLOSING
     + '</div>'
     + bonModal
@@ -9006,7 +8967,12 @@ function notizenQueueMutation(applyFn, opts) {
   const kundeId = state.kunde && state.kunde.id;
   if (!kundeId) return Promise.resolve();
   const _opts = opts || {};
-  _kavSaveQueue = _kavSaveQueue.then(async () => {
+  // FS-2f-Bug (24.05.2026 Edgar 14:30): Wunsch-Profil-Buttons bei
+  // anderen Kunden tot — Ursache: Queue blieb in rejected-State
+  // hängen nach erstem Fehler → alle nachfolgenden Saves silent abgebrochen.
+  // Fix: dem then() ein .catch() anhängen, das die Queue als resolved fortführt.
+  // Errors werden weiterhin im Inner-try/catch behandelt + dem Caller geworfen.
+  const nextStep = _kavSaveQueue.then(async () => {
     if (!state.kunde || state.kunde.id !== kundeId) return;
     const oldNotizen = state.kunde.notizen || '';
     let newNotizen;
@@ -9026,17 +8992,19 @@ function notizenQueueMutation(applyFn, opts) {
       await api.put('/api/kunden/' + kundeId, { notizen: newNotizen });
       if (_opts.successToast) toast(_opts.successToast, _opts.successType || 'success');
     } catch (e) {
-      // Rollback optimistic state
       state.kunde.notizen = prev;
       if (Array.isArray(state.kunden)) {
         const idx = state.kunden.findIndex(x => x.id === kundeId);
         if (idx >= 0) state.kunden[idx].notizen = prev;
       }
       toast((_opts.errorPrefix || 'Fehler beim Speichern: ') + (e.message || ''), 'error');
-      throw e;
     }
   });
-  return _kavSaveQueue;
+  // Queue NIE rejecten lassen — sonst sind alle Folge-Mutations tot
+  _kavSaveQueue = nextStep.catch(e => {
+    console.warn('[notizenQueue tail-catch]', e && e.message);
+  });
+  return nextStep;
 }
 window.notizenQueueMutation = notizenQueueMutation;
 function kavQueueMutation(applyMutation, opts) {
@@ -9045,10 +9013,8 @@ function kavQueueMutation(applyMutation, opts) {
   const kundeId = state.kunde && state.kunde.id;
   if (!kundeId) return Promise.resolve();
   const _opts = opts || {};
-  _kavSaveQueue = _kavSaveQueue.then(async () => {
-    // Frischen Tracker JETZT lesen (nicht beim Queue-Enqueue) — der vorige
-    // Save hat state.kunde.notizen schon aktualisiert.
-    if (!state.kunde || state.kunde.id !== kundeId) return; // Kunde gewechselt
+  const nextStep = _kavSaveQueue.then(async () => {
+    if (!state.kunde || state.kunde.id !== kundeId) return;
     const tracker = getKavTracker(state.kunde);
     if (!tracker.tasks) tracker.tasks = {};
     const freeNotes = tracker.freeNotes || '';
@@ -9060,12 +9026,15 @@ function kavQueueMutation(applyMutation, opts) {
       if (state.kunde && state.kunde.id === kundeId) renderKunde();
     } catch (e) {
       toast((_opts.errorPrefix || 'Fehler: ') + (e && e.message ? e.message : 'unbekannt'), 'error');
-      // QA-Fix 2026-05-23 (Audit-K-1): bei Save-Fehler UI auf state zurücksetzen,
-      // damit die optimistische Checkbox-Markierung nicht hängen bleibt.
       if (state.kunde && state.kunde.id === kundeId) renderKunde();
     }
   });
-  return _kavSaveQueue;
+  // FS-2f (24.05.2026 Edgar 14:30): Queue-Tail-Catch — sonst hängt die Queue
+  // nach erstem Fehler und alle nachfolgenden KAV-Toggles sind tot.
+  _kavSaveQueue = nextStep.catch(e => {
+    console.warn('[kavQueue tail-catch]', e && e.message);
+  });
+  return nextStep;
 }
 
 async function kavToggleTask(taskId) {
@@ -9202,11 +9171,12 @@ function renderKavCockpit(k) {
   }
 
   // Next-Action-Hint
+  // FS-2f (24.05.2026 Edgar 14:30): „Nächste Aufgabe"-Block raus — nimmt
+  // zu viel Platz oben weg. Wenn alle Pflicht-Aufgaben erledigt, nur dezenter
+  // Badge. Sonst nichts (nextTask sieht der User in den Phasen-Cards).
   const nextHint = allDone
-    ? '<div class="kav-next-action done">🎉 Alle Pflicht-Aufgaben erledigt — Kunde abgeschlossen.</div>'
-    : nextTask
-      ? `<div class="kav-next-action"><strong>Nächste Aufgabe:</strong> ${esc(nextTask.label)} <span class="kav-next-hint">— ${esc(nextTask.hint || '')}</span></div>`
-      : '';
+    ? '<div class="kav-next-action done">🎉 Alle Pflicht-Aufgaben erledigt</div>'
+    : '';
 
   // Aufgaben-Liste der aktuellen Phase (collapsed andere)
   const allPhasesHtml = KAV_PHASES.map(ph => {
