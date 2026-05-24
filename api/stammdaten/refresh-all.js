@@ -55,12 +55,16 @@ module.exports = async (req, res) => {
   // bei Cron-getriggerten Calls (Vercel-internal, nicht von außen setzbar).
   // Vorher: ohne CRON_SECRET liefen die Cron-Calls in den Session-Pfad und
   // failten mit 401 → die 3× tägliche Auto-Subv-Refresh lief faktisch nicht.
+  // FS-3c (Audit Backend-Security P2 25.05.2026): wenn CRON_SECRET gesetzt ist,
+  // MUSS der Bearer das matchen — Header allein reicht dann nicht (Header
+  // theoretisch spoofbar über Vercel-Edge). Nur wenn CRON_SECRET nicht gesetzt
+  // ist, fallback auf Header-only (Dev/lokal).
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = (req.headers && req.headers.authorization) || '';
   const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
   const istCronBySecret = cronSecret && bearerMatch && bearerMatch[1] === cronSecret;
   const istCronByHeader = !!(req.headers && (req.headers['x-vercel-cron'] === '1' || req.headers['x-vercel-cron'] === 1));
-  const istCron = istCronBySecret || istCronByHeader;
+  const istCron = cronSecret ? istCronBySecret : istCronByHeader;
 
   if (!istCron) {
     const session = verifySession(req);

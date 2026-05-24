@@ -19,6 +19,20 @@
     "api/spike/html-to-pdf.js": {
       "memory": 3008,
       "maxDuration": 60
+    },
+    "api/reservierung/send-for-signature.js": {
+      "memory": 1024,
+      "maxDuration": 30
+    },
+    "api/kunden/[id].js": {
+      "maxDuration": 30
+    },
+    "api/stammdaten/refresh-all.js": {
+      "memory": 1024,
+      "maxDuration": 60
+    },
+    "api/pandadoc/webhook.js": {
+      "maxDuration": 30
     }
   },
   "crons": [

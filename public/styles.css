@@ -1593,6 +1593,16 @@ input[type="range"].spar-zins-range::-moz-range-track {
   letter-spacing: 0.2px;
   line-height: 1;
 }
+/* FS-3a (Audit PDF P1.4 25.05.2026): Im Browser-Print waren die PandaDoc-
+   Signature-Tags („[signature:Antragsteller____]") als graue Texte sichtbar.
+   Im PandaDoc-Pfad (_SA_INLINE_CSS) ist das bereits auf white gesetzt, hier
+   muss der Browser-Print das auch tun, sonst druckt Edgar die SA-PDF mit
+   sichtbaren Tags. */
+@media print {
+  .pdf-template .sa-sigblock .sig-tag {
+    color: #ffffff !important;
+  }
+}
 .pdf-template .sa-sigblock .sig-line {
   height: 16mm;
   border-bottom: 0.4px solid #000;

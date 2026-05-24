@@ -7,7 +7,13 @@ const { airtable } = require('./airtable');
 const { TABLES, VERTRIEBLER_FIELDS } = require('./tables');
 
 const COOKIE_NAME = 'bbk_session';
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 Tage
+// FS-3c (Audit Backend-Security P0 25.05.2026): 30 → 7 Tage. Mitigation
+// gegen entlassene Mitarbeiter / kompromittierte Sessions — Status der
+// Vertriebler-Whitelist wird beim Login frisch validiert, danach läuft
+// das Cookie ohne Recheck. Mit 7 Tagen ist das Worst-Case-Fenster
+// deutlich kürzer. Vollständiger Fix (Status-Recheck pro Request +
+// tokenVersion-Counter) post-Launch.
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 Tage
 
 function getJwtSecret() {
   const s = process.env.JWT_SECRET;

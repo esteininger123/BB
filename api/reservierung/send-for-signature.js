@@ -194,14 +194,19 @@ module.exports = async (req, res) => {
     }
 
     // --- 5. Tokens — EXAKT die Custom-Variablen-Namen aus dem Template
+    // FS-3b (Audit SA P2 25.05.2026): Frist + Heute-Datum explizit in Europe/Berlin
+    // formatieren — sonst rechnete der Vercel-UTC-Server die Frist eine Nacht zu
+    // früh, wenn der Vertriebler abends ab ~22:00 deutsche Zeit auf „Senden" klickt
+    // (UTC ist schon der Folgetag). Der Käufer sah dann eine andere Frist als der
+    // Vertriebler in seinem Kalender.
     const fristTage = parseInt(process.env.RESERV_FRIST_TAGE || '14', 10);
     const ablaufDate = new Date(Date.now() + fristTage * 24 * 3600 * 1000);
-    const ablaufStr  = ablaufDate.toLocaleDateString('de-DE');
+    const ablaufStr  = ablaufDate.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' });
 
     // Vertriebler-Name (Verkäufer) für Custom-Variable im Doc-Body
     const verkaeuferDisplay = (vertriebler[VERTRIEBLER_FIELDS.NAME] || 'Edgar Steininger').trim();
     // Heute-Datum für Workflow.CreatedDate-Override (Pre-fill-Box-Felder)
-    const heute = new Date().toLocaleDateString('de-DE');
+    const heute = new Date().toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' });
     // Vertriebler-Name auf First/Last splitten (für Standard-Recipient-Variables-Override)
     const vkParts = String(verkaeuferDisplay).trim().split(/\s+/);
     const verkaeuferFirst = vkParts[0] || 'Edgar';

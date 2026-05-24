@@ -984,12 +984,16 @@ function recalc(i) {
     vermoegen.push({ y, wert, restschuld, verkaufserloes, vermoegenBrutto, kumCf, vermoegenNetto });
   }
 
-  // IRR-Cashflow nutzt den VERKAUFSERLÖS (wert − restschuld) als Endwert in Jahr 9,
+  // IRR-Cashflow nutzt den VERKAUFSERLÖS (wert − restschuld) als Endwert in Jahr 10,
   // weil die CFs schon einzeln als irrSeries-Glieder eingehen — sonst würden Cashflows
   // doppelt zählen.
+  // FS-3-Fix (Audit Engine-Mathe 25.05.2026): vorher vermoegen[9] — off-by-one.
+  // vermoegen[10] ist der Endwert nach Jahr 10 (recalcPaket nutzt das schon korrekt).
+  // Folge des Bugs: Einzel-IRR ~0.3-0.8 pp zu niedrig, inkonsistent mit Paket-IRR
+  // und mit vermoegenNetto10 (das vermoegen[10] verwendet).
   const irrSeries = [-ekBedarf];
   for (let y = 1; y <= 9; y++) irrSeries.push(cf[y - 1].cfJahr);
-  irrSeries.push(cf[9].cfJahr + vermoegen[9].verkaufserloes);
+  irrSeries.push(cf[9].cfJahr + vermoegen[10].verkaufserloes);
 
   // QA-Fix 2026-05-22 (Phase-2a Bug #3): Bei knkMitfinanziert=true ist EK=0, IRR-Reihe
   // startet mit -0. Newton-Raphson kann in solchen Fällen auf rein technische Lösungen

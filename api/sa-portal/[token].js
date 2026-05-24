@@ -75,8 +75,23 @@ module.exports = async (req, res) => {
       if (typeof body.saJson !== 'object' && body.saJson !== null) {
         return res.status(400).json({ error: 'saJson muss ein Object sein' });
       }
+      // FS-3b (Audit SA P1 25.05.2026): SA-Portal schickte `antragGemeinsam` +
+      // `antragsteller.nachname`, App liest aber `gemeinsam` + `antragsteller.name`.
+      // Beim Portal-Save ging der Mitantragsteller-Flag verloren + Nachname blieb
+      // leer in der Vertriebs-Sicht. Hier normalisieren wir defensive auf das
+      // App-Schema, damit beide Schemas funktionieren.
+      const _sa = body.saJson || {};
+      if (_sa.antragGemeinsam !== undefined && _sa.gemeinsam === undefined) {
+        _sa.gemeinsam = _sa.antragGemeinsam;
+      }
+      ['antragsteller', 'mitantragsteller'].forEach(role => {
+        const a = _sa[role];
+        if (a && typeof a === 'object' && a.nachname !== undefined && a.name === undefined) {
+          a.name = a.nachname;
+        }
+      });
       // Größenbegrenzung: typische SA ~30 KB, Notbremse bei 200 KB
-      const saStr = JSON.stringify(body.saJson || {});
+      const saStr = JSON.stringify(_sa);
       if (saStr.length > 200000) {
         return res.status(413).json({ error: 'saJson zu groß (max 200 KB)' });
       }

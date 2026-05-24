@@ -355,21 +355,21 @@ function renderDashboard() {
         ${wvOverdue.map(({k, wv}) => `
           <div class="wv-row overdue" onclick="go('/kunde/${esc(k.id)}')">
             <div class="wv-row-status">⚠ ${wv.tageUeber}d überfällig</div>
-            <div class="wv-row-main"><strong>${esc(k.name || (k.vorname + ' ' + k.nachname) || '—')}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
+            <div class="wv-row-main"><strong>${esc(k.name || ((k.vorname || '') + ' ' + (k.nachname || '')).trim() || k.email || '—')}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
             <div class="wv-row-date">${esc(fmtDate(wv.datum))}</div>
           </div>
         `).join('')}
         ${wvToday.map(({k, wv}) => `
           <div class="wv-row today" onclick="go('/kunde/${esc(k.id)}')">
             <div class="wv-row-status">🔔 heute</div>
-            <div class="wv-row-main"><strong>${esc(k.name || (k.vorname + ' ' + k.nachname) || '—')}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
+            <div class="wv-row-main"><strong>${esc(k.name || ((k.vorname || '') + ' ' + (k.nachname || '')).trim() || k.email || '—')}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
             <div class="wv-row-date">${esc(fmtDate(wv.datum))}</div>
           </div>
         `).join('')}
         ${wvSoon.map(({k, wv}) => `
           <div class="wv-row soon" onclick="go('/kunde/${esc(k.id)}')">
             <div class="wv-row-status">in ${wv.tage}d</div>
-            <div class="wv-row-main"><strong>${esc(k.name || (k.vorname + ' ' + k.nachname) || '—')}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
+            <div class="wv-row-main"><strong>${esc(k.name || ((k.vorname || '') + ' ' + (k.nachname || '')).trim() || k.email || '—')}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
             <div class="wv-row-date">${esc(fmtDate(wv.datum))}</div>
           </div>
         `).join('')}
@@ -1089,6 +1089,13 @@ async function renderKunde() {
 }
 
 function setTab(t) {
+  // FS-3a (Audit Frontend P1-2 25.05.2026): wenn ein Annahmen-/Vermögens-/
+  // Cashflow-Modal offen ist, schließen wir das zuerst — sonst bleibt
+  // `document.body.style.overflow='hidden'` gesetzt und der neue Tab ist
+  // unscrollbar (App wirkt eingefroren).
+  if (typeof _closeAllCModals === 'function') {
+    try { _closeAllCModals(); } catch {}
+  }
   // FS-1 (24.05.2026, Tech-Architekt H-1): Chart.js-Instanzen vor Tab-Wechsel
   // destroyen, sonst halten die toten Charts ihre Canvas-Refs und sammeln sich
   // an (Memory-Leak nach 20+ Tab-Wechseln).
@@ -1405,7 +1412,7 @@ function renderTabUebersicht() {
   // Aktivitäten zuerst (was haben wir besprochen), dann Notizen (Stichworte),
   // dann Wunsch-Profil (Bedarf), dann Stammdaten (collapsed, statisch).
   const stammCard = `
-    <details class="card mt-16">
+    <details class="card mt-16" id="stammdaten-card">
       <summary style="cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;">
         <span class="card-title" style="margin:0;border-bottom:none;padding-bottom:0;">Stammdaten <span class="text-tertiary text-small" style="font-weight:normal;">· Klick zum Bearbeiten</span></span>
         <span style="font-size:12px;color:var(--text-tertiary);">${esc((k.email || ''))}${k.telefon ? ' · ' + esc(k.telefon) : ''}</span>
@@ -3484,7 +3491,7 @@ function renderStoryPremium(r) {
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Wohneinheit</span><span class="kalk-c-v">${esc(state.kalk._weNr || '—')}</span></div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Wohnfläche</span><span class="kalk-c-v">${(i.qm || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">qm</span></span></div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaufpreis Wohnung</span><span class="kalk-c-v">${Math.round(i.kaufpreis || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></span></div>
-          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Stellplatz</span><span class="kalk-c-v">${Math.round(i.stellplatzKp || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></span></div>
+          ${i.stellplatzKp > 0 ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">Stellplatz</span><span class="kalk-c-v">${Math.round(i.stellplatzKp).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></span></div>` : ''}
         </div>
         <div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaufpreis je qm</span><span class="kalk-c-v">${Math.round(kpQm).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></span></div>
@@ -3500,7 +3507,7 @@ function renderStoryPremium(r) {
           })()}"><span class="kalk-c-k">Marktpreis je qm</span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') : '—'}<span class="kalk-c-unit">€</span></span></div>
           ${r.markteinkaufVorteil ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">${r.markteinkaufVorteil > 0 ? 'Markteinkauf-Vorteil' : 'Markt-Aufschlag'}</span><span class="kalk-c-v ${r.markteinkaufVorteil > 0 ? '' : 'kalk-c-neg'}">${fmt(Math.abs(r.markteinkaufVorteil))}${r.markteinkaufVorteil > 0 ? '' : ' über Markt'}</span></div>` : ''}
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaltmiete</span><span class="kalk-c-v">${Math.round(i.kaltmiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>
-          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Stellplatz-Miete</span><span class="kalk-c-v">${Math.round(i.stellplatzMiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>
+          ${i.stellplatzMiete > 0 ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">Stellplatz-Miete</span><span class="kalk-c-v">${Math.round(i.stellplatzMiete).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>` : ''}
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Rücklage · HV · MV</span><span class="kalk-c-v">${Math.round(i.hausgeld || 0)} / ${Math.round(i.hausverwaltung || 0)} / ${Math.round(i.mietverwaltung || 0)}<span class="kalk-c-unit">€/Mo</span></span></div>
         </div>
       </div>
@@ -3617,7 +3624,7 @@ function renderStoryPremium(r) {
           <p class="kalk-c-lead">Eine Annuität von ${fmtEurMo(r.annuityMo)} steht Mieteinnahmen von ${fmtEurMo(r.mieteJ1Mo)} gegenüber. Dein Steuervorteil${(r.mietsubventionGesamt && r.mietsubventionGesamt > 0) ? ' und in den ersten Jahren eine vereinbarte Mietsubvention glätten' : ' glättet'} die Anlaufphase.</p>
           <p>${r.belastungMo >= 0
             ? `Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst — Miete und Steuervorteil decken alle laufenden Kosten und liefern einen monatlichen Überschuss von ${fmtEurMo(r.belastungMo)}.`
-            : `Die Wohnung trägt sich zu rund ${selbsttragungPct} % selbst — Miete plus Steuervorteil decken den Großteil der laufenden Kosten (Annuität + Hausgeld + Verwaltung). Den Rest leistest Du als monatliche Eigenleistung.`}</p>
+            : `Die Wohnung trägt sich zu rund ${selbsttragungPct} % selbst — Miete plus Steuervorteil decken den Großteil der laufenden Kosten (Annuität + Rücklage + Verwaltung). Den Rest leistest Du als monatliche Eigenleistung.`}</p>
           ${r.belastungMo < 0 ? `<p>${crossoverSatz}: Die Wohnung beginnt, einen monatlichen Überschuss zu liefern, während Deine Annuität konstant bleibt.</p>` : ''}
           <div class="kalk-c-meta-line">Annuität ${fmtEurMo(r.annuityMo)} · Steuervorteil ${fmtEurMo(r.stVorteilJ1Mo)}</div>
         </div>
@@ -3699,8 +3706,17 @@ function renderStoryPremium(r) {
         </div>
       </div>
       <div class="kalk-c-compare">
-        <div class="kalk-c-compare-headline">+ <span class="kalk-c-delta">${fmt(r.sparenVsKaufenDelta)}</span> &nbsp;Mehrgewinn</div>
-        <div class="kalk-c-compare-sub">${fmt(r.ekBedarf)} auf einem Sparbuch zu ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a. wären in zehn Jahren auf etwa ${fmt(sparen10.nurSparen)} gewachsen. Dasselbe Eigenkapital im Sachwert Immobilie kommt auf ${fmt(sparen10.mitImmo)} — die Differenz von ${fmt(r.sparenVsKaufenDelta)} ist der reine Sachwert-Vorteil.</div>
+        ${(() => {
+          // FS-3a (Audit PDF+Magazin P1.3): Wenn der Sparbuch-Vorteil negativ ist
+          // (= Sparbuch hätte besser performed), nicht „+ -12.345 € Mehrgewinn" zeigen.
+          // PDF hat den Fix bereits (pdf.js:420), Magazin musste nachziehen.
+          const _delta = r.sparenVsKaufenDelta || 0;
+          const _deltaAbs = Math.abs(_delta);
+          const _deltaLabel = _delta >= 0 ? 'Mehrgewinn Sachwert' : 'Mehrgewinn Sparbuch';
+          const _deltaSign = _delta >= 0 ? '+' : '−';
+          return `<div class="kalk-c-compare-headline">${_deltaSign} <span class="kalk-c-delta">${fmt(_deltaAbs)}</span> &nbsp;${_deltaLabel}</div>
+        <div class="kalk-c-compare-sub">${fmt(r.ekBedarf)} auf einem Sparbuch zu ${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a. wären in zehn Jahren auf etwa ${fmt(sparen10.nurSparen)} gewachsen. Dasselbe Eigenkapital im Sachwert Immobilie kommt auf ${fmt(sparen10.mitImmo)} — die Differenz von ${fmt(_deltaAbs)} ist der ${_delta >= 0 ? 'reine Sachwert-Vorteil' : 'Vorsprung des Sparbuchs in diesem Szenario'}.</div>`;
+        })()}
         <div class="kalk-c-compare-chart-wrap"><canvas id="chart-c-compare"></canvas></div>
       </div>
     </section>
@@ -3969,7 +3985,7 @@ function renderStoryPremium(r) {
             <div class="kalk-c-row"><span>+ Anrechenbare Miete (80 %)</span><span class="kalk-c-pos">+ ${fmtEurMo(r.bonMieteAnr || 0)}</span></div>
             <div class="kalk-c-row"><span>− Annuität</span><span class="kalk-c-neg">− ${fmtEurMo(r.bonAnnuMo || 0)}</span></div>
             ${r.bonModus === 'detail' ? `
-            <div class="kalk-c-row"><span>− Hausgeld (bank-konservativ)</span><span class="kalk-c-neg">− ${fmtEurMo(r.hausgeldNurMo || 0)}</span></div>
+            <div class="kalk-c-row"><span>− Rücklage</span><span class="kalk-c-neg">− ${fmtEurMo(r.hausgeldNurMo || 0)}</span></div>
             <div class="kalk-c-row"><span>− Hausverwaltung</span><span class="kalk-c-neg">− ${fmtEurMo(r.hausverwaltungMo || 0)}</span></div>` : ''}
             <div class="kalk-c-row kalk-c-total"><span>Nach Investment</span><span class="${(r.bonNach || 0) < 0 ? 'kalk-c-neg' : 'kalk-c-accent'}">${fmtEurMo(r.bonNach || 0)}</span></div>
           </div>
@@ -4004,7 +4020,7 @@ function renderStoryPremium(r) {
         <button class="kalk-c-modal-close" data-kalk-c-close>Schließen ×</button>
         <div class="kalk-c-eyebrow">05 · Detail · Cashflow</div>
         <h3>Monatlicher Saldo, Jahr 1 bis Jahr 10</h3>
-        <div class="kalk-c-sub">Effektive Belastung je Monat nach Miete, Hausgeld, Annuität, Steuervorteil und in der Anlaufphase Mietsubvention.</div>
+        <div class="kalk-c-sub">Effektive Belastung je Monat nach Miete, Rücklage, Annuität, Steuervorteil und in der Anlaufphase Mietsubvention.</div>
         <table>
           <thead><tr><th>Jahr</th><th class="kalk-c-r">Belastung €/Mo</th><th class="kalk-c-r">Jahres-Summe €</th></tr></thead>
           <tbody>
@@ -4452,7 +4468,7 @@ function drawCharts(r) {
     werteBlock.innerHTML =
       card('Dein operativer CF', opJ1, opJ10, false,
         'Operativer Cashflow',
-        'Was monatlich aus der Immobilie übrig bleibt — VOR Steuern.\n\nFormel: Kaltmiete (inkl. Mietsubvention) − Annuität (Zins + Tilgung) − Hausgeld − Hausverwaltung − Mietverwaltung (SEV)\n\nStartet meist im Minus (Belastung > Miete), kippt über die Jahre ins Plus, sobald Mieten steigen und der Zinsanteil der Annuität sinkt.') +
+        'Was monatlich aus der Immobilie übrig bleibt — VOR Steuern.\n\nFormel: Kaltmiete (inkl. Mietsubvention) − Annuität (Zins + Tilgung) − Rücklage − Hausverwaltung − Mietverwaltung (SEV)\n\nStartet meist im Minus (Belastung > Miete), kippt über die Jahre ins Plus, sobald Mieten steigen und der Zinsanteil der Annuität sinkt.') +
       card('Dein Steuervorteil', stVJ1, stVJ10, false,
         'Steuervorteil',
         'Wie viel Steuern Du Dir pro Monat sparst, weil die Immobilie steuerlich Verluste produziert.\n\nFormel: (Zinsanteil + AfA + Werbungskosten − Mieteinnahmen) × Dein Grenzsteuersatz\n\nAfA-Bemessung (§7 EStG): (Kaufpreis + Kaufnebenkosten) × Gebäudeanteil. Grund und Boden ist nicht abnutzbar.\n\nSchrumpft über die Zeit: Zinsanteil sinkt mit Tilgung, Mieten steigen — der steuerliche Verlust wird kleiner, irgendwann kippt es ins Plus (= Du zahlst Steuern auf die Mieteinnahmen).') +
@@ -5005,12 +5021,12 @@ function sendInvestDocMail() {
     '',
     `anbei wie besprochen die Investitionsanalyse für ${weLabel}.`,
     '',
-    'Die Analyse zeigt Vermögensaufbau, Cashflow und Bonität auf 7 Seiten. Bei Fragen melde Dich jederzeit — wir sprechen die Zahlen gerne im Detail durch.',
+    'Die Analyse zeigt Vermögensaufbau, Cashflow, Bonität und alle Annahmen auf 9 Seiten. Bei Fragen melde Dich jederzeit — wir sprechen die Zahlen gerne im Detail durch.',
     '',
     'Beste Grüße',
     senderName,
     '',
-    '— B&B Immo GmbH · Burdastraße 33 · 77746 Schutterwald · HRB 727 814 (Freiburg)',
+    '— B&B Immo GmbH · Burdastraße 23 · 77746 Schutterwald · HRB 727 814 (Freiburg)',
   ].join('\n');
   const mailtoUrl = `mailto:${encodeURIComponent(state.kunde.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   // FS-1 (24.05.2026, Vertriebler HARD-BLOCKER B4): Im Live-Termin war
@@ -7496,9 +7512,17 @@ function _renderWeListeContent() {
         hausgeld: detailKalk.hausgeldRuecklage != null ? detailKalk.hausgeldRuecklage : sd.hausgeldRuecklage,
         hausverwaltung: detailKalk.hausverwaltung != null ? detailKalk.hausverwaltung : sd.hausverwaltung,
         mietverwaltung: detailKalk.mietverwaltungDefault != null ? detailKalk.mietverwaltungDefault : sd.mietverwaltungDefault,
-        afaSatz: (detailKalk.afaGutachten || sd.afaGutachten) || base.afaSatz || 0.02,
-        gebaeudeAnteil: (detailKalk.gebaeudeAnteil || sd.gebaeudeAnteil) || base.gebaeudeAnteil || 0.85,
-        wertsteigerung: (detailKalk.wertsteigerung || sd.wertsteigerung) || base.wertsteigerung || 0.03,
+        // FS-3-Fix (Audit Engine 25.05.2026): grEstPct fehlte komplett → NRW-WEs (6.5 %)
+        // rechneten mit BB-Default 5 % → KNK falsch, EK zu niedrig, IRR zu hoch.
+        grEstPct: (detailKalk.grEst != null ? detailKalk.grEst : sd.grEst) || base.grEstPct || 0.05,
+        // FS-3-Fix (Audit Daten 25.05.2026): „X != null"-Check statt „||" — sonst
+        // überschreibt der Fallback eine bewusste 0%-Pflege (z.B. wertsteigerung=0
+        // als konservativer Anker).
+        afaSatz: (detailKalk.afaGutachten != null ? detailKalk.afaGutachten : sd.afaGutachten) || base.afaSatz || 0.02,
+        gebaeudeAnteil: (detailKalk.gebaeudeAnteil != null ? detailKalk.gebaeudeAnteil : sd.gebaeudeAnteil) || base.gebaeudeAnteil || 0.85,
+        wertsteigerung: (detailKalk.wertsteigerung != null ? detailKalk.wertsteigerung : sd.wertsteigerung) != null
+          ? (detailKalk.wertsteigerung != null ? detailKalk.wertsteigerung : sd.wertsteigerung)
+          : (base.wertsteigerung != null ? base.wertsteigerung : 0.03),
         hgInflation: 0, // QA-Fix 2026-05-24 (Edgar): immer 0
         steigerungProz: derived && derived.steigerungProz ? derived.steigerungProz
                         : (modus === 'sprung' ? 0.20 : 0.03),
@@ -8222,7 +8246,7 @@ const TOUR_STEPS = [
   },
   {
     title: 'Schritt 4 — Eine Phasen-Aufgabe abhaken',
-    action: 'Klick im Phasen-Cockpit auf „Strategie" um die Aufgaben aufzuklappen. Hak „Bedarfsanalyse-Gespräch" ab.',
+    action: 'Klick im Phasen-Cockpit auf „Strategie" um die Aufgaben aufzuklappen. Hak „Strategiegespräch 1" ab.',
     tip: 'Aufgaben tragen automatisch in die Aktivitäten-Historie ein (mit Datum + Wer-hat-was). Erledigte Aufgaben werden mit Strikethrough markiert.',
     target: '.kav-phases-details',
     needsView: 'kunde',
@@ -8256,7 +8280,10 @@ const TOUR_STEPS = [
     title: 'Schritt 8 — Stammdaten checken',
     action: 'Ganz unten ist die collapsed „Stammdaten"-Karte. Klick drauf zum Aufklappen, ergänze Telefonnummer + Geburtsdatum.',
     tip: 'Stammdaten werden automatisch in die Selbstauskunft gespiegelt (Vor/Nachname, E-Mail, Telefon, Geburtsdatum). Spart Doppel-Eingabe.',
-    target: 'details.card',
+    // FS-3d (Audit Tour-Steps 25.05.2026): details.card matched FIRST instance,
+    // also die Wunsch-Profil-Karte (Z. 1250). Stammdaten ist die LETZTE details.card
+    // → spezifischer Selector via id="stammdaten-card".
+    target: '#stammdaten-card',
     needsView: 'kunde',
     needsTab: 'uebersicht',
   },
@@ -8433,10 +8460,12 @@ const TOUR_STEPS = [
     detectCompleted: () => state.view === 'we-liste',
   },
   {
-    title: 'Schritt 29 — WE filtern: was passt zu Dir?',
-    action: 'Probier die Filter aus: Bundesland → wähl Dein eigenes. Investitionsbedarf → setz Dein eigenes Eigenkapital. Du siehst nur noch WEs die zu Deiner Bonität passen.',
-    tip: 'Filter werden in sessionStorage gespeichert — bleiben über Page-Reloads erhalten, aber nur in dieser Browser-Session. Multi-Select für Bundesland + Kreis.',
-    target: '.filter-bar, .we-filter-bar',
+    // FS-3d (Audit Tour-Steps 25.05.2026): WE-Liste hat keine Filter-Bar.
+    // Statt fiktiver Filter zeigen wir das Profil-Dropdown (Bank-Szenario).
+    title: 'Schritt 29 — Bank-Szenario wechseln',
+    action: 'Oben rechts ist das Profil-Dropdown (z.B. „35 % StSatz · 4,5 % Zins · KP ohne KNK"). Wechsel zwischen 6 Bank-Szenarien — alle Renditen + Cashflow rechnen sich live um.',
+    tip: 'Profile sind Kombinationen aus Steuersatz (28/35/42 %) × KNK ohne/mit. So siehst Du dieselbe WE mit verschiedenen Käufer-Bonitäten ohne neue Kalkulation.',
+    target: '#we-profil-select, select[onchange*="weListeProfil"]',
     needsView: 'we-liste',
   },
   {

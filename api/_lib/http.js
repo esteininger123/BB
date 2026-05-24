@@ -27,8 +27,15 @@ function methodNotAllowed(res, allowed) {
 
 function sendError(res, err) {
   const status = (err && err.status) || 500;
-  const msg = (err && err.message) || 'Unbekannter Fehler';
-  return res.status(status).json({ error: msg });
+  const rawMsg = (err && err.message) || 'Unbekannter Fehler';
+  // FS-3c (Audit Backend-Security P3 25.05.2026): sanitize Airtable-Internals
+  // bevor sie an den Client gehen — sonst leaken Field-IDs, Table-Namen etc.
+  // bei 4xx/5xx-Errors. Server-Log behält den vollen Original-Text.
+  if (rawMsg.includes('Airtable') || /INVALID_VALUE_FOR_COLUMN|UNKNOWN_FIELD|fld[A-Za-z0-9]{14}|tbl[A-Za-z0-9]{14}|app[A-Za-z0-9]{14}/.test(rawMsg)) {
+    try { console.error('[sendError-internal]', status, rawMsg); } catch {}
+    return res.status(status).json({ error: 'Backend-Fehler — bitte später erneut versuchen', code: status });
+  }
+  return res.status(status).json({ error: rawMsg });
 }
 
 module.exports = { readBody, methodNotAllowed, sendError };
