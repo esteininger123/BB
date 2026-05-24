@@ -3176,7 +3176,7 @@ function renderStories(r) {
         </div>
         <div style="padding:14px 16px;background:#FBFAF7;border-left:3px solid #8E6E3D;border-radius:4px;">
           <strong style="display:block;margin-bottom:4px;">Restnutzungsdauer-Gutachten</strong>
-          <span class="text-tertiary text-small">Wir übertragen es Dir so, dass es vor dem Finanzamt hält — höhere AfA, mehr Steuervorteil.</span>
+          <span class="text-tertiary text-small">Wir bereiten es so vor, dass es üblicherweise vom Finanzamt anerkannt wird — höhere AfA, mehr Steuervorteil. Letzte Entscheidung trifft das zuständige Finanzamt.</span>
         </div>
         <div style="padding:14px 16px;background:#FBFAF7;border-left:3px solid #8E6E3D;border-radius:4px;">
           <strong style="display:block;margin-bottom:4px;">Übergabe &amp; WEG-Integration</strong>
@@ -3317,7 +3317,7 @@ function renderStoryPremium(r) {
       <div class="kalk-c-hero-body">
         <div class="kalk-c-hero-address">${adresseZeile}</div>
         <h1 class="kalk-c-hero-headline">
-          In zehn Jahren hast Du <span class="kalk-c-num-accent">${fmt(r.vermoegenNetto10)}</span> aufgebaut.
+          In zehn Jahren kannst Du nach unseren dokumentierten Annahmen <span class="kalk-c-num-accent">${fmt(r.vermoegenNetto10)}</span> aufgebaut haben.
         </h1>
         <p class="kalk-c-hero-sub">
           ${i.qm ? 'Eine ' + i.qm.toString().replace('.', ',') + '-qm-Wohnung' : 'Eine Wohnung'}${_modusHeroSubtitle}. Die folgende Analyse zeigt Deinen Vermögensaufbau, Deine monatliche Belastung und den Vergleich zur klassischen Sparbuch-Alternative.
@@ -3620,7 +3620,7 @@ function renderStoryPremium(r) {
       </div>
       <ol class="kalk-c-weg-list">
         <li class="kalk-c-weg-step"><div class="kalk-c-weg-num">1</div><div class="kalk-c-weg-body"><div class="kalk-c-weg-title">Selbstauskunft vollständig ausfüllen</div><div class="kalk-c-weg-desc">Bonität-Grundlage für die Bank — wir helfen Dir durch jedes Feld. Dauert in der Regel 20–30 Minuten.</div></div></li>
-        <li class="kalk-c-weg-step"><div class="kalk-c-weg-num">2</div><div class="kalk-c-weg-body"><div class="kalk-c-weg-title">Wohneinheit sichern</div><div class="kalk-c-weg-desc">Reservierung. Die Wohneinheiten gehen unter Marktwert weg — die Reservierung schützt Dich davor, dass sie an einen anderen Interessenten geht, während Du die nächsten Schritte gehst.</div></div></li>
+        <li class="kalk-c-weg-step"><div class="kalk-c-weg-num">2</div><div class="kalk-c-weg-body"><div class="kalk-c-weg-title">Wohneinheit sichern</div><div class="kalk-c-weg-desc">Reservierung. Wir verkaufen Wohnungen mit Markteinkauf-Vorteil — die Reservierung schützt Dich davor, dass eine andere Interessenten-Anfrage Dich überholt, während Du die nächsten Schritte gehst.</div></div></li>
         <li class="kalk-c-weg-step"><div class="kalk-c-weg-num">3</div><div class="kalk-c-weg-body"><div class="kalk-c-weg-title">Objektunterlagen prüfen</div><div class="kalk-c-weg-desc">Du bekommst Teilungserklärung, Protokolle, Wirtschaftsplan, Energieausweis. Damit prüfst Du selbst — oder mit Deinem Berater — dass die Unterlagen exakt das wiedergeben, was wir Dir hier gezeigt haben.</div></div></li>
         <li class="kalk-c-weg-step"><div class="kalk-c-weg-num">4</div><div class="kalk-c-weg-body"><div class="kalk-c-weg-title">Finanzierungszusage erhalten</div><div class="kalk-c-weg-desc">Mit der vollständigen Selbstauskunft und den Objektunterlagen geht es zur Bank. Sobald die schriftliche Finanzierungszusage da ist, schaltet die nächste Stufe frei.</div></div></li>
         <li class="kalk-c-weg-step"><div class="kalk-c-weg-num">5</div><div class="kalk-c-weg-body"><div class="kalk-c-weg-title">Besichtigung vor Ort</div><div class="kalk-c-weg-desc">Du siehst die Wohnung mit eigenen Augen — Lage, Substanz, Treppenhaus, Umfeld. Erst wenn das passt, machen wir den letzten Schritt.</div></div></li>
@@ -3649,8 +3649,8 @@ function renderStoryPremium(r) {
         <div class="kalk-c-bub-cell"><div class="kalk-c-bub-step">Weitergabe</div><div class="kalk-c-bub-body">Portionsgerecht. Nicht jeder kann ein Mehrfamilienhaus kaufen — eine einzelne Wohnung schon. So machen wir den Sachwert für Privatanleger zugänglich.</div></div>
       </div>
       <div class="kalk-c-bub-foot">
-        <div class="kalk-c-bub-foot-item"><strong>Keine Vertriebsprovision.</strong> Du zahlst keinen Vermittler-Aufschlag. Unser Geld verdienen wir im Einkauf, nicht am Verkauf.</div>
-        <div class="kalk-c-bub-foot-item"><strong>Skin in the Game.</strong> Wir behalten regelmäßig Einheiten im eigenen Bestand. Auch die Gesellschafter kaufen privat — wir investieren in das, was wir Dir anbieten.</div>
+        <div class="kalk-c-bub-foot-item"><strong>Keine zusätzliche Vermittlungs-Provision.</strong> Du zahlst keinen Aufschlag oben drauf. Unsere Marge kalkulieren wir transparent in den Einkaufs-Verkauf-Spread — auf Wunsch erklären wir Dir das Modell konkret im Termin.</div>
+        <div class="kalk-c-bub-foot-item"><strong>Eigeninvestments.</strong> Die Gesellschafter behalten regelmäßig Einheiten im Privatbestand. Konkrete Beispiele aus den letzten Quartalen zeigen wir gerne im persönlichen Termin.</div>
       </div>
     </section>
   `;
@@ -3682,7 +3682,7 @@ function renderStoryPremium(r) {
         </div>
         <div class="kalk-c-bub-cell">
           <div class="kalk-c-bub-step">Restnutzungsdauer-Gutachten</div>
-          <div class="kalk-c-bub-body">Wir übertragen es Dir so, dass es vor dem Finanzamt hält — höhere AfA, mehr Steuervorteil über die volle Laufzeit.</div>
+          <div class="kalk-c-bub-body">Wir bereiten es so vor, dass es üblicherweise vom Finanzamt anerkannt wird — höhere AfA, mehr Steuervorteil über die Laufzeit. Letzte Entscheidung trifft das zuständige Finanzamt.</div>
         </div>
         <div class="kalk-c-bub-cell">
           <div class="kalk-c-bub-step">Übergabe &amp; WEG-Integration</div>
@@ -4884,7 +4884,7 @@ function openInvestDocModal() {
           </button>
           <button type="button" class="reserv-confirm" id="invest-mail-btn" ${kEmail ? '' : 'disabled title="Kunde hat keine E-Mail in Airtable"'} style="width:100%;text-align:left;padding:14px 18px;background:#fff;color:#1A1A17;border:1px solid var(--accent);">
             ✉ Mail-Vorlage öffnen
-            <div style="font-size:11px;font-weight:normal;margin-top:4px;opacity:0.7;">Empfänger: ${esc(kEmail || '(keine E-Mail)')}. Achtung: 2-Schritt-Prozess — erst speichert sich das PDF (Druckdialog), dann öffnet Dein Mail-Programm mit vorgefülltem Text. Du musst die PDF noch manuell anhängen.</div>
+            <div style="font-size:11px;font-weight:normal;margin-top:4px;opacity:0.7;">Empfänger: ${esc(kEmail || '(keine E-Mail)')}. Öffnet Dein Mail-Programm mit vorgefülltem Text — Du wählst, was Du anhängst (z.B. das vorher heruntergeladene PDF).</div>
           </button>
         </div>
       </div>
@@ -4942,33 +4942,27 @@ function sendInvestDocMail() {
     '— B&B Immo GmbH · Burdastraße 33 · 77746 Schutterwald · HRB 727 814 (Freiburg)',
   ].join('\n');
   const mailtoUrl = `mailto:${encodeURIComponent(state.kunde.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  // 1) Erst PDF generieren (Browser-Druckdialog) — User speichert als PDF.
-  toast('PDF wird gleich erzeugt — bitte als „Als PDF speichern" wählen, dann im Mail-Programm anhängen', 'info');
-  exportInvestPdf();
-  // 2) Nach kurzer Verzögerung: Mailclient in NEUEM Tab öffnen — sonst verliert
-  //    die aktuelle Seite ihren State (Edgar-Feedback 24.05.2026: nach Mail-Klick
-  //    war WE-Auswahl weg). window.open mit _blank löst das.
-  setTimeout(() => {
-    try {
-      const w = window.open(mailtoUrl, '_blank');
-      // Manche Browser blocken window.open für mailto: → Fallback auf programmatisch
-      // erstellten Link mit target=_blank, der via click() ausgelöst wird.
-      if (!w) {
-        const a = document.createElement('a');
-        a.href = mailtoUrl;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => a.remove(), 100);
-      }
-    } catch {}
-    toast('Mail-Vorlage geöffnet — PDF aus Downloads als Anhang anhängen.', 'info');
-  }, 1500);
-  // 3) Audit-Log: Mail-Versand in Aktivitäten-Historie eintragen (Edgar-Feedback 24.05.2026)
+  // FS-1 (24.05.2026, Vertriebler HARD-BLOCKER B4): Im Live-Termin war
+  // PDF+Mailto gleichzeitig zu chaotisch (Druckdialog + Mailclient öffnen sich).
+  // Jetzt: NUR Mailto öffnen. Vertriebler kann vorher (bewusste Entscheidung)
+  // PDF separat herunterladen und anhängen. Cleaner Workflow für Screen-Sharing.
   try {
-    _appendActivityToNotizen(`Investitions-Doc per Mail an ${state.kunde.email} versandt${weLabel ? ' (' + weLabel + ')' : ''}`);
+    const w = window.open(mailtoUrl, '_blank');
+    if (!w) {
+      const a = document.createElement('a');
+      a.href = mailtoUrl;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => a.remove(), 100);
+    }
+  } catch {}
+  toast('Mail-Vorlage geöffnet — bitte PDF separat über „Als PDF herunterladen" erzeugen und anhängen', 'info');
+  // Audit-Log: Mail-Versand
+  try {
+    _appendActivityToNotizen(`Investitions-Doc-Mail-Vorlage an ${state.kunde.email} geöffnet${weLabel ? ' (' + weLabel + ')' : ''}`);
   } catch {}
 }
 window.sendInvestDocMail = sendInvestDocMail;
@@ -5131,14 +5125,16 @@ function _reservEnsureStyles() {
       background: transparent; color: #6b6b6b; border: 1px solid #d4d0ca;
     }
     .reserv-modal .reserv-cancel:hover { background: #f0ece5; }
+    /* FS-1 (24.05.2026, UX-Designer BLOCKER #2): Schwarz/Weiß-Buttons auf
+       Bronze-Accent umgestellt — vorher fremde Marken-Identität im Reserv-Modal. */
     .reserv-modal .reserv-confirm {
-      background: #1a1a1a; color: #fff;
+      background: #B08A4D; color: #fff;
     }
-    .reserv-modal .reserv-confirm:hover { background: #000; }
+    .reserv-modal .reserv-confirm:hover { background: #8E6E3D; }
     .reserv-modal a.reserv-cta {
-      background: #1a1a1a; color: #fff; font-weight: 500;
+      background: #B08A4D; color: #fff; font-weight: 500;
     }
-    .reserv-modal a.reserv-cta:hover { background: #000; }
+    .reserv-modal a.reserv-cta:hover { background: #8E6E3D; }
     .reserv-modal .reserv-hint {
       margin-top: 14px; padding: 10px 12px; background: #fff5e1; border-left: 3px solid #d9a200;
       font-size: 0.88em; color: #6b5400; border-radius: 4px;

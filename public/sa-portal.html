@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Selbstauskunft — B&amp;B Immo</title>
+<!-- FS-1 Pen-Tester (2026-05-24): Token in URL darf nicht an externe Resources
+     leaken (Google Fonts, etc). no-referrer schützt vor Token-Leak via Referer. -->
+<meta name="referrer" content="no-referrer">
+<!-- Token-Schutz auch via CSP: nur self + Fonts erlaubt. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:;">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -121,13 +126,14 @@ label {
 }
 input[type=text], input[type=number], input[type=email], input[type=date], select, textarea {
   width: 100%;
-  padding: 9px 12px;
+  padding: 11px 12px; /* FS-1 UX: 44px Touch-Target auf Mobile (vorher 36px) */
   font-size: 14px;
   border: 1px solid var(--border-strong);
   border-radius: 5px;
   font-family: inherit;
   background: var(--bg-card);
   color: var(--text);
+  min-height: 44px; /* expliziter Touch-Min */
 }
 input:focus, select:focus, textarea:focus {
   outline: none;
@@ -136,7 +142,7 @@ input:focus, select:focus, textarea:focus {
 }
 input[readonly] {
   background: var(--bg-soft);
-  color: var(--text-tertiary);
+  color: var(--text-secondary); /* FS-1 UX: WCAG-AA-Kontrast (vorher --text-tertiary 3.5:1) */
   cursor: not-allowed;
 }
 textarea {
@@ -275,17 +281,47 @@ button.btn-add:hover {
 // ============================================================
 // SA-Portal: vereinfachte Selbstauskunft für den Kunden
 // Token in URL, holt + speichert via /api/sa-portal/[token]
+// FS-1 (24.05.2026): Token aus URL nach Erstausführung entfernen
+// (Pen-Tester: Referrer/History-Leak), in sessionStorage für Re-Loads.
 // ============================================================
 
 const params = new URLSearchParams(location.search);
-const TOKEN = params.get('token') || '';
+const SS_KEY = 'bbk_sa_portal_token';
+let TOKEN = params.get('token') || '';
+if (TOKEN) {
+  try {
+    sessionStorage.setItem(SS_KEY, TOKEN);
+    // URL bereinigen — Token bleibt nur im sessionStorage
+    history.replaceState(null, '', location.pathname);
+  } catch {}
+} else {
+  try { TOKEN = sessionStorage.getItem(SS_KEY) || ''; } catch {}
+}
+
 let state = {
   loaded: false,
   kunde: null,
   sa: null,
   saving: false,
   saved: false,
+  expiresAt: null,
 };
+
+// FS-1 (24.05.2026, Maurice HIGH #11): localStorage-Backup. Wenn Netzwerk-Save
+// fehlschlägt, zumindest lokal speichern, damit Kunde nichts verliert.
+const LS_BACKUP_KEY = 'bbk_sa_portal_backup';
+function _saveBackup() {
+  try { localStorage.setItem(LS_BACKUP_KEY, JSON.stringify(state.sa || {})); } catch {}
+}
+function _loadBackup() {
+  try {
+    const raw = localStorage.getItem(LS_BACKUP_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function _clearBackup() {
+  try { localStorage.removeItem(LS_BACKUP_KEY); } catch {}
+}
 
 // === Initial-Load ===
 async function init() {
@@ -300,16 +336,44 @@ async function init() {
       throw new Error(err.error || 'Link ungültig oder abgelaufen.');
     }
     const data = await res.json();
-    state.kunde = { vorname: data.vorname, nachname: data.nachname, email: data.email };
+    state.kunde = { vorname: data.vorname, nachname: data.nachname };
+    state.expiresAt = data.expiresAt;
     state.sa = data.saJson || _newSa();
     // Defensives Defaults
     if (!state.sa.antragsteller) state.sa.antragsteller = _newAntragsteller();
     if (state.sa.antragGemeinsam === undefined) state.sa.antragGemeinsam = false;
+    // FS-1 (24.05.2026, Maurice #11): wenn lokales Backup existiert + ist neuer
+    // (mehr Felder ausgefüllt) als der Server-Stand → User fragen.
+    const backup = _loadBackup();
+    if (backup && _isMoreFilledThan(backup, state.sa)) {
+      const useBackup = confirm(
+        'Auf diesem Gerät sind lokale Änderungen gefunden worden, die noch nicht beim Vertrieb angekommen sind.\n\n' +
+        'Möchtest Du diese lokal gespeicherten Daten wiederherstellen?\n\n' +
+        '(Klick "OK" für lokale Version, "Abbrechen" für die Vertriebs-Version)'
+      );
+      if (useBackup) state.sa = backup;
+    }
     state.loaded = true;
     render();
   } catch (e) {
     renderError(e.message || 'Fehler beim Laden.');
   }
+}
+
+// Heuristik: ist `a` weiter ausgefüllt als `b`? Zählt non-null/non-zero-Felder.
+function _isMoreFilledThan(a, b) {
+  const count = (o) => {
+    if (!o || typeof o !== 'object') return 0;
+    let n = 0;
+    for (const k in o) {
+      const v = o[k];
+      if (v == null || v === '' || v === 0 || v === false) continue;
+      if (typeof v === 'object') n += count(v);
+      else n += 1;
+    }
+    return n;
+  };
+  return count(a) > count(b) + 3; // Toleranz: erst ab 3 mehr Werten als "größer"
 }
 
 function _newSa() {
@@ -364,6 +428,10 @@ function render() {
   const a = state.sa.antragsteller || {};
   const m = state.sa.mitantragsteller || {};
   const hasM = !!state.sa.antragGemeinsam;
+  // Gültig-bis-Datum für Token-Info
+  const expDateStr = state.expiresAt
+    ? new Date(state.expiresAt).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })
+    : null;
 
   const app = document.getElementById('app');
   app.innerHTML = `
@@ -375,6 +443,9 @@ function render() {
         Bitte fülle die Felder so genau aus wie möglich. Was Du nicht parat hast, kannst Du leer lassen — wir ergänzen das gemeinsam beim nächsten Gespräch.
         <strong>Bei zwei Antragstellern</strong> (z.B. Du und Dein Partner) aktiviere den Schalter unten.
       </div>
+      ${expDateStr ? `<div style="margin-top:10px;font-size:11px;color:var(--text-tertiary);">
+        🔒 Dieser Link ist gültig bis <strong>${esc(expDateStr)}</strong>. Du kannst zwischendurch zwischenspeichern und später weitermachen.
+      </div>` : ''}
     </header>
 
     ${renderAntragsteller('Antragsteller 1', a, false)}
@@ -393,8 +464,19 @@ function render() {
         <button class="btn" onclick="window._save(true)" ${state.saving ? 'disabled' : ''}>Selbstauskunft absenden</button>
       </div>
     </div>
-    <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text-tertiary);">
-      B&amp;B Immo GmbH · Burdastraße 23 · 77746 Schutterwald · HRB 727 814 (Freiburg)
+    <!-- FS-1 (24.05.2026, Maurice CRITICAL #2): Datenschutz-Hinweis -->
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:16px 18px;margin-top:18px;font-size:12px;color:var(--text-secondary);line-height:1.6;">
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;">Was passiert mit Deinen Daten?</div>
+      <ul style="margin:0 0 0 18px;padding:0;">
+        <li><strong>Empfänger:</strong> Deine Daten landen direkt im Backoffice von B&amp;B Immo GmbH. Wir geben sie nur an die finanzierende Bank weiter — nach Deiner ausdrücklichen Freigabe.</li>
+        <li><strong>Speicherdauer:</strong> Solange der Geschäftsvorgang läuft + gesetzliche Aufbewahrungsfristen (i.d.R. 10 Jahre). Auf Wunsch früher löschen.</li>
+        <li><strong>Übertragung:</strong> Verschlüsselt via HTTPS. Token im Link wird nach Erstausführung aus der URL entfernt.</li>
+        <li><strong>Deine Rechte:</strong> Auskunft, Berichtigung, Löschung, Datenübertragbarkeit nach DSGVO Art. 15-21. Kontakt: datenschutz@immo-stein.de</li>
+      </ul>
+    </div>
+    <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text-tertiary);line-height:1.7;">
+      B&amp;B Immo GmbH · Burdastraße 23 · 77746 Schutterwald · HRB 727 814 (Amtsgericht Freiburg)<br>
+      Vermittlung im Rahmen einer Erlaubnis nach § 34c GewO
     </div>
   `;
 }
@@ -568,6 +650,8 @@ function _markUnsaved() {
 window._save = async function(submit) {
   if (state.saving) return;
   state.saving = true;
+  // FS-1 (Maurice #11): IMMER lokales Backup VOR dem Server-Save — schützt bei Netzwerk-Fail
+  _saveBackup();
   const el = document.getElementById('save-status');
   if (el) { el.textContent = '… speichert'; el.className = 'save-status saving'; }
   try {
@@ -582,6 +666,7 @@ window._save = async function(submit) {
     }
     state.saved = true;
     state.saving = false;
+    _clearBackup(); // Server hat es → lokales Backup nicht mehr nötig
     if (submit) {
       renderSuccess();
       return;
@@ -589,7 +674,11 @@ window._save = async function(submit) {
     if (el) { el.textContent = '✓ Gespeichert'; el.className = 'save-status saved'; }
   } catch (e) {
     state.saving = false;
-    if (el) { el.textContent = '✕ ' + (e.message || 'Fehler'); el.className = 'save-status error'; }
+    // FS-1 (Maurice #11): Klare Fehler-Botschaft — lokal sind die Daten gesichert
+    if (el) {
+      el.textContent = '⚠ Speichern fehlgeschlagen — lokal gesichert, bitte erneut versuchen';
+      el.className = 'save-status error';
+    }
   }
 };
 

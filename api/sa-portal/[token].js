@@ -55,12 +55,17 @@ module.exports = async (req, res) => {
       if (saJsonRaw) {
         try { saJson = JSON.parse(saJsonRaw); } catch {}
       }
+      // FS-1 (24.05.2026, Maurice/Pen-Tester): Token-Ablauf als ISO-String
+      // zurückgeben, damit das Portal-UI das im Header anzeigen kann.
+      // FS-1 (24.05.2026, Pen-Tester #8): Email NICHT zurückgeben — Datenminimierung
+      // bei Token-Leak (Vorname reicht für Begrüßung).
+      const expiresAtIso = decoded.exp ? new Date(decoded.exp * 1000).toISOString() : null;
       return res.status(200).json({
         kundeId,
         vorname: f[KUNDEN_FIELDS.VORNAME] || '',
         nachname: f[KUNDEN_FIELDS.NACHNAME] || '',
-        email: f[KUNDEN_FIELDS.EMAIL] || '',
         saJson,
+        expiresAt: expiresAtIso,
       });
     }
 

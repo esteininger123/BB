@@ -323,7 +323,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <div class="pdf-c-cover-kicker">B&amp;B Investitionsanalyse · ${esc(new Date().getFullYear().toString())}</div>
         <div class="pdf-c-cover-address">${esc(projekt || '—')}${weBez ? '<br>' + esc(weBez) : ''}</div>
         <div class="pdf-c-cover-headline">
-          In zehn Jahren hast Du <span class="pdf-c-num-accent">${fmt(r.vermoegenNetto10)}</span> aufgebaut.
+          In zehn Jahren kannst Du nach unseren dokumentierten Annahmen <span class="pdf-c-num-accent">${fmt(r.vermoegenNetto10)}</span> aufgebaut haben.
         </div>
       </div>
       <div class="pdf-c-cover-bottom">
@@ -536,7 +536,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       </p>
       <ol class="pdf-c-weg">
         <li><span class="pdf-c-weg-num">1</span><div class="pdf-c-weg-body"><strong>Selbstauskunft vollständig ausfüllen.</strong>Bonität-Grundlage für die Bank — wir helfen Dir durch jedes Feld. Dauert in der Regel 20–30 Minuten.</div></li>
-        <li><span class="pdf-c-weg-num">2</span><div class="pdf-c-weg-body"><strong>Wohneinheit sichern.</strong>Reservierung. Die Wohneinheiten gehen unter Marktwert weg — die Reservierung schützt Dich davor, dass sie an einen anderen Interessenten geht, während Du die nächsten Schritte gehst.</div></li>
+        <li><span class="pdf-c-weg-num">2</span><div class="pdf-c-weg-body"><strong>Wohneinheit sichern.</strong>Reservierung. Wir verkaufen Wohnungen mit Markteinkauf-Vorteil — die Reservierung schützt Dich davor, dass eine andere Interessenten-Anfrage Dich überholt, während Du die nächsten Schritte gehst.</div></li>
         <li><span class="pdf-c-weg-num">3</span><div class="pdf-c-weg-body"><strong>Objektunterlagen prüfen.</strong>Du bekommst Teilungserklärung, Protokolle, Wirtschaftsplan, Energieausweis. Damit prüfst Du selbst — oder mit Deinem Berater — dass die Unterlagen exakt das wiedergeben, was wir Dir hier gezeigt haben.</div></li>
         <li><span class="pdf-c-weg-num">4</span><div class="pdf-c-weg-body"><strong>Finanzierungszusage erhalten.</strong>Mit der vollständigen Selbstauskunft und den Objektunterlagen geht es zur Bank. Sobald die schriftliche Finanzierungszusage da ist, schaltet die nächste Stufe frei.</div></li>
         <li><span class="pdf-c-weg-num">5</span><div class="pdf-c-weg-body"><strong>Besichtigung vor Ort.</strong>Du siehst die Wohnung mit eigenen Augen — Lage, Substanz, Treppenhaus, Umfeld. Erst wenn das passt, machen wir den letzten Schritt.</div></li>
@@ -569,7 +569,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         </div>
         <div class="pdf-c-bub-cell">
           <div class="pdf-c-bub-step" style="font-size:13pt">Restnutzungsdauer-Gutachten</div>
-          <div class="pdf-c-bub-text">Wir übertragen es Dir so, dass es vor dem Finanzamt hält — höhere AfA, mehr Steuervorteil über die volle Laufzeit.</div>
+          <div class="pdf-c-bub-text">Wir bereiten es so vor, dass es üblicherweise vom Finanzamt anerkannt wird — höhere AfA, mehr Steuervorteil über die Laufzeit. Letzte Entscheidung trifft das zuständige Finanzamt.</div>
         </div>
         <div class="pdf-c-bub-cell">
           <div class="pdf-c-bub-step" style="font-size:13pt">Übergabe &amp; WEG</div>
@@ -605,8 +605,8 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <div class="pdf-c-bub-cell"><div class="pdf-c-bub-step">Weitergabe</div><div class="pdf-c-bub-text">Portionsgerecht. Nicht jeder kann ein Mehrfamilienhaus kaufen — eine einzelne Wohnung schon. So machen wir den Sachwert für Privatanleger zugänglich.</div></div>
       </div>
       <div class="pdf-c-bub-foot">
-        <div class="pdf-c-bub-foot-item"><strong>Keine Vertriebsprovision.</strong>Du zahlst keinen Vermittler-Aufschlag. Unser Geld verdienen wir im Einkauf, nicht am Verkauf.</div>
-        <div class="pdf-c-bub-foot-item"><strong>Skin in the Game.</strong>Wir behalten regelmäßig Einheiten im eigenen Bestand. Auch die Gesellschafter kaufen privat — wir investieren in das, was wir Dir anbieten.</div>
+        <div class="pdf-c-bub-foot-item"><strong>Keine zusätzliche Vermittlungs-Provision.</strong>Du zahlst keinen Aufschlag oben drauf. Unsere Marge kalkulieren wir transparent in den Einkaufs-Verkauf-Spread — auf Wunsch erklären wir Dir das Modell konkret im Termin.</div>
+        <div class="pdf-c-bub-foot-item"><strong>Eigeninvestments.</strong>Die Gesellschafter behalten regelmäßig Einheiten im Privatbestand. Konkrete Beispiele aus den letzten Quartalen zeigen wir gerne im persönlichen Termin.</div>
       </div>
       <div class="pdf-c-bub-sig">${vertrieblerBlock}</div>
       <p class="pdf-c-disclaimer" style="font-size:7pt;line-height:1.45;margin-top:6mm;">
