@@ -2311,7 +2311,10 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .kalk-c-col-chart .kalk-c-chart-caption{margin-top:16px;font-size:11px;color:var(--text-tertiary);letter-spacing:.02em;line-height:1.6}
 
 /* Section 1 — Objekt-Liste */
-.kalk-c-objekt-list{display:grid;grid-template-columns:1fr 1fr;gap:0 64px}
+/* FS-3l (Re-Audit P2 25.05.2026): align-content: start sodass beide Spalten
+   oben ausgerichtet bleiben wenn eine Spalte weniger Rows hat (z.B. WE ohne
+   Stellplatz hat 4 vs 6 Rows). Vorher vertikaler Versatz. */
+.kalk-c-objekt-list{display:grid;grid-template-columns:1fr 1fr;gap:0 64px;align-items:start}
 .kalk-c-objekt-row{display:flex;justify-content:space-between;align-items:baseline;padding:14px 0;border-bottom:1px solid var(--border)}
 .kalk-c-objekt-row .kalk-c-k{font-size:13px;color:var(--text-tertiary);font-weight:400}
 .kalk-c-objekt-row .kalk-c-v{font-size:16px;color:var(--text-primary);font-weight:400;font-variant-numeric:tabular-nums}
