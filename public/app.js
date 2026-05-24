@@ -3208,7 +3208,7 @@ function renderStories(r) {
 
   // QA-Fix 2026-05-23 (Edgar-Doc Bug-3 R-1): VORHER hier eingebaut, aber
   // renderStories() ist seit Iter 89 tot. Der echte Block lebt jetzt in
-  // renderStoryPremium als SECTION_8. Hier nur Stub damit kein leerer Block-
+  // renderStoryPremium als SECTION_08_NACH_NOTAR. Hier nur Stub damit kein leerer Block-
   // Verweis im concat hängt.
   const brotUndButter = story('08 — Nach dem Notartermin (DEPRECATED — siehe renderStoryPremium)', 'Wird nicht mehr aus dieser Funktion gerendert', `
     <div class="story-explain" style="grid-column:1/-1;">
@@ -3398,7 +3398,7 @@ function renderStoryPremium(r) {
   `;
 
   // ===== SECTION 1 · Objekt + Einsatz =====
-  const SECTION_1 = `
+  const SECTION_01_OBJEKT = `
     <section class="kalk-c-section">
       <div class="kalk-c-section-head">
         <div class="kalk-c-left">
@@ -3524,7 +3524,7 @@ function renderStoryPremium(r) {
     : _modus === 'index' ? 'Indexmiete jährlich'
     : _modus === 'keine' ? 'Miete konstant'
     : 'Mietsprünge alle 3 Jahre';
-  const SECTION_2 = `
+  const SECTION_02_CASHFLOW = `
     <section class="kalk-c-section">
       <div class="kalk-c-section-head">
         <div class="kalk-c-left">
@@ -3573,7 +3573,7 @@ function renderStoryPremium(r) {
   const metaLine3 = ekIstNull
     ? `Mein Anteil J10 · ${fmt(v10.vermoegenBrutto || (v10.wert - v10.restschuld))} &nbsp;·&nbsp; ohne EK-Einsatz`
     : `IRR 10 J · ${fmtPct(r.irr)} &nbsp;·&nbsp; Mein Anteil J10 · ${fmt(v10.vermoegenBrutto || (v10.wert - v10.restschuld))}`;
-  const SECTION_3 = `
+  const SECTION_03_VERMOEGEN = `
     <section class="kalk-c-section">
       <div class="kalk-c-section-head">
         <div class="kalk-c-left">
@@ -3607,7 +3607,7 @@ function renderStoryPremium(r) {
   // ===== SECTION 4 · Vergleich =====
   // Iter 90: bei 110%-Finanzierung (EK=0) den Sparbuch-Vergleich umformulieren —
   // "0 € auf 0 € gewachsen" macht keinen Sinn. Stattdessen die reine Sachwert-Story.
-  const SECTION_4 = ekIstNull ? `
+  const SECTION_04_VERGLEICH = ekIstNull ? `
     <section class="kalk-c-section">
       <div class="kalk-c-section-head" style="justify-content:center;text-align:center;flex-direction:column;align-items:center;gap:0;margin-bottom:48px">
         <div class="kalk-c-left" style="text-align:center">
@@ -3639,7 +3639,7 @@ function renderStoryPremium(r) {
   `;
 
   // ===== SECTION 5 · Drilldowns (Trigger) =====
-  const SECTION_5 = `
+  const SECTION_05_DETAIL = `
     <section class="kalk-c-drill-section">
       <div class="kalk-c-drill-head">
         <div class="kalk-c-section-num">05 · Detail</div>
@@ -3657,7 +3657,7 @@ function renderStoryPremium(r) {
   `;
 
   // ===== SECTION 6 · Der Weg =====
-  const SECTION_6 = `
+  const SECTION_07_WEITERGEHT = `
     <section class="kalk-c-section">
       <div class="kalk-c-section-head">
         <div class="kalk-c-left">
@@ -3681,7 +3681,7 @@ function renderStoryPremium(r) {
   `;
 
   // ===== SECTION 7 · Brot & Butter =====
-  const SECTION_7 = `
+  const SECTION_09_BROT_BUTTER = `
     <section class="kalk-c-section kalk-c-bub-section">
       <div class="kalk-c-section-head">
         <div class="kalk-c-left">
@@ -3704,12 +3704,12 @@ function renderStoryPremium(r) {
     </section>
   `;
 
-  // ===== SECTION_8 — Nach dem Notartermin (Edgar-Doc Bug-3 R-1) =====
+  // ===== SECTION_08_NACH_NOTAR — Nach dem Notartermin (Edgar-Doc Bug-3 R-1) =====
   // Edgar's Vorgabe: Käufer soll wissen, dass er nach Notar nicht alleine
   // dasteht. Was B&B konkret für ihn übernimmt — minimalistisch, einfach,
   // visuell. Re-uses kalk-c-section + kalk-c-bub-grid Klassen für Konsistenz
-  // mit SECTION_7 (Brot & Butter Konzept).
-  const SECTION_8 = `
+  // mit SECTION_09_BROT_BUTTER (Brot & Butter Konzept).
+  const SECTION_08_NACH_NOTAR = `
     <section class="kalk-c-section kalk-c-bub-section">
       <div class="kalk-c-section-head">
         <div class="kalk-c-left">
@@ -3752,10 +3752,10 @@ function renderStoryPremium(r) {
     </section>
   `;
 
-  // ===== SECTION_9 — Was wäre wenn (vereinfacht v3, Edgar 24.05.2026 14:30)
+  // ===== SECTION_06_WAS_WENN — Was wäre wenn (vereinfacht v3, Edgar 24.05.2026 14:30)
   // 3 klare Szenario-Karten + kurzer Renov-Block. Statt 5×4-Matrix die für
   // Käufer überfordernd war.
-  const SECTION_9 = (() => {
+  const SECTION_06_WAS_WENN = (() => {
     if (!window.Kalk || !window.Kalk.recalc || !r.inputs) return '';
     // Basis (heute) + Normal-Wind + Sturm rechnen
     const base = r; // schon vorhanden
@@ -4058,15 +4058,15 @@ function renderStoryPremium(r) {
   // → 9 Brot & Butter (am Ende). Identische Chronologie in PDF.
   el.innerHTML = '<div class="kalk-c-magazine">'
     + HERO
-    + SECTION_1   // 01 Objekt
-    + SECTION_2   // 02 Cashflow J1
-    + SECTION_3   // 03 Vermögen J10
-    + SECTION_4   // 04 Vergleich (Sparbuch/Hebel)
-    + SECTION_5   // 05 Im Detail
-    + SECTION_9   // 06 Was wäre wenn (NEU verschoben — vor Aktionsmodus)
-    + SECTION_6   // 07 Wie es weitergeht (vor Notar)
-    + SECTION_8   // 08 Nach dem Notartermin
-    + SECTION_7   // 09 Brot & Butter (NEU am ENDE)
+    + SECTION_01_OBJEKT   // 01 Objekt
+    + SECTION_02_CASHFLOW   // 02 Cashflow J1
+    + SECTION_03_VERMOEGEN   // 03 Vermögen J10
+    + SECTION_04_VERGLEICH   // 04 Vergleich (Sparbuch/Hebel)
+    + SECTION_05_DETAIL   // 05 Im Detail
+    + SECTION_06_WAS_WENN   // 06 Was wäre wenn (NEU verschoben — vor Aktionsmodus)
+    + SECTION_07_WEITERGEHT   // 07 Wie es weitergeht (vor Notar)
+    + SECTION_08_NACH_NOTAR   // 08 Nach dem Notartermin
+    + SECTION_09_BROT_BUTTER   // 09 Brot & Butter (NEU am ENDE)
     + CLOSING
     + '</div>'
     + bonModal
