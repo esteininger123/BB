@@ -3211,7 +3211,7 @@ function renderStories(r) {
   const brotUndButter = story('08 — Nach dem Notartermin (DEPRECATED — siehe renderStoryPremium)', 'Wird nicht mehr aus dieser Funktion gerendert', `
     <div class="story-explain" style="grid-column:1/-1;">
       <p style="margin:0 0 18px 0;font-size:15px;line-height:1.55;color:var(--text-primary);">
-        Du musst Dich nicht um Mieterhöhungen, Steuerformulare, Übergaben oder Handwerker kümmern. Wir bauen Dich an wie einen alten Bekannten und Du hast direkten Draht über WhatsApp — auch für Dinge, von denen Du noch gar nicht weißt, dass sie auftreten werden.
+        Mieterhöhungen, Steuerformulare, Übergaben, Handwerker — das übernehmen wir. Du hast einen WhatsApp-Direktdraht zu uns: für die Fragen, die jetzt schon da sind, und für die, die später kommen.
       </p>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:20px;">
         <div style="padding:14px 16px;background:#FBFAF7;border-left:3px solid #8E6E3D;border-radius:4px;">
@@ -3365,7 +3365,7 @@ function renderStoryPremium(r) {
       <div class="kalk-c-hero-body">
         <div class="kalk-c-hero-address">${adresseZeile}</div>
         <h1 class="kalk-c-hero-headline">
-          In zehn Jahren kannst Du nach unseren dokumentierten Annahmen <span class="kalk-c-num-accent">${fmt(r.vermoegenNetto10)}</span> aufgebaut haben.
+          In zehn Jahren baust Du nach unserer Rechnung <span class="kalk-c-num-accent">${fmt(r.vermoegenNetto10)}</span> Nettovermögen auf.
         </h1>
         <p class="kalk-c-hero-sub">
           ${i.qm ? 'Eine ' + i.qm.toString().replace('.', ',') + '-qm-Wohnung' : 'Eine Wohnung'}${_modusHeroSubtitle}. Die folgende Analyse zeigt Deinen Vermögensaufbau, Deine monatliche Belastung und den Vergleich zur klassischen Sparbuch-Alternative.
@@ -3434,7 +3434,7 @@ function renderStoryPremium(r) {
         </div>
       </div>
       <div class="kalk-c-einsatz-block">
-        <div class="kalk-c-einsatz-head">Was Du einsetzt — Dein Eintritt in den Sachwert</div>
+        <div class="kalk-c-einsatz-head">Was Du beim Notar bezahlst</div>
         <div class="kalk-c-einsatz-grid">
           <div class="kalk-c-einsatz-cell">
             <div class="kalk-c-einsatz-label">Kaufpreis gesamt</div>
@@ -3453,13 +3453,13 @@ function renderStoryPremium(r) {
           </div>
         </div>
         <p class="kalk-c-einsatz-note">
-          Die Kaufnebenkosten sind kein Verlust — sie sind der einmalige Eintrittspreis in den Sachwert. Mit diesem Einsatz sicherst Du Dir Zugang zu allen Vorteilen, die auf den nächsten Abschnitten folgen.
+          Die Kaufnebenkosten — Grunderwerbsteuer, Notar, Grundbuch — fallen einmalig an. Sie gehen nicht in den Marktwert ein und kommen beim späteren Verkauf nicht zurück.
         </p>
       </div>
 
       ${(r.mietsubventionGesamt && r.mietsubventionGesamt > 0) ? `
       <div class="kalk-c-einsatz-block" style="margin-top:24px;background:var(--positive-bg);">
-        <div class="kalk-c-einsatz-head">Was wir dazu legen — Mietsubvention vom Verkäufer</div>
+        <div class="kalk-c-einsatz-head">Mietsubvention vom Verkäufer (B&amp;B)</div>
         <div class="kalk-c-einsatz-grid">
           <div class="kalk-c-einsatz-cell">
             <div class="kalk-c-einsatz-label">Subvention gesamt</div>
@@ -3533,7 +3533,7 @@ function renderStoryPremium(r) {
           ${r.belastungMo >= 0
             ? 'Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst. Was bleibt, ist ein monatlicher Überschuss.'
             : (selbsttragungPct >= 95
-              ? 'Die Wohnung trägt sich nahezu selbst. Was bleibt, ist eine kalkulierte monatliche Eigenleistung, die mit der Zeit kleiner wird.'
+              ? `Die Wohnung trägt sich zu rund ${selbsttragungPct} % selbst — die fehlenden ${100 - selbsttragungPct} % leistest Du als monatliche Eigenleistung von ${fmtEurMo(Math.abs(r.belastungMo))}, die mit jedem Jahr kleiner wird.`
               : 'Die Wohnung trägt einen Teil der laufenden Kosten selbst. Die verbleibende monatliche Eigenleistung schrumpft Jahr für Jahr durch Mietsteigerung und Tilgung.')}
         </div>
       </div>
@@ -3642,7 +3642,7 @@ function renderStoryPremium(r) {
       <div class="kalk-c-drill-head">
         <div class="kalk-c-section-num">05 · Detail</div>
         <h2>Wenn Du tiefer schauen willst.</h2>
-        <p>Diese Analyse stützt sich auf dokumentierte Annahmen. Du kannst jeden Wert nachvollziehen — Cashflow-Reihen, Vermögensaufstellung, Bonität nach Erwerb sowie die zugrunde liegenden Rechen-Parameter.</p>
+        <p>Du kannst jeden Wert dieser Analyse nachvollziehen — Cashflow-Reihen, Vermögensaufstellung, Bonität nach Erwerb und alle Rechen-Annahmen.</p>
       </div>
       <div class="kalk-c-drill-links">
         <button type="button" class="kalk-c-drill-link" data-kalk-c-modal="bonitaet">Bonitäts-Saldo<span class="kalk-c-arrow">Vor &amp; nach Erwerb</span></button>
@@ -3716,7 +3716,7 @@ function renderStoryPremium(r) {
           <h2 class="kalk-c-section-title">Du stehst nicht alleine da.</h2>
         </div>
         <div class="kalk-c-right">
-          Du musst Dich nicht um Mieterhöhungen, Steuerformulare, Übergaben oder Handwerker kümmern. Wir bauen Dich an wie einen alten Bekannten und Du hast direkten Draht über WhatsApp — auch für Dinge, von denen Du noch gar nicht weißt, dass sie auftreten werden.
+          Mieterhöhungen, Steuerformulare, Übergaben, Handwerker — das übernehmen wir. Du hast einen WhatsApp-Direktdraht zu uns: für die Fragen, die jetzt schon da sind, und für die, die später kommen.
         </div>
       </div>
       <div class="kalk-c-bub-grid" style="grid-template-columns:repeat(3,1fr);">
@@ -3818,7 +3818,7 @@ function renderStoryPremium(r) {
       <div class="kalk-c-section-head">
         <div class="kalk-c-left">
           <div class="kalk-c-section-num">06 · Was wäre wenn</div>
-          <h2 class="kalk-c-section-title">Drei Szenarien — vom Normalfall bis Sturm.</h2>
+          <h2 class="kalk-c-section-title">Drei Szenarien — Basis bis Stress-Test.</h2>
         </div>
         <div class="kalk-c-right">
           Wir zeigen Dir nicht nur die schöne Sicht. Hier siehst Du, wie sich Deine Rendite verändert, wenn Zinsen steigen oder die Wohnung mal leer steht. Jede Karte ist eine eigene Berechnung über 10 Jahre.
@@ -3826,9 +3826,9 @@ function renderStoryPremium(r) {
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px;">
-        ${szenarioCard('Normal — heutige Annahmen', 'Die Zahlen aus dieser Berechnung', accents.base, base.irr, base.belastungMo, base.vermoegenNetto10)}
-        ${szenarioCard('Mit Wind — leicht verschärft', 'Zins +1 %, 1 Mo/Jahr Leerstand', accents.wind, wind.irr, wind.belastungMo, wind.vermoegenNetto10)}
-        ${szenarioCard('Sturm — Worst-Case', 'Zins +2 %, 3 Mo/Jahr Leerstand', accents.sturm, sturm.irr, sturm.belastungMo, sturm.vermoegenNetto10)}
+        ${szenarioCard('Basis — heutige Annahmen', 'Die Zahlen aus dieser Berechnung', accents.base, base.irr, base.belastungMo, base.vermoegenNetto10)}
+        ${szenarioCard('Konservativ', 'Zins +1 %, 1 Mo/Jahr Leerstand', accents.wind, wind.irr, wind.belastungMo, wind.vermoegenNetto10)}
+        ${szenarioCard('Stress-Test', 'Zins +2 %, 3 Mo/Jahr Leerstand', accents.sturm, sturm.irr, sturm.belastungMo, sturm.vermoegenNetto10)}
       </div>
 
       <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border);">
@@ -3877,7 +3877,7 @@ function renderStoryPremium(r) {
         <button class="kalk-c-modal-close" data-kalk-c-close>Schließen ×</button>
         <div class="kalk-c-eyebrow">05 · Detail · Bonitäts-Saldo</div>
         <h3>So rechnet die Bank das durch</h3>
-        <div class="kalk-c-sub">Wirkung der Investition auf Deine monatliche Liquidität und Dein freies Eigenkapital.${(r.mietsubventionGesamt && r.mietsubventionGesamt > 0) ? ' Die Mietsubvention wird bei richtiger Gestaltung wie Miete angesetzt (80 % anrechenbar).' : ' Die Bank rechnet 80 % der vereinbarten Miete als Einkommen.'}</div>
+        <div class="kalk-c-sub">So verändert sich Deine monatliche Liquidität und Dein freies Eigenkapital.${(r.mietsubventionGesamt && r.mietsubventionGesamt > 0) ? ' Wir setzen die Mietsubvention bei der Bank als anrechenbare Miete an — das funktioniert mit unseren Partnerbanken zu 80 %.' : ' Die Bank rechnet 80 % der vereinbarten Miete als Einkommen.'}</div>
         <div class="kalk-c-saldo-grid">
           <div class="kalk-c-saldo-card">
             <div class="kalk-c-label">Frei verfügbares Einkommen — Bank-Sicht</div>

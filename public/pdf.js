@@ -323,7 +323,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <div class="pdf-c-cover-kicker">B&amp;B Investitionsanalyse · ${esc(new Date().getFullYear().toString())}</div>
         <div class="pdf-c-cover-address">${esc(projekt || '—')}${weBez ? '<br>' + esc(weBez) : ''}</div>
         <div class="pdf-c-cover-headline">
-          In zehn Jahren kannst Du nach unseren dokumentierten Annahmen <span class="pdf-c-num-accent">${fmt(r.vermoegenNetto10)}</span> aufgebaut haben.
+          In zehn Jahren baust Du nach unserer Rechnung <span class="pdf-c-num-accent">${fmt(r.vermoegenNetto10)}</span> Nettovermögen auf.
         </div>
       </div>
       <div class="pdf-c-cover-bottom">
@@ -344,7 +344,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       ${ph()}
       <div class="pdf-c-section-num">01 · Das Objekt &nbsp;·&nbsp; 02 · Der Plan</div>
       <h2 class="pdf-c-section-title">Effektive Belastung im ersten Jahr: ${fmtMo(r.belastungMo)}.</h2>
-      <p class="pdf-c-lead" style="max-width:48ch">${i.qm ? 'Eine ' + i.qm.toString().replace('.', ',') + '-qm-Wohnung' : 'Eine Wohnung'}${(() => { const m = i.mietsteigerungsModus || 'sprung'; if (m === 'staffel') return ', neu vermietet mit Staffelmiete'; if (m === 'index') return ' mit Indexmietvertrag'; if (m === 'keine') return ''; return ' im Bestand'; })()}. ${r.belastungMo >= 0 ? 'Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst.' : (selbsttragungPct >= 95 ? 'Die Wohnung trägt sich nahezu selbst; was bleibt, ist eine kalkulierte monatliche Eigenleistung.' : 'Die Wohnung trägt einen Teil der laufenden Kosten selbst; die verbleibende Eigenleistung schrumpft Jahr für Jahr.')}</p>
+      <p class="pdf-c-lead" style="max-width:48ch">${i.qm ? 'Eine ' + i.qm.toString().replace('.', ',') + '-qm-Wohnung' : 'Eine Wohnung'}${(() => { const m = i.mietsteigerungsModus || 'sprung'; if (m === 'staffel') return ', neu vermietet mit Staffelmiete'; if (m === 'index') return ' mit Indexmietvertrag'; if (m === 'keine') return ''; return ' im Bestand'; })()}. ${r.belastungMo >= 0 ? 'Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst.' : `Die Wohnung trägt sich zu rund ${selbsttragungPct} % selbst — die fehlenden ${100 - selbsttragungPct} % leistest Du als monatliche Eigenleistung von ${fmtMo(Math.abs(r.belastungMo))}, die mit jedem Jahr kleiner wird.`}</p>
       <div class="pdf-c-p2-grid">
         <div class="pdf-c-obj">
           <h4>Objekt</h4>
@@ -470,7 +470,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <div class="pdf-c-saldo-row"><span>Vor Erwerb</span><span>${fmt(r.bonVermoegen || 0)}</span></div>
           <div class="pdf-c-saldo-row"><span>Einsatz Erwerb (EK + KNK)</span><span class="pdf-c-neg">− ${fmt(r.ekBedarf)}</span></div>
           <div class="pdf-c-saldo-row tot"><span>Nach Erwerb</span><span class="${(r.bonVermoegenVsEk || 0) < 0 ? 'pdf-c-neg' : ''}">${fmt(r.bonVermoegenVsEk || 0)}</span></div>
-          <p style="font-size:7.5pt;color:#7A7A72;margin-top:3mm;line-height:1.55">${(r.mietsubventionGesamt && r.mietsubventionGesamt > 0) ? 'Die Mietsubvention wird bei richtiger Gestaltung wie Miete angesetzt — sie geht zu 80 % in die anrechenbare Miete ein.' : 'Die Bank rechnet 80 % der vereinbarten Miete als zusätzliches Einkommen.'}</p>
+          <p style="font-size:7.5pt;color:#7A7A72;margin-top:3mm;line-height:1.55">${(r.mietsubventionGesamt && r.mietsubventionGesamt > 0) ? 'Wir setzen die Mietsubvention bei der Bank als anrechenbare Miete an — das funktioniert mit unseren Partnerbanken zu 80 %.' : 'Die Bank rechnet 80 % der vereinbarten Miete als zusätzliches Einkommen.'}</p>
         </div>
 
         <div class="pdf-c-p5-block">
@@ -582,14 +582,14 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
     <div class="pdf-page pdf-c-page">
       ${ph()}
       <div class="pdf-c-section-num">06 · Was wäre wenn</div>
-      <h2 class="pdf-c-section-title">Drei Szenarien — vom Normalfall bis Sturm.</h2>
+      <h2 class="pdf-c-section-title">Drei Szenarien — Basis bis Stress-Test.</h2>
       <p class="pdf-c-lead" style="max-width:62ch">
         Wir zeigen Dir nicht nur die schöne Sicht. Hier siehst Du, wie sich Deine Rendite verändert, wenn Zinsen steigen oder die Wohnung mal leer steht. Jede Karte ist eine eigene komplette Berechnung über 10 Jahre.
       </p>
       <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6mm; margin-top:6mm;">
-        ${card('Normal — heutige Annahmen', 'Die Zahlen aus dieser Rechnung', r.irr, r.belastungMo, r.vermoegenNetto10, '#2D6E47')}
-        ${card('Mit Wind — leicht verschärft', 'Zins +1 %, 1 Mo/J Leerstand', wind.irr, wind.belastungMo, wind.vermoegenNetto10, '#8E6E3D')}
-        ${card('Sturm — Worst-Case', 'Zins +2 %, 3 Mo/J Leerstand', sturm.irr, sturm.belastungMo, sturm.vermoegenNetto10, '#9A3E33')}
+        ${card('Basis — heutige Annahmen', 'Die Zahlen aus dieser Rechnung', r.irr, r.belastungMo, r.vermoegenNetto10, '#2D6E47')}
+        ${card('Konservativ', 'Zins +1 %, 1 Mo/J Leerstand', wind.irr, wind.belastungMo, wind.vermoegenNetto10, '#8E6E3D')}
+        ${card('Stress-Test', 'Zins +2 %, 3 Mo/J Leerstand', sturm.irr, sturm.belastungMo, sturm.vermoegenNetto10, '#9A3E33')}
       </div>
 
       <div style="margin-top:10mm; padding-top:5mm; border-top:.5px solid #B08A4D;">
@@ -650,7 +650,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <div class="pdf-c-section-num">08 · Nach dem Notartermin</div>
       <h2 class="pdf-c-section-title">Du stehst nicht alleine da.</h2>
       <p class="pdf-c-lead" style="max-width:62ch">
-        Du musst Dich nicht um Mieterhöhungen, Steuerformulare, Übergaben oder Handwerker kümmern. Wir bauen Dich an wie einen alten Bekannten und Du hast direkten Draht über WhatsApp — auch für Dinge, von denen Du noch gar nicht weißt, dass sie auftreten werden.
+        Mieterhöhungen, Steuerformulare, Übergaben, Handwerker — das übernehmen wir. Du hast einen WhatsApp-Direktdraht zu uns: für die Fragen, die jetzt schon da sind, und für die, die später kommen.
       </p>
       <div class="pdf-c-bub-grid" style="grid-template-columns:1fr 1fr 1fr;gap:6mm 8mm;margin-top:8mm;">
         <div class="pdf-c-bub-cell">
