@@ -328,7 +328,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       </div>
       <div class="pdf-c-cover-bottom">
         <div class="meta">${vertrieblerBlock}<br><span style="font-weight:400;font-size:7.5pt;letter-spacing:.1em;text-transform:none;color:#7A7A72;">B&amp;B Immo GmbH · Burdastraße 23 · 77746 Schutterwald · HRB 727 814 (Amtsgericht Freiburg) · Geschäftsführer laut Handelsregister</span></div>
-        <div class="date">${esc(datum)}</div>
+        <div class="date">${esc(datum)}<br><span style="font-weight:400;font-size:7pt;letter-spacing:.08em;color:#888;">Seite 1 von 9</span></div>
       </div>
     </div>
   `;
@@ -712,7 +712,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   _doPrint(
     pdfCStyle + seite1 + seite2 + seite3 + seite4 + seite5 + seite6_www + seite6 + seite7 + seite8,
     'invest',
-    _filenameHint('Investitions-Doc', kunde, {
+    _filenameHint('Investitionsanalyse', kunde, {
       weNr: kalkInputs && kalkInputs._weNr,
       projektKurz: kalkInputs && kalkInputs._projektName,
     })

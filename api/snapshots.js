@@ -62,10 +62,12 @@ module.exports = async (req, res) => {
       const allowed = await canAccessKunde(session, kundeId);
       if (!allowed) return res.status(403).json({ error: 'Kein Zugriff auf diesen Kunden' });
 
-      // Wichtig: ARRAYJOIN({Kunde}) liefert den NAMEN des Linked-Records (z.B. "Toni Bader"),
-      // NICHT die Record-ID. Filtern via filterByFormula auf Record-ID schlägt daher fehl.
-      // Lösung: alle Snapshots laden und im Code per Record-ID filtern.
-      const allRecords = await listAll(TABLES.SNAPSHOTS, {}, 5000);
+      // FS-3e (Audit Datenkonsistenz P2 25.05.2026): Cap auf 500 (vorher 5000)
+      // — bei wachsender DB sonst Performance-Bombe pro List-Aufruf.
+      // ARRAYJOIN({Kunde}) liefert Display-Name (kein Lookup nach ID möglich),
+      // Schema-Erweiterung um Kunde-ID-Lookup-Field bleibt als Post-Launch-TODO.
+      // 500 reicht für aktuell typische 250-300 WEs × wenige Snapshots/Kunde.
+      const allRecords = await listAll(TABLES.SNAPSHOTS, {}, 500);
       const mapped = allRecords
         .map(r => {
           const out = snapshotRecordToApi(r);

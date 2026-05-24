@@ -1036,7 +1036,12 @@ function recalc(i) {
   // nicht die nominale Initial-Subv. Sonst zeigt der Bank-Bogen eine höhere Mieteinnahme
   // als tatsächlich fließt (Subv-Glättung greift, wenn Bestandsmiete seit Vertrag gestiegen ist).
   const subvMo1 = subvForMonth(1);
-  const bonMieteAnr = (i.kaltmiete + i.stellplatzMiete + subvMo1) * 0.8;
+  // FS-3a (Audit Engine P2 25.05.2026): kaltmiete gegen marktCap kappen.
+  // Bei MBV > Marktmiete (Bestandsmieter über Markt oder Pflege-Fehler) rechnete
+  // die Bank vorher eine zu hohe anrechenbare Miete. Engine bucht in Monat 1
+  // tatsächlich kaltmieteForMonth(1) = capped — Bank-Bonität muss das spiegeln.
+  const kaltmieteMo1 = (typeof kaltmieteForMonth === 'function') ? kaltmieteForMonth(1) : i.kaltmiete;
+  const bonMieteAnr = (kaltmieteMo1 + i.stellplatzMiete + subvMo1) * 0.8;
   const bonAnnuMo = annuityMo; // Annuität positiv aus Sicht der Belastung
   // Quick-Modus (kompatibel zu Iter 10): nur Miete − Annuität.
   // Detail-Modus (Iter 11): zusätzlich HG + HV bank-konservativ.
@@ -1146,7 +1151,13 @@ function recalc(i) {
     bruttorendite: (() => {
       const kpG = (parseFloat(i.kaufpreis) || 0) + (parseFloat(i.stellplatzKp) || 0);
       if (!(kpG > 0)) return 0;
-      const tag1Miete = (parseFloat(i.kaltmiete) || 0) + (parseFloat(i.stellplatzMiete) || 0);
+      // FS-3a (Audit Engine P2 25.05.2026): kaltmiete gegen marktCap kappen.
+      // Vorher zeigte Brutto-Rendite eine höhere Miete als die Engine in Monat 1
+      // tatsächlich bucht → Vertriebler versprach Rendite die nicht stattfindet.
+      const cappedKaltmieteMo1 = (typeof kaltmieteForMonth === 'function')
+        ? kaltmieteForMonth(1)
+        : (parseFloat(i.kaltmiete) || 0);
+      const tag1Miete = cappedKaltmieteMo1 + (parseFloat(i.stellplatzMiete) || 0);
       const phase1Subv = (Array.isArray(i.subventionPhasen) && i.subventionPhasen[0])
         ? (parseFloat(i.subventionPhasen[0].mo) || 0)
         : (parseFloat(i.subventionMo) || 0);

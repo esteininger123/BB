@@ -1479,7 +1479,7 @@ function renderTabUebersicht() {
   const notizenCard = `
     <div class="card mt-16">
       <div class="card-title">Notizen <span class="text-tertiary text-small" style="font-weight:normal;">· Scratchpad für laufende Stichpunkte</span></div>
-      <textarea id="f-notizen" onblur="saveNotizen()" placeholder="Frei-Notizen, Gesprächs-Stichpunkte … Klick „An Historie senden" um sie dauerhaft mit Datum zu speichern.">${esc(split.notes)}</textarea>
+      <textarea id="f-notizen" oninput="_debouncedSaveNotizen()" onblur="saveNotizen()" placeholder="Frei-Notizen, Gesprächs-Stichpunkte … Klick „An Historie senden" um sie dauerhaft mit Datum zu speichern.">${esc(split.notes)}</textarea>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;">
         <span class="text-tertiary text-small">Auto-Save bei Klick außerhalb.</span>
         <button type="button" onclick="sendNotizToHistory()" class="secondary" style="padding:6px 14px;font-size:12px;">→ An Historie senden</button>
@@ -1570,6 +1570,21 @@ async function saveStammdaten(opts) {
   }
 }
 window.saveStammdaten = saveStammdaten;
+
+// FS-3a (Audit Frontend P1-3 25.05.2026): Auto-Save während Tippen mit
+// 800ms Debounce. Vorher: Notizen wurden NUR bei onblur gespeichert. Bei
+// Tab-Wechsel sofort nach Tippen feuerte zwar blur, aber wenn `tab-content`
+// dazwischen neu gerendert wurde, war `ta = null` → Save übersprungen,
+// Notiz weg. oninput speichert proaktiv — onblur als Sicherheits-Doppel.
+let _saveNotizenTimer = null;
+function _debouncedSaveNotizen() {
+  if (_saveNotizenTimer) clearTimeout(_saveNotizenTimer);
+  _saveNotizenTimer = setTimeout(() => {
+    _saveNotizenTimer = null;
+    saveNotizen();
+  }, 800);
+}
+window._debouncedSaveNotizen = _debouncedSaveNotizen;
 
 // FS-1 (24.05.2026): saveNotizen über notizenQueueMutation —
 // verhindert Race mit KAV-Saves und parallelen Activity-Logs.
@@ -1883,7 +1898,7 @@ function renderTabKalkulator() {
 
       <div class="toolbar mt-16">
         <button onclick="saveSnapshot()">Snapshot speichern</button>
-        <button class="secondary" onclick="openInvestDocModal()">Investitions-Doc senden / herunterladen</button>
+        <button class="secondary" onclick="openInvestDocModal()">Investitionsanalyse senden / herunterladen</button>
         ${state.kalk && state.kalk._isPaket
           ? `<button disabled title="Bei Paket-Auswahl noch nicht unterstützt — bitte einzelne WE wählen" style="opacity:0.45;cursor:not-allowed;">Reservierung digital senden (nur Einzel-WE)</button>`
           : `<button onclick="sendReservierungForSignature()">Reservierung digital senden</button>`}
@@ -3465,7 +3480,7 @@ function renderStoryPremium(r) {
         <!-- QA-Fix 2026-05-22 (Audit-G G-B2): PDF/Snapshot Quick-Actions direkt im Hero,
              damit der Vertriebler nicht 9× zur Section 5 scrollen muss. -->
         <div class="kalk-c-hero-actions" style="margin-top:32px;display:flex;gap:12px;flex-wrap:wrap;">
-          <button type="button" onclick="openInvestDocModal()" style="background:var(--accent-dark);color:#fff;border:none;font-family:inherit;font-size:13px;letter-spacing:.06em;padding:11px 22px;border-radius:22px;cursor:pointer;font-weight:500;">Investitions-Doc</button>
+          <button type="button" onclick="openInvestDocModal()" style="background:var(--accent-dark);color:#fff;border:none;font-family:inherit;font-size:13px;letter-spacing:.06em;padding:11px 22px;border-radius:22px;cursor:pointer;font-weight:500;">Investitionsanalyse</button>
           <button type="button" onclick="saveSnapshot()" style="background:transparent;color:var(--text-primary);border:1px solid var(--border);font-family:inherit;font-size:13px;letter-spacing:.06em;padding:11px 22px;border-radius:22px;cursor:pointer;font-weight:500;">Snapshot speichern</button>
         </div>
       </div>
@@ -4961,9 +4976,9 @@ function openInvestDocModal() {
   const kName = (state.kunde.vorname || '') + ' ' + (state.kunde.nachname || '');
   ov.innerHTML = `
     <div class="reserv-modal">
-      <h2>Investitions-Doc</h2>
+      <h2>Investitionsanalyse</h2>
       <div class="reserv-modal-body">
-        <p style="margin:0 0 16px 0;line-height:1.5;">Wähle wie Du die Investitions-Doc weitergeben willst:</p>
+        <p style="margin:0 0 16px 0;line-height:1.5;">Wähle wie Du die Investitionsanalyse weitergeben willst:</p>
         <div style="display:flex;flex-direction:column;gap:12px;">
           <button type="button" class="reserv-confirm" id="invest-download-btn" style="width:100%;text-align:left;padding:14px 18px;">
             ⬇ Als PDF herunterladen
@@ -5049,7 +5064,7 @@ function sendInvestDocMail() {
   toast('Mail-Vorlage geöffnet — bitte PDF separat über „Als PDF herunterladen" erzeugen und anhängen', 'info');
   // Audit-Log: Mail-Versand
   try {
-    _appendActivityToNotizen(`Investitions-Doc-Mail-Vorlage an ${state.kunde.email} geöffnet${weLabel ? ' (' + weLabel + ')' : ''}`);
+    _appendActivityToNotizen(`Investitionsanalyse-Mail-Vorlage an ${state.kunde.email} geöffnet${weLabel ? ' (' + weLabel + ')' : ''}`);
   } catch {}
 }
 window.sendInvestDocMail = sendInvestDocMail;
@@ -5527,8 +5542,17 @@ function _showSaPortalLinkModal(url, expiresAt) {
       </div>
     </div>
   `;
+  // FS-3a (Audit Frontend P1-5): ESC-Handler nach Render registrieren
+  document.addEventListener('keydown', _saPortalKeyHandler);
 }
-window._saPortalClose = function() { const m = document.getElementById('sa-portal-modal'); if (m) m.remove(); };
+// FS-3a (Audit Frontend P1-5 25.05.2026): ESC schließt SA-Portal-Link-Modal
+function _saPortalKeyHandler(e) { if (e.key === 'Escape') window._saPortalClose(); }
+window._saPortalClose = function() {
+  const m = document.getElementById('sa-portal-modal');
+  if (m) m.remove();
+  document.removeEventListener('keydown', _saPortalKeyHandler);
+};
+// Listener registriert sich beim Open via _showSaPortalLinkModal (siehe unten/oben).
 window._saPortalCopy = async function() {
   const inp = document.getElementById('sa-portal-url');
   if (!inp) return;
@@ -7955,6 +7979,8 @@ function _renderWeVergleichModal() {
     modalEl.id = 'we-vergleich-modal';
     document.body.appendChild(modalEl);
   }
+  // FS-3a (Audit Frontend P1-4): ESC schließt Modal
+  document.addEventListener('keydown', _weVergleichKeyHandler);
   modalEl.innerHTML = `
     <div style="position:fixed;inset:0;background:rgba(26,26,23,.55);z-index:120;display:flex;align-items:center;justify-content:center;padding:24px;" onclick="if(event.target===this)window._weVergleichClose()">
       <div style="background:#FBFAF7;border-radius:12px;max-width:1100px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 24px 64px rgba(26,26,23,.32);">
@@ -7983,8 +8009,13 @@ function _renderWeVergleichModal() {
 function _weVergleichClose() {
   const m = document.getElementById('we-vergleich-modal');
   if (m) m.remove();
+  // FS-3a (Audit Frontend P1-4 25.05.2026): ESC-Handler entfernen wenn Modal zu
+  document.removeEventListener('keydown', _weVergleichKeyHandler);
 }
 window._weVergleichClose = _weVergleichClose;
+function _weVergleichKeyHandler(e) {
+  if (e.key === 'Escape') _weVergleichClose();
+}
 
 // Welle 4 (2026-05-24): Pflegelücken-Detail-Modal. Schenki-Pain-Reducer.
 function _weLuckenShow(weId) {
@@ -8048,11 +8079,15 @@ function _weLuckenShow(weId) {
       </div>
     </div>
   `;
+  // FS-3a (Audit Frontend P1-4): ESC schließt Modal
+  document.addEventListener('keydown', _weLuckenKeyHandler);
 }
 window._weLuckenShow = _weLuckenShow;
+function _weLuckenKeyHandler(e) { if (e.key === 'Escape') _weLuckenClose(); }
 function _weLuckenClose() {
   const m = document.getElementById('we-lucken-modal');
   if (m) m.remove();
+  document.removeEventListener('keydown', _weLuckenKeyHandler);
 }
 window._weLuckenClose = _weLuckenClose;
 
@@ -8357,8 +8392,8 @@ const TOUR_STEPS = [
     detectCompleted: () => Array.isArray(state.snapshots) && state.snapshots.length > 0,
   },
   {
-    title: 'Schritt 17 — Investitions-Doc als PDF runterladen + lesen',
-    action: 'In der Toolbar klick auf „Investitions-Doc". Wähl „Als PDF herunterladen". Öffne das PDF und schau es Dir AUS KUNDEN-SICHT durch (9 Seiten).',
+    title: 'Schritt 17 — Investitionsanalyse als PDF runterladen + lesen',
+    action: 'In der Toolbar klick auf „Investitionsanalyse". Wähl „Als PDF herunterladen". Öffne das PDF und schau es Dir AUS KUNDEN-SICHT durch (9 Seiten).',
     tip: 'Das PDF ist Dein Standard-Pitch: Cover mit Kundenname, 9 Seiten Magazin-Story, am Ende ein CTA-Block. Beim Mail-Send geht es direkt an die Kunden-E-Mail mit kurzem Begleittext.',
     target: '.toolbar button[onclick*="openInvestDocModal"]',
     needsView: 'kunde',
