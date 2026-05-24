@@ -62,12 +62,15 @@ module.exports = async (req, res) => {
       const allowed = await canAccessKunde(session, kundeId);
       if (!allowed) return res.status(403).json({ error: 'Kein Zugriff auf diesen Kunden' });
 
-      // FS-3e (Audit Datenkonsistenz P2 25.05.2026): Cap auf 500 (vorher 5000)
-      // — bei wachsender DB sonst Performance-Bombe pro List-Aufruf.
-      // ARRAYJOIN({Kunde}) liefert Display-Name (kein Lookup nach ID möglich),
-      // Schema-Erweiterung um Kunde-ID-Lookup-Field bleibt als Post-Launch-TODO.
-      // 500 reicht für aktuell typische 250-300 WEs × wenige Snapshots/Kunde.
-      const allRecords = await listAll(TABLES.SNAPSHOTS, {}, 500);
+      // FS-3l (Re-Audit P0 25.05.2026): Cap zurück auf 5000 — die 500-Reduktion
+      // (FS-3e) verlor Snapshots bei >500 Records, weil listAll ohne Sort-Garantie
+      // einen Random-Slice liefert. Plus expliziter Sort nach Created DESC, damit
+      // selbst bei Cap-Treffer die NEUESTEN drin sind.
+      // Schema-Erweiterung um Kunde-ID-Lookup-Field für filterByFormula bleibt
+      // als Post-Launch-TODO (würde Roundtrip von 5000 auf ~5 Records reduzieren).
+      const allRecords = await listAll(TABLES.SNAPSHOTS, {
+        sort: [{ field: SNAPSHOT_FIELDS.CREATED, direction: 'desc' }],
+      }, 5000);
       const mapped = allRecords
         .map(r => {
           const out = snapshotRecordToApi(r);

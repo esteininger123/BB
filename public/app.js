@@ -1091,6 +1091,11 @@ async function renderKunde() {
 }
 
 function setTab(t) {
+  // FS-3l (Re-Audit P1 25.05.2026): pending Auto-Save-Timer flushen, sonst
+  // greift der setTimeout in den frischen DOM → ta=null → Notiz verloren.
+  if (typeof _flushNotizenTimer === 'function') {
+    try { _flushNotizenTimer(); } catch {}
+  }
   // FS-3a (Audit Frontend P1-2 25.05.2026): wenn ein Annahmen-/Vermögens-/
   // Cashflow-Modal offen ist, schließen wir das zuerst — sonst bleibt
   // `document.body.style.overflow='hidden'` gesetzt und der neue Tab ist
@@ -1583,14 +1588,26 @@ function _debouncedSaveNotizen() {
   if (_saveNotizenTimer) clearTimeout(_saveNotizenTimer);
   _saveNotizenTimer = setTimeout(() => {
     _saveNotizenTimer = null;
-    saveNotizen();
+    // FS-3l (Re-Audit P0 25.05.2026): silent=true → kein Toast-Spam beim Tippen.
+    // Toast kommt nur beim expliziten onblur-Save.
+    saveNotizen({ silent: true });
   }, 800);
 }
 window._debouncedSaveNotizen = _debouncedSaveNotizen;
+// FS-3l: setTab flusht pending Auto-Save (sonst greift Timer in den
+// frischen DOM → ta=null → Notiz weg). saveNotizenSync wird in setTab
+// vor _closeAllCModals aufgerufen falls Timer pending.
+function _flushNotizenTimer() {
+  if (_saveNotizenTimer) {
+    clearTimeout(_saveNotizenTimer);
+    _saveNotizenTimer = null;
+    try { saveNotizen({ silent: true }); } catch {}
+  }
+}
 
 // FS-1 (24.05.2026): saveNotizen über notizenQueueMutation —
 // verhindert Race mit KAV-Saves und parallelen Activity-Logs.
-async function saveNotizen() {
+async function saveNotizen(opts) {
   const ta = document.getElementById('f-notizen');
   if (!ta) return;
   const userFreeText = ta.value;
@@ -1608,7 +1625,11 @@ async function saveNotizen() {
     return (typeof stringifyKavTracker === 'function' && tracker)
       ? stringifyKavTracker(combinedFree, tracker)
       : combinedFree;
-  }, { successToast: 'Notizen gespeichert', errorPrefix: 'Notizen-Fehler: ' });
+  }, {
+    // FS-3l: silent-Modus für Auto-Save (kein Toast-Spam beim Tippen).
+    successToast: (opts && opts.silent) ? null : 'Notizen gespeichert',
+    errorPrefix: 'Notizen-Fehler: ',
+  });
 }
 window.saveNotizen = saveNotizen;
 
@@ -7578,8 +7599,12 @@ function _renderWeListeContent() {
       if (r == null) return { incomplete: true, reason: 'Kaufpreis nicht gepflegt' };
       // Brutto-Rendite Tag 1 = (Effektive Kaltmiete + Stellplatz + Subv-Phase-1) × 12 / KpGesamt
       // effKaltmiete enthält bereits Tag-1-Anhebung wenn vorhanden.
-      const mieteMo = effKaltmiete + ((detailStpl.mieteMoSumme || stpl.mieteMoSumme) || 0) + subvMoPhase1;
-      const bruttoRendite = (r.kpGesamt > 0) ? (mieteMo * 12 / r.kpGesamt) : null;
+      // FS-3l (Re-Audit P1 25.05.2026): vorher rechnete _berechne die Brutto-
+      // Rendite SELBST mit `effKaltmiete + ...` — die Engine cappt seit FS-3a
+      // gegen Marktmiete, dieser Weg hier nicht. Folge: WE-Liste zeigte höhere
+      // Brutto-Rendite als Detail-Modus bei MBV > Marktmiete. Jetzt: direkt
+      // r.bruttorendite aus der Engine nehmen — single source of truth.
+      const bruttoRendite = (r && typeof r.bruttorendite === 'number') ? r.bruttorendite : null;
       return {
         belastungMo: r.belastungMo,
         irr: r.irr,
@@ -7891,13 +7916,16 @@ function _renderWeVergleichModal() {
         marktwertProQm,
         marktmieteEurQm,
         // KORREKTE Stammdaten-Feldnamen (vorher waren das die Bugs):
+        // FS-3l (Re-Audit P1 25.05.2026): `!= null` statt `||` für Prozent-Felder —
+        // sonst überschreibt der Fallback eine bewusste 0%-Pflege (analog zu
+        // _berechne in der WE-Liste, jetzt konsistent).
         hausgeld: sd.hausgeldRuecklage != null ? sd.hausgeldRuecklage : (base.hausgeld || 60),
         hausverwaltung: sd.hausverwaltung != null ? sd.hausverwaltung : (base.hausverwaltung || 30),
         mietverwaltung: sd.mietverwaltungDefault != null ? sd.mietverwaltungDefault : (base.mietverwaltung || 0),
-        afaSatz: sd.afaGutachten || base.afaSatz || 0.02,
-        gebaeudeAnteil: sd.gebaeudeAnteil || base.gebaeudeAnteil || 0.85,
-        wertsteigerung: sd.wertsteigerung || base.wertsteigerung || 0.03,
-        grEstPct: sd.grEst || base.grEstPct || 0.05,
+        afaSatz: sd.afaGutachten != null ? sd.afaGutachten : (base.afaSatz != null ? base.afaSatz : 0.02),
+        gebaeudeAnteil: sd.gebaeudeAnteil != null ? sd.gebaeudeAnteil : (base.gebaeudeAnteil != null ? base.gebaeudeAnteil : 0.85),
+        wertsteigerung: sd.wertsteigerung != null ? sd.wertsteigerung : (base.wertsteigerung != null ? base.wertsteigerung : 0.03),
+        grEstPct: sd.grEst != null ? sd.grEst : (base.grEstPct != null ? base.grEstPct : 0.05),
         hgInflation: 0,
         // Subv + Mietsteigerung
         subventionMo: subvMoPhase1,

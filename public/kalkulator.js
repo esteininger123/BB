@@ -1375,20 +1375,18 @@ function recalcPaket(weInputsArr, personSettings) {
       return totalQm > 0 ? (totalSubvMo / totalQm) : 0;
     })(),
     bruttorendite: (() => {
-      // Iter 67: Tag-1-Bruttorendite über das ganze Paket — analog zur Einzel-WE.
+      // FS-3l (Re-Audit P1 25.05.2026): nutzt jetzt die per-WE bruttorendite
+      // aus recalc() — die ist schon marktcap-gekappt (FS-3a). Vorher rechnete
+      // das Paket mit `inp.kaltmiete` direkt, ohne Cap → bei MBV-Hoch-WEs
+      // war die Paket-Brutto-Rendite zu optimistisch.
+      // Formel: Σ(per-WE bruttorendite × kpG_WE) / kpGesamt — gewichtetes Mittel.
       if (!(kpGesamt > 0)) return 0;
-      const tag1MieteSum = results.reduce((s, r) => {
-        const inp = r.inputs || {};
-        return s + (parseFloat(inp.kaltmiete) || 0) + (parseFloat(inp.stellplatzMiete) || 0);
+      const weightedSum = results.reduce((s, r) => {
+        const wKp = (r && r.kpGesamt) || 0;
+        const wBr = (r && typeof r.bruttorendite === 'number') ? r.bruttorendite : 0;
+        return s + wBr * wKp;
       }, 0);
-      const phase1SubvSum = results.reduce((s, r) => {
-        const inp = r.inputs || {};
-        const ph = inp.subventionPhasen;
-        return s + (Array.isArray(ph) && ph[0]
-          ? (parseFloat(ph[0].mo) || 0)
-          : (parseFloat(inp.subventionMo) || 0));
-      }, 0);
-      return (tag1MieteSum + phase1SubvSum) * 12 / kpGesamt;
+      return weightedSum / kpGesamt;
     })(),
   };
 }

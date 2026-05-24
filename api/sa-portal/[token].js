@@ -59,12 +59,27 @@ module.exports = async (req, res) => {
       // zurückgeben, damit das Portal-UI das im Header anzeigen kann.
       // FS-1 (24.05.2026, Pen-Tester #8): Email NICHT zurückgeben — Datenminimierung
       // bei Token-Leak (Vorname reicht für Begrüßung).
+      // FS-3l (Re-Audit P1 25.05.2026): saJson asymmetrische Schema-Migration.
+      // PUT akzeptiert beide Schemas (App-`gemeinsam`/`name` vorrangig). GET muss
+      // das Gegenstück liefern: Wenn Vertriebler im App-Schema gespeichert hat
+      // (`name`, `gemeinsam`), sieht das Portal-Frontend leere Felder, weil es
+      // `nachname` + `antragGemeinsam` liest. → für Portal beide Varianten ausgeben.
+      const _saMigrated = saJson && typeof saJson === 'object' ? JSON.parse(JSON.stringify(saJson)) : {};
+      if (_saMigrated.gemeinsam !== undefined && _saMigrated.antragGemeinsam === undefined) {
+        _saMigrated.antragGemeinsam = _saMigrated.gemeinsam;
+      }
+      ['antragsteller', 'mitantragsteller'].forEach(role => {
+        const a = _saMigrated[role];
+        if (a && typeof a === 'object' && a.name !== undefined && a.nachname === undefined) {
+          a.nachname = a.name;
+        }
+      });
       const expiresAtIso = decoded.exp ? new Date(decoded.exp * 1000).toISOString() : null;
       return res.status(200).json({
         kundeId,
         vorname: f[KUNDEN_FIELDS.VORNAME] || '',
         nachname: f[KUNDEN_FIELDS.NACHNAME] || '',
-        saJson,
+        saJson: _saMigrated,
         expiresAt: expiresAtIso,
       });
     }
