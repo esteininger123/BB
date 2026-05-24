@@ -402,6 +402,9 @@ function renderDashboard() {
               style="font-family:inherit;font-size:13px;padding:7px 12px;border:1px solid #C9A572;border-radius:18px;width:240px;background:#fff;">
           ` : ''}
         </div>
+
+        ${meine.length >= 3 ? renderKundenFilterBar(meine) : ''}
+
         ${meine.length === 0 ? `
           <div class="empty-state">
             Noch keine Kunden. Klick auf <strong>"+ Neuer Kunde"</strong>.
@@ -412,23 +415,18 @@ function renderDashboard() {
               <tr>
                 <th>Name</th>
                 <th>Phase · Aufgaben</th>
-                <th>E-Mail</th>
+                <th class="num">EK frei</th>
+                <th class="num">Einkommen frei/Mo</th>
+                <th>Wunschregionen</th>
                 <th>Letzte Aktivität</th>
               </tr>
             </thead>
             <tbody>
-              ${meine.map(k => `
-                <tr data-search="${esc(((k.name || (k.vorname + ' ' + k.nachname) || '') + ' ' + (k.email || '')).toLowerCase())}" onclick="go('/kunde/${esc(k.id)}')">
-                  <td><strong>${esc(k.name || (k.vorname + ' ' + k.nachname) || '—')}</strong></td>
-                  <td>${kavListeBadges(k)}</td>
-                  <td class="text-tertiary">${esc(k.email || '—')}</td>
-                  <td class="text-tertiary">${esc(fmtDate(k.lastActivity))}</td>
-                </tr>
-              `).join('')}
+              ${meine.map(k => _renderKundeRow(k)).join('')}
             </tbody>
           </table>
           <div id="kunden-tbl-empty" class="empty-state" style="display:none;padding:24px;text-align:center;color:var(--text-tertiary);">
-            Kein Kunde matched „<span id="kunden-tbl-empty-q"></span>".
+            Kein Kunde matched die Filter.
           </div>
         `}
       </div>
@@ -436,10 +434,188 @@ function renderDashboard() {
   `;
 }
 
-// QA-Fix 2026-05-23 (Audit-EE-3): Live-Suche auf Dashboard. Nutzt data-search
-// auf jeder Zeile (lower-case Name+Email). Filter ist clientseitig — bei 100+
-// Kunden trotzdem fast instant.
+// Welle Filter (24.05.2026): Helper — extrahiert Bonität + Wunsch-Profil pro Kunde
+function _kundeFilterData(k) {
+  let liquid = 0, ueber = 0;
+  if (k.saJson && typeof window.Kalk !== 'undefined' && window.Kalk.computeBonitaetDetailed) {
+    try {
+      const bd = window.Kalk.computeBonitaetDetailed(k.saJson, true);
+      if (bd) {
+        liquid = bd.liquidesVermoegen || 0;
+        ueber = bd.ueberschussMo || 0;
+      }
+    } catch {}
+  }
+  const wp = (typeof parseWunschProfil === 'function') ? parseWunschProfil(k.notizen || '') : { regionen: [] };
+  // BL-Set für schnelle Region-Matches
+  const blSet = new Set();
+  const kreisSet = new Set();
+  (wp.regionen || []).forEach(r => {
+    const p = (typeof parseRegionKey === 'function') ? parseRegionKey(r) : null;
+    if (p) {
+      blSet.add(p.bl);
+      if (p.kreis !== '*') kreisSet.add(r);
+    }
+  });
+  return { liquid, ueber, wp, blSet, kreisSet };
+}
+
+function _renderKundeRow(k) {
+  const fd = _kundeFilterData(k);
+  const REG = window.REGIONEN || {};
+  // Anzeige Wunschregionen: Bundesland-Namen + Kreis-Anzahl
+  const regCells = [...fd.blSet].map(bl => {
+    const krCount = [...fd.kreisSet].filter(key => key.startsWith(bl + ':')).length;
+    const blName = (REG[bl] && REG[bl].name) ? REG[bl].name : bl;
+    return `<span class="wp-bl-pill active" style="font-size:10.5px;padding:2px 8px;cursor:default;">${esc(blName)}${krCount > 0 ? ` · ${krCount}` : ''}</span>`;
+  }).join('');
+  const blsCsv = [...fd.blSet].join(',');
+  const kreisCsv = [...fd.kreisSet].join('|');
+  return `
+    <tr data-search="${esc(((k.name || (k.vorname + ' ' + k.nachname) || '') + ' ' + (k.email || '')).toLowerCase())}"
+        data-ek="${Math.round(fd.liquid)}"
+        data-eink="${Math.round(fd.ueber)}"
+        data-bls="${esc(blsCsv)}"
+        data-kreise="${esc(kreisCsv)}"
+        onclick="go('/kunde/${esc(k.id)}')">
+      <td><strong>${esc(k.name || (k.vorname + ' ' + k.nachname) || '—')}</strong>${k.email ? `<div class="text-tertiary text-small">${esc(k.email)}</div>` : ''}</td>
+      <td>${kavListeBadges(k)}</td>
+      <td class="num">${fd.liquid > 0 ? Math.round(fd.liquid).toLocaleString('de-DE') + ' €' : '<span class="text-tertiary">–</span>'}</td>
+      <td class="num">${fd.ueber !== 0 ? `<span style="color:${fd.ueber > 0 ? 'var(--positive)' : 'var(--negative)'}">${Math.round(fd.ueber).toLocaleString('de-DE')} €</span>` : '<span class="text-tertiary">–</span>'}</td>
+      <td>${regCells || '<span class="text-tertiary text-small">—</span>'}</td>
+      <td class="text-tertiary">${esc(fmtDate(k.lastActivity))}</td>
+    </tr>
+  `;
+}
+
+// Filter-Bar oben in der Kundenliste — kombinierbare Filter (Edgar 24.05.2026)
+function renderKundenFilterBar(meine) {
+  const BL = (window.REGIONEN_BL_KEYS || []);
+  const REG = window.REGIONEN || {};
+  // Nur Bundesländer in die BL-Dropdown geben, die mindestens ein Kunde gepflegt hat.
+  // Wenn 0 → alle anzeigen.
+  const usedBls = new Set();
+  meine.forEach(k => {
+    const fd = _kundeFilterData(k);
+    fd.blSet.forEach(bl => usedBls.add(bl));
+  });
+  const showBls = usedBls.size > 0 ? [...usedBls] : BL;
+  return `
+    <div class="kunden-filter-bar">
+      <div class="filter-group">
+        <label for="kf-search">Name / E-Mail</label>
+        <input type="text" id="kf-search" placeholder="…" oninput="applyKundenFilter()">
+      </div>
+      <div class="filter-group">
+        <label for="kf-ek">Min. EK €</label>
+        <input type="number" id="kf-ek" placeholder="z.B. 20000" min="0" step="1000" oninput="applyKundenFilter()">
+      </div>
+      <div class="filter-group">
+        <label for="kf-eink">Min. Einkommen €/Mo</label>
+        <input type="number" id="kf-eink" placeholder="z.B. 500" min="0" step="50" oninput="applyKundenFilter()">
+      </div>
+      <div class="filter-group">
+        <label for="kf-bl">Bundesland</label>
+        <select id="kf-bl" onchange="_kfBlChanged()">
+          <option value="">(alle)</option>
+          ${showBls.sort((a,b)=>REG[a].name.localeCompare(REG[b].name,'de')).map(bl => `<option value="${bl}">${esc(REG[bl].name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="filter-group" id="kf-kreis-group" style="display:none;">
+        <label for="kf-kreis">Landkreis</label>
+        <select id="kf-kreis" onchange="applyKundenFilter()">
+          <option value="">(alle)</option>
+        </select>
+      </div>
+      <div class="filter-count" id="kf-count">${meine.length} Kunden</div>
+      <button onclick="_kfReset()" class="secondary" style="padding:4px 12px;font-size:11px;">Reset</button>
+    </div>
+  `;
+}
+window.renderKundenFilterBar = renderKundenFilterBar;
+
+// BL gewechselt → Kreis-Dropdown nachladen mit Kreisen dieses BL, die in den Kunden vorkommen
+function _kfBlChanged() {
+  const blSel = document.getElementById('kf-bl');
+  const kreisGroup = document.getElementById('kf-kreis-group');
+  const kreisSel = document.getElementById('kf-kreis');
+  if (!blSel || !kreisGroup || !kreisSel) return;
+  const bl = blSel.value;
+  if (!bl) {
+    kreisGroup.style.display = 'none';
+    kreisSel.value = '';
+    applyKundenFilter();
+    return;
+  }
+  // Kreise aus den Kunden-Daten extrahieren
+  const usedKreise = new Set();
+  (state.kunden || []).forEach(k => {
+    const fd = _kundeFilterData(k);
+    fd.kreisSet.forEach(key => {
+      if (key.startsWith(bl + ':')) usedKreise.add(key.substring(bl.length + 1));
+    });
+  });
+  const REG = window.REGIONEN || {};
+  const allKreise = (REG[bl] && REG[bl].kreise) || [];
+  const showKreise = usedKreise.size > 0 ? [...usedKreise] : allKreise;
+  showKreise.sort((a, b) => a.localeCompare(b, 'de'));
+  kreisSel.innerHTML = '<option value="">(alle Kreise im BL)</option>'
+    + showKreise.map(kr => `<option value="${esc(kr)}">${esc(kr)}</option>`).join('');
+  kreisGroup.style.display = '';
+  applyKundenFilter();
+}
+window._kfBlChanged = _kfBlChanged;
+
+function _kfReset() {
+  ['kf-search','kf-ek','kf-eink','kf-kreis'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  const bl = document.getElementById('kf-bl'); if (bl) bl.value = '';
+  const kreisGroup = document.getElementById('kf-kreis-group'); if (kreisGroup) kreisGroup.style.display = 'none';
+  applyKundenFilter();
+}
+window._kfReset = _kfReset;
+
+function applyKundenFilter() {
+  const q = (document.getElementById('kf-search')?.value || '').toLowerCase().trim();
+  const ekMin = parseFloat(document.getElementById('kf-ek')?.value) || 0;
+  const einkMin = parseFloat(document.getElementById('kf-eink')?.value) || 0;
+  const bl = document.getElementById('kf-bl')?.value || '';
+  const kreis = document.getElementById('kf-kreis')?.value || '';
+  const rows = document.querySelectorAll('#kunden-tbl tbody tr');
+  let visible = 0;
+  rows.forEach(r => {
+    const text = r.dataset.search || '';
+    const ek = parseFloat(r.dataset.ek) || 0;
+    const eink = parseFloat(r.dataset.eink) || 0;
+    const bls = (r.dataset.bls || '').split(',').filter(Boolean);
+    const kreise = (r.dataset.kreise || '').split('|').filter(Boolean);
+    let match = true;
+    if (q && !text.includes(q)) match = false;
+    if (ekMin > 0 && ek < ekMin) match = false;
+    if (einkMin > 0 && eink < einkMin) match = false;
+    if (bl && !bls.includes(bl)) match = false;
+    if (kreis && bl) {
+      // Kreis ist ohne BL-Prefix im Select. Wir checken nach BL:Kreis im kreise-Set,
+      // ODER nach Sentinel BL:* (BL gewählt, kein Kreis spezifiziert → matched alle).
+      const key = bl + ':' + kreis;
+      const hasKreis = kreise.includes(key) || bls.includes(bl); // BL allein matcht auch Kreis-Filter (offen für alle)
+      if (!hasKreis) match = false;
+    }
+    r.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  const empty = document.getElementById('kunden-tbl-empty');
+  if (empty) empty.style.display = visible === 0 ? 'block' : 'none';
+  const cnt = document.getElementById('kf-count');
+  if (cnt) cnt.textContent = `${visible} von ${rows.length} Kunden`;
+}
+window.applyKundenFilter = applyKundenFilter;
+
+// QA-Fix 2026-05-23 (Audit-EE-3): Live-Suche auf Dashboard. Backward-Compat —
+// ruft jetzt den neuen applyKundenFilter mit übersetztem Wert auf.
 function filterKundenListe(query) {
+  const inp = document.getElementById('kf-search');
+  if (inp) { inp.value = query || ''; applyKundenFilter(); return; }
+  // Fallback (wenn Filter-Bar nicht gerendert wurde)
   const q = (query || '').toLowerCase().trim();
   const rows = document.querySelectorAll('#kunden-tbl tbody tr');
   let visible = 0;
@@ -450,9 +626,7 @@ function filterKundenListe(query) {
     if (match) visible++;
   });
   const empty = document.getElementById('kunden-tbl-empty');
-  const emptyQ = document.getElementById('kunden-tbl-empty-q');
   if (empty) empty.style.display = visible === 0 && q ? 'block' : 'none';
-  if (emptyQ) emptyQ.textContent = q;
 }
 window.filterKundenListe = filterKundenListe;
 
@@ -780,6 +954,149 @@ function renderTab() {
   }
 }
 
+// Welle Filter (24.05.2026): Wunsch-Profil-Karte im Kunden-Detail.
+// Zeigt Bundesländer + Landkreise + EK/Einkommens-Schwellen.
+// Storage im Notizen-Field als JSON-Block (parseWunschProfil/saveWunschProfil).
+function renderWunschProfilCard(k) {
+  const wp = parseWunschProfil(k.notizen || '');
+  const regSet = new Set(wp.regionen || []);
+  const BL = (window.REGIONEN_BL_KEYS || []);
+  const REG = window.REGIONEN || {};
+
+  // Berechnete Bonitäts-Zusammenfassung wenn SA existiert
+  let bonInfo = '';
+  if (k.saJson && typeof window.Kalk !== 'undefined' && window.Kalk.computeBonitaetDetailed) {
+    try {
+      const bd = window.Kalk.computeBonitaetDetailed(k.saJson, true);
+      if (bd) {
+        bonInfo = `
+          <div style="margin-top:14px;padding:10px 14px;background:var(--cream-subtle);border-radius:6px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+            <div><div class="text-tertiary text-small">Einsetzbares EK (liquide)</div><div style="font-size:16px;font-weight:600;color:#2D6E47;">${(bd.liquidesVermoegen || 0).toLocaleString('de-DE')} €</div></div>
+            <div><div class="text-tertiary text-small">Freies Einkommen / Mo</div><div style="font-size:16px;font-weight:600;color:${(bd.ueberschussMo || 0) > 0 ? '#2D6E47' : '#9A3E33'};">${Math.round(bd.ueberschussMo || 0).toLocaleString('de-DE')} €</div></div>
+            <div><div class="text-tertiary text-small">Immo-Vermögen</div><div style="font-size:16px;font-weight:600;color:var(--text-primary);">${Math.round(bd.immobilienVermoegen || 0).toLocaleString('de-DE')} €</div></div>
+          </div>
+        `;
+      }
+    } catch (e) {}
+  } else {
+    bonInfo = `<div class="text-tertiary text-small" style="margin-top:10px;font-style:italic;">Bonitäts-Zusammenfassung erscheint sobald die Selbstauskunft ausgefüllt ist.</div>`;
+  }
+
+  // Bundesland-Pills: gewählte hervorgehoben, Klick toggelt
+  const blPills = BL.map(bl => {
+    const hasAny = (wp.regionen || []).some(r => r.startsWith(bl + ':'));
+    return `<button type="button" onclick="window._wpToggleBl('${bl}')" class="wp-bl-pill${hasAny ? ' active' : ''}" data-bl="${bl}">${esc(REG[bl].name)}</button>`;
+  }).join('');
+
+  // Kreis-Auswahl: nur für ausgewählte BL anzeigen
+  const blsMitKreisen = BL.filter(bl => (wp.regionen || []).some(r => r.startsWith(bl + ':')));
+  // Sonderfall: wenn ein BL als "ganzes" gewählt (z.B. 'BW:*'), zeige Hinweis
+  const kreisGruppen = blsMitKreisen.map(bl => {
+    const kreise = REG[bl].kreise || [];
+    const cells = kreise.map(kr => {
+      const key = bl + ':' + kr;
+      const checked = regSet.has(key);
+      return `<label class="wp-kreis-chip${checked ? ' active' : ''}"><input type="checkbox" ${checked ? 'checked' : ''} onchange="window._wpToggleKreis('${bl}', '${esc(kr).replace(/'/g, "\\'")}')" style="display:none;">${esc(kr)}</label>`;
+    }).join('');
+    return `<div class="wp-kreis-block">
+      <div class="wp-kreis-block-head">${esc(REG[bl].name)} <span class="text-tertiary text-small">${kreise.length} Kreise</span></div>
+      <div class="wp-kreis-cells">${cells}</div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="card mt-16">
+      <div class="card-title">Wunsch-Profil <span class="text-tertiary text-small" style="font-weight:normal;">· wo &amp; wie viel Kunde investieren möchte</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <label class="text-tertiary text-small" for="wp-ek-min">Min. einsetzbares EK</label>
+          <input type="number" id="wp-ek-min" value="${wp.ekMin || ''}" placeholder="z.B. 20000" min="0" step="1000" style="width:100%;padding:8px 12px;font-size:14px;border:1px solid var(--border);border-radius:4px;" onblur="window._wpSaveSchwellen()">
+        </div>
+        <div>
+          <label class="text-tertiary text-small" for="wp-eink-min">Min. freies Einkommen / Mo</label>
+          <input type="number" id="wp-eink-min" value="${wp.einkommenMin || ''}" placeholder="z.B. 500" min="0" step="50" style="width:100%;padding:8px 12px;font-size:14px;border:1px solid var(--border);border-radius:4px;" onblur="window._wpSaveSchwellen()">
+        </div>
+      </div>
+      ${bonInfo}
+      <div style="margin-top:18px;">
+        <div class="text-tertiary text-small" style="margin-bottom:6px;">Bundesländer auswählen (Klick toggelt — Kreise erscheinen darunter)</div>
+        <div class="wp-bl-pills">${blPills}</div>
+      </div>
+      ${blsMitKreisen.length > 0 ? `
+        <div style="margin-top:14px;">
+          <div class="text-tertiary text-small" style="margin-bottom:6px;">Landkreise / Städte (Klick toggelt)</div>
+          <div class="wp-kreis-groups">${kreisGruppen}</div>
+          <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span class="text-tertiary text-small">${(wp.regionen || []).length} Kreise ausgewählt</span>
+            <button type="button" onclick="window._wpClearAll()" class="secondary" style="padding:4px 10px;font-size:11px;">Auswahl leeren</button>
+          </div>
+        </div>
+      ` : '<div style="margin-top:12px;color:var(--text-tertiary);font-size:12px;">Wähle ein Bundesland aus, um die Kreise zu sehen.</div>'}
+    </div>
+  `;
+}
+
+// === Wunsch-Profil-Handler ===
+async function _wpToggleBl(bl) {
+  if (!state.kunde) return;
+  const wp = parseWunschProfil(state.kunde.notizen || '');
+  const reg = REGIONEN[bl];
+  if (!reg) return;
+  const hasAny = (wp.regionen || []).some(r => r.startsWith(bl + ':'));
+  if (hasAny) {
+    // Alle Kreise dieses BL entfernen
+    wp.regionen = (wp.regionen || []).filter(r => !r.startsWith(bl + ':'));
+  } else {
+    // BL „leer aktivieren" — User wählt dann gezielt Kreise. Pragmatisch: nichts hinzufügen,
+    // nur die UI mit den BL-Kreisen anzeigen. Workaround: Sentinel `BL:*` einfügen, sodass
+    // UI weiß „BL ist aktiv aber noch keine Kreise gewählt".
+    wp.regionen = [...(wp.regionen || []), bl + ':*'];
+  }
+  await saveWunschProfil(wp);
+  renderTabUebersicht();
+}
+window._wpToggleBl = _wpToggleBl;
+
+async function _wpToggleKreis(bl, kreis) {
+  if (!state.kunde) return;
+  const wp = parseWunschProfil(state.kunde.notizen || '');
+  const key = bl + ':' + kreis;
+  const list = (wp.regionen || []).filter(r => r !== bl + ':*'); // Sentinel entfernen
+  if (list.includes(key)) {
+    wp.regionen = list.filter(r => r !== key);
+    // Wenn keine Kreise mehr für dieses BL, Sentinel wieder rein (BL bleibt sichtbar)
+    if (!wp.regionen.some(r => r.startsWith(bl + ':'))) {
+      wp.regionen.push(bl + ':*');
+    }
+  } else {
+    wp.regionen = [...list, key];
+  }
+  await saveWunschProfil(wp);
+  renderTabUebersicht();
+}
+window._wpToggleKreis = _wpToggleKreis;
+
+async function _wpSaveSchwellen() {
+  if (!state.kunde) return;
+  const ekEl = document.getElementById('wp-ek-min');
+  const einkEl = document.getElementById('wp-eink-min');
+  const wp = parseWunschProfil(state.kunde.notizen || '');
+  wp.ekMin = parseFloat(ekEl && ekEl.value) || 0;
+  wp.einkommenMin = parseFloat(einkEl && einkEl.value) || 0;
+  await saveWunschProfil(wp);
+}
+window._wpSaveSchwellen = _wpSaveSchwellen;
+
+async function _wpClearAll() {
+  if (!state.kunde) return;
+  if (!confirm('Alle Wunschregionen für diesen Kunden löschen?')) return;
+  const wp = parseWunschProfil(state.kunde.notizen || '');
+  wp.regionen = [];
+  await saveWunschProfil(wp);
+  renderTabUebersicht();
+}
+window._wpClearAll = _wpClearAll;
+
 function renderTabUebersicht() {
   const el = document.getElementById('tab-content');
   const k = state.kunde;
@@ -812,6 +1129,8 @@ function renderTabUebersicht() {
         <span id="stamm-save-status" class="text-tertiary text-small"></span>
       </div>
     </div>
+
+    ${renderWunschProfilCard(k)}
 
     ${(() => {
       // QA-Fix 2026-05-23 (Edgar-Doc Bug-9): Notizen UND Aktivitätshistorie
@@ -8174,14 +8493,87 @@ function parseKavTracker(notesRaw) {
     try { data = Object.assign({ tasks: {}, wiedervorlage: null }, JSON.parse(jsonStr)); } catch (e) {}
     cleanNotes = (notes.substring(0, startIdx) + notes.substring(endIdx + KAV_BLOCK_END.length)).trim();
   }
+  // Welle Filter (24.05.2026): Wunsch-Profil-Block aus freeNotes raus, damit
+  // er in den UI-Notizen nicht doppelt erscheint.
+  cleanNotes = _stripWunschProfilBlock(cleanNotes);
   return { tracker: data, freeNotes: cleanNotes };
 }
 
-function stringifyKavTracker(freeNotes, tracker) {
+function stringifyKavTracker(freeNotes, tracker, wunschProfil) {
   const json = JSON.stringify(tracker || { tasks: {}, wiedervorlage: null });
   const free = (freeNotes || '').trim();
-  return (free ? free + '\n\n' : '') + KAV_BLOCK_START + '\n' + json + '\n' + KAV_BLOCK_END;
+  let out = (free ? free + '\n\n' : '') + KAV_BLOCK_START + '\n' + json + '\n' + KAV_BLOCK_END;
+  // Wunsch-Profil-Block (Welle Filter): nach KAV-Block, nur wenn vorhanden.
+  // Wenn nicht übergeben → bestehenden Block aus den freeNotes wiederherstellen.
+  let wp = wunschProfil;
+  if (wp === undefined) {
+    // Backward-Compat: alte Aufrufer übergeben kein wunschProfil → wir lesen
+    // es aus den ursprünglichen Notizen (state.kunde.notizen) wieder ein.
+    try {
+      const fromState = (window.state && window.state.kunde && window.state.kunde.notizen) || '';
+      wp = parseWunschProfil(fromState);
+    } catch { wp = null; }
+  }
+  if (wp && (Array.isArray(wp.regionen) && wp.regionen.length > 0 || wp.ekMin > 0 || wp.einkommenMin > 0)) {
+    out += '\n' + WUNSCH_BLOCK_START + '\n' + JSON.stringify(wp) + '\n' + WUNSCH_BLOCK_END;
+  }
+  return out;
 }
+
+// === Wunsch-Profil-Block (Welle Filter, 24.05.2026) ===
+// Vertriebler trägt pro Kunde Wunschregionen + EK/Einkommens-Schwellen ein.
+// Wird im Notizen-Field als JSON-Block gespeichert, damit kein neues
+// Airtable-Feld nötig ist (Edgar-Vorgabe 24.05.2026).
+const WUNSCH_BLOCK_START = '[WUNSCH-PROFIL]';
+const WUNSCH_BLOCK_END   = '[/WUNSCH-PROFIL]';
+
+function parseWunschProfil(notesRaw) {
+  const notes = String(notesRaw || '');
+  const startIdx = notes.indexOf(WUNSCH_BLOCK_START);
+  const endIdx   = notes.indexOf(WUNSCH_BLOCK_END);
+  if (startIdx < 0 || endIdx <= startIdx) return { regionen: [], ekMin: 0, einkommenMin: 0 };
+  const jsonStr = notes.substring(startIdx + WUNSCH_BLOCK_START.length, endIdx).trim();
+  try {
+    const obj = JSON.parse(jsonStr);
+    return {
+      regionen: Array.isArray(obj.regionen) ? obj.regionen : [],
+      ekMin: parseFloat(obj.ekMin) || 0,
+      einkommenMin: parseFloat(obj.einkommenMin) || 0,
+    };
+  } catch (e) {
+    return { regionen: [], ekMin: 0, einkommenMin: 0 };
+  }
+}
+
+function _stripWunschProfilBlock(notes) {
+  const startIdx = notes.indexOf(WUNSCH_BLOCK_START);
+  const endIdx   = notes.indexOf(WUNSCH_BLOCK_END);
+  if (startIdx < 0 || endIdx <= startIdx) return notes;
+  return (notes.substring(0, startIdx) + notes.substring(endIdx + WUNSCH_BLOCK_END.length)).trim();
+}
+
+// Speichert Wunsch-Profil zurück nach Airtable (Notizen-Field, JSON-Block)
+async function saveWunschProfil(wunschProfil) {
+  if (!state.kunde) return;
+  const parsed = parseKavTracker(state.kunde.notizen || '');
+  const newNotizen = stringifyKavTracker(parsed.freeNotes, parsed.tracker, wunschProfil);
+  // Optimistic update
+  const prev = state.kunde.notizen;
+  state.kunde.notizen = newNotizen;
+  if (Array.isArray(state.kunden)) {
+    const idx = state.kunden.findIndex(x => x.id === state.kundeId);
+    if (idx >= 0) state.kunden[idx].notizen = newNotizen;
+  }
+  try {
+    await api.put('/api/kunden/' + state.kundeId, { notizen: newNotizen });
+  } catch (e) {
+    state.kunde.notizen = prev;
+    toast('Fehler beim Speichern: ' + (e.message || ''), 'error');
+    throw e;
+  }
+}
+window.parseWunschProfil = parseWunschProfil;
+window.saveWunschProfil = saveWunschProfil;
 
 function kavCurrentPhase(tracker) {
   // QA-Fix 2026-05-23 (Edgar live Elin): Vorher „aktuelle Phase = erste
