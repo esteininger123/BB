@@ -403,8 +403,6 @@ function renderDashboard() {
           ` : ''}
         </div>
 
-        ${meine.length >= 3 ? renderKundenFilterBar(meine) : ''}
-
         ${meine.length === 0 ? `
           <div class="empty-state">
             Noch keine Kunden. Klick auf <strong>"+ Neuer Kunde"</strong>.
@@ -420,6 +418,14 @@ function renderDashboard() {
                 <th>Wunschregionen</th>
                 <th>Letzte Aktivität</th>
               </tr>
+              ${meine.length >= 3 ? `<tr class="kf-row">
+                <th><input type="text" id="kf-search" placeholder="Suche…" oninput="applyKundenFilter()"></th>
+                <th><span class="kf-count" id="kf-count">${meine.length}</span></th>
+                <th><input type="number" id="kf-ek" placeholder="min €" min="0" step="1000" oninput="applyKundenFilter()"></th>
+                <th><input type="number" id="kf-eink" placeholder="min €/Mo" min="0" step="50" oninput="applyKundenFilter()"></th>
+                <th>${_kfBlDropdownHtml(meine)}</th>
+                <th><button onclick="_kfReset()" class="kf-reset" title="Filter zurücksetzen">↺</button></th>
+              </tr>` : ''}
             </thead>
             <tbody>
               ${meine.map(k => _renderKundeRow(k)).join('')}
@@ -488,100 +494,125 @@ function _renderKundeRow(k) {
   `;
 }
 
-// Filter-Bar (Edgar v2 24.05.2026): Multi-Select für BL + Kreis via Pills
-// State pro Session — wird nicht persistiert
+// Filter v3 (Edgar 24.05.2026): kompakter Header-Filter direkt unter den
+// Spalten-Headers. BL als Dropdown mit Checkboxen. Kein Kreis-Filter mehr
+// im Header (zu komplex) — wenn benötigt: Kunde im Detail öffnen.
 const _kfState = { bls: new Set(), kreise: new Set() };
 
-function renderKundenFilterBar(meine) {
+// Custom Multi-Select-Dropdown für Bundesländer im Tabellen-Header.
+// Trigger-Button + Popup, click-outside zum Schließen.
+function _kfBlDropdownHtml(meine) {
   const BL = (window.REGIONEN_BL_KEYS || []);
   const REG = window.REGIONEN || {};
-  // Nur BL anzeigen die min. 1 Kunde gepflegt hat; falls keiner → alle
   const usedBls = new Set();
   meine.forEach(k => {
     const fd = _kundeFilterData(k);
     fd.blSet.forEach(bl => usedBls.add(bl));
   });
   const showBls = (usedBls.size > 0 ? [...usedBls] : BL).sort((a,b)=>REG[a].name.localeCompare(REG[b].name,'de'));
-  const blPillsHtml = showBls.map(bl => `<button type="button" onclick="_kfToggleBl('${bl}')" class="wp-bl-pill${_kfState.bls.has(bl) ? ' active' : ''}" style="padding:3px 9px;font-size:11px;">${esc(REG[bl].name)}</button>`).join('');
-
-  // Kreise pro aktiviertem BL — nur die zeigen die in Kunden vorkommen, alphabetisch
-  const kreisGroupsHtml = [..._kfState.bls].map(bl => {
-    const usedKreise = new Set();
-    (state.kunden || []).forEach(k => {
-      const fd = _kundeFilterData(k);
-      fd.kreisSet.forEach(key => { if (key.startsWith(bl + ':')) usedKreise.add(key.substring(bl.length + 1)); });
-    });
-    const kreise = [...usedKreise].sort((a,b)=>a.localeCompare(b,'de'));
-    if (kreise.length === 0) return '';
-    const chips = kreise.map(kr => {
-      const key = bl + ':' + kr;
-      const active = _kfState.kreise.has(key);
-      return `<label class="wp-kreis-chip${active ? ' active' : ''}" style="font-size:10.5px;padding:2px 7px;"><input type="checkbox" ${active ? 'checked' : ''} onchange="_kfToggleKreis('${bl}','${esc(kr).replace(/'/g, "\\'")}')" style="display:none;">${esc(kr)}</label>`;
-    }).join('');
-    return `<div style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-      <span style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-right:4px;">${esc(REG[bl].name)}</span>
-      ${chips}
-    </div>`;
-  }).join('');
-
+  const selCount = _kfState.bls.size;
+  const triggerLabel = selCount === 0
+    ? 'Alle BL'
+    : selCount === 1
+      ? esc(REG[[..._kfState.bls][0]].name)
+      : `${selCount} BL`;
+  const opts = showBls.map(bl => `
+    <label class="kf-bl-opt">
+      <input type="checkbox" ${_kfState.bls.has(bl) ? 'checked' : ''} onchange="_kfBlCheck('${bl}', this.checked)">
+      <span>${esc(REG[bl].name)}</span>
+    </label>
+  `).join('');
   return `
-    <div class="kunden-filter-bar">
-      <div class="filter-group">
-        <label for="kf-search">Name / E-Mail</label>
-        <input type="text" id="kf-search" placeholder="…" oninput="applyKundenFilter()">
+    <div class="kf-bl-dd">
+      <button type="button" class="kf-bl-trigger${selCount > 0 ? ' active' : ''}" onclick="_kfBlOpen(event)">${triggerLabel} <span class="kf-bl-arrow">▾</span></button>
+      <div class="kf-bl-popup" id="kf-bl-popup" hidden>
+        <div class="kf-bl-popup-head">
+          <button type="button" onclick="_kfBlAllInPopup(true)" class="kf-bl-mini">Alle</button>
+          <button type="button" onclick="_kfBlAllInPopup(false)" class="kf-bl-mini">Keine</button>
+          <button type="button" onclick="_kfBlClose()" class="kf-bl-mini kf-bl-close">✕</button>
+        </div>
+        ${opts || '<div style="padding:8px;color:var(--text-tertiary);font-size:11px;">Keine Wunschregionen gepflegt</div>'}
       </div>
-      <div class="filter-group">
-        <label for="kf-ek">Min. EK €</label>
-        <input type="number" id="kf-ek" placeholder="z.B. 20000" min="0" step="1000" oninput="applyKundenFilter()">
-      </div>
-      <div class="filter-group">
-        <label for="kf-eink">Min. Einkommen €/Mo</label>
-        <input type="number" id="kf-eink" placeholder="z.B. 500" min="0" step="50" oninput="applyKundenFilter()">
-      </div>
-      <div class="filter-group" style="flex:1;min-width:280px;">
-        <label>Bundesländer (multi)</label>
-        <div class="wp-bl-pills" id="kf-bl-pills">${blPillsHtml || '<span class="text-tertiary text-small">(keine Kunden mit Wunschregionen)</span>'}</div>
-      </div>
-      <div class="filter-count" id="kf-count">${meine.length} Kunden</div>
-      <button onclick="_kfReset()" class="secondary" style="padding:4px 12px;font-size:11px;">Reset</button>
-      ${kreisGroupsHtml ? `<div style="flex-basis:100%;padding-top:6px;border-top:1px dashed var(--border);">${kreisGroupsHtml}</div>` : ''}
     </div>
   `;
 }
-window.renderKundenFilterBar = renderKundenFilterBar;
+window._kfBlDropdownHtml = _kfBlDropdownHtml;
 
-function _kfToggleBl(bl) {
-  if (_kfState.bls.has(bl)) {
-    _kfState.bls.delete(bl);
-    // Alle Kreise dieses BL auch raus
-    [..._kfState.kreise].forEach(k => { if (k.startsWith(bl + ':')) _kfState.kreise.delete(k); });
-  } else {
-    _kfState.bls.add(bl);
+function _kfBlOpen(ev) {
+  if (ev) ev.stopPropagation();
+  const pop = document.getElementById('kf-bl-popup');
+  if (!pop) return;
+  pop.hidden = !pop.hidden;
+  if (!pop.hidden) {
+    // Click-Outside-Handler einmalig
+    setTimeout(() => {
+      const onDoc = (e) => {
+        if (!pop.contains(e.target) && !e.target.classList.contains('kf-bl-trigger')) {
+          _kfBlClose();
+          document.removeEventListener('click', onDoc);
+        }
+      };
+      document.addEventListener('click', onDoc);
+    }, 50);
   }
-  // Filter-Bar neu rendern (für die neuen Kreis-Chips)
-  const meine = state.kunden || [];
-  const container = document.querySelector('.kunden-filter-bar');
-  if (container && container.parentElement) {
-    container.outerHTML = renderKundenFilterBar(meine);
-  }
+}
+window._kfBlOpen = _kfBlOpen;
+function _kfBlClose() {
+  const pop = document.getElementById('kf-bl-popup');
+  if (pop) pop.hidden = true;
+}
+window._kfBlClose = _kfBlClose;
+function _kfBlCheck(bl, checked) {
+  if (checked) _kfState.bls.add(bl);
+  else _kfState.bls.delete(bl);
+  // Trigger-Label updaten ohne Popup zu schließen
+  _kfRefreshDropdownTrigger();
   applyKundenFilter();
 }
-window._kfToggleBl = _kfToggleBl;
-
-function _kfToggleKreis(bl, kreis) {
-  const key = bl + ':' + kreis;
-  if (_kfState.kreise.has(key)) _kfState.kreise.delete(key);
-  else _kfState.kreise.add(key);
+window._kfBlCheck = _kfBlCheck;
+function _kfBlAllInPopup(aktivieren) {
+  const REG = window.REGIONEN || {};
+  const usedBls = new Set();
+  (state.kunden || []).forEach(k => {
+    const fd = _kundeFilterData(k);
+    fd.blSet.forEach(bl => usedBls.add(bl));
+  });
+  const BL = (window.REGIONEN_BL_KEYS || []);
+  const showBls = usedBls.size > 0 ? [...usedBls] : BL;
+  if (aktivieren) showBls.forEach(bl => _kfState.bls.add(bl));
+  else _kfState.bls.clear();
+  // Checkboxen im Popup updaten + Trigger-Label
+  document.querySelectorAll('#kf-bl-popup .kf-bl-opt input[type=checkbox]').forEach(cb => {
+    const lbl = cb.parentElement && cb.parentElement.querySelector('span');
+    if (!lbl) return;
+    const name = lbl.textContent;
+    const bl = Object.keys(REG).find(k => REG[k].name === name);
+    if (bl) cb.checked = _kfState.bls.has(bl);
+  });
+  _kfRefreshDropdownTrigger();
   applyKundenFilter();
 }
-window._kfToggleKreis = _kfToggleKreis;
+window._kfBlAllInPopup = _kfBlAllInPopup;
+function _kfRefreshDropdownTrigger() {
+  const trigger = document.querySelector('.kf-bl-trigger');
+  if (!trigger) return;
+  const REG = window.REGIONEN || {};
+  const selCount = _kfState.bls.size;
+  const triggerLabel = selCount === 0
+    ? 'Alle BL'
+    : selCount === 1
+      ? REG[[..._kfState.bls][0]].name
+      : `${selCount} BL`;
+  trigger.innerHTML = `${esc(triggerLabel)} <span class="kf-bl-arrow">▾</span>`;
+  trigger.classList.toggle('active', selCount > 0);
+}
 
 function _kfReset() {
   ['kf-search','kf-ek','kf-eink'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
   _kfState.bls.clear();
   _kfState.kreise.clear();
-  const container = document.querySelector('.kunden-filter-bar');
-  if (container) container.outerHTML = renderKundenFilterBar(state.kunden || []);
+  document.querySelectorAll('#kf-bl-popup .kf-bl-opt input[type=checkbox]').forEach(cb => cb.checked = false);
+  _kfRefreshDropdownTrigger();
   applyKundenFilter();
 }
 window._kfReset = _kfReset;
@@ -1029,8 +1060,8 @@ function renderWunschProfilCard(k) {
       <div class="wp-kreis-block-head">
         <span>${esc(REG[bl].name)} <span class="text-tertiary text-small">${aktiveAnzahl}/${kreise.length}</span></span>
         <div style="display:flex;gap:6px;">
-          ${!alleAktiv ? `<button type="button" onclick="window._wpAllKreise('${bl}', true)" class="secondary" style="padding:2px 8px;font-size:10px;">Alle</button>` : ''}
-          ${aktiveAnzahl > 0 ? `<button type="button" onclick="window._wpAllKreise('${bl}', false)" class="secondary" style="padding:2px 8px;font-size:10px;">Keine</button>` : ''}
+          <button type="button" onclick="window._wpAllKreise('${bl}', true)" class="secondary" style="padding:2px 8px;font-size:10px;${alleAktiv ? 'opacity:.4;' : ''}" ${alleAktiv ? 'disabled' : ''}>Alle</button>
+          <button type="button" onclick="window._wpAllKreise('${bl}', false)" class="secondary" style="padding:2px 8px;font-size:10px;${aktiveAnzahl === 0 ? 'opacity:.4;' : ''}" ${aktiveAnzahl === 0 ? 'disabled' : ''}>Keine</button>
         </div>
       </div>
       <div class="wp-kreis-cells">${cells}</div>
@@ -1081,9 +1112,26 @@ function renderWunschProfilCard(k) {
   `;
 }
 
-// === Wunsch-Profil-Handler (Edgar-Feedback 24.05.2026 v2) ===
-// BL-Klick aktiviert ALLE Kreise dieses BL automatisch.
-// Vertriebler kann dann einzelne Kreise rausnehmen.
+// === Wunsch-Profil-Handler v3 (Edgar 24.05.2026 10:30) ===
+// FIX: Klick auf BL/Kreis darf das collapsible-details NICHT schließen.
+// Lösung: nur die Wunsch-Profil-Karte neu rendern, nicht ganzen Tab.
+function _wpRender() {
+  if (!state.kunde) return;
+  const oldCard = document.querySelector('.wp-card');
+  if (!oldCard) return; // falls Tab gewechselt wurde, ignorieren
+  // open-State VOR dem Re-Render lesen
+  const wasOpen = oldCard.hasAttribute('open');
+  // Neue HTML rendern (in temp-Container)
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderWunschProfilCard(state.kunde);
+  const newCard = tmp.firstElementChild;
+  if (!newCard) return;
+  // open-State auf neue Karte übertragen (override Default)
+  if (wasOpen) newCard.setAttribute('open', '');
+  else newCard.removeAttribute('open');
+  oldCard.replaceWith(newCard);
+}
+
 async function _wpToggleBl(bl) {
   if (!state.kunde) return;
   const wp = parseWunschProfil(state.kunde.notizen || '');
@@ -1091,15 +1139,13 @@ async function _wpToggleBl(bl) {
   if (!reg) return;
   const hasAny = (wp.regionen || []).some(r => r.startsWith(bl + ':'));
   if (hasAny) {
-    // BL deaktivieren → alle Kreise UND Sentinel weg
     wp.regionen = (wp.regionen || []).filter(r => !r.startsWith(bl + ':'));
   } else {
-    // BL aktivieren → ALLE Kreise des BL eintragen (Edgar 24.05.2026)
     const newEntries = (reg.kreise || []).map(kr => bl + ':' + kr);
     wp.regionen = [...(wp.regionen || []), ...newEntries];
   }
   await saveWunschProfil(wp);
-  renderTabUebersicht();
+  _wpRender(); // nur Karte, kein Tab-Re-Render
 }
 window._wpToggleBl = _wpToggleBl;
 
@@ -1108,17 +1154,15 @@ async function _wpAllKreise(bl, aktivieren) {
   const wp = parseWunschProfil(state.kunde.notizen || '');
   const reg = (window.REGIONEN || {})[bl];
   if (!reg) return;
-  // Erst alle Kreise dieses BL entfernen (auch Sentinel)
   wp.regionen = (wp.regionen || []).filter(r => !r.startsWith(bl + ':'));
   if (aktivieren) {
     const newEntries = (reg.kreise || []).map(kr => bl + ':' + kr);
     wp.regionen.push(...newEntries);
   } else {
-    // BL bleibt sichtbar (Sentinel) damit der Vertriebler weiter Kreise wählen kann
     wp.regionen.push(bl + ':*');
   }
   await saveWunschProfil(wp);
-  renderTabUebersicht();
+  _wpRender();
 }
 window._wpAllKreise = _wpAllKreise;
 
@@ -1126,10 +1170,9 @@ async function _wpToggleKreis(bl, kreis) {
   if (!state.kunde) return;
   const wp = parseWunschProfil(state.kunde.notizen || '');
   const key = bl + ':' + kreis;
-  const list = (wp.regionen || []).filter(r => r !== bl + ':*'); // Sentinel entfernen
+  const list = (wp.regionen || []).filter(r => r !== bl + ':*');
   if (list.includes(key)) {
     wp.regionen = list.filter(r => r !== key);
-    // Wenn keine Kreise mehr für dieses BL, Sentinel wieder rein (BL bleibt sichtbar)
     if (!wp.regionen.some(r => r.startsWith(bl + ':'))) {
       wp.regionen.push(bl + ':*');
     }
@@ -1137,7 +1180,7 @@ async function _wpToggleKreis(bl, kreis) {
     wp.regionen = [...list, key];
   }
   await saveWunschProfil(wp);
-  renderTabUebersicht();
+  _wpRender();
 }
 window._wpToggleKreis = _wpToggleKreis;
 
@@ -1158,7 +1201,7 @@ async function _wpClearAll() {
   const wp = parseWunschProfil(state.kunde.notizen || '');
   wp.regionen = [];
   await saveWunschProfil(wp);
-  renderTabUebersicht();
+  _wpRender();
 }
 window._wpClearAll = _wpClearAll;
 
@@ -3714,42 +3757,55 @@ function renderStoryPremium(r) {
       </div>
 
       ${(() => {
-        // Renovierungs-Stress (Edgar 24.05.2026): zeigt was passiert wenn der
-        // Käufer X € in Renovierung steckt. Annahme: 1 € Renov = 1 € Mehrwert
-        // (gepflegte Immo), zusätzlich AfA-fähig (BFH-Sicht anschaffungsnah).
-        if (!window.Kalk || !window.Kalk.renovierungsStress) return '';
-        let rs;
-        try { rs = window.Kalk.renovierungsStress(r.inputs); }
-        catch (e) { return ''; }
-        if (!rs || !rs.zellen || rs.zellen.length === 0) return '';
-        const fmt = (v, d) => v == null || !isFinite(v) ? '–' : Math.round(v).toLocaleString('de-DE') + ' €';
-        const fmtMo = (v) => v == null || !isFinite(v) ? '–' : Math.round(v).toLocaleString('de-DE') + ' €/Mo';
-        const fmtPct = (v) => v == null ? '–' : (v * 100).toFixed(1).replace('.', ',') + ' %';
-        const headHtml = rs.zellen.map(z => `<th style="padding:8px 10px;text-align:right;background:var(--cream-subtle);border-bottom:1px solid var(--border);">
-          <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;">${z.isBase ? 'Ohne Renov' : '+' + (z.kosten/1000) + 'k €'}</div>
-        </th>`).join('');
-        const row = (label, get, fmtFn) => `<tr>
-          <td style="padding:7px 10px;color:var(--text-secondary);font-size:12px;border-top:1px solid var(--border);">${label}</td>
-          ${rs.zellen.map(z => `<td style="padding:7px 10px;text-align:right;font-size:13px;border-top:1px solid var(--border);${z.isBase ? 'background:rgba(176,138,77,.05);' : ''}">${fmtFn(get(z))}</td>`).join('')}
-        </tr>`;
+        // Renovierungs-STORY v2 (Edgar 24.05.2026 10:30): nicht mehr Tabelle.
+        // Stattdessen narrative Geschichte: konkretes Beispiel, EK vs. Finanzierung,
+        // Steuererstattung, Wertsteigerung, „nimmt dem Kunden die Angst".
+        if (!window.Kalk || !window.Kalk.recalc || !r.inputs) return '';
+        // Basis-Default für die Story: 5000 € nach Jahr 1, Mieter zieht aus
+        const stSatz = (r.inputs.steuersatz || 0.30);
+        const gebAnteil = (r.inputs.gebaeudeAnteil || 0.85);
+        const afaSatz = (r.inputs.afaSatz || 0.02);
+        const zins = (r.inputs.zins || 0.045);
+        const tilg = (r.inputs.tilgung || 0.01);
+        const vermBrutto10 = (r.vermoegen && r.vermoegen[10] && r.vermoegen[10].vermoegenBrutto) || r.vermoegenBrutto10 || 0;
         return `
-        <div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--border);">
-          <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Und wenn ich noch in die Wohnung investiere?</div>
-          <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px;">Wenn Du nach dem Kauf noch in Renovierung steckst, wird die Wohnung diesen Mehrwert tragen — aber das initiale Eigenkapital steigt um den gleichen Betrag, und die monatliche Belastung ändert sich leicht durch höhere AfA. Hier siehst Du die Spanne.</div>
-          <div style="background:var(--cream-subtle);border:1px solid var(--border);border-radius:8px;padding:12px 16px;">
-            <table style="width:100%;border-collapse:collapse;">
-              <thead><tr>
-                <th style="padding:8px 10px;text-align:left;background:var(--cream-subtle);border-bottom:1px solid var(--border);font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;">Kennzahl</th>
-                ${headHtml}
-              </tr></thead>
-              <tbody>
-                ${row('Eigenkapital-Einsatz', z => z.ekBedarf, fmt)}
-                ${row('Belastung €/Mo Jahr 1', z => z.belastungMo, fmtMo)}
-                ${row('Cashflow Jahr 1', z => z.cfJ1, fmt)}
-                ${row('Vermögen netto J10', z => z.vermoegenNetto10, fmt)}
-                ${row('IRR über 10 J', z => z.irr, fmtPct)}
-              </tbody>
-            </table>
+        <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border);">
+          <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Was, wenn nach einem Jahr noch etwas in die Wohnung muss?</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:14px;">
+            Stell Dir vor, nach einem Jahr zieht der Mieter aus, oder es kommt eine Reparatur,
+            oder Du willst die Wohnung für eine Neuvermietung frisch machen. Du steckst <strong>5.000 €</strong>
+            in die Renovierung. Was bedeutet das?
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+            <div style="background:rgba(45,110,71,.06);border:1px solid rgba(45,110,71,.25);border-radius:8px;padding:14px 16px;">
+              <div style="font-size:11px;color:var(--green-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Variante A · Aus Eigenkapital</div>
+              <div style="font-size:13px;color:var(--text-primary);line-height:1.7;">
+                <strong>5.000 €</strong> sofort vom Konto.<br>
+                <span style="color:var(--text-secondary);">→ Davon holst Du Dir über die Steuer ca. <strong style="color:var(--green-dark);">${Math.round(5000 * gebAnteil * afaSatz * stSatz * 10).toLocaleString('de-DE')} €</strong> über 10 Jahre wieder zurück (linear über AfA).</span>
+              </div>
+              <div style="margin-top:10px;font-size:12px;color:var(--text-secondary);line-height:1.6;">
+                Effektiv kostet Dich die Renov also etwa <strong>${Math.round(5000 - 5000 * gebAnteil * afaSatz * stSatz * 10).toLocaleString('de-DE')} €</strong> über 10 Jahre — und die Wohnung ist um die volle Renov-Summe mehr wert.
+              </div>
+            </div>
+            <div style="background:rgba(176,138,77,.06);border:1px solid rgba(176,138,77,.25);border-radius:8px;padding:14px 16px;">
+              <div style="font-size:11px;color:var(--accent-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Variante B · Aus Finanzierung</div>
+              <div style="font-size:13px;color:var(--text-primary);line-height:1.7;">
+                Darlehen um <strong>5.000 €</strong> aufstocken.<br>
+                <span style="color:var(--text-secondary);">→ Monatlich ca. <strong style="color:var(--accent-dark);">${Math.round(5000 * (zins + tilg) / 12).toLocaleString('de-DE')} €/Mo</strong> mehr Annuität.</span>
+              </div>
+              <div style="margin-top:10px;font-size:12px;color:var(--text-secondary);line-height:1.6;">
+                Die Bank zieht zusätzlich Steuervorteil aus Zinsen — Netto-Mehrbelastung ca. <strong>${Math.round(5000 * (zins + tilg) / 12 * (1 - stSatz * 0.5)).toLocaleString('de-DE')} €/Mo</strong>. Dein Kontostand bleibt unangetastet.
+              </div>
+            </div>
+          </div>
+
+          <div style="background:var(--cream-subtle);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:14px 18px;font-size:13px;line-height:1.65;color:var(--text-secondary);">
+            <strong style="color:var(--text-primary);">Und das Vermögen?</strong> Eine sauber gepflegte Wohnung hält ihren Marktwert besser als der Marktdurchschnitt. Bei einer 5.000-€-Renov gehen wir davon aus, dass die Wohnung diesen Betrag <strong>mindestens</strong> als zusätzlichen Marktwert trägt. Statt ${Math.round(vermBrutto10).toLocaleString('de-DE')} € Bruttovermögen nach 10 Jahren landest Du dann etwa bei <strong style="color:var(--green-dark);">${Math.round(vermBrutto10 + 5000).toLocaleString('de-DE')} €</strong> — abzüglich der initial gesetzten Mittel.
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:var(--text-tertiary);line-height:1.6;">
+            <strong style="color:var(--text-secondary);">In Kurz:</strong> Eine spätere Renov ist kein Stress-Szenario, sondern ein normaler Vorgang — der sich entweder über die Steuer (EK-Variante) oder über die Monatsbelastung (Finanzierungs-Variante) verdaut und am Ende den Marktwert trägt. <em>Beide Wege funktionieren, wir besprechen die richtige Wahl, wenn es soweit ist.</em>
           </div>
         </div>
         `;
