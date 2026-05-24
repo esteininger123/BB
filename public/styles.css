@@ -3499,7 +3499,7 @@ input[type="range"].spar-zins-range::-moz-range-track {
   transition: all .12s ease;
 }
 .wp-bl-pill:hover {
-  background: var(--cream-subtle);
+  background: var(--bg-cream-subtle);
   border-color: var(--accent);
 }
 .wp-bl-pill.active {
@@ -3536,7 +3536,7 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .wp-kreis-chip {
   padding: 3px 9px;
   font-size: 11.5px;
-  background: var(--cream-subtle);
+  background: var(--bg-cream-subtle);
   border: 1px solid transparent;
   border-radius: 11px;
   cursor: pointer;
@@ -3554,44 +3554,8 @@ input[type="range"].spar-zins-range::-moz-range-track {
   font-weight: 500;
 }
 
-/* Filter-Bar im Dashboard / Kundenliste */
-.kunden-filter-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: end;
-  padding: 12px 14px;
-  background: var(--cream-subtle);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  margin-bottom: 12px;
-}
-.kunden-filter-bar .filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 140px;
-}
-.kunden-filter-bar label {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
-.kunden-filter-bar input,
-.kunden-filter-bar select {
-  padding: 5px 9px;
-  font-size: 12.5px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-family: inherit;
-}
-.kunden-filter-bar .filter-count {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--text-tertiary);
-  align-self: center;
-}
+/* FS-1 (24.05.2026, UX-Audit): .kunden-filter-bar Dead-Code entfernt.
+   Wurde durch inline-Header-Filter ersetzt (siehe .kunden-tbl thead tr.kf-row). */
 
 /* ============================================================
    Phasen-Cockpit Sticky (Edgar-Feedback 24.05.2026)
@@ -3663,7 +3627,7 @@ input[type="range"].spar-zins-range::-moz-range-track {
    ============================================================ */
 .kunden-tbl thead tr.kf-row th {
   padding: 5px 8px;
-  background: var(--cream-subtle, #F4F1EA);
+  background: var(--bg-cream-subtle, #F4F1EA);
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
@@ -3755,7 +3719,7 @@ input[type="range"].spar-zins-range::-moz-range-track {
 }
 .kf-bl-mini {
   flex: 1;
-  background: var(--cream-subtle, #F4F1EA);
+  background: var(--bg-cream-subtle, #F4F1EA);
   border: 1px solid var(--border);
   color: var(--text-secondary);
   padding: 3px 6px;

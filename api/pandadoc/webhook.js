@@ -169,43 +169,21 @@ module.exports = async (req, res) => {
         : '';
       const neueZeile = `[${stempel}] PandaDoc ${docId}${docTypSuffix}: ${statusText}`;
 
-      // QA-Fix 2026-05-23 (Audit-K-3): Re-Read-before-Write — Race-Window
-      // verkürzen zwischen Webhook und Frontend-saveKavTracker.
-      // Vorher: oldNotizen wurde minutenfrüher beim Kunden-Lookup gelesen;
-      // wenn der User in der Zwischenzeit Tasks abgehakt hat, ging der
-      // KAV-Tracker-State verloren beim Webhook-Write.
-      // Jetzt: direkt vor dem Write nochmal frisch holen.
-      let freshNotizen = (kunde.fields && kunde.fields[KUNDEN_FIELDS.NOTIZEN]) || '';
-      try {
-        const fresh = await airtable('get', TABLES.KUNDEN, { recordId: kunde.id });
-        freshNotizen = (fresh && fresh.fields && fresh.fields[KUNDEN_FIELDS.NOTIZEN]) || '';
-      } catch (e) {
-        // Re-Read fehlgeschlagen — Fallback auf den ersten Read (akzeptables Risiko)
-        console.warn('[pandadoc-webhook] Re-Read fehlgeschlagen, nutze ersten Read als Fallback:', e && e.message);
-      }
-
-      // Iter-3 W5 (21.05.2026): Idempotenz — wenn PandaDoc das gleiche Event retried
-      // (z.B. weil unser 200 nicht durchkam), nicht doppelt in die Notiz schreiben.
-      // QA-Fix 2026-05-22 (Audit-B B4): Regex erlaubt optionalen Suffix vor `:`.
-      // QA-Fix 2026-05-23 (Audit-K-3): Idempotenz-Check gegen freshNotizen statt
-      // gegen stale oldNotizen.
-      const escId = String(docId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const docMarkerRegex = new RegExp(`PandaDoc ${escId}(?:\\s*\\([^)]+\\))?: (.+)`, 'g');
-      const matches = [...freshNotizen.matchAll(docMarkerRegex)];
-      const letzterStatusZuDoc = matches.length > 0 ? matches[matches.length - 1][1].trim() : null;
-      if (letzterStatusZuDoc === statusText.trim()) {
-        ergebnisse.push({ event: evName, docId, kundeId: kunde.id, ok: true, status: statusText, skipped: 'duplicate' });
-        continue;
-      }
-
       // FS-1 Refactor 2026-05-24 (Tech-Architekt BLOCKER B-2):
       // Notizen-Append via gemeinsamer Helper-Lib `api/_lib/notizen.js`. Diese
       // erkennt BEIDE Block-Marker ([KAV-TRACKER] + [WUNSCH-PROFIL]) und fügt
-      // vor dem ersten Block ein. Vorher: nur KAV-Block — bei Kunden mit nur
-      // Wunsch-Profil-Block (neu seit heute) hätte die Zeile hinter dem Block
-      // gelandet → Frontend-Parse-Inkonsistenz.
-      // Plus: 100-Zeilen-Cutoff jetzt im Helper, behält beide Blocks korrekt.
-      await appendActivityZeile(kunde.id, neueZeile);
+      // vor dem ersten Block ein. Idempotenz-Marker (Webhook-Retry-Schutz)
+      // wird an die Lib übergeben — die kümmert sich um den Match-Check.
+      // FS-1 Final-Audit-Polish 24.05.2026: alter manueller Re-Read entfernt
+      // (war Doppel-Roundtrip: Lib macht eigenen Re-Read). Idempotenz-Pattern
+      // jetzt via opts an die Lib — Code-Duplikation weg.
+      const escId = String(docId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const idempotencyRegex = new RegExp(`PandaDoc ${escId}(?:\\s*\\([^)]+\\))?: ${statusText.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g');
+      const result = await appendActivityZeile(kunde.id, neueZeile, { idempotencyMarker: idempotencyRegex });
+      if (result && result.skipped === 'duplicate') {
+        ergebnisse.push({ event: evName, docId, kundeId: kunde.id, ok: true, status: statusText, skipped: 'duplicate' });
+        continue;
+      }
 
       ergebnisse.push({ event: evName, docId, kundeId: kunde.id, ok: true, status: statusText });
     } catch (e) {

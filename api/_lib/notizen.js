@@ -43,15 +43,15 @@ async function appendActivityZeile(kundeId, zeile, opts = {}) {
   const rec = await airtable('get', TABLES.KUNDEN, { recordId: kundeId });
   const oldNotizen = (rec && rec.fields && rec.fields[KUNDEN_FIELDS.NOTIZEN]) || '';
 
-  // Idempotenz-Check: identische Zeile schon im freeNotes-Bereich?
+  // Idempotenz-Check: wenn opts.idempotencyMarker (RegExp) im freeNotes-Bereich
+  // matched, wird die Zeile NICHT neu eingefügt. Caller verwendet das z.B. um
+  // doppelte Webhook-Events zu deduplizieren (gleiche docId + gleicher Status).
   if (opts.idempotencyMarker instanceof RegExp) {
     const freeOnly = _extractFreeNotes(oldNotizen);
-    const matches = [...freeOnly.matchAll(opts.idempotencyMarker)];
-    if (matches.length > 0) {
-      const lastMatch = matches[matches.length - 1][0];
-      if (lastMatch === zeile.trim()) {
-        return { ok: true, skipped: 'duplicate' };
-      }
+    // Reset lastIndex falls Regex „g"-Flag hat
+    opts.idempotencyMarker.lastIndex = 0;
+    if (opts.idempotencyMarker.test(freeOnly)) {
+      return { ok: true, skipped: 'duplicate' };
     }
   }
 

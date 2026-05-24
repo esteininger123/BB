@@ -1125,7 +1125,7 @@ function renderWunschProfilCard(k) {
         saLiquid = bd.liquidesVermoegen || 0;
         saUeber = bd.ueberschussMo || 0;
         bonInfo = `
-          <div style="margin-top:14px;padding:10px 14px;background:var(--cream-subtle);border-radius:6px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+          <div style="margin-top:14px;padding:10px 14px;background:var(--bg-cream-subtle);border-radius:6px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
             <div><div class="text-tertiary text-small">Einsetzbares EK (liquide aus SA)</div><div style="font-size:16px;font-weight:600;color:#2D6E47;">${Math.round(saLiquid).toLocaleString('de-DE')} €</div></div>
             <div><div class="text-tertiary text-small">Freies Einkommen / Mo (aus SA)</div><div style="font-size:16px;font-weight:600;color:${saUeber > 0 ? '#2D6E47' : '#9A3E33'};">${Math.round(saUeber).toLocaleString('de-DE')} €</div></div>
             <div><div class="text-tertiary text-small">Immo-Vermögen</div><div style="font-size:16px;font-weight:600;color:var(--text-primary);">${Math.round(bd.immobilienVermoegen || 0).toLocaleString('de-DE')} €</div></div>
@@ -3809,7 +3809,7 @@ function renderStoryPremium(r) {
           Die Tabelle unten zeigt Dir die Rendite auf Dein eingesetztes Eigenkapital, wenn Zinsen steigen oder die Wohnung mal leer steht. Jede Zelle ist eine eigene komplette Berechnung über 10 Jahre — keine Schätzung.
         </div>
       </div>
-      <div style="margin-top:16px;background:var(--cream-subtle);border:1px solid var(--border);border-radius:8px;padding:14px 18px;">
+      <div style="margin-top:16px;background:var(--bg-cream-subtle);border:1px solid var(--border);border-radius:8px;padding:14px 18px;">
         <table style="width:100%;border-collapse:collapse;">
           <thead>${headerRow}</thead>
           <tbody>${bodyRows}</tbody>
@@ -3882,7 +3882,7 @@ function renderStoryPremium(r) {
             </div>
           </div>
 
-          <div style="background:var(--cream-subtle);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:14px 18px;font-size:13px;line-height:1.65;color:var(--text-secondary);">
+          <div style="background:var(--bg-cream-subtle);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:14px 18px;font-size:13px;line-height:1.65;color:var(--text-secondary);">
             <strong style="color:var(--text-primary);">Und das Vermögen?</strong> Eine sauber gepflegte Wohnung hält ihren Marktwert besser als der Marktdurchschnitt. Bei einer 5.000-€-Renov gehen wir davon aus, dass die Wohnung diesen Betrag <strong>mindestens</strong> als zusätzlichen Marktwert trägt. Statt ${Math.round(vermBrutto10).toLocaleString('de-DE')} € Bruttovermögen nach 10 Jahren landest Du dann etwa bei <strong style="color:var(--green-dark);">${Math.round(vermBrutto10 + 5000).toLocaleString('de-DE')} €</strong> — abzüglich der initial gesetzten Mittel.
           </div>
 
@@ -5450,7 +5450,7 @@ function _showSaPortalLinkModal(url, expiresAt) {
         <div style="padding:20px 22px;">
           <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">Der Kunde klickt diesen Link → öffnet eine vereinfachte SA-Maske → füllt aus → speichert. Du siehst das Ergebnis direkt im SA-Tab.</div>
           <div style="display:flex;gap:8px;margin:10px 0 16px;">
-            <input type="text" readonly value="${esc(url)}" id="sa-portal-url" style="flex:1;padding:8px 12px;font-size:12px;border:1px solid var(--border);border-radius:5px;font-family:ui-monospace,monospace;background:var(--cream-subtle);" onclick="this.select()">
+            <input type="text" readonly value="${esc(url)}" id="sa-portal-url" style="flex:1;padding:8px 12px;font-size:12px;border:1px solid var(--border);border-radius:5px;font-family:ui-monospace,monospace;background:var(--bg-cream-subtle);" onclick="this.select()">
             <button onclick="window._saPortalCopy()" id="sa-portal-copy-btn" class="secondary" style="padding:6px 14px;font-size:12px;white-space:nowrap;">Link kopieren</button>
           </div>
           <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:14px;">Gültig bis <strong>${expDate}</strong> · danach ist der Link automatisch ungültig.</div>
@@ -7656,10 +7656,10 @@ function _renderWeListeContent() {
   // Welle 2 (2026-05-24): Floating Compare-FAB unten rechts wenn 1+ ausgewählt.
   const selCount = _weVergleichSel.size;
   const compareFab = selCount > 0 ? `
-    <div id="we-vergleich-fab" style="position:fixed;bottom:24px;right:24px;z-index:80;display:flex;gap:10px;align-items:center;background:#1A1A17;color:#FBFAF7;padding:10px 16px 10px 18px;border-radius:28px;box-shadow:0 8px 24px rgba(26,26,23,.22);font-family:inherit;">
+    <div id="we-vergleich-fab" style="position:fixed;bottom:24px;right:24px;z-index:80;display:flex;gap:10px;align-items:center;background:var(--accent);color:#fff;padding:10px 16px 10px 18px;border-radius:28px;box-shadow:0 8px 24px rgba(176,138,77,.32);font-family:inherit;">
       <span style="font-size:13px;">${selCount} ${selCount === 1 ? 'WE' : 'WEs'} markiert</span>
-      <button onclick="window._weVergleichClear()" style="background:transparent;color:#FBFAF7;border:1px solid rgba(251,250,247,.3);padding:4px 10px;font-size:12px;border-radius:14px;cursor:pointer;font-family:inherit;" title="Auswahl leeren">✕</button>
-      <button onclick="window._weVergleichOpen()" ${selCount < 2 ? 'disabled style="opacity:.45;cursor:not-allowed;background:#C9A572;color:#1A1A17;border:none;padding:6px 14px;font-size:13px;border-radius:14px;font-weight:600;font-family:inherit;"' : 'style="background:#C9A572;color:#1A1A17;border:none;padding:6px 14px;font-size:13px;border-radius:14px;cursor:pointer;font-weight:600;font-family:inherit;"'}>
+      <button onclick="window._weVergleichClear()" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4);padding:4px 10px;font-size:12px;border-radius:14px;cursor:pointer;font-family:inherit;" title="Auswahl leeren">✕</button>
+      <button onclick="window._weVergleichOpen()" ${selCount < 2 ? 'disabled style="opacity:.45;cursor:not-allowed;background:#fff;color:var(--accent-dark);border:none;padding:6px 14px;font-size:13px;border-radius:14px;font-weight:600;font-family:inherit;"' : 'style="background:#fff;color:var(--accent-dark);border:none;padding:6px 14px;font-size:13px;border-radius:14px;cursor:pointer;font-weight:600;font-family:inherit;"'}>
         Vergleichen →
       </button>
     </div>
@@ -7778,7 +7778,7 @@ function _renderWeVergleichModal() {
   });
 
   const headerHtml = weCols.map(col => `
-    <th style="padding:12px 14px;background:var(--cream-subtle);border-bottom:2px solid var(--accent);text-align:left;min-width:170px;">
+    <th style="padding:12px 14px;background:var(--bg-cream-subtle);border-bottom:2px solid var(--accent);text-align:left;min-width:170px;">
       <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;">${esc(col.projekt || '–')}</div>
       <div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-top:2px;">WE ${esc(String(col.we.weNr || '?'))}</div>
       <div style="font-size:11px;color:var(--text-tertiary);">${esc(col.we.lageText || col.we.lage || '')}${col.we.qm > 0 ? ' · ' + (col.we.qm + ' qm') : ''}</div>
@@ -7823,7 +7823,7 @@ function _renderWeVergleichModal() {
         <div style="padding:20px 22px;overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;">
             <thead>
-              <tr><th style="background:var(--cream-subtle);border-bottom:2px solid var(--accent);padding:12px 14px;text-align:left;min-width:160px;font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;">Kennzahl</th>${headerHtml}</tr>
+              <tr><th style="background:var(--bg-cream-subtle);border-bottom:2px solid var(--accent);padding:12px 14px;text-align:left;min-width:160px;font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;">Kennzahl</th>${headerHtml}</tr>
             </thead>
             <tbody>${rowsHtml}</tbody>
           </table>
@@ -7861,7 +7861,7 @@ function _weLuckenShow(weId) {
     const keys = Object.keys(group);
     if (keys.length === 0) return '';
     return keys.map(rolle => `
-      <div style="margin-bottom:10px;padding:10px 12px;background:${kind === 'pflicht' ? 'rgba(154,62,51,.04)' : 'var(--cream-subtle)'};border-left:3px solid ${kind === 'pflicht' ? '#9A3E33' : '#B08A4D'};border-radius:0 4px 4px 0;">
+      <div style="margin-bottom:10px;padding:10px 12px;background:${kind === 'pflicht' ? 'rgba(154,62,51,.04)' : 'var(--bg-cream-subtle)'};border-left:3px solid ${kind === 'pflicht' ? '#9A3E33' : '#B08A4D'};border-radius:0 4px 4px 0;">
         <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Pflegen: ${esc(rolle)}</div>
         <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-primary);line-height:1.5;">
           ${group[rolle].map(f => `<li>${esc(f)}</li>`).join('')}
