@@ -3787,3 +3787,39 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .wp-card .wp-bl-pill {
   white-space: nowrap;
 }
+
+/* ============================================================
+   FS-1 (24.05.2026): Mobile-Responsive-Fixes aus UX-Audit
+   ============================================================ */
+@media (max-width: 600px) {
+  /* UX-#11: Magazin-Section-Padding 64px ist auf Mobile zu viel */
+  .kalk-c-section {
+    padding: 36px 0 !important;
+  }
+  .kalk-c-hero {
+    padding: 32px 0 56px !important;
+  }
+  /* UX-#20: Activity-Row 140px Timestamp-Spalte bricht auf 320px */
+  .activity-row {
+    grid-template-columns: 1fr !important;
+    gap: 4px !important;
+  }
+  .activity-ts {
+    font-size: 11px;
+    opacity: 0.72;
+  }
+  /* UX-#23: Tabs Scroll-Indicator (Mask-Fade rechts) */
+  .tabs {
+    -webkit-mask-image: linear-gradient(to right, black 88%, transparent);
+    mask-image: linear-gradient(to right, black 88%, transparent);
+  }
+  /* UX-#22: Help-Button Touch-Target */
+  .bbk-help-btn {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .user-menu .avatar {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

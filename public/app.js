@@ -450,9 +450,34 @@ function renderDashboard() {
 }
 
 // Welle Filter (24.05.2026): Helper — extrahiert Bonität + Wunsch-Profil pro Kunde
+// FS-1 (Tech-Architekt H-5): Memo-Cache. computeBonitaetDetailed ist nicht billig
+// (~5-10 ms pro Kunde mit SA). Bei 100 Kunden × mehreren Aufrufen pro Render
+// wird das spürbar. Cache pro (kundeId, saJson-Hash, notizen-Hash).
+const _kfDataCache = new Map();
 function _kundeFilterData(k) {
+  if (!k || !k.id) {
+    // Defensiv: ohne ID kein Cache, einfach rechnen
+    return _computeKundeFilterData(k);
+  }
+  // Cache-Key: kundeId + Längen-Hash der saJson und notizen (billig, kollisionsarm
+  // für sich nicht änderndes Volumen)
+  const saStr = k.saJson ? JSON.stringify(k.saJson) : '';
+  const notStr = k.notizen || '';
+  const key = k.id + ':' + saStr.length + ':' + notStr.length + ':' + (saStr.length > 0 ? saStr.charCodeAt(saStr.length - 1) : 0) + ':' + (notStr.length > 0 ? notStr.charCodeAt(notStr.length - 1) : 0);
+  if (_kfDataCache.has(key)) return _kfDataCache.get(key);
+  const fd = _computeKundeFilterData(k);
+  // Cache-Größe begrenzen (alte Einträge raus wenn > 500)
+  if (_kfDataCache.size > 500) {
+    const firstKey = _kfDataCache.keys().next().value;
+    _kfDataCache.delete(firstKey);
+  }
+  _kfDataCache.set(key, fd);
+  return fd;
+}
+
+function _computeKundeFilterData(k) {
   let liquid = 0, ueber = 0;
-  if (k.saJson && typeof window.Kalk !== 'undefined' && window.Kalk.computeBonitaetDetailed) {
+  if (k && k.saJson && typeof window.Kalk !== 'undefined' && window.Kalk.computeBonitaetDetailed) {
     try {
       const bd = window.Kalk.computeBonitaetDetailed(k.saJson, true);
       if (bd) {
@@ -461,8 +486,7 @@ function _kundeFilterData(k) {
       }
     } catch {}
   }
-  const wp = (typeof parseWunschProfil === 'function') ? parseWunschProfil(k.notizen || '') : { regionen: [] };
-  // BL-Set für schnelle Region-Matches
+  const wp = (typeof parseWunschProfil === 'function') ? parseWunschProfil((k && k.notizen) || '') : { regionen: [] };
   const blSet = new Set();
   const kreisSet = new Set();
   (wp.regionen || []).forEach(r => {
