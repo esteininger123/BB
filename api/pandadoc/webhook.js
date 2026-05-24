@@ -125,6 +125,7 @@ module.exports = async (req, res) => {
       // Schnellpfad aus, der Fallback fängt es ab — und wir loggen es deutlich.
       const NOTIZEN_FIELDNAME = 'Notizen';
       let kundenRecs = [];
+      let formulaPathOK = false; // FS-3m: track ob Formula-Pfad lief (auch wenn 0 Records)
       let usedFallback = false;
       try {
         const formula = `FIND('${escapeFormulaString(docId)}', {${NOTIZEN_FIELDNAME}}) > 0`;
@@ -132,20 +133,30 @@ module.exports = async (req, res) => {
           filterByFormula: formula,
           maxRecords: 1
         }, 1);
+        formulaPathOK = true;
       } catch (e) {
-        // Formula-Pfad gescheitert — Fallback unten
+        // Formula-Pfad gescheitert (z.B. Field-Name geändert) — Fallback unten
       }
-      if (!kundenRecs.length) {
-        // Fallback: alle Kunden laden, clientseitig nach docId in NOTIZEN-Field-ID filtern
+      // FS-3m (Re-Audit P1 25.05.2026): Fallback NUR wenn Formula-Pfad selbst
+      // gefehlt hat (Field-Name-Drift). Wenn die Formula durchlief und 0 Records
+      // lieferte → Kunde existiert wirklich nicht (oder DocId stimmt nicht).
+      // Vorher lief der Fallback bei jedem leeren Formula-Result → 1000-Record-
+      // Scan bei jedem Webhook-Event. Plus: bei Fallback nur AKTIVE Kunden
+      // scannen (archivierte sind eh nicht mehr relevant für neue Statuses).
+      if (!formulaPathOK && !kundenRecs.length) {
         try {
+          // FS-3m: kein server-side-Filter (Field-Typ unklar) — clientside filtern
+          // nach archiviert + docId in einem Pass. Spart Airtable-Roundtrips.
           const alle = await listAll(TABLES.KUNDEN, {}, 1000);
           kundenRecs = alle.filter(rec => {
-            const notizen = (rec.fields && rec.fields[KUNDEN_FIELDS.NOTIZEN]) || '';
+            const f = (rec && rec.fields) || {};
+            if (f[KUNDEN_FIELDS.ARCHIVIERT]) return false; // archivierte überspringen
+            const notizen = f[KUNDEN_FIELDS.NOTIZEN] || '';
             return typeof notizen === 'string' && notizen.includes(docId);
           });
           if (kundenRecs.length) {
             usedFallback = true;
-            console.warn(`[pandadoc-webhook] Field-Name-Pfad leer für ${docId}, Fallback hat ${kundenRecs.length} Kunden gefunden — Field-Name "${NOTIZEN_FIELDNAME}" prüfen.`);
+            console.warn(`[pandadoc-webhook] Field-Name-Pfad gescheitert für ${docId}, Fallback (active-only) hat ${kundenRecs.length} Kunden gefunden — Field-Name "${NOTIZEN_FIELDNAME}" prüfen.`);
           }
         } catch (e) {
           // Auch der Fallback gescheitert → wird unten als "Kunde nicht gefunden" geloggt

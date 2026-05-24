@@ -900,6 +900,11 @@ function recalc(i) {
       kaltmieteMo, spMieteMo, subventionMoEff,
       mieteJahr,
       zinsenJahr, tilgungJahr,
+      // FS-3m (Re-Audit P3 25.05.2026): annuJahr + afaJahr als Convenience-
+      // Felder. Vorher in recalcPaket via `cf[y].annuJahr || 0` gesummt → 0.
+      // Jetzt korrekt nutzbar (Paket-Output war stumm-defekt für diese 2 Felder).
+      annuJahr: zinsenJahr + tilgungJahr,
+      afaJahr: afaJahr,
       hgJahr, mvJahr, hvJahr,
       stVorteilJahr,
       cfJahr,
