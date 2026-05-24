@@ -1869,7 +1869,7 @@ function renderTabKalkulator() {
     <div class="card mt-16">
       <div class="empty-state" style="padding: 24px; text-align: center;">
         <p style="font-size:15px; margin: 0 0 6px 0; color: var(--text-secondary);"><strong>Erst Projekt &amp; Wohneinheit oben wählen</strong></p>
-        <p class="text-tertiary text-small" style="margin: 0;">Alle Eingabewerte (Kaufpreis, qm, Miete, Hausgeld, AfA, Subvention) laden sich dann automatisch aus den hinterlegten Vorlagen.</p>
+        <p class="text-tertiary text-small" style="margin: 0;">Alle Eingabewerte (Kaufpreis, qm, Miete, Rücklage, AfA, Subvention) laden sich dann automatisch aus den hinterlegten Vorlagen.</p>
       </div>
     </div>
     ` : `
@@ -2082,7 +2082,7 @@ function kalkInputsPaketHtml(i) {
     <details class="kalk-section">
       <summary>Hinweis</summary>
       <div style="padding: 4px 14px 14px;">
-        <p class="text-tertiary text-small">Im Paket-Modus werden die Objekt-Werte (Kaufpreis, qm, Miete, Hausgeld, AfA, Subvention) pro WE aus den gepflegten Vorlagen gezogen. Hier oben werden die <strong>gemeinsamen Settings</strong> (Marktpreis, Finanzierung, Steuer, Bonität) für das Paket eingestellt.</p>
+        <p class="text-tertiary text-small">Im Paket-Modus werden die Objekt-Werte (Kaufpreis, qm, Miete, Rücklage, AfA, Subvention) pro WE aus den gepflegten Vorlagen gezogen. Hier oben werden die <strong>gemeinsamen Settings</strong> (Marktpreis, Finanzierung, Steuer, Bonität) für das Paket eingestellt.</p>
       </div>
     </details>
   `;
@@ -2282,7 +2282,7 @@ function kalkInputsThemenHtml(i) {
     </details>
 
     <details class="kalk-section" ${sec('hg')} data-sec="hg" ontoggle="toggleKalkSection('hg', this)">
-      <summary>3 · Hausgeld &amp; Verwaltung</summary>
+      <summary>3 · Rücklage &amp; Verwaltung</summary>
       <div class="grid-1">
         ${sliderEur('Rücklage', 'hausgeld', 0, 500, 5, '€/Mo')}
         ${sliderEur('Mietverwaltung (SEV)', 'mietverwaltung', 0, 100, 5, '€/Mo')}
@@ -3499,7 +3499,7 @@ function renderStoryPremium(r) {
           <h2 class="kalk-c-section-title">Eckdaten und Markt-Anker.</h2>
         </div>
         <div class="kalk-c-right">
-          Bestandswohnung in vermarktungsfähigem Zustand. Verkaufsmiete, Hausgeld und Verwaltungs-Setup sind unten aufgeschlüsselt — der Markt-Anker zeigt den Einkaufsvorteil zu Tag 1.
+          Bestandswohnung in vermarktungsfähigem Zustand. Verkaufsmiete, Rücklage und Verwaltungs-Setup sind unten aufgeschlüsselt — der Markt-Anker zeigt den Einkaufsvorteil zu Tag 1.
         </div>
       </div>
       <div class="kalk-c-objekt-list">
@@ -4932,7 +4932,7 @@ function exportInvestPdf() {
       }
       finally { setTimeout(() => _pdfButtonRelease(btns), 2500); }
     }, 100);
-  } else { alert('PDF-Modul nicht geladen.'); }
+  } else { toast('PDF-Modul nicht geladen — bitte Seite neu laden (Cmd+Shift+R).', 'error'); }
 }
 function exportReservPdf() {
   if (!_pdfExportGuard()) return;
@@ -7182,7 +7182,7 @@ function renderAdminStammdatenAudit(audit) {
       </div>
       <div class="text-tertiary text-small mb-12">
         <strong>${audit.length} WEs</strong> · ${counts['Aktiv'] || 0} Aktiv (App nutzt direkt) · ${counts['Entwurf'] || 0} Entwurf · ${counts['fehlt'] || 0} ohne Stammdaten-Eintrag.
-        Nur „Aktiv" wird im Kalkulator als verbindliche Wahrheit übernommen — bei „Entwurf" oder „fehlt" laufen Default-Annahmen (Wertsteigerung 3 %, AfA 2 %, Hausgeld 1 €/m²).
+        Nur „Aktiv" wird im Kalkulator als verbindliche Wahrheit übernommen — bei „Entwurf" oder „fehlt" laufen Default-Annahmen (Wertsteigerung 3 %, AfA 2 %, Rücklage 1 €/m²).
       </div>
       ${audit.length === 0 ? `<div class="empty-state">Keine Stammdaten-Datensätze gefunden — Endpoint prüfen.</div>` : projektKeys.map(pn => {
         const arr = byProjekt[pn].sort((a, b) => {
