@@ -3659,13 +3659,16 @@ function renderStoryPremium(r) {
   const renditeSatz = ekIstNull
     ? `Da Du kein eigenes Kapital einsetzt, gibt es keine klassische Eigenkapital-Rendite — der gesamte Vermögenszuwachs entsteht aus Restschuld-Abbau und Wertsteigerung.`
     : `Dein Nettowert — Marktwert abzüglich Restschuld und kumulierter Eigenleistung — erreicht im Jahr 10 die genannten ${fmt(r.vermoegenNetto10)}. Das ist nach 10 Jahren ein interner Zinsfuß von <strong>${fmtPct(r.irr)}</strong>.`;
-  // QA-Fix 2026-05-22 (Audit-F B-1): „Brutto-Vermögen J10" und PDF-„Markt-Vermögen J10"
-  // zeigten unter ähnlich klingenden Labels verschiedene Größen — Magazin: Eigenanteil
-  // (verkaufserloes + kumCf), PDF: Bruttomarktwert (= v10.wert). Diff 124-294k €.
-  // Klare Labels: „Mein Anteil J10" (= vermoegenBrutto) vs. „Marktwert J10" (= v10.wert).
+  // FS-3g (Audit PDF+Magazin P2.2 25.05.2026): Vorher zeigten die Section
+  // zwei verschiedene J10-Werte direkt nebeneinander ohne Erklärung:
+  //  - ekHeadline: vermoegenNetto10 (Reingewinn = Brutto − EK-Bedarf)
+  //  - metaLine3:  vermoegenBrutto (= Marktwert − Restschuld + kumCF, INKL EK-Einsatz)
+  // Differenz = ekBedarf → Kunde fragt „warum 2 unterschiedliche Zahlen?".
+  // Lösung: metaLine3 zeigt jetzt denselben Netto-Wert + IRR. Wer den
+  // Brutto-Wert braucht, findet ihn im Detail-Modal (Section 05).
   const metaLine3 = ekIstNull
-    ? `Mein Anteil J10 · ${fmt(v10.vermoegenBrutto || (v10.wert - v10.restschuld))} &nbsp;·&nbsp; ohne EK-Einsatz`
-    : `IRR 10 J · ${fmtPct(r.irr)} &nbsp;·&nbsp; Mein Anteil J10 · ${fmt(v10.vermoegenBrutto || (v10.wert - v10.restschuld))}`;
+    ? `Mein Anteil J10 · ${fmt(r.vermoegenNetto10)} &nbsp;·&nbsp; ohne EK-Einsatz`
+    : `IRR 10 J · ${fmtPct(r.irr)} &nbsp;·&nbsp; Vermögenszuwachs · ${fmt(r.vermoegenNetto10)}`;
   const SECTION_03_VERMOEGEN = `
     <section class="kalk-c-section">
       <div class="kalk-c-section-head">
@@ -8423,8 +8426,9 @@ const TOUR_STEPS = [
     needsTab: 'selbstauskunft',
   },
   {
+    // FS-3g (Audit Tour 25.05.2026): Wording matched die echten Button-Labels.
     title: 'Schritt 20 — SA digital an Dich selbst senden',
-    action: 'Klick „SA-Link an Kunde senden". Eine Mail geht an die E-Mail aus den Stammdaten (= Deine eigene E-Mail).',
+    action: 'Wähl in der Toolbar entweder „→ Selbstauskunft via PandaDoc senden" (digitale Unterschrift) ODER „📋 Link für Selbst-Ausfüllen erzeugen" (Magic-Link zum Online-Ausfüllen). Für den Test reicht der Link — geht an Deine eigene E-Mail.',
     tip: 'Magic-Link mit JWT, 14 Tage gültig. Kunde sieht das SA-Portal als eigene URL, kann zwischenspeichern, später weitermachen. Du siehst den Status in der Aktivitäten-Historie.',
     target: 'button[onclick*="generateSaPortalLink"], button[onclick*="sendSaForSignature"]',
     needsView: 'kunde',
