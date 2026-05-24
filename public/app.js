@@ -8008,9 +8008,18 @@ window.addEventListener('load', async () => {
    überspringbar.
 */
 
-// QA-Sprint 2026-05-23: Bump auf v2 — Tour jetzt 14 Schritte mit SA/PandaDoc/Snapshots/PDF.
-// User die v1 gesehen haben bekommen v2 automatisch beim nächsten Kalkulator-Open.
-const TOUR_VERSION = 'v2';
+// FS-2l (Edgar 24.05.2026 19:45): Tour komplett neu — „Selbst-Test durch die
+// Backstube". Vertriebler legt SICH SELBST als Kunde an (echte E-Mail), backt
+// einmal alles durch: Übersicht, Kalkulator, SA, eigene Mail empfangen, SA-Portal
+// als Kunde, Reservierung an sich selbst, PandaDoc-Unterschrift, Webhook-Status
+// in der Aktivität, WE-Match.
+// Bump auf v3 — alle User sehen die neue Tour automatisch beim nächsten Login.
+const TOUR_VERSION = 'v3';
+// Loom-Intro-Video: Edgar nimmt das noch auf. Bis dahin Platzhalter — die Tour
+// funktioniert auch ohne Video, das Video ist optional zur tieferen Erklärung.
+// TODO Edgar: Loom-Link hier einsetzen, sobald Video aufgenommen.
+const TOUR_LOOM_URL = ''; // z.B. 'https://www.loom.com/share/xxxxxxxxxxxx'
+
 // QA-Fix 2026-05-23 (Audit-EE-12): User-Email in den Storage-Key, damit auf einem
 // shared-Browser (Büro-PC, 2 Vertriebler) jeder seine Tour separat sieht.
 // Funktion statt const, weil state.user beim Modul-Laden noch nicht da ist.
@@ -8019,125 +8028,298 @@ function tourStorageKey() {
   return 'bbk_tour_' + TOUR_VERSION + '_' + email + '_seen';
 }
 
-// QA-Sprint 2026-05-23 (Edgar live): Tour komplett umgebaut zu interaktivem
-// Hands-On-Onboarding. Vertriebler legt einen Test-Kunden an, klickt durch
-// alle wichtigen Tabs, exportiert ein PDF — lernt durch Tun statt durch Lesen.
 // Jeder Schritt:
-//   - title: Kurzname „Schritt N — Aufgabe"
-//   - action: Konkreter Aufruf was JETZT zu tun ist (1-2 Sätze, imperativ)
-//   - tip:    optionale Hintergrund-Erklärung warum / nützlich
-//   - target: CSS-Selector des UI-Elements, das gehighlightet wird (Spotlight)
-//   - needsView: erwartete state.view ('dashboard'|'kunde'|...). Wenn aktuelle
-//                View nicht matched, zeigt Tour einen „Hinbringen"-Button und
-//                blockiert das Weiter bis der User dort ist.
+//   - title:           Kurzname „Schritt N — Aufgabe"
+//   - action:          Konkreter Aufruf was JETZT zu tun ist (1-2 Sätze, imperativ)
+//   - tip:             optionale Hintergrund-Erklärung warum / nützlich
+//   - target:          CSS-Selector des UI-Elements das gehighlightet wird (Spotlight)
+//   - needsView:       erwartete state.view ('dashboard'|'kunde'|'we-liste'). Wenn die
+//                      aktuelle View nicht matched, zeigt Tour einen „Hinbringen"-Button
+//                      und blockiert das Weiter bis der User dort ist.
+//   - needsTab:        wenn needsView 'kunde': erwarteter Tab ('uebersicht'|'kalkulator'|...).
+//   - detectCompleted: optionaler () => bool für Auto-Advance.
 const TOUR_STEPS = [
+  // ============== TEIL 1: WILLKOMMEN + LOOM-INTRO ==============
   {
-    title: 'Willkommen — wir machen die Tour zusammen',
-    action: 'Wir legen gleich einen Test-Kunden an und gehen einmal komplett durch den Prozess: Kalkulieren → Snapshot → PDF → Selbstauskunft → Reservierung. Klick „Weiter →".',
-    tip: 'Dauer ca. 5 Minuten. Den Test-Kunden archivierst Du am Ende. Tour jederzeit über „?" oben rechts wieder startbar.',
+    title: 'Willkommen in der B&B Backstube 🥨',
+    action: TOUR_LOOM_URL
+      ? `Schau Dir erst Edgars 5-Minuten-Loom an, dann gehen wir das Werkzeug zusammen durch.<br><br><a href="${TOUR_LOOM_URL}" target="_blank" rel="noopener" style="display:inline-block;background:#1A1A17;color:#FBFAF7;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:500;">▶ Loom-Intro öffnen</a><br><br>Dann legst Du Dich selbst als Test-Kunde an und backst einmal alles durch — vom Erstgespräch bis zur unterschriebenen Reservierung.`
+      : 'Wir backen jetzt einmal Dein eigenes Probe-Stück: Du legst Dich selbst als Test-Kunde an und gehst einmal komplett durch — vom Erstgespräch bis zur unterschriebenen Reservierung. So lernst Du jeden Hebel von beiden Seiten kennen (Vertriebler-Sicht UND Kunden-Sicht).',
+    actionHtml: !!TOUR_LOOM_URL, // raw HTML nur wenn Loom-Link da
+    tip: 'Dauer ca. 20-30 Minuten. Du brauchst Zugriff auf Dein E-Mail-Postfach (gleicher PC). Den Test-Kunden archivierst Du am Ende. Tour jederzeit über „?" oben rechts wieder startbar.',
     target: null,
     needsView: 'dashboard',
   },
+
+  // ============== TEIL 2: KUNDE ANLEGEN ==============
   {
-    title: 'Schritt 1 — Test-Kunde anlegen',
-    action: 'Klick oben rechts auf den Button „+ Neuer Kunde". Trage als Vornamen „Test" ein, als Nachnamen „Vertrieb", E-Mail „test.vertrieb@bub-immo.de". Klick auf „Anlegen" — Du landest danach automatisch auf der Kunden-Seite.',
-    tip: 'Pflichtfelder: Vorname, Nachname, E-Mail. Geburtsdatum hilft später bei der Bonität — kannst Du auch leer lassen.',
+    title: 'Schritt 1 — Dich selbst als Test-Kunde anlegen',
+    action: 'Klick oben rechts auf „+ Neuer Kunde". Trage DEINEN echten Vor- und Nachnamen ein und DEINE echte E-Mail-Adresse (du wirst gleich Mails an dich selbst schicken).',
+    tip: 'Pflichtfelder: Vorname, Nachname, E-Mail. Geburtsdatum hilft später bei der Bonität — trag Dein echtes ein, damit Du gleich auch die Bonitäts-Story aus Kunden-Sicht siehst.',
     target: 'button[onclick*="createNewKunde"]',
     needsView: 'dashboard',
     detectCompleted: () => !!state.kundeId,
   },
+
+  // ============== TEIL 3: ÜBERSICHT-TAB (zuerst, der Vertriebler-Cockpit) ==============
   {
-    title: 'Schritt 2 — Zum Kalkulator wechseln',
-    action: 'Du bist jetzt auf der Kunden-Detail-Seite. Klick oben auf den Tab „Kalkulator".',
-    tip: 'Der Kalkulator ist Dein Haupt-Tool für den Vertriebs-Pitch. SA und Snapshots erreichst Du über die anderen Tabs.',
+    title: 'Schritt 2 — Das Cockpit oben: Phasen-Tracker',
+    action: 'Du landest automatisch im Übersicht-Tab. Ganz oben siehst Du das Phasen-Cockpit: Strategie → Abwicklung → Notar. So weißt Du immer wo der Kunde gerade steht.',
+    tip: 'Die aktuelle Phase wird automatisch aus den abgehakten Aufgaben abgeleitet — kein manuelles Dropdown mehr nötig. Phase wechselt automatisch, sobald alle Pflicht-Aufgaben der Phase erledigt sind.',
+    target: '.kav-cockpit',
+    needsView: 'kunde',
+    needsTab: 'uebersicht',
+  },
+  {
+    title: 'Schritt 3 — Wiedervorlage setzen',
+    action: 'Im Cockpit oben rechts ist der „+ Wiedervorlage"-Button (oder ein Badge falls schon gesetzt). Klick drauf und setz die Wiedervorlage auf morgen.',
+    tip: 'Wiedervorlage steuert wann der Kunde wieder oben in „Meine Kunden" auftaucht. Überfällige WV werden rot markiert — Dein Tages-Cockpit-Schalter.',
+    target: '.kav-wv-badge',
+    needsView: 'kunde',
+    needsTab: 'uebersicht',
+  },
+  {
+    title: 'Schritt 4 — Eine Phasen-Aufgabe abhaken',
+    action: 'Klick im Phasen-Cockpit auf „Strategie" um die Aufgaben aufzuklappen. Hak „Bedarfsanalyse-Gespräch" ab.',
+    tip: 'Aufgaben tragen automatisch in die Aktivitäten-Historie ein (mit Datum + Wer-hat-was). Erledigte Aufgaben werden mit Strikethrough markiert.',
+    target: '.kav-phases-details',
+    needsView: 'kunde',
+    needsTab: 'uebersicht',
+  },
+  {
+    title: 'Schritt 5 — Aktivität festhalten',
+    action: 'Scroll runter zur „Aktivitäten-Historie"-Karte. Trag „Erstkontakt: spannender Lead, will Q3 kaufen" ein und drück Enter.',
+    tip: 'Aktivitäten sind die Telefonat-/Mail-/Termin-Chronik. Jeder Eintrag mit Datum + Wer. Mail-Send, PDF-Download und KAV-Mutationen werden auch automatisch hier protokolliert.',
+    target: '#activity-new-input',
+    needsView: 'kunde',
+    needsTab: 'uebersicht',
+  },
+  {
+    title: 'Schritt 6 — Notiz schreiben',
+    action: 'Direkt unter Aktivitäten ist die „Notizen"-Karte. Trag eine kurze Notiz ein, z.B. „Mag ruhige Lage, max. 250k". Auto-Save beim Blur (Klick ins Leere).',
+    tip: 'Notizen sind Dein Scratchpad für freie Stichworte. Anders als Aktivitäten ohne Datum/Zeit — alles was Du persistieren willst, aber kein zeitliches Event ist.',
+    target: '#f-notizen',
+    needsView: 'kunde',
+    needsTab: 'uebersicht',
+  },
+  {
+    title: 'Schritt 7 — Wunsch-Profil ausfüllen',
+    action: 'Scroll weiter zur „Wunsch-Profil"-Karte. Wähl 2-3 Bundesländer in Deiner Nähe + ein paar Kreise. Trag auch grobe Schwellen ein (max. EK, max. Investitionssumme).',
+    tip: 'Wunsch-Profil filtert später die „Wohnungen"-Liste nach passenden WEs für diesen Kunden. Pflege das früh — spart Dir später viel Klick-Arbeit.',
+    target: '.wp-card, [data-card="wunschprofil"]',
+    needsView: 'kunde',
+    needsTab: 'uebersicht',
+  },
+  {
+    title: 'Schritt 8 — Stammdaten checken',
+    action: 'Ganz unten ist die collapsed „Stammdaten"-Karte. Klick drauf zum Aufklappen, ergänze Telefonnummer + Geburtsdatum.',
+    tip: 'Stammdaten werden automatisch in die Selbstauskunft gespiegelt (Vor/Nachname, E-Mail, Telefon, Geburtsdatum). Spart Doppel-Eingabe.',
+    target: 'details.card',
+    needsView: 'kunde',
+    needsTab: 'uebersicht',
+  },
+
+  // ============== TEIL 4: KALKULATOR ==============
+  {
+    title: 'Schritt 9 — Zum Kalkulator wechseln',
+    action: 'Klick oben auf den Tab „Kalkulator". Hier baust Du die Pitch-Kalkulation für eine konkrete Wohneinheit.',
+    tip: 'Der Kalkulator ist das Herzstück der Backstube. Hier kommen Stammdaten (Airtable) und Person-Settings (Bonität, Steuersatz) zusammen.',
     target: '.tab[data-tab="kalkulator"]',
     needsView: 'kunde',
     detectCompleted: () => state.tab === 'kalkulator',
   },
   {
-    title: 'Schritt 3 — Projekt wählen',
-    action: 'Im Cream-Bereich oben siehst Du zwei Dropdowns. Wähle ein Projekt aus dem ersten Dropdown — erst danach wird das WE-Dropdown aktiv.',
-    tip: 'Es erscheinen nur Projekte, in denen B&B aktuell aktive Wohneinheiten vermarktet. Wenn keins da ist → Domi/Henry pingen wegen Stammdaten-Pflege.',
+    title: 'Schritt 10 — Projekt wählen',
+    action: 'Im Cream-Bereich oben ist das Projekt-Dropdown. Wähl eines aus — am besten ein Projekt in Deiner Wunsch-Region.',
+    tip: 'Es erscheinen nur Projekte mit aktiven Wohneinheiten in Vermarktung (Status=Aktiv in Kalk-Stammdaten). Falls leer → Domi/Henry pingen wegen Stammdaten-Pflege.',
     target: '#projekt-select',
     needsView: 'kunde',
     needsTab: 'kalkulator',
     detectCompleted: () => !!(state.kalk && (state.kalk._projektFilter || state.kalk._weId)),
   },
   {
-    title: 'Schritt 4 — Wohneinheit wählen',
-    action: 'Wähle jetzt eine konkrete Wohneinheit im zweiten Dropdown. Die Berechnung lädt automatisch.',
-    tip: 'Status-Pille zeigt vermietet/leer. Stellplätze (Garagen/Außenstellplätze) werden automatisch dazugeladen, wenn welche zur WE gehören.',
+    title: 'Schritt 11 — Wohneinheit wählen',
+    action: 'Wähl jetzt eine konkrete Wohneinheit im zweiten Dropdown. Die Berechnung lädt automatisch.',
+    tip: 'Die Status-Pille zeigt vermietet/leer. Stellplätze (Garagen/Außenstellplätze) werden automatisch dazugeladen, wenn welche zur WE gehören.',
     target: '#we-select',
     needsView: 'kunde',
     needsTab: 'kalkulator',
     detectCompleted: () => !!(state.kalk && state.kalk._weId),
   },
   {
-    title: 'Schritt 5 — Hero anschauen',
-    action: 'Scroll runter zur grünen Hero-Kachel. Da steht „Mein Anteil J10" — der Vermögensaufbau in 10 Jahren. Das ist die wichtigste Zahl im Vertriebs-Gespräch.',
-    tip: 'Darunter zwei Quick-Buttons: Snapshot speichern + PDF erstellen. Tipp: vor jedem Wert-Sprung einen Snapshot — als Diskussions-Anker mit dem Kunden.',
+    title: 'Schritt 12 — Standort + Eckdaten anschauen',
+    action: 'Scroll runter zur Sektion „01 · Das Objekt". Hier siehst Du die Adresse, qm, Baujahr, Lage-Kategorie — die Grundlage für jeden Pitch.',
+    tip: 'Adresse + Stadtteil kommen aus dem Wohneinheit-Datensatz in Airtable. Wenn was fehlt: rechts neben jeder Annahme ist ein Quelle-Tooltip — der zeigt Dir woher die Zahl kommt.',
+    target: '.kalk-c-section',
+    needsView: 'kunde',
+    needsTab: 'kalkulator',
+  },
+  {
+    title: 'Schritt 13 — Hero-Headline: die wichtigste Zahl',
+    action: 'Direkt oben in der Magazin-Story siehst Du die Hero-Headline: „In zehn Jahren baust Du nach unserer Rechnung X € Nettovermögen auf." Das ist Dein Pitch-Anker.',
+    tip: 'Daneben drei Strip-Cells: Wohnfläche, Gesamtinvestition, Miete kalt. Alles ist verlinkt mit den darunter liegenden Sektionen — der Kunde kann durchscrollen wie ein Magazin.',
     target: '.kalk-c-hero-headline',
     needsView: 'kunde',
     needsTab: 'kalkulator',
-    // Bewusst kein Auto-Advance — soll explizit angeschaut + Weiter geklickt werden.
   },
   {
-    title: 'Schritt 6 — Snapshot speichern',
-    action: 'Scroll ganz nach unten zur Toolbar und klick auf „Snapshot speichern". Vergib eine Bezeichnung, z.B. „Pitch 1".',
-    tip: 'Snapshots sind eingefrorene Zwischenstände — sie ändern sich nicht mehr, auch wenn Stammdaten sich ändern. Beim Reload kommt ein Toast „Werte eingefroren".',
+    title: 'Schritt 14 — Annahmen-Modal: Wo kommen die Zahlen her?',
+    action: 'Jede Zahl im Magazin hat einen Quelle-Tooltip (kleines (?)-Icon). Probier eines an, z.B. neben dem AfA-Wert. Das öffnet eine Erklärung mit Quelle (Gutachter, Airtable-Feld, Formel).',
+    tip: 'Das ist Dein Banker-Modus: jede Zahl ist nachvollziehbar, jede Annahme dokumentiert. Wenn der Kunde fragt „woher kommt das?" — Klick auf den Tooltip, fertig.',
+    target: '.kalk-c-section',
+    needsView: 'kunde',
+    needsTab: 'kalkulator',
+  },
+  {
+    title: 'Schritt 15 — Was-wäre-wenn (Sensitivität)',
+    action: 'Scroll weiter zur Sektion „06 · Was wäre wenn". Drei Szenarien als Karten: Basis (grün), Konservativ (Zins +1 %, 1 Mo Leerstand), Stress-Test (Zins +2 %, 3 Mo Leerstand).',
+    tip: 'Bank-Sprache statt Wetter-Metaphorik. Das ist Deine Antwort wenn der Kunde fragt „und wenn die Zinsen steigen?" — die Kalkulation ist robust gerechnet.',
+    target: '.kalk-c-section',
+    needsView: 'kunde',
+    needsTab: 'kalkulator',
+  },
+  {
+    title: 'Schritt 16 — Snapshot speichern',
+    action: 'Scroll ganz nach unten zur Toolbar und klick „Snapshot speichern". Vergib eine Bezeichnung, z.B. „Pitch 1 — Erstgespräch".',
+    tip: 'Snapshots sind eingefrorene Zwischenstände — ändern sich nicht mehr, auch wenn Stammdaten oder Person-Settings sich ändern. Beim Reload zeigt ein Toast „Werte eingefroren".',
     target: '.toolbar button[onclick*="saveSnapshot"]',
     needsView: 'kunde',
     needsTab: 'kalkulator',
     detectCompleted: () => Array.isArray(state.snapshots) && state.snapshots.length > 0,
   },
   {
-    title: 'Schritt 7 — Investitions-Doc senden oder herunterladen',
-    action: 'In der Toolbar klick auf „Investitions-Doc". Du wirst gefragt: per Mail an den Kunden senden ODER als PDF runterladen.',
-    tip: 'Die Investitions-Doc ist Edgars Standard-Pitch: 7 Seiten mit Cover, Eckdaten, Vermögensaufbau, Cashflow, Bonität-aus-Bank-Sicht, Annahmen. Beim Mail-Send geht sie direkt an die Kunden-Mail mit kurzem Begleittext.',
-    target: '.toolbar button[onclick*="exportInvestPdf"]',
+    title: 'Schritt 17 — Investitions-Doc als PDF runterladen + lesen',
+    action: 'In der Toolbar klick auf „Investitions-Doc". Wähl „Als PDF herunterladen". Öffne das PDF und schau es Dir AUS KUNDEN-SICHT durch (9 Seiten).',
+    tip: 'Das PDF ist Dein Standard-Pitch: Cover mit Kundenname, 9 Seiten Magazin-Story, am Ende ein CTA-Block. Beim Mail-Send geht es direkt an die Kunden-E-Mail mit kurzem Begleittext.',
+    target: '.toolbar button[onclick*="openInvestDocModal"]',
     needsView: 'kunde',
     needsTab: 'kalkulator',
-    detectCompleted: () => false, // PDF-Klick lässt sich nicht zuverlässig detektieren
+    detectCompleted: () => false,
   },
+
+  // ============== TEIL 5: SELBSTAUSKUNFT — DU FÜLLST DEINE EIGENE AUS ==============
   {
-    title: 'Schritt 8 — Selbstauskunft öffnen',
+    title: 'Schritt 18 — Selbstauskunft öffnen',
     action: 'Wechsel oben auf den Tab „Selbstauskunft". Du siehst das SA-Formular für Antragsteller (+ optional Mit-Antragsteller).',
-    tip: 'Auto-Save ist aktiv — jede Änderung wird sofort gespeichert. Pflichtfelder (Brutto, Steuerklasse, IBAN, Steuer-ID) werden vor dem digitalen Send geprüft.',
+    tip: 'Auto-Save aktiv — jede Änderung wird sofort gespeichert. Pflichtfelder (Brutto, Steuerklasse, IBAN, Steuer-ID) werden vor dem digitalen Send geprüft.',
     target: '.tab[data-tab="selbstauskunft"]',
     needsView: 'kunde',
     detectCompleted: () => state.tab === 'selbstauskunft',
   },
   {
-    title: 'Schritt 9 — Snapshots-Tab anschauen',
-    action: 'Wechsel oben auf den Tab „Snapshots". Da siehst Du Deinen eben gespeicherten Snapshot.',
-    tip: 'Snapshots kannst Du laden (Werte werden in den Kalkulator zurückgespielt) oder löschen. Beim Laden eines Snapshots ist die Kalkulation eingefroren — Stammdaten werden nicht neu aus Airtable gezogen.',
+    title: 'Schritt 19 — Deine eigene Bonität eintragen',
+    action: 'Trag DEINE echten Bonitätsdaten ein: Bruttogehalt, Steuerklasse, KFZ-Ausgaben, Sparrate, Eigenkapital. So siehst Du gleich Deinen eigenen Cashflow-Saldo aus Bank-Sicht.',
+    tip: 'Bonitäts-Box oben (Einnahmen / Ausgaben / Saldo) wird live aktualisiert — das ist genau was der Banker sieht wenn er die SA aufschlägt.',
+    target: null,
+    needsView: 'kunde',
+    needsTab: 'selbstauskunft',
+  },
+  {
+    title: 'Schritt 20 — SA digital an Dich selbst senden',
+    action: 'Klick „SA-Link an Kunde senden". Eine Mail geht an die E-Mail aus den Stammdaten (= Deine eigene E-Mail).',
+    tip: 'Magic-Link mit JWT, 14 Tage gültig. Kunde sieht das SA-Portal als eigene URL, kann zwischenspeichern, später weitermachen. Du siehst den Status in der Aktivitäten-Historie.',
+    target: 'button[onclick*="generateSaPortalLink"], button[onclick*="sendSaForSignature"]',
+    needsView: 'kunde',
+    needsTab: 'selbstauskunft',
+    detectCompleted: () => false,
+  },
+  {
+    title: 'Schritt 21 — Mail im eigenen Posteingang öffnen',
+    action: 'Öffne Dein E-Mail-Postfach (in einem anderen Tab). Du hast eine Mail von „B&B Immo" → klick den Magic-Link in der Mail.',
+    tip: 'Falls Mail nicht angekommen ist: Spam-Ordner checken. Dauert üblicherweise 30 Sekunden bis 2 Minuten. Edgar hat alle Auth-Domains verifiziert.',
+    target: null,
+    needsView: 'kunde',
+    needsTab: 'selbstauskunft',
+  },
+  {
+    title: 'Schritt 22 — Das SA-Portal aus Kunden-Sicht',
+    action: 'Du bist jetzt im SA-Portal — das was der Kunde sieht. Schau Dich um: gleiche Brot & Butter-Logo, vereinfachte Form, Auto-Save unten. Trag was ein, klick „Speichern".',
+    tip: 'Das SA-Portal ist eine eigene HTML (sa-portal.html) — schlanker als die App. Kein Login nötig, läuft via JWT-Token in der URL. Kunde kann hin- und herwechseln zwischen Antragsteller 1 und 2.',
+    target: null,
+    needsView: 'kunde',
+  },
+  {
+    title: 'Schritt 23 — Zurück in die Backstube: Webhook-Status',
+    action: 'Geh zurück in den App-Tab. Wechsel auf den Übersicht-Tab. In der Aktivitäten-Historie steht jetzt ein neuer Eintrag: „SA gespeichert von Kunde" — der Webhook hat funktioniert.',
+    tip: 'PandaDoc + SA-Portal nutzen Webhooks: sobald der Kunde was speichert, postet der Server an /api/sa/webhook. Der Webhook trägt in die Aktivität ein und passt den Phasen-Tracker an.',
+    target: '.activity-list',
+    needsView: 'kunde',
+    needsTab: 'uebersicht',
+  },
+  {
+    title: 'Schritt 24 — SA-Snapshots-Tab',
+    action: 'Klick auf den Tab „SA-Snapshots". Hier siehst Du alle versionierten SA-Stände. Jede Speicherung erzeugt einen Snapshot.',
+    tip: 'Sinn: Banker bekommt immer den vom Kunden VERSCHICKTEN Stand. Du kannst alte SAs zurückladen, vergleichen, oder einfach archivieren. PandaDoc bekommt den letzten Snapshot.',
     target: '.tab[data-tab="snapshots"]',
     needsView: 'kunde',
     detectCompleted: () => state.tab === 'snapshots',
   },
+
+  // ============== TEIL 6: RESERVIERUNG — DU UNTERSCHREIBST DEINE EIGENE ==============
   {
-    title: 'Schritt 10 — Reservierung-Button (NICHT klicken)',
-    action: 'Wechsel zurück zum Kalkulator-Tab. In der Toolbar ganz unten ist der Button „Reservierung digital senden". NICHT klicken — würde ein echtes PandaDoc-Doc an die Test-Mail schicken.',
-    tip: 'Was passieren würde: PandaDoc öffnet sich, Käufer- und Verkäufer-Daten werden automatisch eingesetzt, Frist 30 Tage. Kunde unterschreibt digital. Status landet automatisch in der Aktivitäten-Historie via Webhook.',
+    title: 'Schritt 25 — Reservierung digital an Dich senden',
+    action: 'Wechsel zurück zum Kalkulator-Tab. In der Toolbar ganz unten ist „Reservierung digital senden" — klick drauf. Die Reservierung geht via PandaDoc an Deine E-Mail.',
+    tip: 'PandaDoc-Doc wird automatisch befüllt: Käufer (Du), Verkäufer (B&B), Objekt-Daten aus Airtable, Frist 30 Tage. Status landet automatisch in der Aktivitäten-Historie via Webhook.',
     target: '.toolbar button[onclick*="sendReservierungForSignature"]',
     needsView: 'kunde',
     needsTab: 'kalkulator',
-    // Kein detectCompleted — User soll NICHT klicken, sondern nur Weiter.
+    detectCompleted: () => false,
   },
   {
-    title: 'Schritt 11 — Wohnungen im Überblick',
-    action: 'Klick oben in der Navigation auf „Wohnungen". Du siehst alle Wohneinheiten in Vermarktung, pro Projekt gruppiert, mit Kennzahlen.',
-    tip: 'Profil-Dropdown oben rechts wechselt zwischen 6 Bank-Szenarien (3 Steuersätze × KNK ohne/mit). KNK „mit" = 4,8 % Zins (Bank-Aufschlag), „ohne" = 4,5 %. Jede WE-Zeile ist klickbar.',
+    title: 'Schritt 26 — PandaDoc-Mail öffnen + selbst unterschreiben',
+    action: 'Wieder Mail-Postfach. PandaDoc-Mail mit „Reservierungsvereinbarung — bitte unterschreiben". Klick den Link, gehe durch das PandaDoc-Doc, unterschreib digital.',
+    tip: 'Du siehst genau was der Kunde sieht. Felder die der Käufer ausfüllen muss sind farblich markiert. Am Ende klick „Fertigstellen" — Du bekommst eine Kopie per Mail.',
+    target: null,
+    needsView: 'kunde',
+  },
+  {
+    title: 'Schritt 27 — Webhook bestätigt: Reservierung signiert',
+    action: 'Zurück in die Backstube, Übersicht-Tab. In der Aktivitäten-Historie steht jetzt: „Reservierung signiert von Test-Kunde". Der Phasen-Tracker springt auf „Abwicklung".',
+    tip: 'PandaDoc-Webhook + HMAC-Signatur — manipulationssicher. Bei jedem Status-Event (Sent → Viewed → Signed → Completed) kommt ein neuer Aktivitäts-Eintrag.',
+    target: '.activity-list',
+    needsView: 'kunde',
+    needsTab: 'uebersicht',
+  },
+
+  // ============== TEIL 7: WOHNUNGEN-LISTE + MATCH ==============
+  {
+    title: 'Schritt 28 — Wohnungen-Liste öffnen',
+    action: 'Klick oben in der Navigation auf „Wohnungen". Du siehst alle WEs in Vermarktung, pro Projekt gruppiert, mit Kennzahlen.',
+    tip: 'Profil-Dropdown oben rechts wechselt zwischen 6 Bank-Szenarien (3 Steuersätze × KNK ohne/mit). KNK „mit" = 4,8 % Zins (Bank-Aufschlag), „ohne" = 4,5 %. Jede WE-Zeile ist klickbar — direkt zur Kalkulation.',
     target: 'a[href="#/we-liste"]',
     needsView: null,
     detectCompleted: () => state.view === 'we-liste',
   },
   {
-    title: 'Schritt 12 — Test-Kunde aufräumen',
-    action: 'Geh zurück zum Test-Kunden (Meine Kunden → Test Vertrieb anklicken). Im Header der Kundenseite ist der Button „Archivieren" — klick ihn an. Nach dem Archivieren landest Du wieder bei „Meine Kunden" — dort dann rechts auf „Fertig ✓" klicken.',
-    tip: 'Vertrieb darf nicht endgültig löschen, nur archivieren. Edgar als Admin kann später echte Löschungen durchführen. Damit ist die Tour fertig — Du bist startklar! 🎉',
+    title: 'Schritt 29 — WE filtern: was passt zu Dir?',
+    action: 'Probier die Filter aus: Bundesland → wähl Dein eigenes. Investitionsbedarf → setz Dein eigenes Eigenkapital. Du siehst nur noch WEs die zu Deiner Bonität passen.',
+    tip: 'Filter werden in sessionStorage gespeichert — bleiben über Page-Reloads erhalten, aber nur in dieser Browser-Session. Multi-Select für Bundesland + Kreis.',
+    target: '.filter-bar, .we-filter-bar',
+    needsView: 'we-liste',
+  },
+  {
+    title: 'Schritt 30 — Zurück zu Meine Kunden, Filter nutzen',
+    action: 'Klick oben links auf „Meine Kunden". Probier die Filter-Bar: nach Phase, nach Wunsch-Region, nach offenen WV. Sortier nach „Wiedervorlage" — die fälligsten Kunden zuerst.',
+    tip: 'Das ist Dein Tages-Cockpit: alle Kunden mit offener Wiedervorlage, gefiltert nach was Du gerade brauchst. Spalten zeigen Phase, Wunsch-Region, EK, Einkommen, Investitionsschwelle.',
+    target: 'a[href="#/dashboard"]',
+    needsView: null,
+    detectCompleted: () => state.view === 'dashboard',
+  },
+
+  // ============== TEIL 8: AUFRÄUMEN + ABSCHLUSS ==============
+  {
+    title: 'Schritt 31 — Test-Kunde archivieren',
+    action: 'Klick in „Meine Kunden" auf Dich selbst (Test-Kunde). Im Header der Kundenseite ist der Button „Archivieren" — klick ihn an.',
+    tip: 'Vertrieb darf nicht endgültig löschen, nur archivieren. Edgar als Admin kann später echte Löschungen durchführen. Damit fliegt der Test-Kunde aus Deiner Liste raus.',
     target: 'button[onclick*="archiveKunde"]',
     needsView: 'kunde',
+  },
+  {
+    title: '🎉 Fertig! Du bist startklar — die Backstube ist offen',
+    action: 'Du hast jetzt einmal alles gebacken: Kunde anlegen → Übersicht-Cockpit → Kalkulation → Snapshot → PDF → SA aus Vertriebler-Sicht UND Kunden-Sicht → Reservierung-Unterschrift → Wohnungs-Match. Du bist startklar.',
+    tip: 'Tour jederzeit über „?" oben rechts wieder startbar. Bei Fragen → Edgar pingen. Jetzt schnapp Dir einen echten Lead und backe sein Probe-Stück. 🥨',
+    target: null,
+    needsView: null,
   },
 ];
 
@@ -8463,9 +8645,6 @@ function _renderTour() {
   // einen bestehenden öffnen" wirkt weniger befremdlich als zwanghafter
   // Test-Kunde bei 15 echten Kunden.
   let _actionText = step.action || '';
-  if (_tourStep === 1 && Array.isArray(state.kunden) && state.kunden.length > 0) {
-    _actionText = 'Klick oben rechts auf „+ Neuer Kunde" für einen Test-Vertrieb, ODER öffne einen bestehenden Kunden in der Liste unten. Beides ist OK — die Tour läuft mit jedem Kunden.';
-  }
 
   card.innerHTML = `
     <div class="bbk-tour-card-inner">
@@ -8474,7 +8653,7 @@ function _renderTour() {
         <button type="button" class="bbk-tour-skip" onclick="endTour(true)">Überspringen ×</button>
       </div>
       <h3 class="bbk-tour-title">${esc(step.title)}</h3>
-      <p class="bbk-tour-action">${esc(_actionText)}</p>
+      <p class="bbk-tour-action">${step.actionHtml ? _actionText : esc(_actionText)}</p>
       ${step.tip ? `<p class="bbk-tour-tip">${esc(step.tip)}</p>` : ''}
       ${viewMismatchBlock}
       ${targetMissingBlock}
