@@ -3592,3 +3592,68 @@ input[type="range"].spar-zins-range::-moz-range-track {
   color: var(--text-tertiary);
   align-self: center;
 }
+
+/* ============================================================
+   Phasen-Cockpit Sticky (Edgar-Feedback 24.05.2026)
+   Stepper + WV + Next-Hint bleiben beim Scrollen sichtbar.
+   ============================================================ */
+.kav-cockpit-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--bg-primary, #FBFAF7);
+  padding: 10px 0;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  /* Schatten nur wenn gescrollt — durch ::after */
+  box-shadow: 0 2px 8px rgba(26, 26, 23, .04);
+}
+.kav-phases-details {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card, #FFFFFF);
+}
+.kav-phases-toggle {
+  cursor: pointer;
+  list-style: none;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.kav-phases-toggle::-webkit-details-marker { display: none; }
+.kav-phases-toggle::before {
+  content: "▸";
+  font-size: 11px;
+  color: var(--accent);
+  transition: transform .15s ease;
+  display: inline-block;
+}
+.kav-phases-details[open] .kav-phases-toggle::before {
+  transform: rotate(90deg);
+}
+.kav-phases-toggle-label { font-weight: 600; color: var(--text); }
+.kav-phases-toggle-hint { color: var(--text-tertiary); font-size: 11px; }
+.kav-phases-details[open] .kav-phases-toggle-hint::after {
+  content: " (Klick schließt)";
+}
+.kav-phases-details .kav-phases-grid {
+  padding: 0 14px 14px 14px;
+}
+
+/* Wunsch-Profil-Card: collapsible-Summary stylen */
+.wp-card > summary {
+  list-style: none;
+}
+.wp-card > summary::-webkit-details-marker { display: none; }
+.wp-card[open] .wp-toggle {
+  transform: rotate(180deg);
+}
+.wp-card .wp-toggle {
+  transition: transform .15s ease;
+  display: inline-block;
+}

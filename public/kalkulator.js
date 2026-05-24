@@ -1468,12 +1468,43 @@ function stressSzenario(baseInputs, opts) {
   };
 }
 
+/**
+ * Renovierungs-Stress (Edgar 24.05.2026): zeigt wie sich die Kennzahlen
+ * verschieben, wenn der Käufer Renovierung in die Wohnung steckt.
+ * Modellierung: Renovierungskosten werden zum Kaufpreis addiert (BFH-Sicht:
+ * anschaffungsnahe Aufwendungen innerhalb 3 Jahre sind Teil der AKK,
+ * AfA-fähig). Heißt: KP steigt um X € → KNK + EK + AfA wachsen mit.
+ * Käufer-Mehrwert = die Renovierung → spiegelt sich in der Wert-
+ * steigerung nicht extra wider; Engine rechnet das durch.
+ */
+function renovierungsStress(baseInputs, kostenArr) {
+  kostenArr = Array.isArray(kostenArr) ? kostenArr : [0, 5000, 10000, 15000, 20000];
+  const zellen = kostenArr.map(kosten => {
+    const i2 = Object.assign({}, baseInputs, {
+      kaufpreis: (parseFloat(baseInputs.kaufpreis) || 0) + kosten,
+    });
+    const r = recalc(i2);
+    if (!r) return null;
+    return {
+      kosten,
+      cfJ1: r.cf[0].cfJahr,
+      cfJ10: r.cf[9] ? r.cf[9].cfJahr : null,
+      belastungMo: r.belastungMo,
+      ekBedarf: r.ekBedarf,
+      vermoegenNetto10: r.vermoegenNetto10,
+      irr: r.irr,
+      isBase: kosten === 0,
+    };
+  }).filter(Boolean);
+  return { kostenArr, zellen, engineVersion: ENGINE_VERSION };
+}
+
 /* ====================================================================
    EXPORTS — als window.* nutzbar in app.js / pdf.js
    ==================================================================== */
 window.Kalk = {
   recalc, recalcPaket, irr, computeBonitaetDetailed,
-  sensitivitaetsMatrix, stressSzenario,
+  sensitivitaetsMatrix, stressSzenario, renovierungsStress,
   fmtEur, fmtEurMo, fmtEurMoDec, fmtPct, fmtEurQm,
   PROFILES, PRESETS, BB_DEFAULTS, SPAR_ZINS_DEFAULT,
   ENGINE_VERSION,

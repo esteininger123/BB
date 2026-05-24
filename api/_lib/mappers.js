@@ -24,6 +24,10 @@ function kundeRecordToBasic(rec, ownerNameById = {}) {
     // → kavListeBadges sah immer leere tasks → ALLE Kunden auf P1 0/5,
     // egal was Edgar in der Detail-Ansicht abgehakt hat.
     notizen:  f[KUNDEN_FIELDS.NOTIZEN]  || '',
+    // Bug-Fix 2026-05-24 (Edgar): saJson auch in Basic-List durchreichen, damit
+    // die Kundenliste „EK FREI / EINKOMMEN FREI/MO" aus computeBonitaetDetailed
+    // rechnen kann. Größe akzeptabel bei <100 Kunden pro Vertriebler.
+    saJson:   parseJsonField(f[KUNDEN_FIELDS.SA_JSON]),
     // Iter 52: archiviert-Flag durchreichen (für Vertrieb-Filter und Admin-Ansicht)
     archiviert: !!f[KUNDEN_FIELDS.ARCHIVIERT]
   };
