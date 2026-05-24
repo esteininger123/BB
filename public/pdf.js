@@ -550,13 +550,13 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
     if (!wind || !sturm) return '';
 
     const fmtIRRpct = (x) => x !== null && isFinite(x) ? (x * 100).toFixed(1).replace('.', ',') + ' %' : 'n.v.';
+    // FS-2g (24.05.2026 Edgar 15:50): Renov 5.000 € = Erhaltungsaufwand,
+    // voll abzugsfähig (§ 9 EStG) — nicht AfA-verteilt.
     const stSatz = i.steuersatz || 0.30;
-    const gebAnteil = i.gebaeudeAnteil || 0.85;
-    const afaSatz = i.afaSatz || 0.02;
     const zins = i.zins || 0.045;
     const tilg = i.tilgung || 0.01;
     const renovBetrag = 5000;
-    const renovStErstattung = Math.round(renovBetrag * gebAnteil * afaSatz * stSatz * 10);
+    const renovStErstattung = Math.round(renovBetrag * stSatz);
     const renovEffektivEK = renovBetrag - renovStErstattung;
     const renovMonatlichBrutto = Math.round(renovBetrag * (zins + tilg) / 12);
     const renovMonatlichNetto = Math.round(renovMonatlichBrutto * (1 - stSatz * 0.5));
@@ -600,7 +600,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:6mm;">
           <div style="background:rgba(45,110,71,.07); border:.5px solid rgba(45,110,71,.3); border-radius:2mm; padding:4mm 5mm;">
             <div style="font-size:9pt; line-height:1.55; color:#3A3A35;">
-              <strong style="color:#2D6E47;">Aus Eigenkapital:</strong> ${fmt(renovBetrag)} vom Konto, ca. <strong>${fmt(renovStErstattung)}</strong> über 10 Jahre per AfA zurück → effektiv <strong>${fmt(renovEffektivEK)}</strong>.
+              <strong style="color:#2D6E47;">Aus Eigenkapital:</strong> ${fmt(renovBetrag)} vom Konto, voll als Werbungskosten in der nächsten Steuererklärung → Erstattung vom Finanzamt ca. <strong>${fmt(renovStErstattung)}</strong> → effektiv <strong>${fmt(renovEffektivEK)}</strong>.
             </div>
           </div>
           <div style="background:rgba(176,138,77,.07); border:.5px solid rgba(176,138,77,.3); border-radius:2mm; padding:4mm 5mm;">

@@ -3782,13 +3782,15 @@ function renderStoryPremium(r) {
     const fmtEUR = (x) => Math.round(x).toLocaleString('de-DE') + ' €';
 
     // Renov-Story: kompakt
+    // FS-2g (24.05.2026 Edgar 15:50): Renov 5.000 € ist Erhaltungsaufwand
+    // (§ 9 EStG, sofort als Werbungskosten abzugsfähig) — nicht AfA-verteilt.
+    // BFH-Schwelle „anschaffungsnah" greift erst bei > 15 % der Gebäude-AK
+    // (= ca. 25.500 € bei 200k-Wohnung). 5.000 € weit darunter.
     const stSatz = (r.inputs.steuersatz || 0.30);
-    const gebAnteil = (r.inputs.gebaeudeAnteil || 0.85);
-    const afaSatz = (r.inputs.afaSatz || 0.02);
     const zins = (r.inputs.zins || 0.045);
     const tilg = (r.inputs.tilgung || 0.01);
     const renovBetrag = 5000;
-    const renovStErstattung = Math.round(renovBetrag * gebAnteil * afaSatz * stSatz * 10);
+    const renovStErstattung = Math.round(renovBetrag * stSatz);
     const renovEffektivEK = renovBetrag - renovStErstattung;
     const renovMonatlichBrutto = Math.round(renovBetrag * (zins + tilg) / 12);
     const renovMonatlichNetto = Math.round(renovMonatlichBrutto * (1 - stSatz * 0.5));
@@ -3836,7 +3838,7 @@ function renderStoryPremium(r) {
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div style="background:${accents.base.bg};border:1px solid ${accents.base.border};border-radius:6px;padding:12px 14px;font-size:13px;line-height:1.6;color:var(--text-secondary);">
-            <strong style="color:${accents.base.text};">Aus Eigenkapital:</strong> ${fmtEUR(renovBetrag)} vom Konto, ca. <strong>${fmtEUR(renovStErstattung)}</strong> über 10 Jahre per AfA zurück → effektiv <strong>${fmtEUR(renovEffektivEK)}</strong>.
+            <strong style="color:${accents.base.text};">Aus Eigenkapital:</strong> ${fmtEUR(renovBetrag)} vom Konto, voll als Werbungskosten in der nächsten Steuererklärung → Erstattung vom Finanzamt ca. <strong>${fmtEUR(renovStErstattung)}</strong> → effektiv <strong>${fmtEUR(renovEffektivEK)}</strong>.
           </div>
           <div style="background:${accents.wind.bg};border:1px solid ${accents.wind.border};border-radius:6px;padding:12px 14px;font-size:13px;line-height:1.6;color:var(--text-secondary);">
             <strong style="color:${accents.wind.text};">Aus Finanzierung:</strong> Darlehen um ${fmtEUR(renovBetrag)} aufstocken → ca. <strong>${fmtEUR(renovMonatlichNetto)}/Mo</strong> Netto-Mehrbelastung. Konto bleibt voll.
