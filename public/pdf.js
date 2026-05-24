@@ -1433,9 +1433,15 @@ function selbstauskunftHtmlForPandaDoc(kunde, user) {
 //  - Bei Einzel-Antragsteller: .single-applicant ↦ leere M-Spalte ausblenden
 //  - Bonitäts-Box auf Seite 2 oben (3 Zellen: Einnahmen / Ausgaben / Saldo)
 const _SA_INLINE_CSS = `
+  /* FS-2k (Edgar 24.05.2026 19:10): @page-Setup für Puppeteer.
+     Ohne explizite @page-Regel benutzt Puppeteer Default-Margins, was
+     in Kombination mit dem nicht-fixed Footer leere Folge-Seiten erzeugt
+     (Edgar-Befund: 6 Seiten statt 4, Seite 5 leer). */
+  @page { size: A4; margin: 14mm 12mm 18mm 12mm; }
   body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1B1B1B; margin: 0; padding: 0; background: #fff; }
   .pdf-template { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #fff; color: #1B1B1B; font-size: 11px; line-height: 1.4; }
-  .pdf-page.sa-page { padding: 14mm 12mm 14mm 12mm; position: relative; page-break-after: auto; }
+  /* padding der einzelnen Seite reduziert (jetzt aus @page-margin) */
+  .pdf-page.sa-page { padding: 0; position: relative; page-break-after: auto; }
   .pdf-page.sa-page.sa-legal { page-break-before: always; }
   /* Iter 85: page-break-inside: avoid für sa-table ENTFERNT — Persönliche-Verhältnisse-Tabelle ist größer als A4. */
   .sa-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 7mm; padding-bottom: 4mm; border-bottom: 1.5px solid #B08A4D; }
@@ -1471,7 +1477,7 @@ const _SA_INLINE_CSS = `
   .sa-bonitaet-note { font-size: 8px; color: #888; margin-bottom: 6mm; font-style: italic; letter-spacing: 0.2px; }
   .footer-note { font-size: 9px; color: #777; margin-top: 4mm; line-height: 1.4; }
   /* Footer: auf JEDER Seite — Banker erwartet Vertriebler + Datum auf jedem Blatt */
-  .pdf-footer { padding: 4mm 12mm 3mm 12mm; border-top: 0.5px solid #B08A4D; font-size: 7px; font-weight: 300; color: #777; letter-spacing: 0.2px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 8mm; align-items: center; background: #fff; margin-top: 8mm; }
+  .pdf-footer { padding: 3mm 0 0 0; border-top: 0.5px solid #B08A4D; font-size: 7px; font-weight: 300; color: #777; letter-spacing: 0.2px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 8mm; align-items: center; background: #fff; margin-top: 3mm; }
   .pdf-footer .pdf-footer-l { text-align: left; }
   .pdf-footer .pdf-footer-c { text-align: center; }
   .pdf-footer .pdf-footer-r { text-align: right; }

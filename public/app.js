@@ -198,8 +198,10 @@ function renderLogin() {
   app.innerHTML = `
     <div class="login-screen">
       <div class="login-box">
-        <div class="brand">B&amp;B <span class="accent">Kalkulator</span></div>
-        <div class="tagline">Kapitalanlage-Kalkulator für Vertriebler</div>
+        <div class="bub-brand" style="margin-bottom:18px;">
+          <span class="bub-brand-main">B&amp;B Backstube</span>
+          <span class="bub-brand-sub">Jetzt wird gebacken!</span>
+        </div>
 
         ${state.lastError ? `<div class="error-banner">${esc(state.lastError)}</div>` : ''}
 
@@ -984,7 +986,7 @@ async function renderKunde() {
 
   app.innerHTML = `
     <div class="main">
-      <div class="breadcrumb"><a href="#/dashboard">Dashboard</a> &rsaquo; ${esc(displayName)}</div>
+      <div class="breadcrumb"><a href="#/dashboard">Meine Kunden</a> &rsaquo; ${esc(displayName)}</div>
 
       <div class="toolbar kav-toolbar">
         <div>
@@ -4928,11 +4930,11 @@ function sendInvestDocMail() {
   const weLabel = w ? ((w.projektName ? w.projektName + ' · ' : '') + (w.lageText || ('WE ' + w.weNr))) : 'unsere besprochene Wohneinheit';
   const senderName = (state.user && state.user.name) || 'B&B Immo';
   // Mailto-Body — Edgar's Stil: direkt, kein Floskeln-Marathon.
-  const subject = `Investitions-Analyse · ${weLabel}`;
+  const subject = `Investitionsanalyse · ${weLabel}`;
   const body = [
     `Hallo ${state.kunde.vorname || ''},`,
     '',
-    `anbei wie besprochen die Investitions-Analyse für ${weLabel}.`,
+    `anbei wie besprochen die Investitionsanalyse für ${weLabel}.`,
     '',
     'Die Analyse zeigt Vermögensaufbau, Cashflow und Bonität auf 7 Seiten. Bei Fragen melde Dich jederzeit — wir sprechen die Zahlen gerne im Detail durch.',
     '',
@@ -8123,8 +8125,8 @@ const TOUR_STEPS = [
     // Kein detectCompleted — User soll NICHT klicken, sondern nur Weiter.
   },
   {
-    title: 'Schritt 11 — Aktive WEs im Überblick',
-    action: 'Klick oben in der Navigation auf „Aktive WEs". Du siehst alle Wohneinheiten in Vermarktung, pro Projekt gruppiert, mit Kennzahlen.',
+    title: 'Schritt 11 — Wohnungen im Überblick',
+    action: 'Klick oben in der Navigation auf „Wohnungen". Du siehst alle Wohneinheiten in Vermarktung, pro Projekt gruppiert, mit Kennzahlen.',
     tip: 'Profil-Dropdown oben rechts wechselt zwischen 6 Bank-Szenarien (3 Steuersätze × KNK ohne/mit). KNK „mit" = 4,8 % Zins (Bank-Aufschlag), „ohne" = 4,5 %. Jede WE-Zeile ist klickbar.',
     target: 'a[href="#/we-liste"]',
     needsView: null,
@@ -8132,7 +8134,7 @@ const TOUR_STEPS = [
   },
   {
     title: 'Schritt 12 — Test-Kunde aufräumen',
-    action: 'Geh zurück zum Test-Kunden (Dashboard → Test Vertrieb anklicken). Im Header der Kundenseite ist der Button „Archivieren" — klick ihn an. Nach dem Archivieren landest Du wieder auf dem Dashboard — dort dann rechts auf „Fertig ✓" klicken.',
+    action: 'Geh zurück zum Test-Kunden (Meine Kunden → Test Vertrieb anklicken). Im Header der Kundenseite ist der Button „Archivieren" — klick ihn an. Nach dem Archivieren landest Du wieder bei „Meine Kunden" — dort dann rechts auf „Fertig ✓" klicken.',
     tip: 'Vertrieb darf nicht endgültig löschen, nur archivieren. Edgar als Admin kann später echte Löschungen durchführen. Damit ist die Tour fertig — Du bist startklar! 🎉',
     target: 'button[onclick*="archiveKunde"]',
     needsView: 'kunde',
@@ -8396,7 +8398,7 @@ function _renderTour() {
       }
     } catch (e) { /* detectCompleted darf nicht crashen — Tour läuft normal weiter */ }
   }
-  const viewLabel = { dashboard: 'Dashboard', kunde: 'Kunde-Detail-Seite', 'we-liste': 'Aktive WEs', admin: 'Admin' }[needsView] || needsView;
+  const viewLabel = { dashboard: 'Meine Kunden', kunde: 'Kunde-Detail-Seite', 'we-liste': 'Wohnungen', admin: 'Admin' }[needsView] || needsView;
   const viewHref = { dashboard: '#/dashboard', kunde: state.kundeId ? ('#/kunde/' + state.kundeId) : '#/dashboard', 'we-liste': '#/we-liste', admin: '#/admin' }[needsView] || '#/dashboard';
   const tabLabel = { uebersicht: 'Übersicht', kalkulator: 'Kalkulator', selbstauskunft: 'Selbstauskunft', snapshots: 'Snapshots' }[needsTab] || needsTab;
 
@@ -9038,10 +9040,18 @@ function kavQueueMutation(applyMutation, opts) {
       applyMutation(tracker);
       await saveKavTracker(kundeId, freeNotes, tracker);
       if (_opts.successToast) toast(_opts.successToast, _opts.successType || 'success');
-      if (state.kunde && state.kunde.id === kundeId) renderKunde();
+      // FS-2k (Edgar 24.05.2026 19:30): Nur Tab-Content re-rendern, nicht
+      // den ganzen Kunde-Layout. Spart Header/Tabs-Re-Mount + behält Input-Focus.
+      if (state.kunde && state.kunde.id === kundeId) {
+        if (state.tab === 'uebersicht') renderTabUebersicht();
+        else renderKunde();
+      }
     } catch (e) {
       toast((_opts.errorPrefix || 'Fehler: ') + (e && e.message ? e.message : 'unbekannt'), 'error');
-      if (state.kunde && state.kunde.id === kundeId) renderKunde();
+      if (state.kunde && state.kunde.id === kundeId) {
+        if (state.tab === 'uebersicht') renderTabUebersicht();
+        else renderKunde();
+      }
     }
   });
   // FS-2f (24.05.2026 Edgar 14:30): Queue-Tail-Catch — sonst hängt die Queue
@@ -9234,7 +9244,7 @@ function renderKavCockpit(k) {
   const prevPhasesDetails = document.getElementById('kav-phases-details');
   const phasesWasOpen = prevPhasesDetails && prevPhasesDetails.hasAttribute('open');
   return `
-    <section class="kav-cockpit kav-cockpit-sticky">
+    <section class="kav-cockpit">
       <div class="kav-cockpit-head">
         <div class="kav-stepper">${steps}</div>
         <div class="kav-cockpit-meta">${wvBadge}</div>
