@@ -90,18 +90,20 @@ module.exports = async (req, res) => {
       if (typeof body.saJson !== 'object' && body.saJson !== null) {
         return res.status(400).json({ error: 'saJson muss ein Object sein' });
       }
-      // FS-3b (Audit SA P1 25.05.2026): SA-Portal schickte `antragGemeinsam` +
-      // `antragsteller.nachname`, App liest aber `gemeinsam` + `antragsteller.name`.
-      // Beim Portal-Save ging der Mitantragsteller-Flag verloren + Nachname blieb
-      // leer in der Vertriebs-Sicht. Hier normalisieren wir defensive auf das
-      // App-Schema, damit beide Schemas funktionieren.
+      // FS-3b + FS-3n (Re-Re-Audit P1 25.05.2026): SA-Portal schickt
+      // `antragGemeinsam` + `antragsteller.nachname`, App liest `gemeinsam` +
+      // `antragsteller.name`. Normalisierung auf App-Schema.
+      // FS-3n-Fix: `nachname` muss `name` IMMER überschreiben wenn vorhanden,
+      // nicht nur wenn `name` undefined ist — sonst Stale-Field nach Portal-Edit
+      // (GET migriert app-name→portal-nachname, PUT würde dann beide getrennt
+      // halten und die App liest weiter den alten `name`).
       const _sa = body.saJson || {};
-      if (_sa.antragGemeinsam !== undefined && _sa.gemeinsam === undefined) {
+      if (_sa.antragGemeinsam !== undefined) {
         _sa.gemeinsam = _sa.antragGemeinsam;
       }
       ['antragsteller', 'mitantragsteller'].forEach(role => {
         const a = _sa[role];
-        if (a && typeof a === 'object' && a.nachname !== undefined && a.name === undefined) {
+        if (a && typeof a === 'object' && a.nachname !== undefined) {
           a.name = a.nachname;
         }
       });

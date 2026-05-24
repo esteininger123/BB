@@ -184,6 +184,10 @@ function isSafeOrigin(req) {
   // gefährlich; wir matchen exakt.
   const allowed = [
     'https://bb-brown-pi.vercel.app',
+    // FS-3n (Re-Re-Audit P1 25.05.2026): backstube.bub-immo.de in CSRF-Allowlist
+    // — vorher nur in sa-portal/generate.js. Sobald die Domain produktiv ist,
+    // würden ohne diesen Fix alle mutativen App-Endpoints 403 liefern.
+    'https://backstube.bub-immo.de',
     'https://bb.immo-stein.de',
     'http://localhost:3000',
     'http://localhost:5173'

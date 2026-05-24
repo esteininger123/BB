@@ -68,8 +68,12 @@ module.exports = async (req, res) => {
       // selbst bei Cap-Treffer die NEUESTEN drin sind.
       // Schema-Erweiterung um Kunde-ID-Lookup-Field für filterByFormula bleibt
       // als Post-Launch-TODO (würde Roundtrip von 5000 auf ~5 Records reduzieren).
+      // FS-3n (Re-Re-Audit P0 25.05.2026): airtable.js buildQuery serialisiert
+      // sort:[{...}] als sort[]=[object Object] — Airtable verwirft das.
+      // Korrektes Format (siehe kunden.js:45): direkte Keys mit Index-Notation.
       const allRecords = await listAll(TABLES.SNAPSHOTS, {
-        sort: [{ field: SNAPSHOT_FIELDS.CREATED, direction: 'desc' }],
+        'sort[0][field]': SNAPSHOT_FIELDS.CREATED,
+        'sort[0][direction]': 'desc',
       }, 5000);
       const mapped = allRecords
         .map(r => {
