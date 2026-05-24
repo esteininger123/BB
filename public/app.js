@@ -5258,6 +5258,94 @@ async function sendSaForSignature() {
 }
 window.sendSaForSignature = sendSaForSignature;
 
+// Welle SA-Portal (Edgar 24.05.2026): Link erzeugen + Modal mit Copy-Button + Mail-Vorlage.
+// Kunde klickt Link → öffnet sa-portal.html mit Token → füllt SA selbst aus → speichert direkt
+// in die Kunden-saJson. Vertriebler bekommt Aktivitäts-Log-Eintrag.
+async function generateSaPortalLink() {
+  if (!state.kundeId) { toast('Bitte erst Kunde wählen', 'error'); return; }
+  try {
+    const data = await api.post('/api/sa-portal/generate', { kundeId: state.kundeId });
+    if (!data || !data.url) { toast('Keine URL zurückbekommen', 'error'); return; }
+    _showSaPortalLinkModal(data.url, data.expiresAt);
+    // Aktivitäts-Log
+    try { _appendActivityToNotizen(`SA-Portal-Link für Kunden erzeugt (gültig bis ${new Date(data.expiresAt).toLocaleDateString('de-DE')})`); } catch {}
+  } catch (e) {
+    toast('Fehler beim Erzeugen: ' + (e.message || ''), 'error');
+  }
+}
+window.generateSaPortalLink = generateSaPortalLink;
+
+function _showSaPortalLinkModal(url, expiresAt) {
+  const expDate = new Date(expiresAt).toLocaleDateString('de-DE');
+  const kunde = state.kunde || {};
+  const kundeName = ((kunde.vorname || '') + ' ' + (kunde.nachname || '')).trim() || 'Kunde';
+  const senderName = (state.user && state.user.name) || 'B&B Immo';
+  const mailBody = [
+    `Hallo ${kunde.vorname || ''},`,
+    '',
+    'wie besprochen — hier der Link, mit dem Du die Selbstauskunft online ausfüllen kannst:',
+    '',
+    url,
+    '',
+    `Der Link ist 14 Tage gültig (bis ${expDate}). Du kannst zwischendurch zwischenspeichern und später weitermachen — die Daten landen direkt bei uns.`,
+    '',
+    'Bei Fragen melde Dich jederzeit.',
+    '',
+    'Beste Grüße',
+    senderName,
+  ].join('\n');
+  const subject = `Selbstauskunft online ausfüllen — B&B Immo`;
+  const mailtoUrl = `mailto:${encodeURIComponent(kunde.email || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(mailBody)}`;
+
+  let modalEl = document.getElementById('sa-portal-modal');
+  if (!modalEl) {
+    modalEl = document.createElement('div');
+    modalEl.id = 'sa-portal-modal';
+    document.body.appendChild(modalEl);
+  }
+  modalEl.innerHTML = `
+    <div style="position:fixed;inset:0;background:rgba(26,26,23,.55);z-index:140;display:flex;align-items:center;justify-content:center;padding:24px;" onclick="if(event.target===this)window._saPortalClose()">
+      <div style="background:#FBFAF7;border-radius:12px;max-width:640px;width:100%;box-shadow:0 24px 64px rgba(26,26,23,.32);overflow:hidden;">
+        <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:start;justify-content:space-between;gap:14px;">
+          <div>
+            <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;">SA-Portal-Link</div>
+            <div style="font-size:17px;font-weight:600;color:var(--text-primary);margin-top:2px;">Für ${esc(kundeName)} erzeugt</div>
+          </div>
+          <button onclick="window._saPortalClose()" style="background:transparent;border:1px solid var(--border);padding:4px 10px;font-size:13px;border-radius:6px;cursor:pointer;font-family:inherit;">✕</button>
+        </div>
+        <div style="padding:20px 22px;">
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">Der Kunde klickt diesen Link → öffnet eine vereinfachte SA-Maske → füllt aus → speichert. Du siehst das Ergebnis direkt im SA-Tab.</div>
+          <div style="display:flex;gap:8px;margin:10px 0 16px;">
+            <input type="text" readonly value="${esc(url)}" id="sa-portal-url" style="flex:1;padding:8px 12px;font-size:12px;border:1px solid var(--border);border-radius:5px;font-family:ui-monospace,monospace;background:var(--cream-subtle);" onclick="this.select()">
+            <button onclick="window._saPortalCopy()" id="sa-portal-copy-btn" class="secondary" style="padding:6px 14px;font-size:12px;white-space:nowrap;">Link kopieren</button>
+          </div>
+          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:14px;">Gültig bis <strong>${expDate}</strong> · danach ist der Link automatisch ungültig.</div>
+          <div style="border-top:1px solid var(--border);padding-top:14px;">
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">Per Mail an den Kunden:</div>
+            <div style="display:flex;gap:8px;">
+              ${kunde.email ? `<a href="${esc(mailtoUrl)}" target="_blank" rel="noopener" class="btn" style="display:inline-block;text-decoration:none;background:var(--accent);color:#fff;padding:8px 16px;font-size:13px;border-radius:5px;">→ Mail-Vorlage öffnen (${esc(kunde.email)})</a>` : '<span class="text-tertiary text-small">⚠ Kunde hat keine E-Mail in Airtable</span>'}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+window._saPortalClose = function() { const m = document.getElementById('sa-portal-modal'); if (m) m.remove(); };
+window._saPortalCopy = async function() {
+  const inp = document.getElementById('sa-portal-url');
+  if (!inp) return;
+  try {
+    await navigator.clipboard.writeText(inp.value);
+    const btn = document.getElementById('sa-portal-copy-btn');
+    if (btn) { const o = btn.textContent; btn.textContent = '✓ Kopiert'; setTimeout(() => { btn.textContent = o; }, 1500); }
+  } catch (e) {
+    inp.select();
+    document.execCommand('copy');
+    toast('Link kopiert (Fallback)', 'success');
+  }
+};
+
 function openSaConfirmModal({ kundeName, kundeEmail, mitName, mitEmail }) {
   _reservEnsureStyles();  // gleiches CSS wie Reservierungs-Modal
   return new Promise((resolve) => {
@@ -5511,6 +5599,7 @@ function renderTabSelbstauskunft() {
         <button onclick="saveSelbstauskunft()">Speichern</button>
         <button class="secondary" onclick="exportSaPdf()">PDF Selbstauskunft (Druck)</button>
         <button onclick="sendSaForSignature()">→ Selbstauskunft via PandaDoc senden</button>
+        <button class="secondary" onclick="generateSaPortalLink()" title="Erzeugt einen 14-Tage-Link, mit dem der Kunde die SA selbst ausfüllt — Inhalt landet automatisch hier.">📋 Link für Selbst-Ausfüllen erzeugen</button>
       </div>
       ${/* SA-Redesign (22.05.2026): Datalists mit Banken-üblichen Titeln — Vertriebler
             bekommt Autocomplete beim Tippen, ersetzt die langen Inline-Code-Listen. */ ''}

@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selbstauskunft — B&amp;B Immo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #FBFAF7; --bg-card: #FFFFFF; --bg-soft: #F4F1EA;
+  --text: #1A1A17; --text-secondary: #5A5A52; --text-tertiary: #7A7A72;
+  --accent: #B08A4D; --accent-dark: #8E6E3D;
+  --positive: #2D6E47; --negative: #9A3E33;
+  --border: #E8E6DD; --border-strong: #D5D0BF;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+  padding: 24px 16px 80px;
+}
+.wrap { max-width: 880px; margin: 0 auto; }
+
+header.top {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px 28px;
+  margin-bottom: 18px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.brand-mark {
+  background: #1A1A17;
+  color: #FBFAF7;
+  padding: 4px 10px;
+  font-weight: 700;
+  font-size: 14px;
+  border-radius: 3px;
+  letter-spacing: .02em;
+}
+.brand-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+h1 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-top: 6px;
+  margin-bottom: 6px;
+}
+.subtitle {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.intro {
+  background: rgba(176, 138, 77, .08);
+  border-left: 3px solid var(--accent);
+  padding: 12px 14px;
+  border-radius: 0 6px 6px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 12px;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 24px;
+  margin: 14px 0;
+}
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+  border-bottom: 2px solid var(--accent);
+}
+.card-subtitle {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-weight: 400;
+  margin-left: 8px;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 600px) {
+  .grid-2 { grid-template-columns: 1fr; }
+}
+.grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 600px) {
+  .grid-3 { grid-template-columns: 1fr; }
+}
+
+label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 3px;
+  font-weight: 500;
+}
+input[type=text], input[type=number], input[type=email], input[type=date], select, textarea {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  font-family: inherit;
+  background: var(--bg-card);
+  color: var(--text);
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(176,138,77,.18);
+}
+input[readonly] {
+  background: var(--bg-soft);
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+
+.section-sub {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-dark);
+  margin: 18px 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px dotted var(--border);
+}
+
+.kollege-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--bg-soft);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  margin: 14px 0;
+}
+.kollege-toggle input { width: auto; }
+
+.list-item {
+  background: var(--bg-soft);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin: 8px 0;
+  position: relative;
+}
+.list-item-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-tertiary);
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.list-item-remove:hover {
+  color: var(--negative);
+  border-color: var(--negative);
+}
+
+button.btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 11px 20px;
+  font-size: 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+}
+button.btn:hover { background: var(--accent-dark); }
+button.btn:disabled { opacity: .5; cursor: not-allowed; }
+button.btn-secondary {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
+}
+button.btn-secondary:hover {
+  background: var(--bg-soft);
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+button.btn-add {
+  background: transparent;
+  color: var(--accent-dark);
+  border: 1px dashed var(--border-strong);
+  padding: 7px 14px;
+  font-size: 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: inherit;
+}
+button.btn-add:hover {
+  background: rgba(176,138,77,.05);
+  border-color: var(--accent);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.save-status {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.save-status.saving { color: var(--accent); }
+.save-status.saved { color: var(--positive); }
+.save-status.error { color: var(--negative); }
+
+.loading, .error-state, .success-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-secondary);
+}
+.error-state {
+  color: var(--negative);
+}
+.success-state {
+  color: var(--positive);
+}
+.success-state h2 {
+  font-size: 22px;
+  margin-bottom: 12px;
+}
+.unit-hint { font-size: 11px; color: var(--text-tertiary); margin-left: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="loading">Lade Selbstauskunft …</div>
+</div>
+
+<script>
+// ============================================================
+// SA-Portal: vereinfachte Selbstauskunft für den Kunden
+// Token in URL, holt + speichert via /api/sa-portal/[token]
+// ============================================================
+
+const params = new URLSearchParams(location.search);
+const TOKEN = params.get('token') || '';
+let state = {
+  loaded: false,
+  kunde: null,
+  sa: null,
+  saving: false,
+  saved: false,
+};
+
+// === Initial-Load ===
+async function init() {
+  if (!TOKEN) {
+    renderError('Kein Token in der URL — bitte den vollständigen Link aus der E-Mail nutzen.');
+    return;
+  }
+  try {
+    const res = await fetch('/api/sa-portal/' + encodeURIComponent(TOKEN));
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Link ungültig oder abgelaufen.');
+    }
+    const data = await res.json();
+    state.kunde = { vorname: data.vorname, nachname: data.nachname, email: data.email };
+    state.sa = data.saJson || _newSa();
+    // Defensives Defaults
+    if (!state.sa.antragsteller) state.sa.antragsteller = _newAntragsteller();
+    if (state.sa.antragGemeinsam === undefined) state.sa.antragGemeinsam = false;
+    state.loaded = true;
+    render();
+  } catch (e) {
+    renderError(e.message || 'Fehler beim Laden.');
+  }
+}
+
+function _newSa() {
+  return {
+    antragsteller: _newAntragsteller(),
+    mitantragsteller: null,
+    antragGemeinsam: false,
+  };
+}
+function _newAntragsteller() {
+  return {
+    vorname: '', nachname: '',
+    geburtsdatum: '', strasse: '', plz: '', ort: '',
+    arbeitgeber: '', beruf: '', beschaeftigtSeit: '',
+    nettoMo: 0, anzahlGehaelter: 13,
+    unterhaltMo: 0, kindergeldMo: 0,
+    kinderAnzahl: 0,
+    mieteMo: 0, lebenshaltungMo: 0, pkvMo: 0, leasingMo: 0, unterhaltZahlungMo: 0,
+    bankguthaben: 0,
+    immobilien: [], // [{ adresse, verkehrswert, baufiRestsaldo, baufiBelastungMo, mietenMo }]
+    zusatzEinnahmen: [], zusatzAusgaben: [], zusatzVermoegen: [], zusatzVerbindlichkeiten: [],
+  };
+}
+
+// === Rendering ===
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function renderError(msg) {
+  document.getElementById('app').innerHTML = `
+    <header class="top">
+      <div class="brand"><span class="brand-mark">B&amp;B</span><span class="brand-text">Selbstauskunft</span></div>
+      <h1>Hoppla.</h1>
+      <div class="error-state">${esc(msg)}</div>
+    </header>`;
+}
+function renderSuccess() {
+  document.getElementById('app').innerHTML = `
+    <header class="top">
+      <div class="brand"><span class="brand-mark">B&amp;B</span><span class="brand-text">Selbstauskunft</span></div>
+    </header>
+    <div class="success-state">
+      <h2>✓ Vielen Dank!</h2>
+      <p>Deine Selbstauskunft ist bei uns angekommen.<br>Wir melden uns in Kürze zur weiteren Abstimmung bei Dir.</p>
+      <p style="margin-top:20px;font-size:13px;color:var(--text-tertiary);">Du kannst dieses Fenster jetzt schließen.</p>
+    </div>`;
+}
+
+function render() {
+  if (!state.loaded) return;
+  const a = state.sa.antragsteller || {};
+  const m = state.sa.mitantragsteller || {};
+  const hasM = !!state.sa.antragGemeinsam;
+
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <header class="top">
+      <div class="brand"><span class="brand-mark">B&amp;B</span><span class="brand-text">Investitions-Doc · Selbstauskunft</span></div>
+      <h1>Selbstauskunft für ${esc((state.kunde.vorname || '') + ' ' + (state.kunde.nachname || '')).trim() || 'Dich'}</h1>
+      <div class="subtitle">Diese Daten brauchen wir &amp; die finanzierende Bank — sie bleiben vertraulich.</div>
+      <div class="intro">
+        Bitte fülle die Felder so genau aus wie möglich. Was Du nicht parat hast, kannst Du leer lassen — wir ergänzen das gemeinsam beim nächsten Gespräch.
+        <strong>Bei zwei Antragstellern</strong> (z.B. Du und Dein Partner) aktiviere den Schalter unten.
+      </div>
+    </header>
+
+    ${renderAntragsteller('Antragsteller 1', a, false)}
+
+    <label class="kollege-toggle">
+      <input type="checkbox" ${hasM ? 'checked' : ''} onchange="window._toggleMit(this.checked)">
+      <span>Zwei Antragsteller (Du &amp; eine zweite Person, z.B. Partner/in)</span>
+    </label>
+
+    ${hasM ? renderAntragsteller('Antragsteller 2', m, true) : ''}
+
+    <div class="actions">
+      <span class="save-status ${state.saved ? 'saved' : ''}" id="save-status">${state.saved ? '✓ Gespeichert' : ''}</span>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-secondary" onclick="window._save(false)" ${state.saving ? 'disabled' : ''}>Zwischenspeichern</button>
+        <button class="btn" onclick="window._save(true)" ${state.saving ? 'disabled' : ''}>Selbstauskunft absenden</button>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text-tertiary);">
+      B&amp;B Immo GmbH · Burdastraße 23 · 77746 Schutterwald · HRB 727 814 (Freiburg)
+    </div>
+  `;
+}
+
+function renderAntragsteller(titel, p, isMit) {
+  const px = isMit ? 'm' : 'a';
+  return `
+    <div class="card">
+      <div class="card-title">${esc(titel)}</div>
+
+      <div class="section-sub">Persönliche Daten</div>
+      <div class="grid-2">
+        <div><label>Vorname</label><input type="text" value="${esc(p.vorname || '')}" oninput="window._upd('${px}','vorname',this.value)"></div>
+        <div><label>Nachname</label><input type="text" value="${esc(p.nachname || '')}" oninput="window._upd('${px}','nachname',this.value)"></div>
+        <div><label>Geburtsdatum</label><input type="date" value="${esc(p.geburtsdatum || '')}" oninput="window._upd('${px}','geburtsdatum',this.value)"></div>
+        <div><label>Anzahl Kinder</label><input type="number" min="0" max="20" value="${p.kinderAnzahl || 0}" oninput="window._upd('${px}','kinderAnzahl',parseInt(this.value)||0)"></div>
+      </div>
+      <div class="grid-3" style="margin-top:10px;">
+        <div><label>Straße + Nr</label><input type="text" value="${esc(p.strasse || '')}" oninput="window._upd('${px}','strasse',this.value)"></div>
+        <div><label>PLZ</label><input type="text" value="${esc(p.plz || '')}" oninput="window._upd('${px}','plz',this.value)"></div>
+        <div><label>Ort</label><input type="text" value="${esc(p.ort || '')}" oninput="window._upd('${px}','ort',this.value)"></div>
+      </div>
+      <div class="grid-3" style="margin-top:10px;">
+        <div><label>Arbeitgeber</label><input type="text" value="${esc(p.arbeitgeber || '')}" oninput="window._upd('${px}','arbeitgeber',this.value)"></div>
+        <div><label>Beruf</label><input type="text" value="${esc(p.beruf || '')}" oninput="window._upd('${px}','beruf',this.value)"></div>
+        <div><label>Beschäftigt seit</label><input type="date" value="${esc(p.beschaeftigtSeit || '')}" oninput="window._upd('${px}','beschaeftigtSeit',this.value)"></div>
+      </div>
+
+      <div class="section-sub">Einkommen / Monat</div>
+      <div class="grid-3">
+        <div><label>Netto-Einkommen €/Mo</label><input type="number" min="0" step="50" value="${p.nettoMo || ''}" oninput="window._upd('${px}','nettoMo',parseFloat(this.value)||0)"></div>
+        <div><label>Anzahl Gehälter / Jahr</label><input type="number" min="12" max="14" step="1" value="${p.anzahlGehaelter || 13}" oninput="window._upd('${px}','anzahlGehaelter',parseFloat(this.value)||13)"></div>
+        <div><label>Kindergeld €/Mo</label><input type="number" min="0" step="10" value="${p.kindergeldMo || ''}" oninput="window._upd('${px}','kindergeldMo',parseFloat(this.value)||0)"></div>
+        <div><label>Erhaltener Unterhalt €/Mo</label><input type="number" min="0" step="10" value="${p.unterhaltMo || ''}" oninput="window._upd('${px}','unterhaltMo',parseFloat(this.value)||0)"></div>
+      </div>
+
+      <div class="section-sub">Ausgaben / Monat</div>
+      <div class="grid-3">
+        <div><label>Miete eigene Wohnung €/Mo</label><input type="number" min="0" step="10" value="${p.mieteMo || ''}" oninput="window._upd('${px}','mieteMo',parseFloat(this.value)||0)"></div>
+        <div><label>Lebenshaltung €/Mo<span class="unit-hint">(Essen, Hobby ...)</span></label><input type="number" min="0" step="50" value="${p.lebenshaltungMo || ''}" oninput="window._upd('${px}','lebenshaltungMo',parseFloat(this.value)||0)"></div>
+        <div><label>Private Krankenversicherung €/Mo</label><input type="number" min="0" step="10" value="${p.pkvMo || ''}" oninput="window._upd('${px}','pkvMo',parseFloat(this.value)||0)"></div>
+        <div><label>Leasing-Raten gesamt €/Mo</label><input type="number" min="0" step="10" value="${p.leasingMo || ''}" oninput="window._upd('${px}','leasingMo',parseFloat(this.value)||0)"></div>
+        <div><label>Gezahlter Unterhalt €/Mo</label><input type="number" min="0" step="10" value="${p.unterhaltZahlungMo || ''}" oninput="window._upd('${px}','unterhaltZahlungMo',parseFloat(this.value)||0)"></div>
+      </div>
+
+      <div class="section-sub">Vermögen</div>
+      <div class="grid-2">
+        <div><label>Bankguthaben €<span class="unit-hint">(Tagesgeld, Sparbuch)</span></label><input type="number" min="0" step="100" value="${p.bankguthaben || ''}" oninput="window._upd('${px}','bankguthaben',parseFloat(this.value)||0)"></div>
+      </div>
+
+      <div class="section-sub">Bestehende Immobilien <span style="font-weight:400;color:var(--text-tertiary);font-size:11px;">— die Du schon besitzt</span></div>
+      <div id="${px}-immo-list">${renderImmoList(p, isMit)}</div>
+      <button class="btn-add" onclick="window._addImmo('${px}')">+ Weitere Immobilie hinzufügen</button>
+
+      <div class="section-sub">Sonstige Positionen <span style="font-weight:400;color:var(--text-tertiary);font-size:11px;">— Aktien, Auto-Kredit, Bausparvertrag etc.</span></div>
+      ${renderZusatzGruppen(p, isMit)}
+    </div>
+  `;
+}
+
+function renderImmoList(p, isMit) {
+  const px = isMit ? 'm' : 'a';
+  const arr = Array.isArray(p.immobilien) ? p.immobilien : [];
+  if (arr.length === 0) {
+    return '<div style="color:var(--text-tertiary);font-size:12px;font-style:italic;margin-bottom:6px;">Noch keine Immobilien — falls Du keine besitzt, ist das ok.</div>';
+  }
+  return arr.map((immo, i) => `
+    <div class="list-item">
+      <button class="list-item-remove" onclick="window._rmImmo('${px}',${i})">Entfernen</button>
+      <div class="grid-3">
+        <div><label>Adresse / Bezeichnung</label><input type="text" value="${esc(immo.adresse || '')}" oninput="window._updArr('${px}','immobilien',${i},'adresse',this.value)"></div>
+        <div><label>Verkehrswert €</label><input type="number" min="0" step="1000" value="${immo.verkehrswert || ''}" oninput="window._updArr('${px}','immobilien',${i},'verkehrswert',parseFloat(this.value)||0)"></div>
+        <div><label>Baufi-Restschuld €</label><input type="number" min="0" step="1000" value="${immo.baufiRestsaldo || ''}" oninput="window._updArr('${px}','immobilien',${i},'baufiRestsaldo',parseFloat(this.value)||0)"></div>
+        <div><label>Baufi-Rate €/Mo</label><input type="number" min="0" step="10" value="${immo.baufiBelastungMo || ''}" oninput="window._updArr('${px}','immobilien',${i},'baufiBelastungMo',parseFloat(this.value)||0)"></div>
+        <div><label>Mieten €/Mo <span class="unit-hint">(falls vermietet)</span></label><input type="number" min="0" step="10" value="${immo.mietenMo || ''}" oninput="window._updArr('${px}','immobilien',${i},'mietenMo',parseFloat(this.value)||0)"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderZusatzGruppen(p, isMit) {
+  const px = isMit ? 'm' : 'a';
+  const gruppen = [
+    { key: 'zusatzEinnahmen', label: 'Sonstige Einnahmen / Mo', betragLabel: '€/Mo', feld: 'mo' },
+    { key: 'zusatzAusgaben', label: 'Sonstige Ausgaben / Mo', betragLabel: '€/Mo', feld: 'mo' },
+    { key: 'zusatzVermoegen', label: 'Sonstiges Vermögen', betragLabel: '€', feld: 'wert' },
+    { key: 'zusatzVerbindlichkeiten', label: 'Sonstige Verbindlichkeiten', betragLabel: '€/Mo Rate + Restsaldo €', feld: 'mo' },
+  ];
+  return gruppen.map(g => {
+    const arr = Array.isArray(p[g.key]) ? p[g.key] : [];
+    const isVerb = g.key === 'zusatzVerbindlichkeiten';
+    return `
+      <div style="margin-bottom:10px;">
+        <div style="font-size:12px;color:var(--text-secondary);font-weight:600;margin-bottom:4px;">${esc(g.label)}</div>
+        ${arr.length === 0 ? '' : arr.map((x, i) => `
+          <div class="list-item">
+            <button class="list-item-remove" onclick="window._rmZ('${px}','${g.key}',${i})">Entfernen</button>
+            <div class="grid-3">
+              <div><label>Bezeichnung</label><input type="text" value="${esc(x.titel || '')}" oninput="window._updArr('${px}','${g.key}',${i},'titel',this.value)"></div>
+              <div><label>${esc(g.betragLabel.split('+')[0].trim())}</label><input type="number" min="0" step="10" value="${x[g.feld] || ''}" oninput="window._updArr('${px}','${g.key}',${i},'${g.feld}',parseFloat(this.value)||0)"></div>
+              ${isVerb ? `<div><label>Restsaldo €</label><input type="number" min="0" step="100" value="${x.wert || ''}" oninput="window._updArr('${px}','${g.key}',${i},'wert',parseFloat(this.value)||0)"></div>` : '<div></div>'}
+            </div>
+          </div>
+        `).join('')}
+        <button class="btn-add" onclick="window._addZ('${px}','${g.key}')">+ Hinzufügen</button>
+      </div>
+    `;
+  }).join('');
+}
+
+// === Handler ===
+function _person(px) {
+  if (px === 'a') return state.sa.antragsteller;
+  if (px === 'm') {
+    if (!state.sa.mitantragsteller) state.sa.mitantragsteller = _newAntragsteller();
+    return state.sa.mitantragsteller;
+  }
+  return null;
+}
+
+window._upd = function(px, key, val) {
+  const p = _person(px); if (!p) return;
+  p[key] = val;
+  _markUnsaved();
+};
+window._updArr = function(px, listKey, idx, field, val) {
+  const p = _person(px); if (!p) return;
+  if (!Array.isArray(p[listKey])) p[listKey] = [];
+  if (!p[listKey][idx]) p[listKey][idx] = {};
+  p[listKey][idx][field] = val;
+  _markUnsaved();
+};
+window._addImmo = function(px) {
+  const p = _person(px); if (!p) return;
+  if (!Array.isArray(p.immobilien)) p.immobilien = [];
+  p.immobilien.push({ adresse: '', verkehrswert: 0, baufiRestsaldo: 0, baufiBelastungMo: 0, mietenMo: 0 });
+  render();
+};
+window._rmImmo = function(px, idx) {
+  const p = _person(px); if (!p) return;
+  p.immobilien.splice(idx, 1);
+  render();
+};
+window._addZ = function(px, key) {
+  const p = _person(px); if (!p) return;
+  if (!Array.isArray(p[key])) p[key] = [];
+  p[key].push({ titel: '', mo: 0, wert: 0 });
+  render();
+};
+window._rmZ = function(px, key, idx) {
+  const p = _person(px); if (!p) return;
+  p[key].splice(idx, 1);
+  render();
+};
+window._toggleMit = function(on) {
+  state.sa.antragGemeinsam = !!on;
+  if (on && !state.sa.mitantragsteller) state.sa.mitantragsteller = _newAntragsteller();
+  render();
+};
+
+let _saveTimer = null;
+function _markUnsaved() {
+  state.saved = false;
+  const el = document.getElementById('save-status');
+  if (el) { el.textContent = '… Änderungen nicht gespeichert'; el.className = 'save-status'; }
+  // Auto-Save mit 2s Debounce
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => window._save(false), 2000);
+}
+
+window._save = async function(submit) {
+  if (state.saving) return;
+  state.saving = true;
+  const el = document.getElementById('save-status');
+  if (el) { el.textContent = '… speichert'; el.className = 'save-status saving'; }
+  try {
+    const res = await fetch('/api/sa-portal/' + encodeURIComponent(TOKEN), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ saJson: state.sa })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Fehler beim Speichern');
+    }
+    state.saved = true;
+    state.saving = false;
+    if (submit) {
+      renderSuccess();
+      return;
+    }
+    if (el) { el.textContent = '✓ Gespeichert'; el.className = 'save-status saved'; }
+  } catch (e) {
+    state.saving = false;
+    if (el) { el.textContent = '✕ ' + (e.message || 'Fehler'); el.className = 'save-status error'; }
+  }
+};
+
+init();
+</script>
+</body>
+</html>
