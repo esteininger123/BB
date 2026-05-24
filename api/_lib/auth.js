@@ -58,9 +58,13 @@ async function verifyGoogleToken(idToken) {
   }
 }
 
-// Signiert ein Session-JWT (30 Tage).
+// Signiert ein Session-JWT — Lebensdauer synchron zum Cookie.
+// FS-3c (Audit Backend-Security P0 25.05.2026): JWT-Expiry war 30d hardcoded,
+// Cookie ist jetzt 7d. Hatte zur Folge: ein Browser ohne Cookies aber mit
+// JWT in localStorage hätte 30d Zugriff — Inkonsistenz. Jetzt: JWT-Expiry
+// = Cookie-Maxage exakt.
 function signSession(payload) {
-  return jwt.sign(payload, getJwtSecret(), { expiresIn: '30d' });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: COOKIE_MAX_AGE });
 }
 
 // Liest + validiert das Session-Cookie. Returns Payload oder null.
