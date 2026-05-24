@@ -7617,7 +7617,7 @@ function _renderWeListeContent() {
             <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}${we.qm > 0 ? ' · ' + fmtQm(we.qm) : ''}</div></td>
             <td>${modusBadge}</td>
             <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
-            <td colspan="8" style="text-align:center;color:var(--negative);font-style:italic;font-size:13px;">⚠ ${esc(calc.reason || 'unkalkulierbar')}</td>
+            <td colspan="9" style="text-align:center;color:var(--negative);font-style:italic;font-size:13px;">⚠ ${esc(calc.reason || 'unkalkulierbar')}</td>
           </tr>
         `;
       }
@@ -7653,6 +7653,14 @@ function _renderWeListeContent() {
           <td class="num">${fmtPct(calc.bruttoRendite)}</td>
           <td class="num ${calc.belastungMo < 0 ? 'cell-neg' : 'cell-pos'}">${fmtEurMo(calc.belastungMo)}</td>
           <td class="num">${fmtEur(calc.vermoegenNetto10)}</td>
+          <td class="num">${(() => {
+            // FS-2q (Edgar 25.05.2026): Wachstums-Quote = Vermögen J10 ÷ Kaufpreis (Whg+Garage) × 100.
+            // Ergänzt zur Brutto-Rendite-Ansicht — zeigt wie viel Vermögensaufbau pro investiertem €.
+            // Sortier-Bonus für Edgar: hohe Brutto-Rendite + niedriges Wachstum = Cashflow-Story,
+            // niedrige Brutto-Rendite + hohes Wachstum = Wertsteigerungs-Story.
+            const kp = (we.kp || 0) + (stpl.kaufpreisSumme || 0);
+            return kp > 0 ? fmtPct(calc.vermoegenNetto10 / kp) : '–';
+          })()}</td>
           <td class="num"><strong>${fmtPct(calc.irr)}</strong></td>
         </tr>
       `;
@@ -7675,6 +7683,7 @@ function _renderWeListeContent() {
                 <th class="num">Brutto-Rendite</th>
                 <th class="num">Cashflow J1 n. St.</th>
                 <th class="num">Vermögen J10</th>
+                <th class="num" title="Vermögensaufbau J10 ÷ Kaufpreis (Whg + Garage) — wie viel Vermögen pro investiertem €">Wachstum %</th>
                 <th class="num">IRR 10 J</th>
               </tr>
             </thead>
@@ -7810,6 +7819,8 @@ function _renderWeVergleichModal() {
     { label: 'Belastung €/Mo',  get: c => c ? c.belastungMo : null, fmt: fmtEurMo, best: 'max' },
     { label: 'Cashflow J10',    get: c => c && c.cf && c.cf[9] ? c.cf[9].cfJahr : null, fmt: fmtEur, best: 'max' },
     { label: 'Vermögen J10 (Netto)', get: c => c ? c.vermoegenNetto10 : null, fmt: fmtEur, best: 'max' },
+    // FS-2q: Wachstums-Quote im Vergleichs-Modal auch verfügbar
+    { label: 'Wachstum % (Vermögen/KP)', get: c => (c && c.kpGesamt > 0) ? (c.vermoegenNetto10 / c.kpGesamt) : null, fmt: fmtPct, best: 'max' },
     { label: 'IRR 10 J',         get: c => c ? c.irr : null, fmt: fmtPct, best: 'max' },
   ];
 
