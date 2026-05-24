@@ -17,6 +17,7 @@
 const crypto = require('crypto');
 const { airtable, listAll, escapeFormulaString } = require('../_lib/airtable');
 const { TABLES, KUNDEN_FIELDS } = require('../_lib/tables');
+const { appendActivityZeile } = require('../_lib/notizen');
 
 // Vercel: Raw-Body, damit HMAC stimmt
 module.exports.config = {
@@ -24,10 +25,28 @@ module.exports.config = {
 };
 
 async function getRawBody(req) {
+  // FS-1 Security-Fix 2026-05-24 (Pen-Tester HIGH #4):
+  // Body-Size-Limit gegen DoS via Memory-Exhaustion. PandaDoc-Events sind
+  // realistisch < 50 KB; 256 KB als sicherer Cap. Beim Überlauf wird der
+  // Stream destroyed und Promise rejected → 413 zurückgeben.
+  // Plus: Buffer-Concat statt String-Concat (Pen-Tester MEDIUM #10) für
+  // korrekte HMAC-Verifikation bei Unicode/Binär-Anomalien.
+  const MAX = 256 * 1024;
   return new Promise((resolve, reject) => {
-    let data = '';
-    req.on('data', chunk => { data += chunk; });
-    req.on('end', () => resolve(data));
+    const chunks = [];
+    let len = 0;
+    req.on('data', chunk => {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      len += buf.length;
+      if (len > MAX) {
+        const err = new Error('payload-too-large');
+        err.code = 'PAYLOAD_TOO_LARGE';
+        try { req.destroy(err); } catch {}
+        return reject(err);
+      }
+      chunks.push(buf);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
     req.on('error', reject);
   });
 }
@@ -46,7 +65,12 @@ module.exports = async (req, res) => {
   // 1. Raw-Body lesen
   let raw;
   try { raw = await getRawBody(req); }
-  catch (e) { return res.status(400).json({ error: 'Body konnte nicht gelesen werden' }); }
+  catch (e) {
+    if (e && e.code === 'PAYLOAD_TOO_LARGE') {
+      return res.status(413).json({ error: 'Webhook-Body zu groß (max 256 KB)' });
+    }
+    return res.status(400).json({ error: 'Body konnte nicht gelesen werden' });
+  }
 
   // 2. Signatur prüfen
   const expected = crypto.createHmac('sha256', secret).update(raw).digest('hex');
@@ -174,46 +198,14 @@ module.exports = async (req, res) => {
         continue;
       }
 
-      // QA-Fix 2026-05-23 (Audit-K-3): KAV-Block-aware Insert. Vorher wurde
-      // die neue Zeile stumpf ans Datei-Ende gehängt — wenn der KAV-Tracker
-      // im Notizen-Feld ist (Standard, am Ende), landete die neue Zeile
-      // dahinter. Beim nächsten parseKavTracker im Frontend wurde sie als
-      // freeNotes interpretiert. Beim nächsten saveKavTracker wurde sie
-      // vor den Block geschoben — funktional OK, aber Race-Risiko gegen
-      // gleichzeitige Frontend-Saves: Frontend-State enthält KEIN Wissen
-      // über die Webhook-Zeile bis zum nächsten loadKunde.
-      // Jetzt: Wenn KAV-Block existiert, neue Zeile VOR den Block einfügen
-      // (in den freeNotes-Bereich). Block bleibt intakt.
-      const KAV_START_MARKER = '[KAV-TRACKER]';
-      const kavStartIdx = freshNotizen.indexOf(KAV_START_MARKER);
-      let kombinierte;
-      if (kavStartIdx >= 0) {
-        const head = freshNotizen.substring(0, kavStartIdx).trimEnd();
-        const tail = freshNotizen.substring(kavStartIdx);
-        kombinierte = (head ? head + '\n' : '') + neueZeile + '\n\n' + tail;
-      } else {
-        kombinierte = freshNotizen ? `${freshNotizen}\n${neueZeile}` : neueZeile;
-      }
-
-      // Iter-3 W4 (21.05.2026): Notizen-Cutoff — Airtable Long-Text-Felder vertragen
-      // 100k Zeichen, aber das Frontend (Kunden-Detail-Notiz-Anzeige) wird bei großen
-      // Notizen unübersichtlich. Wir behalten nur die letzten 100 Zeilen.
-      // QA-Fix 2026-05-23 (Audit-K-3): Cutoff schneidet vorne ab (älteste Einträge);
-      // KAV-Block steht garantiert hinten und wird nicht abgeschnitten.
-      const MAX_NOTIZ_ZEILEN = 100;
-      const zeilen = kombinierte.split('\n');
-      let neueNotizen;
-      if (zeilen.length > MAX_NOTIZ_ZEILEN) {
-        const cutoff = zeilen.length - MAX_NOTIZ_ZEILEN;
-        neueNotizen = `[… ${cutoff} ältere Einträge abgeschnitten …]\n` + zeilen.slice(cutoff).join('\n');
-      } else {
-        neueNotizen = kombinierte;
-      }
-
-      await airtable('update', TABLES.KUNDEN, {
-        recordId: kunde.id,
-        fields: { [KUNDEN_FIELDS.NOTIZEN]: neueNotizen }
-      });
+      // FS-1 Refactor 2026-05-24 (Tech-Architekt BLOCKER B-2):
+      // Notizen-Append via gemeinsamer Helper-Lib `api/_lib/notizen.js`. Diese
+      // erkennt BEIDE Block-Marker ([KAV-TRACKER] + [WUNSCH-PROFIL]) und fügt
+      // vor dem ersten Block ein. Vorher: nur KAV-Block — bei Kunden mit nur
+      // Wunsch-Profil-Block (neu seit heute) hätte die Zeile hinter dem Block
+      // gelandet → Frontend-Parse-Inkonsistenz.
+      // Plus: 100-Zeilen-Cutoff jetzt im Helper, behält beide Blocks korrekt.
+      await appendActivityZeile(kunde.id, neueZeile);
 
       ergebnisse.push({ event: evName, docId, kundeId: kunde.id, ok: true, status: statusText });
     } catch (e) {

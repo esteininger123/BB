@@ -25,6 +25,7 @@ const chromium = require('@sparticuz/chromium-min');
 const puppeteer = require('puppeteer-core');
 const { verifySession, requireSafeOrigin } = require('../_lib/auth');
 const { airtable } = require('../_lib/airtable');
+const { appendActivityZeile } = require('../_lib/notizen');
 const { readBody, methodNotAllowed } = require('../_lib/http');
 const { TABLES, KUNDEN_FIELDS } = require('../_lib/tables');
 
@@ -199,16 +200,13 @@ module.exports = async (req, res) => {
   const editorHost = process.env.PANDADOC_EDITOR_HOST || 'app.pandadoc.com';
   const editorUrl = `https://${editorHost}/a/#/documents/${docId}`;
 
-  // PandaDoc-DocId in Kunden-Notizen vermerken
+  // PandaDoc-DocId in Kunden-Notizen vermerken — via gemeinsamer Helper-Lib
+  // (FS-1 24.05.: Re-Read + Block-aware Insert, fixt Race-Window vs.
+  // parallele Frontend-Saves während der PDF-Generation).
   try {
-    const oldNotizen = (kundeRec.fields && kundeRec.fields[KUNDEN_FIELDS.NOTIZEN]) || '';
     const stempel = new Date().toISOString().substring(0, 16).replace('T', ' ');
-    const neueZeile = `[${stempel}] Selbstauskunft erstellt für ${a.email}${gemeinsam ? ` + ${m.email}` : ''} — PandaDoc-Doc: ${docId} (wartet auf manuellen Send)`;
-    const neueNotizen = oldNotizen ? `${oldNotizen}\n${neueZeile}` : neueZeile;
-    await airtable('update', TABLES.KUNDEN, {
-      recordId: kundeId,
-      fields: { [KUNDEN_FIELDS.NOTIZEN]: neueNotizen }
-    });
+    const zeile = `[${stempel}] Selbstauskunft erstellt für ${a.email}${gemeinsam ? ` + ${m.email}` : ''} — PandaDoc-Doc: ${docId} (wartet auf manuellen Send)`;
+    await appendActivityZeile(kundeId, zeile);
   } catch (e) {
     // Notiz-Schreib-Fehler ist nicht tödlich
   }

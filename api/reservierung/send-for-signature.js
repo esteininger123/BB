@@ -17,6 +17,7 @@
 
 const { verifySession, requireSafeOrigin } = require('../_lib/auth');
 const { airtable, listAll } = require('../_lib/airtable');
+const { appendActivityZeile } = require('../_lib/notizen');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const {
   TABLES, KUNDEN_FIELDS, WE_FIELDS, SNAPSHOT_FIELDS,
@@ -356,16 +357,13 @@ module.exports = async (req, res) => {
     const editorHost = process.env.PANDADOC_EDITOR_HOST || 'app.pandadoc.com';
     const editorUrl = `https://${editorHost}/a/#/documents/${docId}`;
 
-    // PandaDoc-DocId in Kunden-Notizen vermerken (Status: erstellt, manueller Send pendant)
+    // PandaDoc-DocId in Kunden-Notizen vermerken — via gemeinsamer Helper-Lib
+    // (FS-1 24.05.: Re-Read + Block-aware Insert, fixt Race vs. parallele Frontend-Saves
+    // während der PDF-Generation).
     try {
-      const oldNotizen = kunde[KUNDEN_FIELDS.NOTIZEN] || '';
       const stempel = new Date().toISOString().substring(0, 16).replace('T', ' ');
-      const neueZeile = `[${stempel}] Reservierung erstellt für ${email} — PandaDoc-Doc: ${docId} (wartet auf manuellen Send)`;
-      const neueNotizen = oldNotizen ? `${oldNotizen}\n${neueZeile}` : neueZeile;
-      await airtable('update', TABLES.KUNDEN, {
-        recordId: kundeId,
-        fields: { [KUNDEN_FIELDS.NOTIZEN]: neueNotizen }
-      });
+      const zeile = `[${stempel}] Reservierung erstellt für ${email} — PandaDoc-Doc: ${docId} (wartet auf manuellen Send)`;
+      await appendActivityZeile(kundeId, zeile);
     } catch (e) {
       // Notiz-Schreib-Fehler ist nicht tödlich; Doc ist im PandaDoc erstellt
     }

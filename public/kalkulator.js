@@ -72,10 +72,16 @@ function irr(cashflows, guess) {
     const mid = (lo + hi) / 2;
     const fMid = npvAt(mid);
     if (Math.abs(fMid) < 1e-6) return mid;
+    // FS-1 (Tech-Architekt H-7): Early-exit wenn Intervall klein genug
+    if (Math.abs(hi - lo) < 1e-6) return mid;
     if (fLo * fMid < 0) { hi = mid; fHi = fMid; }
     else { lo = mid; fLo = fMid; }
   }
-  return (lo + hi) / 2;
+  // FS-1 (Tech-Architekt H-7): Plausibilitäts-Check — IRR > 1000% oder < -99%
+  // ist Numerik-Artefakt, nicht echtes Resultat. Lieber null als Schwachsinn-Anzeige.
+  const final = (lo + hi) / 2;
+  if (!isFinite(final) || Math.abs(final) > 10) return null;
+  return final;
 }
 
 /**
@@ -587,11 +593,12 @@ function recalc(i) {
   if (!(kpGesamt > 0)) return null;
   // QA-Fix 2026-05-23 (Audit E-3 HIGH): zins=0 (Volltilgung / Promo-Darlehen)
   // hat im cumipmtExcel-Pfad eine NaN-Kaskade ausgelöst (rate=0 → division
-  // durch 0). Erkenne den Fall und nutze für Volltilger einen vereinfachten
-  // Plan: keine Zinsen, lineare Tilgung über nper Monate.
-  const _zinsValid = (typeof i.zins === 'number' && isFinite(i.zins) && i.zins > 0);
-  if (!_zinsValid && (typeof i.zins !== 'number' || !isFinite(i.zins))) {
-    // Defekter Input → konservativ auf BB-Default 4.5% setzen.
+  // durch 0).
+  // FS-4 Edge-Case-Test 24.05.2026 10:50: Original-Guard hatte einen Logik-Bug —
+  // bei zins=0 wurde der Fallback NICHT getriggert (isFinite(0)=true), NaN-
+  // Kaskade trotzdem ausgelöst. Fix: bei zins<=0 ODER NaN/Infinity → Default
+  // 4.5%. Echte Volltilger werden in der Praxis bei B&B nicht modelliert.
+  if (typeof i.zins !== 'number' || !isFinite(i.zins) || i.zins <= 0) {
     i = Object.assign({}, i, { zins: 0.045 });
   }
   // Kaufnebenkosten: GrESt (variabel pro Bundesland) + Notar 1,5 % + Grundbuch 0,5 %.

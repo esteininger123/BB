@@ -185,9 +185,18 @@ function isSafeOrigin(req) {
     const originRoot = `${u.protocol}//${u.host}`;
     if (allowed.includes(originRoot)) return true;
     // QA-Fix 2026-05-23 (Audit B-11): Vercel-Preview-Deploys haben URLs wie
-    // `https://bb-brown-pi-git-xyz.vercel.app`. Pattern-Match auf *.vercel.app
-    // erlauben — sonst kann Edgar auf Preview-Branches keine Mutations testen.
-    if (u.protocol === 'https:' && u.host.endsWith('.vercel.app')) return true;
+    // `https://bb-brown-pi-git-xyz.vercel.app`.
+    // SECURITY-FIX 2026-05-24 (FS-1 Pen-Tester CRITICAL):
+    // Wildcard `*.vercel.app` ist CSRF-Bypass — jeder kann eigene App auf
+    // attacker.vercel.app deployen. Stattdessen Projekt-Präfix matchen:
+    // Production-Domain `bb-brown-pi`, Preview-Pattern `bb-brown-pi-git-*`,
+    // Sub-Project (z.B. PR-Preview) `bb-brown-pi-*`. Alle anderen *.vercel.app
+    // werden blockiert.
+    if (u.protocol === 'https:') {
+      const host = u.host;
+      if (host === 'bb-brown-pi.vercel.app') return true;
+      if (/^bb-brown-pi-[a-z0-9-]+\.vercel\.app$/i.test(host)) return true;
+    }
     return false;
   } catch {
     return false;

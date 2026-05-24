@@ -377,6 +377,15 @@ function renderDashboard() {
       </div>
 
       ${meine.length === 0 ? '' : `
+      ${(() => {
+        // FS-1 (24.05.2026): Filter nach Dashboard-Render re-applien
+        setTimeout(() => {
+          if (typeof applyKundenFilter === 'function' && document.getElementById('kunden-tbl')) {
+            applyKundenFilter();
+          }
+        }, 0);
+        return '';
+      })()}
       <div class="phasen-row kav-phasen-row">
         ${KAV_PHASES.map(ph => `
           <div class="phase-kpi kav-phase-kpi" style="--kav-accent:${ph.accent};">
@@ -419,10 +428,10 @@ function renderDashboard() {
                 <th>Letzte Aktivität</th>
               </tr>
               ${meine.length >= 3 ? `<tr class="kf-row">
-                <th><input type="text" id="kf-search" placeholder="Suche…" oninput="applyKundenFilter()"></th>
+                <th><input type="text" id="kf-search" placeholder="Suche…" value="${esc(_kfState.q || '')}" oninput="applyKundenFilter()"></th>
                 <th><span class="kf-count" id="kf-count">${meine.length}</span></th>
-                <th><input type="number" id="kf-ek" placeholder="min €" min="0" step="1000" oninput="applyKundenFilter()"></th>
-                <th><input type="number" id="kf-eink" placeholder="min €/Mo" min="0" step="50" oninput="applyKundenFilter()"></th>
+                <th><input type="number" id="kf-ek" placeholder="min €" min="0" step="1000" value="${_kfState.ekMin || ''}" oninput="applyKundenFilter()"></th>
+                <th><input type="number" id="kf-eink" placeholder="min €/Mo" min="0" step="50" value="${_kfState.einkMin || ''}" oninput="applyKundenFilter()"></th>
                 <th>${_kfBlDropdownHtml(meine)}</th>
                 <th><button onclick="_kfReset()" class="kf-reset" title="Filter zurücksetzen">↺</button></th>
               </tr>` : ''}
@@ -497,7 +506,34 @@ function _renderKundeRow(k) {
 // Filter v3 (Edgar 24.05.2026): kompakter Header-Filter direkt unter den
 // Spalten-Headers. BL als Dropdown mit Checkboxen. Kein Kreis-Filter mehr
 // im Header (zu komplex) — wenn benötigt: Kunde im Detail öffnen.
-const _kfState = { bls: new Set(), kreise: new Set() };
+// FS-1 Vertriebler-Audit HARD-BLOCKER C1+C2 (2026-05-24 11:00): Filter-State
+// muss beim Kunden-Wechsel + Re-Render erhalten bleiben. Persistiert in
+// sessionStorage (per Session, nicht über Browser-Close hinaus).
+const _KF_LS_KEY = 'bbk_kf_state';
+const _kfState = (() => {
+  try {
+    const raw = sessionStorage.getItem(_KF_LS_KEY);
+    if (raw) {
+      const o = JSON.parse(raw);
+      return {
+        q: o.q || '',
+        ekMin: o.ekMin || 0,
+        einkMin: o.einkMin || 0,
+        bls: new Set(Array.isArray(o.bls) ? o.bls : []),
+        kreise: new Set(Array.isArray(o.kreise) ? o.kreise : []),
+      };
+    }
+  } catch {}
+  return { q: '', ekMin: 0, einkMin: 0, bls: new Set(), kreise: new Set() };
+})();
+function _kfPersist() {
+  try {
+    sessionStorage.setItem(_KF_LS_KEY, JSON.stringify({
+      q: _kfState.q, ekMin: _kfState.ekMin, einkMin: _kfState.einkMin,
+      bls: [..._kfState.bls], kreise: [..._kfState.kreise]
+    }));
+  } catch {}
+}
 
 // Custom Multi-Select-Dropdown für Bundesländer im Tabellen-Header.
 // Trigger-Button + Popup, click-outside zum Schließen.
@@ -538,33 +574,50 @@ function _kfBlDropdownHtml(meine) {
 }
 window._kfBlDropdownHtml = _kfBlDropdownHtml;
 
+// FS-1 (24.05.2026, Tech-Architekt H-2): Single-Listener-Pattern.
+// Vorher konnte jeder Open-Click einen zusätzlichen document-Listener registrieren
+// (Memory-Leak + Mehrfach-Calls). Jetzt: alter Listener vor neuem Bind killen.
+let _kfBlPopupListener = null;
 function _kfBlOpen(ev) {
   if (ev) ev.stopPropagation();
   const pop = document.getElementById('kf-bl-popup');
   if (!pop) return;
   pop.hidden = !pop.hidden;
-  if (!pop.hidden) {
-    // Click-Outside-Handler einmalig
-    setTimeout(() => {
-      const onDoc = (e) => {
-        if (!pop.contains(e.target) && !e.target.classList.contains('kf-bl-trigger')) {
-          _kfBlClose();
-          document.removeEventListener('click', onDoc);
-        }
-      };
-      document.addEventListener('click', onDoc);
-    }, 50);
+  if (pop.hidden) {
+    if (_kfBlPopupListener) {
+      document.removeEventListener('click', _kfBlPopupListener);
+      _kfBlPopupListener = null;
+    }
+    return;
   }
+  // Bei Open: alten Listener killen + neuen registrieren
+  if (_kfBlPopupListener) {
+    document.removeEventListener('click', _kfBlPopupListener);
+    _kfBlPopupListener = null;
+  }
+  setTimeout(() => {
+    _kfBlPopupListener = (e) => {
+      if (!pop.contains(e.target) && !e.target.classList.contains('kf-bl-trigger')) {
+        _kfBlClose();
+      }
+    };
+    document.addEventListener('click', _kfBlPopupListener);
+  }, 50);
 }
 window._kfBlOpen = _kfBlOpen;
 function _kfBlClose() {
   const pop = document.getElementById('kf-bl-popup');
   if (pop) pop.hidden = true;
+  if (_kfBlPopupListener) {
+    document.removeEventListener('click', _kfBlPopupListener);
+    _kfBlPopupListener = null;
+  }
 }
 window._kfBlClose = _kfBlClose;
 function _kfBlCheck(bl, checked) {
   if (checked) _kfState.bls.add(bl);
   else _kfState.bls.delete(bl);
+  _kfPersist();
   // Trigger-Label updaten ohne Popup zu schließen
   _kfRefreshDropdownTrigger();
   applyKundenFilter();
@@ -609,8 +662,12 @@ function _kfRefreshDropdownTrigger() {
 
 function _kfReset() {
   ['kf-search','kf-ek','kf-eink'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  _kfState.q = '';
+  _kfState.ekMin = 0;
+  _kfState.einkMin = 0;
   _kfState.bls.clear();
   _kfState.kreise.clear();
+  _kfPersist();
   document.querySelectorAll('#kf-bl-popup .kf-bl-opt input[type=checkbox]').forEach(cb => cb.checked = false);
   _kfRefreshDropdownTrigger();
   applyKundenFilter();
@@ -621,6 +678,11 @@ function applyKundenFilter() {
   const q = (document.getElementById('kf-search')?.value || '').toLowerCase().trim();
   const ekMin = parseFloat(document.getElementById('kf-ek')?.value) || 0;
   const einkMin = parseFloat(document.getElementById('kf-eink')?.value) || 0;
+  // FS-1 (24.05.2026): State persistieren für Re-Renders
+  _kfState.q = q;
+  _kfState.ekMin = ekMin;
+  _kfState.einkMin = einkMin;
+  _kfPersist();
   const rows = document.querySelectorAll('#kunden-tbl tbody tr');
   let visible = 0;
   rows.forEach(r => {
@@ -932,6 +994,10 @@ async function renderKunde() {
 }
 
 function setTab(t) {
+  // FS-1 (24.05.2026, Tech-Architekt H-1): Chart.js-Instanzen vor Tab-Wechsel
+  // destroyen, sonst halten die toten Charts ihre Canvas-Refs und sammeln sich
+  // an (Memory-Leak nach 20+ Tab-Wechseln).
+  _destroyAllKalkCharts();
   state.tab = t;
   history.replaceState(null, '', '#/kunde/' + state.kundeId + '/' + t);
   renderKunde();
@@ -941,6 +1007,17 @@ function setTab(t) {
   if (typeof _tourRerender === 'function') _tourRerender();
 }
 window.setTab = setTab;
+
+function _destroyAllKalkCharts() {
+  try { if (chartV) { chartV.destroy(); chartV = null; } } catch {}
+  try { if (chartC) { chartC.destroy(); chartC = null; } } catch {}
+  try { if (chartS) { chartS.destroy(); chartS = null; } } catch {}
+  if (_cMagazinCharts) {
+    ['belastung','vermoegen','compare'].forEach(k => {
+      try { if (_cMagazinCharts[k]) { _cMagazinCharts[k].destroy(); _cMagazinCharts[k] = null; } } catch {}
+    });
+  }
+}
 
 async function deleteKunde() {
   if (!confirm('Kunde ENDGÜLTIG löschen? Dies kann nicht rückgängig gemacht werden.')) return;
@@ -1189,9 +1266,14 @@ async function _wpSaveSchwellen() {
   const ekEl = document.getElementById('wp-ek-min');
   const einkEl = document.getElementById('wp-eink-min');
   const wp = parseWunschProfil(state.kunde.notizen || '');
+  const oldEk = wp.ekMin || 0, oldEink = wp.einkommenMin || 0;
   wp.ekMin = parseFloat(ekEl && ekEl.value) || 0;
   wp.einkommenMin = parseFloat(einkEl && einkEl.value) || 0;
+  // FS-1 (24.05.2026, Vertriebler A2): nur speichern wenn wirklich Änderung,
+  // dann Save-Toast als Bestätigung damit Vertriebler weiß "gespeichert".
+  if (wp.ekMin === oldEk && wp.einkommenMin === oldEink) return;
   await saveWunschProfil(wp);
+  if (typeof toast === 'function') toast('Wunsch-Profil gespeichert', 'success');
 }
 window._wpSaveSchwellen = _wpSaveSchwellen;
 
@@ -1366,52 +1448,27 @@ async function saveStammdaten(opts) {
 }
 window.saveStammdaten = saveStammdaten;
 
+// FS-1 (24.05.2026): saveNotizen über notizenQueueMutation —
+// verhindert Race mit KAV-Saves und parallelen Activity-Logs.
 async function saveNotizen() {
-  const userFreeText = document.getElementById('f-notizen').value;
-  // QA-Fix 2026-05-23 (Audit-P1+P2): KAV-Tracker beim Notizen-Save bewahren.
-  // QA-Fix 2026-05-23 (Edgar-Doc Bug-9): Aktivitäten-Lines aus freeNotes auch
-  // bewahren. Textarea zeigt nur User-Notes, aber wir müssen die Auto-Events
-  // im Backend-Feld erhalten — sonst löscht jeder Save die Historie.
-  const parsed = typeof parseKavTracker === 'function'
-    ? parseKavTracker(state.kunde.notizen || '')
-    : { tracker: null, freeNotes: state.kunde.notizen || '' };
-  // Activities aus dem alten freeNotes extrahieren und vor User-Text anhängen
-  const split = _splitNotesAndActivities(parsed.freeNotes);
-  // Wenn User-Text identisch zum aktuellen notes (kein realer Edit) → kein Save
-  if (userFreeText.trim() === split.notes.trim()) return;
-  // Neuer freeNotes-Inhalt: User-Notes + alle Activity-Lines
-  const activitiesText = split.activities
-    .map(a => `[${a.ts}] ${a.text}`)
-    .join('\n');
-  const combinedFree = [userFreeText.trim(), activitiesText.trim()].filter(Boolean).join('\n\n');
-  const tracker = parsed.tracker;
-  const notizen = (typeof stringifyKavTracker === 'function' && tracker)
-    ? stringifyKavTracker(combinedFree, tracker)
-    : combinedFree;
-  // QA-Fix 2026-05-23 (Audit-P2): state.kunde.notizen OPTIMISTISCH updaten vor PUT,
-  // damit ein parallel-laufendes kavToggleTask nicht den alten FreeText überschreibt
-  // (Race-Window war ~200 ms zwischen PUT-Send und Response).
-  const prev = state.kunde.notizen;
-  state.kunde.notizen = notizen;
-  // QA-Fix 2026-05-23 (Audit-K-2): state.kunden[]-Cache mit-syncen wie saveKavTracker
-  // es tut. Sonst sieht Dashboard nach Tab-Wechsel alten FreeText (KAV-Tracker war OK,
-  // FreeText drifted).
-  let _prevKListIdx = -1, _prevKListNotizen = null;
-  if (Array.isArray(state.kunden)) {
-    _prevKListIdx = state.kunden.findIndex(x => x.id === state.kundeId);
-    if (_prevKListIdx >= 0) {
-      _prevKListNotizen = state.kunden[_prevKListIdx].notizen;
-      state.kunden[_prevKListIdx].notizen = notizen;
-    }
-  }
-  try {
-    await api.put('/api/kunden/' + state.kundeId, { notizen });
-    toast('Notizen gespeichert');
-  } catch (e) {
-    state.kunde.notizen = prev; // Rollback bei Fehler
-    if (_prevKListIdx >= 0) state.kunden[_prevKListIdx].notizen = _prevKListNotizen;
-    toast('Fehler: ' + e.message, 'error');
-  }
+  const ta = document.getElementById('f-notizen');
+  if (!ta) return;
+  const userFreeText = ta.value;
+  return notizenQueueMutation((oldNotizen) => {
+    const parsed = typeof parseKavTracker === 'function'
+      ? parseKavTracker(oldNotizen)
+      : { tracker: null, freeNotes: oldNotizen || '' };
+    const split = _splitNotesAndActivities(parsed.freeNotes);
+    if (userFreeText.trim() === split.notes.trim()) return oldNotizen; // No-Op
+    const activitiesText = split.activities
+      .map(a => `[${a.ts}] ${a.text}`)
+      .join('\n');
+    const combinedFree = [userFreeText.trim(), activitiesText.trim()].filter(Boolean).join('\n\n');
+    const tracker = parsed.tracker;
+    return (typeof stringifyKavTracker === 'function' && tracker)
+      ? stringifyKavTracker(combinedFree, tracker)
+      : combinedFree;
+  }, { successToast: 'Notizen gespeichert', errorPrefix: 'Notizen-Fehler: ' });
 }
 window.saveNotizen = saveNotizen;
 
@@ -1454,36 +1511,28 @@ window.addActivityEntry = addActivityEntry;
 
 // Hilfsfunktion: hängt einen Activity-Eintrag [YYYY-MM-DD HH:MM] {text} an
 // die freeNotes-Region an (vor dem KAV-Block, damit der Block am Ende bleibt).
-// Wird sowohl von sendNotizToHistory als auch addActivityEntry genutzt.
+// FS-1 (24.05.2026, BLOCKER B-4): jetzt über notizenQueueMutation — verhindert
+// dass ein Activity-Eintrag verloren geht wenn parallel KAV-Save oder
+// Wunsch-Profil-Save läuft.
 async function _appendActivityToNotizen(text) {
   if (!state.kunde) return;
   const now = new Date();
   const pad = (n) => ('0' + n).slice(-2);
   const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
   const newLine = `[${ts}] ${text.replace(/[\r\n]+/g, ' ').trim()}`;
-  const parsed = typeof parseKavTracker === 'function'
-    ? parseKavTracker(state.kunde.notizen || '')
-    : { tracker: null, freeNotes: state.kunde.notizen || '' };
-  const free = parsed.freeNotes || '';
-  // Activity-Line ganz vorne anhängen (neueste oben in der Datei-Order).
-  const newFree = free.trim() ? `${newLine}\n${free}` : newLine;
-  const newNotizen = (typeof stringifyKavTracker === 'function' && parsed.tracker)
-    ? stringifyKavTracker(newFree, parsed.tracker)
-    : newFree;
-  // Optimistic update
-  const prev = state.kunde.notizen;
-  state.kunde.notizen = newNotizen;
-  if (Array.isArray(state.kunden)) {
-    const idx = state.kunden.findIndex(x => x.id === state.kundeId);
-    if (idx >= 0) state.kunden[idx].notizen = newNotizen;
-  }
-  try {
-    await api.put('/api/kunden/' + state.kundeId, { notizen: newNotizen });
-  } catch (e) {
-    state.kunde.notizen = prev;
-    toast('Fehler beim Speichern: ' + (e.message || ''), 'error');
-    throw e;
-  }
+  return notizenQueueMutation((oldNotizen) => {
+    const parsed = (typeof parseKavTracker === 'function')
+      ? parseKavTracker(oldNotizen)
+      : { tracker: null, freeNotes: oldNotizen || '' };
+    const free = parsed.freeNotes || '';
+    const newFree = free.trim() ? `${newLine}\n${free}` : newLine;
+    // stringifyKavTracker erhält wunschProfil via state.kunde.notizen-Fallback,
+    // ABER da wir hier in der Queue NACH einem Re-Read sind, ist state.kunde.notizen
+    // bereits aktualisiert auf den letzten Stand. Wunsch-Profil bleibt erhalten.
+    return (typeof stringifyKavTracker === 'function' && parsed.tracker)
+      ? stringifyKavTracker(newFree, parsed.tracker)
+      : newFree;
+  });
 }
 
 // ===== MODUL: views/kalkulator-tab (~1700 LoC bis Z. 2310 — größter Brocken) =====
@@ -2306,6 +2355,11 @@ function _resetWeSnapshotFields() {
     'hausgeld', 'hausverwaltung', 'mietverwaltung', 'grEstPct',
     'kaufpreis', 'qm', 'kaltmiete', 'stellplatzKp', 'stellplatzMiete',
     'letzteMietsteigerung',
+    // FS-1 (24.05.2026, Tech-Architekt H-6): monateSeitMieterhoehung wurde
+    // bisher beim WE-Wechsel nicht zurückgesetzt — Altwert der vorigen WE
+    // konnte in die neue Kalkulation rutschen wenn die neue WE kein
+    // letzteMietsteigerung-Datum hatte.
+    'monateSeitMieterhoehung',
   ];
   for (const k of SNAPSHOT_KEYS) delete state.kalk[k];
 }
@@ -2574,6 +2628,10 @@ async function loadWeIntoKalk(weId) {
   // eine andere WE gewählt hat — sonst Re-Render mit obsoleten Daten.
   if (myToken !== _loadWeToken) return;
   renderTabKalkulator();
+  // FS-1 (24.05.2026, Vertriebler B1): nach WE-Wechsel scrollTo top, damit
+  // im Screen-Share-Termin der Käufer den Header der neuen WE sieht statt
+  // der alten Renov-Story. smooth-scroll für sichtbaren Transition-Effekt.
+  try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
   // QA-Fix 2026-05-23 (Edgar-Doc Bug-4): Tour re-rendern für detectCompleted
   // (Projekt-/WE-Wahl).
   if (typeof _tourRerender === 'function') _tourRerender();
@@ -8804,25 +8862,15 @@ function _stripWunschProfilBlock(notes) {
   return (notes.substring(0, startIdx) + notes.substring(endIdx + WUNSCH_BLOCK_END.length)).trim();
 }
 
-// Speichert Wunsch-Profil zurück nach Airtable (Notizen-Field, JSON-Block)
+// Speichert Wunsch-Profil zurück nach Airtable (Notizen-Field, JSON-Block).
+// FS-1 (24.05.2026, BLOCKER B-1): jetzt über notizenQueueMutation — verhindert
+// Race-Conditions vs. parallele KAV-Saves oder Activity-Logs.
 async function saveWunschProfil(wunschProfil) {
   if (!state.kunde) return;
-  const parsed = parseKavTracker(state.kunde.notizen || '');
-  const newNotizen = stringifyKavTracker(parsed.freeNotes, parsed.tracker, wunschProfil);
-  // Optimistic update
-  const prev = state.kunde.notizen;
-  state.kunde.notizen = newNotizen;
-  if (Array.isArray(state.kunden)) {
-    const idx = state.kunden.findIndex(x => x.id === state.kundeId);
-    if (idx >= 0) state.kunden[idx].notizen = newNotizen;
-  }
-  try {
-    await api.put('/api/kunden/' + state.kundeId, { notizen: newNotizen });
-  } catch (e) {
-    state.kunde.notizen = prev;
-    toast('Fehler beim Speichern: ' + (e.message || ''), 'error');
-    throw e;
-  }
+  return notizenQueueMutation((oldNotizen) => {
+    const parsed = parseKavTracker(oldNotizen);
+    return stringifyKavTracker(parsed.freeNotes, parsed.tracker, wunschProfil);
+  });
 }
 window.parseWunschProfil = parseWunschProfil;
 window.saveWunschProfil = saveWunschProfil;
@@ -8922,7 +8970,55 @@ async function saveKavTracker(kundeId, freeNotes, tracker) {
 // wartet auf den vorigen, liest danach den frischen state.kunde.notizen und
 // applied seine eigene Mutation NEU darauf. Funktioniert für Tasks UND
 // Wiedervorlage und alle künftigen KAV-Operationen über kavQueueMutation().
+//
+// FS-1 (24.05.2026, Tech-Architekt BLOCKER B-1/B-4): Queue jetzt GEMEINSAM
+// für alle Notizen-Mutationen (KAV + Wunsch-Profil + Notes + Activity).
+// Damit verhindern wir Konflikte zwischen verschiedenen Schreibwegen, die
+// vorher aneinander vorbei das gleiche Field überschreiben konnten.
 let _kavSaveQueue = Promise.resolve();
+
+/**
+ * Generische Notizen-Mutation in derselben Queue wie kavQueueMutation.
+ * applyFn: (oldNotizen: string) => newNotizen: string
+ * opts: { successToast, errorPrefix }
+ */
+function notizenQueueMutation(applyFn, opts) {
+  const kundeId = state.kunde && state.kunde.id;
+  if (!kundeId) return Promise.resolve();
+  const _opts = opts || {};
+  _kavSaveQueue = _kavSaveQueue.then(async () => {
+    if (!state.kunde || state.kunde.id !== kundeId) return;
+    const oldNotizen = state.kunde.notizen || '';
+    let newNotizen;
+    try { newNotizen = applyFn(oldNotizen); }
+    catch (e) {
+      console.warn('[notizenQueue applyFn]', e && e.message);
+      return;
+    }
+    if (typeof newNotizen !== 'string' || newNotizen === oldNotizen) return;
+    const prev = state.kunde.notizen;
+    state.kunde.notizen = newNotizen;
+    if (Array.isArray(state.kunden)) {
+      const idx = state.kunden.findIndex(x => x.id === kundeId);
+      if (idx >= 0) state.kunden[idx].notizen = newNotizen;
+    }
+    try {
+      await api.put('/api/kunden/' + kundeId, { notizen: newNotizen });
+      if (_opts.successToast) toast(_opts.successToast, _opts.successType || 'success');
+    } catch (e) {
+      // Rollback optimistic state
+      state.kunde.notizen = prev;
+      if (Array.isArray(state.kunden)) {
+        const idx = state.kunden.findIndex(x => x.id === kundeId);
+        if (idx >= 0) state.kunden[idx].notizen = prev;
+      }
+      toast((_opts.errorPrefix || 'Fehler beim Speichern: ') + (e.message || ''), 'error');
+      throw e;
+    }
+  });
+  return _kavSaveQueue;
+}
+window.notizenQueueMutation = notizenQueueMutation;
 function kavQueueMutation(applyMutation, opts) {
   // applyMutation: (tracker) → void. Wird mit dem FRISCHEN Tracker aufgerufen.
   // opts: { successToast: 'msg', successType: 'success'|'info', errorPrefix: 'Fehler: ' }
@@ -9108,8 +9204,15 @@ function renderKavCockpit(k) {
         </label>
       `;
     }).join('');
+    // FS-1 (24.05.2026, Vertriebler A1): open-State pro Phase aus DOM lesen
+    // damit Re-Render nach kavToggleTask die User-Auswahl preserved. Wenn
+    // User in P2 mehrere Tasks abhakt, bleibt P2 offen statt nach jedem
+    // Klick zuzugehen.
+    const prevPhaseDetails = document.querySelector(`details.kav-phase-${ph.id}`);
+    const wasOpen = prevPhaseDetails && prevPhaseDetails.hasAttribute('open');
+    const openAttr = (wasOpen || isCurrent) ? 'open' : '';
     return `
-      <details class="kav-phase-card kav-phase-${ph.id} ${isCurrent ? 'is-current' : ''}" style="--kav-accent:${ph.accent};" ${isCurrent ? 'open' : ''}>
+      <details class="kav-phase-card kav-phase-${ph.id} ${isCurrent ? 'is-current' : ''}" style="--kav-accent:${ph.accent};" ${openAttr}>
         <summary>
           <span class="kav-phase-num">${ph.nr}</span>
           <span class="kav-phase-name">${esc(ph.label)}</span>
@@ -9120,9 +9223,11 @@ function renderKavCockpit(k) {
     `;
   }).join('');
 
-  // Edgar 24.05.2026: Sticky-Cockpit + collapsible Detail-Aufgaben.
-  // Stepper + Wiedervorlage + Next-Hint bleiben oben beim Scrollen sichtbar.
+  // Edgar 24.05.2026: Cockpit nicht mehr sticky (Screen-Sharing).
   // Detail-Phasen-Cards (mit Tasks-Checkboxen) standardmäßig zugeklappt, Toggle-Button.
+  // FS-1 (24.05.2026): open-State des Details-Wrappers über Re-Renders preservieren.
+  const prevPhasesDetails = document.getElementById('kav-phases-details');
+  const phasesWasOpen = prevPhasesDetails && prevPhasesDetails.hasAttribute('open');
   return `
     <section class="kav-cockpit kav-cockpit-sticky">
       <div class="kav-cockpit-head">
@@ -9130,7 +9235,7 @@ function renderKavCockpit(k) {
         <div class="kav-cockpit-meta">${wvBadge}</div>
       </div>
       ${nextHint}
-      <details class="kav-phases-details" id="kav-phases-details">
+      <details class="kav-phases-details" id="kav-phases-details" ${phasesWasOpen ? 'open' : ''}>
         <summary class="kav-phases-toggle">
           <span class="kav-phases-toggle-label">Aufgaben &amp; Checklisten</span>
           <span class="kav-phases-toggle-hint">— Klick zum Aufklappen</span>

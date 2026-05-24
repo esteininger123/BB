@@ -9,7 +9,7 @@ const jwt = require('jsonwebtoken');
 const { airtable } = require('../_lib/airtable');
 const { TABLES, KUNDEN_FIELDS } = require('../_lib/tables');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
-const { parseJsonField, stringifyJson } = require('../_lib/mappers') || {};
+const { appendActivityZeile } = require('../_lib/notizen');
 
 function getJwtSecret() {
   const s = process.env.JWT_SECRET;
@@ -84,32 +84,13 @@ module.exports = async (req, res) => {
         }
       });
 
-      // Aktivitäts-Log: separates Notizen-Append. Nicht-blocking — wenn Re-Read
-      // fehlschlägt, ist der SA-Save trotzdem durch.
+      // Aktivitäts-Log via gemeinsamer Helper-Lib (FS-1 24.05.):
+      // Re-Read + Block-aware Insert + 100-Zeilen-Cutoff. Nicht-blocking —
+      // wenn Append fehlschlägt, ist der SA-Save trotzdem durch.
       try {
-        const cur = await airtable('get', TABLES.KUNDEN, { recordId: kundeId });
-        const oldNotizen = (cur.fields && cur.fields[KUNDEN_FIELDS.NOTIZEN]) || '';
         const stempel = new Date().toISOString().substring(0, 16).replace('T', ' ');
-        const neueZeile = `[${stempel}] Selbstauskunft vom Kunden über Portal-Link aktualisiert`;
-        const KAV_START = '[KAV-TRACKER]';
-        const WUNSCH_START = '[WUNSCH-PROFIL]';
-        // Vor den Blocks einfügen — analog zum PandaDoc-Webhook
-        const firstBlockIdx = (() => {
-          const idxs = [oldNotizen.indexOf(KAV_START), oldNotizen.indexOf(WUNSCH_START)].filter(i => i >= 0);
-          return idxs.length > 0 ? Math.min(...idxs) : -1;
-        })();
-        let neuNotizen;
-        if (firstBlockIdx >= 0) {
-          const head = oldNotizen.substring(0, firstBlockIdx).trimEnd();
-          const tail = oldNotizen.substring(firstBlockIdx);
-          neuNotizen = (head ? head + '\n' : '') + neueZeile + '\n\n' + tail;
-        } else {
-          neuNotizen = oldNotizen ? `${neueZeile}\n${oldNotizen}` : neueZeile;
-        }
-        await airtable('update', TABLES.KUNDEN, {
-          recordId: kundeId,
-          fields: { [KUNDEN_FIELDS.NOTIZEN]: neuNotizen }
-        });
+        const zeile = `[${stempel}] Selbstauskunft vom Kunden über Portal-Link aktualisiert`;
+        await appendActivityZeile(kundeId, zeile);
       } catch (e) {
         console.warn('[sa-portal] Aktivitäts-Log fehlgeschlagen:', e && e.message);
       }
