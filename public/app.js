@@ -3218,6 +3218,120 @@ function renderStoryPremium(r) {
     </section>
   `;
 
+  // ===== SECTION_9 — Sensitivitäts-Matrix (Welle 1, 2026-05-24) =====
+  // Maurice (Käufer-Persona) sagt: Vertrauen entsteht durch Transparenz,
+  // nicht durch geschöntes PDF. Hier sieht der Käufer auf einen Blick was
+  // passiert wenn die Zinsen steigen oder die Wohnung mal leer steht.
+  const SECTION_9 = (() => {
+    // Pure Berechnung — die window.Kalk.sensitivitaetsMatrix nutzt die
+    // gleichen Inputs wie die normale Kalkulation, variiert dann pro Zelle.
+    if (!window.Kalk || !window.Kalk.sensitivitaetsMatrix || !r.inputs) return '';
+    let m, s;
+    try {
+      m = window.Kalk.sensitivitaetsMatrix(r.inputs);
+      s = window.Kalk.stressSzenario(r.inputs);
+    } catch (e) { return ''; }
+    if (!m || !s) return '';
+
+    // Farbcode für IRR-Zellen: < 0% rot, 0-5% gelb, 5-10% beige, >10% grün-akzent
+    const irrColor = (irr) => {
+      if (irr === null || irr === undefined) return 'var(--text-tertiary)';
+      const p = irr * 100;
+      if (p < 0) return '#9A3E33';
+      if (p < 5) return '#C77A30';
+      if (p < 10) return '#B08A4D';
+      return '#2D6E47';
+    };
+    const irrBg = (irr) => {
+      if (irr === null || irr === undefined) return 'transparent';
+      const p = irr * 100;
+      if (p < 0) return 'rgba(154,62,51,.08)';
+      if (p < 5) return 'rgba(199,122,48,.08)';
+      if (p < 10) return 'rgba(176,138,77,.08)';
+      return 'rgba(45,110,71,.08)';
+    };
+
+    const headerRow = `
+      <tr>
+        <th style="text-align:left;padding:8px 10px;color:var(--text-tertiary);font-weight:500;font-size:11px;letter-spacing:.04em;text-transform:uppercase;">Leerstand ↓ · Zins →</th>
+        ${m.zinsDeltas.map(d => {
+          const abs = (m.baseZins + d) * 100;
+          const sign = d > 0 ? '+' : (d < 0 ? '' : '');
+          return `<th style="text-align:right;padding:8px 10px;color:var(--text-tertiary);font-weight:500;font-size:11px;">
+            <div style="font-size:13px;color:var(--text-primary);font-weight:600;">${abs.toFixed(1).replace('.', ',')}%</div>
+            <div style="font-size:10px;">(${sign}${(d * 100).toFixed(1).replace('.', ',')}%)</div>
+          </th>`;
+        }).join('')}
+      </tr>
+    `;
+    const bodyRows = m.cells.map((row, yi) => {
+      const lMo = m.leerstandMonate[yi];
+      return `<tr>
+        <td style="padding:8px 10px;color:var(--text-secondary);font-size:12px;border-top:1px solid var(--border);">
+          ${lMo === 0 ? 'voll vermietet' : `${lMo} Mo/Jahr leer`}
+        </td>
+        ${row.map(c => {
+          if (!c) return `<td style="padding:8px 10px;text-align:right;color:var(--text-tertiary);border-top:1px solid var(--border);">—</td>`;
+          const irrPct = c.irr !== null ? (c.irr * 100).toFixed(1).replace('.', ',') + '%' : 'n.v.';
+          return `<td style="padding:8px 10px;text-align:right;border-top:1px solid var(--border);background:${irrBg(c.irr)};">
+            <div style="font-size:13px;font-weight:600;color:${irrColor(c.irr)};">${irrPct}</div>
+            <div style="font-size:10px;color:var(--text-tertiary);">${Math.round(c.cfJ1)} €/J</div>
+          </td>`;
+        }).join('')}
+      </tr>`;
+    }).join('');
+
+    // Stress-Satz: kurz und ehrlich
+    const stressMo = s.stress.belastungMo;
+    const baseMo = s.base.belastungMo;
+    const stressVerm = s.stress.vermoegenNetto10;
+    const baseVerm = s.base.vermoegenNetto10;
+    const stressIrrPct = s.stress.irr !== null ? (s.stress.irr * 100).toFixed(1).replace('.', ',') + '%' : 'n.v.';
+    const baseIrrPct = s.base.irr !== null ? (s.base.irr * 100).toFixed(1).replace('.', ',') + '%' : 'n.v.';
+
+    return `
+    <section class="kalk-c-section">
+      <div class="kalk-c-section-head">
+        <div class="kalk-c-left">
+          <div class="kalk-c-section-num">09 · Was wäre wenn</div>
+          <h2 class="kalk-c-section-title">Wir zeigen Dir auch die unbequeme Sicht.</h2>
+        </div>
+        <div class="kalk-c-right">
+          Die Tabelle unten zeigt Dir die Rendite auf Dein eingesetztes Eigenkapital, wenn Zinsen steigen oder die Wohnung mal leer steht. Jede Zelle ist eine eigene komplette Berechnung über 10 Jahre — keine Schätzung.
+        </div>
+      </div>
+      <div style="margin-top:16px;background:var(--cream-subtle);border:1px solid var(--border);border-radius:8px;padding:14px 18px;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>${headerRow}</thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+        <div style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text-tertiary);">
+          <div><span style="display:inline-block;width:10px;height:10px;background:rgba(45,110,71,.5);border-radius:2px;vertical-align:middle;"></span> &gt;10 % IRR</div>
+          <div><span style="display:inline-block;width:10px;height:10px;background:rgba(176,138,77,.5);border-radius:2px;vertical-align:middle;"></span> 5–10 %</div>
+          <div><span style="display:inline-block;width:10px;height:10px;background:rgba(199,122,48,.5);border-radius:2px;vertical-align:middle;"></span> 0–5 %</div>
+          <div><span style="display:inline-block;width:10px;height:10px;background:rgba(154,62,51,.5);border-radius:2px;vertical-align:middle;"></span> negativ</div>
+          <div style="margin-left:auto;">Große Zahl: IRR über 10 J · Kleine Zahl: Cashflow Jahr 1</div>
+        </div>
+      </div>
+      <div style="margin-top:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:14px 18px;">
+          <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Basis-Kalkulation</div>
+          <div style="font-size:18px;font-weight:600;color:var(--text-primary);">IRR ${baseIrrPct}</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Belastung ${Math.round(baseMo)} €/Mo · Vermögen nach 10 J: ${Math.round(baseVerm).toLocaleString('de-DE')} €</div>
+        </div>
+        <div style="background:rgba(154,62,51,.05);border:1px solid rgba(154,62,51,.25);border-radius:8px;padding:14px 18px;">
+          <div style="font-size:11px;color:#9A3E33;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Stress-Szenario (Zins +2 %, 3 Mo Leerstand p.a., 0,5 % Mietausfall)</div>
+          <div style="font-size:18px;font-weight:600;color:#9A3E33;">IRR ${stressIrrPct}</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Belastung ${Math.round(stressMo)} €/Mo · Vermögen nach 10 J: ${Math.round(stressVerm).toLocaleString('de-DE')} €</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;font-size:12px;color:var(--text-tertiary);line-height:1.55;">
+        <strong>Annahmen-Hinweis:</strong> Die Matrix variiert nur Zins und Leerstand — alle anderen Parameter bleiben wie in der Hauptkalkulation. Kein Modell ersetzt eine eigene Einschätzung; die Tabelle hilft Dir, Spannbreiten realistisch einzuschätzen.
+      </div>
+    </section>
+    `;
+  })();
+
   // ===== CLOSING =====
   const CLOSING = `
     <footer class="kalk-c-closing">
@@ -3326,21 +3440,43 @@ function renderStoryPremium(r) {
   } else if (i.subventionMo > 0) {
     subvText = `${fmtEurMo(i.subventionMo)} × ${i.subventionMonate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
   }
+  // Welle 3 (2026-05-24): Quellen-Hinweise pro Annahme — Maurice's „Vertrauen
+  // entsteht durch Transparenz". Wenn eine Annahme aus Stammdaten kommt (z.B.
+  // AfA-Gutachten) sagen wir das auch. Wenn es ein Vorsichts-Default ist, auch.
+  // Pure-Funktion, keine Engine-Änderung.
+  const quelle = (key) => {
+    const sd = (state.kalk && state.kalk._stammdatenQuelle) || '';
+    switch (key) {
+      case 'kp': return 'Notarvertraglich — verbindlich';
+      case 'knk': return 'GrESt (Bundesland) + Notar 1,5 % + Grundbuch 0,5 %';
+      case 'ek': return i.knkMitfinanziert ? '0 € — KNK aus Kaufpreis mitfinanziert' : 'EK = KNK; Kaufpreis 100 % finanziert';
+      case 'zins': return 'Aktuelles Bank-Angebot — wird vor Notar nochmal bestätigt';
+      case 'tilg': return 'Standard 1 % — kann auf Wunsch nach oben angepasst werden';
+      case 'wert': return 'Vorsichts-Default 3 % p.a. (Bulwiengesa-Median 2010-2024 lag bei ~4 %)';
+      case 'miete': return '§ 558 BGB: max. 15 % in 3 Jahren bei Bestand. Bei Neuvermietung: Mietspiegel-Konformität';
+      case 'st': return 'Persönlicher Grenzsteuersatz — aus Selbstauskunft oder Annahme';
+      case 'afa': return (i.afaSatz > 0.025) ? 'Restnutzungsdauer-Gutachten (höhere AfA als Standard 2 %)' : 'Standard 2 % linear nach § 7 EStG';
+      case 'subv': return 'B&B-Glättungs-Modell — Phase 1 absichern Marktmiete-Cap (§ 558 BGB)';
+      case 'spar': return 'Tagesgeld-Vergleichszins — frei wählbar';
+      case 'markt': return 'Aus Immoscout/Homeday-Vergleichswerten (Stand letzter Marktanker)';
+      default: return '';
+    }
+  };
   const annahmenModal = `
     <div class="kalk-c-modal-backdrop" data-kalk-c-modal-id="annahmen">
       <div class="kalk-c-modal">
         <button class="kalk-c-modal-close" data-kalk-c-close>Schließen ×</button>
         <div class="kalk-c-eyebrow">05 · Detail · Annahmen</div>
-        <h3>Rechen-Parameter und Disclaimer</h3>
-        <div class="kalk-c-sub">Alle Werte in der Analyse leiten sich aus den nachfolgenden Annahmen ab. Abweichungen verändern Deinen tatsächlichen Verlauf.</div>
+        <h3>Rechen-Parameter und Quellen</h3>
+        <div class="kalk-c-sub">Alle Werte in der Analyse leiten sich aus den nachfolgenden Annahmen ab. Jeder Parameter hat eine Quelle — Du kannst nachfragen, wenn etwas unstimmig wirkt.</div>
         <div class="kalk-c-assumptions">
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">Kaufpreis gesamt</span><span class="kalk-c-v">${fmt(r.kpGesamt)}</span></div>
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">Kaufnebenkosten</span><span class="kalk-c-v">${fmt(knk)}${i.knkMitfinanziert ? ' (mitfinanziert)' : ''}</span></div>
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">Eigenkapital-Einsatz</span><span class="kalk-c-v">${fmt(r.ekBedarf)}</span></div>
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">Annuität pro Monat</span><span class="kalk-c-v">${fmtEurMo(r.annuityMo)}</span></div>
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">Zinssatz Darlehen</span><span class="kalk-c-v">${fmtPct(i.zins || 0)} p.a.</span></div>
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">Anfangstilgung</span><span class="kalk-c-v">${fmtPct(i.tilgung || 0)} p.a.</span></div>
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">Wertsteigerung</span><span class="kalk-c-v">${fmtPct(i.wertsteigerung || 0.03)} p.a.</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Kaufpreis gesamt<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('kp')}</span></span><span class="kalk-c-v">${fmt(r.kpGesamt)}</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Kaufnebenkosten<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('knk')}</span></span><span class="kalk-c-v">${fmt(knk)}${i.knkMitfinanziert ? ' (mitfinanziert)' : ''}</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Eigenkapital-Einsatz<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('ek')}</span></span><span class="kalk-c-v">${fmt(r.ekBedarf)}</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Annuität pro Monat<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">Errechnet aus Zins + Tilgung × Darlehen</span></span><span class="kalk-c-v">${fmtEurMo(r.annuityMo)}</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Zinssatz Darlehen<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('zins')}</span></span><span class="kalk-c-v">${fmtPct(i.zins || 0)} p.a.</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Anfangstilgung<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('tilg')}</span></span><span class="kalk-c-v">${fmtPct(i.tilgung || 0)} p.a.</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Wertsteigerung<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('wert')}</span></span><span class="kalk-c-v">${fmtPct(i.wertsteigerung || 0.03)} p.a.</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Mietsteigerung</span><span class="kalk-c-v">${(() => {
             // QA-Fix 2026-05-22 (Audit-H H7): bei sprung-Modus war ".. % · alle 3 Jahre" zwar
             // korrekt, aber Banker liest „p.a." in den Foren. Wording sauber: „je Sprung" +
@@ -3353,11 +3489,15 @@ function renderStoryPremium(r) {
             if (m === 'keine')   return 'keine';
             return pct + ' % · ' + _modusCaption;
           })()}</span></div>
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">Steuersatz</span><span class="kalk-c-v">${fmtPct(i.steuersatz || 0.3)}</span></div>
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">AfA-Satz</span><span class="kalk-c-v">${fmtPct(i.afaSatz || 0.02)} linear</span></div>
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">Mietsubvention</span><span class="kalk-c-v">${subvText}</span></div>
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">Sparbuch-Vergleich</span><span class="kalk-c-v"><span id="spar-zins-val" style="display:inline-block;min-width:48px;text-align:right;">${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} %</span> p.a.</span></div>
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">Marktpreis je qm Ref.</span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') + ' €' : '—'}</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Steuersatz<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('st')}</span></span><span class="kalk-c-v">${fmtPct(i.steuersatz || 0.3)}</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">AfA-Satz<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('afa')}</span></span><span class="kalk-c-v">${fmtPct(i.afaSatz || 0.02)} linear</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Mietsubvention<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('subv')}</span></span><span class="kalk-c-v">${subvText}</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Sparbuch-Vergleich<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('spar')}</span></span><span class="kalk-c-v"><span id="spar-zins-val" style="display:inline-block;min-width:48px;text-align:right;">${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} %</span> p.a.</span></div>
+          <div class="kalk-c-ass-row"><span class="kalk-c-k">Marktpreis je qm Ref.<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('markt')}</span></span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') + ' €' : '—'}</span></div>
+        </div>
+        <div style="margin-top:18px;padding:14px 16px;background:rgba(176,138,77,.07);border-radius:6px;font-size:12px;color:var(--text-secondary);line-height:1.55;">
+          <strong style="color:var(--text-primary);">Berechnet mit Engine v${(window.Kalk && window.Kalk.ENGINE_VERSION) || '?'} · Stand: ${new Date().toLocaleDateString('de-DE')}.</strong><br>
+          Diese Berechnung ist eine Modell-Rechnung auf Basis dokumentierter Annahmen — kein verbindliches Angebot, keine Anlageberatung. Steuerliche Konstrukte unter Vorbehalt der Klärung mit Deinem Steuerberater. Bei Fragen zu einzelnen Annahmen: ruf uns an oder schreib auf WhatsApp.
         </div>
         <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:14px;font-size:13px;color:var(--text-secondary)">
           <span style="flex:0 0 auto;color:var(--text-tertiary);">EK-Verzinsung Sparbuch:</span>
@@ -3384,6 +3524,7 @@ function renderStoryPremium(r) {
     + SECTION_6
     + SECTION_7
     + SECTION_8 // QA-Fix 2026-05-23 (Edgar-Doc Bug-3 R-1): Nach dem Notartermin
+    + SECTION_9 // Welle 1 (2026-05-24): Sensitivitäts-Matrix / Was-wäre-wenn
     + CLOSING
     + '</div>'
     + bonModal
@@ -4079,6 +4220,10 @@ async function saveSnapshot() {
       state.snapshots.unshift(snap);
     }
     toast('Snapshot "' + bez + '" gespeichert', 'success');
+    // Welle 5 (2026-05-24): Audit-Log — Snapshot-Erstellung in Aktivitäten loggen.
+    // Macht Plan-vs-Ist-Vergleich später nachvollziehbar (Maurice's „welche Annahmen
+    // gab's beim Pitch"). Fire-and-forget, nicht warten.
+    try { _appendActivityToNotizen(`Snapshot „${bez}" erstellt${weBez ? ' für ' + weBez : ''}`); } catch {}
     // Wenn wir gerade im Snapshots-Tab sind, sofort neu rendern.
     if (state.tab === 'snapshots') renderTabSnapshots();
     // QA-Fix 2026-05-23 (Edgar-Doc Bug-4): Tour re-rendern damit detectCompleted
@@ -4128,7 +4273,16 @@ function exportInvestPdf() {
     toast('PDF wird erstellt — Druckdialog öffnet sich', 'info');
     const btns = _pdfButtonBusy('exportInvestPdf', 'PDF wird erstellt…');
     setTimeout(() => {
-      try { window.PDF.investitionsrechnung(state.kunde, state.kalk, state.kalkResult, state.user); }
+      try {
+        window.PDF.investitionsrechnung(state.kunde, state.kalk, state.kalkResult, state.user);
+        // Audit-Log: PDF-Export in Aktivitäten-Historie loggen (Edgar-Feedback 24.05.2026).
+        // Wird nicht bei jedem Druckdialog-Abbruch geloggt — wir registrieren den Trigger.
+        try {
+          const w = state.kalk && state.kalk._weId ? (state.wohneinheiten || []).find(x => x.id === state.kalk._weId) : null;
+          const label = w ? ((w.projektName ? w.projektName + ' · ' : '') + (w.lageText || 'WE ' + w.weNr)) : '';
+          _appendActivityToNotizen(`Investitions-PDF erstellt${label ? ' für ' + label : ''}`);
+        } catch {}
+      }
       finally { setTimeout(() => _pdfButtonRelease(btns), 2500); }
     }, 100);
   } else { alert('PDF-Modul nicht geladen.'); }
@@ -4251,11 +4405,31 @@ function sendInvestDocMail() {
   // 1) Erst PDF generieren (Browser-Druckdialog) — User speichert als PDF.
   toast('PDF wird gleich erzeugt — bitte als „Als PDF speichern" wählen, dann im Mail-Programm anhängen', 'info');
   exportInvestPdf();
-  // 2) Nach kurzer Verzögerung: Mailclient öffnen (gibt User Zeit, PDF zu speichern).
+  // 2) Nach kurzer Verzögerung: Mailclient in NEUEM Tab öffnen — sonst verliert
+  //    die aktuelle Seite ihren State (Edgar-Feedback 24.05.2026: nach Mail-Klick
+  //    war WE-Auswahl weg). window.open mit _blank löst das.
   setTimeout(() => {
-    try { window.location.href = mailtoUrl; } catch {}
+    try {
+      const w = window.open(mailtoUrl, '_blank');
+      // Manche Browser blocken window.open für mailto: → Fallback auf programmatisch
+      // erstellten Link mit target=_blank, der via click() ausgelöst wird.
+      if (!w) {
+        const a = document.createElement('a');
+        a.href = mailtoUrl;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => a.remove(), 100);
+      }
+    } catch {}
     toast('Mail-Vorlage geöffnet — PDF aus Downloads als Anhang anhängen.', 'info');
   }, 1500);
+  // 3) Audit-Log: Mail-Versand in Aktivitäten-Historie eintragen (Edgar-Feedback 24.05.2026)
+  try {
+    _appendActivityToNotizen(`Investitions-Doc per Mail an ${state.kunde.email} versandt${weLabel ? ' (' + weLabel + ')' : ''}`);
+  } catch {}
 }
 window.sendInvestDocMail = sendInvestDocMail;
 
@@ -6369,6 +6543,9 @@ function renderAdminStammdatenAudit(audit) {
 */
 
 let _weListeCache = null;
+// Welle 2 (2026-05-24): Vergleichs-Auswahl. Set<weId>. Multi-Projekt erlaubt.
+// Persistiert NICHT in localStorage — pro Session.
+const _weVergleichSel = new Set();
 // QA-Sprint 2026-05-23 (Edgar live): Default ist „30% StSatz · 4,5% Zins · KP ohne KNK".
 // QA-Fix 2026-05-23 (Audit-P-2): Auswahl in localStorage persistieren.
 // 2026-05-23 Edgar-Korrektur: 6er-Matrix statt 12er — KNK koppelt sich an
@@ -6701,23 +6878,46 @@ function _renderWeListeContent() {
       } else {
         modusBadge = '<span class="audit-pill size-sm fehlt" title="Vermietungs-Modus in Stammdaten nicht gepflegt">offen</span>';
       }
-      // Pflege-Lücken nur als dezentes ⚠-Icon am WE-Namen (Edgar: „vollständig macht keinen Sinn")
-      const lueckenAnzahl = [
-        sd.mieteBeiVerkauf, sd.marktmiete, sd.marktpreisImmoscout || sd.marktpreisHomeday,
-        sd.vermietungsModus, sd.gebaeudeAnteil
-      ].filter(v => v == null || v === 0 || v === '').length;
+      // Welle 4 (2026-05-24): Pflegelücken-Detail-Modal. Schenki spart sich
+      // den Klärungs-Call wenn der Vertriebler die fehlenden Felder direkt sieht
+      // + weiß wer's pflegen sollte (SOP-A-Rollen).
+      // Pflicht-Felder: ohne die kann der Vertriebler nicht sauber rechnen.
+      const lueckenDetails = [
+        { feld: 'Miete bei Verkauf (MBV)', value: sd.mieteBeiVerkauf, rolle: 'Domi · Verkaufsdaten', pflicht: true },
+        { feld: 'Marktmiete (Vergleich)', value: sd.marktmiete, rolle: 'Nico · Marktdaten', pflicht: true },
+        { feld: 'Marktpreis (Immoscout/Homeday)', value: sd.marktpreisImmoscout || sd.marktpreisHomeday, rolle: 'Nico · Marktdaten', pflicht: true },
+        { feld: 'Vermietungs-Modus', value: sd.vermietungsModus, rolle: 'Viktor · Objektpflege', pflicht: true },
+        { feld: 'Gebäude-Anteil', value: sd.gebaeudeAnteil, rolle: 'Viktor · Objektpflege', pflicht: true },
+        { feld: 'AfA-Gutachten-Satz', value: sd.afaGutachten, rolle: 'Viktor · Objektpflege', pflicht: false },
+        { feld: 'Hausgeld', value: sd.hausgeldRuecklage, rolle: 'Viktor · Objektpflege', pflicht: false },
+        { feld: 'Hausverwaltung', value: sd.hausverwaltung, rolle: 'Viktor · Objektpflege', pflicht: false },
+      ];
+      const lueckenLeer = lueckenDetails.filter(d => d.value == null || d.value === 0 || d.value === '');
+      const lueckenAnzahl = lueckenLeer.filter(d => d.pflicht).length;
+      // Datenspeichern auf Window-Ebene, damit Modal-Klick die Details findet
+      if (lueckenAnzahl > 0 || lueckenLeer.length > 0) {
+        window._weLuckenCache = window._weLuckenCache || {};
+        window._weLuckenCache[we.id] = { lueckenLeer, weNr: we.weNr, projekt: pn };
+      }
       const luckenIcon = lueckenAnzahl > 0
-        ? ` <span title="${lueckenAnzahl} Pflichtfelder leer" style="color:var(--accent-dark);cursor:help;font-size:11px;">⚠</span>`
-        : '';
+        ? ` <span onclick="event.stopPropagation();window._weLuckenShow('${esc(we.id || '')}')" title="${lueckenAnzahl} Pflichtfeld${lueckenAnzahl === 1 ? '' : 'er'} leer — Klick für Details" style="color:#9A3E33;cursor:pointer;font-size:11px;background:rgba(154,62,51,.1);padding:1px 6px;border-radius:8px;font-weight:600;">⚠ ${lueckenAnzahl}</span>`
+        : (lueckenLeer.length > 0 ? ` <span onclick="event.stopPropagation();window._weLuckenShow('${esc(we.id || '')}')" title="${lueckenLeer.length} optionale Felder leer — Klick für Details" style="color:var(--text-tertiary);cursor:pointer;font-size:11px;">○ ${lueckenLeer.length}</span>` : '');
       // Mietsubvention: Wert aus der Engine (Phase-1 €/Mo × Mo · Gesamt). Edgar:
       // „Werte aus der Kalkulation selbst, nicht nur manuelle Stammdaten".
       const subvCell = calc.subvMoPhase1 > 0
         ? `<div>${fmtEurMo(calc.subvMoPhase1)} × ${calc.subvMonatePhase1} Mo</div><div class="text-tertiary text-small">Gesamt ${fmtEur(calc.subvGesamt)}</div>`
         : '<span class="audit-cell-missing">–</span>';
+      // Welle 2 (2026-05-24): Vergleichs-Checkbox als erste Spalte. Klick stoppt
+      // Row-Onclick, damit nicht direkt in die WE navigiert wird.
+      const checked = _weVergleichSel.has(we.id) ? 'checked' : '';
+      const checkboxCell = `<td style="width:32px;padding:6px 4px;" onclick="event.stopPropagation();">
+        <input type="checkbox" ${checked} onchange="window._weVergleichToggle('${esc(we.id || '')}')" style="cursor:pointer;width:16px;height:16px;" title="Zum Vergleich auswählen" />
+      </td>`;
       // Incomplete-Marker für unkalkulierbare WEs (kein Kaltmiete + kein MBV)
       if (calc && calc.incomplete) {
         return `
           <tr class="we-liste-row" onclick="window._weListeOpenWe('${esc(we.id || '')}')" style="opacity:0.55;">
+            ${checkboxCell}
             <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}${we.qm > 0 ? ' · ' + fmtQm(we.qm) : ''}</div></td>
             <td>${modusBadge}</td>
             <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
@@ -6727,6 +6927,7 @@ function _renderWeListeContent() {
       }
       return `
         <tr class="we-liste-row" onclick="window._weListeOpenWe('${esc(we.id || '')}')">
+          ${checkboxCell}
           <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}${we.qm > 0 ? ' · ' + fmtQm(we.qm) : ''}</div></td>
           <td>${modusBadge}</td>
           <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
@@ -6767,6 +6968,7 @@ function _renderWeListeContent() {
           <table class="table mt-8 we-liste-table">
             <thead>
               <tr>
+                <th style="width:32px;padding:6px 4px;" title="Zum Vergleich auswählen"></th>
                 <th style="min-width:170px;">Wohneinheit</th>
                 <th>Vermietungs-Modus</th>
                 <th class="num">Kaufpreis WHG</th>
@@ -6802,14 +7004,263 @@ function _renderWeListeContent() {
   const irrHint = (profilObj && profilObj.knkMitfinanziert)
     ? ' · <span title="Bei 100 %-Finanzierung gibt es kein initiales Eigenkapital — daher ist die klassische IRR-Berechnung mathematisch nicht definiert.">IRR-Spalte „—" bei 100 %-Finanzierung (kein EK)</span>'
     : '';
+  // Welle 2 (2026-05-24): Floating Compare-FAB unten rechts wenn 1+ ausgewählt.
+  const selCount = _weVergleichSel.size;
+  const compareFab = selCount > 0 ? `
+    <div id="we-vergleich-fab" style="position:fixed;bottom:24px;right:24px;z-index:80;display:flex;gap:10px;align-items:center;background:#1A1A17;color:#FBFAF7;padding:10px 16px 10px 18px;border-radius:28px;box-shadow:0 8px 24px rgba(26,26,23,.22);font-family:inherit;">
+      <span style="font-size:13px;">${selCount} ${selCount === 1 ? 'WE' : 'WEs'} markiert</span>
+      <button onclick="window._weVergleichClear()" style="background:transparent;color:#FBFAF7;border:1px solid rgba(251,250,247,.3);padding:4px 10px;font-size:12px;border-radius:14px;cursor:pointer;font-family:inherit;" title="Auswahl leeren">✕</button>
+      <button onclick="window._weVergleichOpen()" ${selCount < 2 ? 'disabled style="opacity:.45;cursor:not-allowed;background:#C9A572;color:#1A1A17;border:none;padding:6px 14px;font-size:13px;border-radius:14px;font-weight:600;font-family:inherit;"' : 'style="background:#C9A572;color:#1A1A17;border:none;padding:6px 14px;font-size:13px;border-radius:14px;cursor:pointer;font-weight:600;font-family:inherit;"'}>
+        Vergleichen →
+      </button>
+    </div>
+  ` : '';
+
   el.innerHTML = `
     <div class="text-tertiary text-small" style="margin:0 0 8px;">
       <strong>${audit.length} aktive WEs</strong> über ${projekte.length} ${projekte.length === 1 ? 'Projekt' : 'Projekte'} ·
       Profil: <strong>${esc(profilLabel)}</strong> · Wertsteigerung 3 %/a, AfA aus Stammdaten.${irrHint}
     </div>
     ${sections}
+    ${compareFab}
   `;
 }
+
+// Welle 2 (2026-05-24): Multi-Select-Vergleich.
+function _weVergleichToggle(weId) {
+  if (!weId) return;
+  if (_weVergleichSel.has(weId)) _weVergleichSel.delete(weId);
+  else _weVergleichSel.add(weId);
+  _renderWeListeContent(); // Re-render damit FAB-Count aktualisiert
+}
+window._weVergleichToggle = _weVergleichToggle;
+function _weVergleichClear() {
+  _weVergleichSel.clear();
+  _renderWeListeContent();
+}
+window._weVergleichClear = _weVergleichClear;
+function _weVergleichOpen() {
+  if (_weVergleichSel.size < 2) {
+    toast('Wähle mindestens 2 WEs zum Vergleichen', 'info');
+    return;
+  }
+  _renderWeVergleichModal();
+}
+window._weVergleichOpen = _weVergleichOpen;
+
+function _renderWeVergleichModal() {
+  if (!_weListeCache || !window.Kalk) return;
+  const audit = (_weListeCache.auditList || []).filter(r => _weVergleichSel.has(r.we && r.we.id));
+  const detailById = _weListeCache.detailById || {};
+  if (audit.length === 0) return;
+
+  // Pro WE: berechnen mit aktuellem Profil
+  const calcByWeId = {};
+  for (const row of audit) {
+    try {
+      const sd = (detailById[row.we.id] && detailById[row.we.id].kalkStammdaten) || row.stammdaten || {};
+      const detail = detailById[row.we.id] || {};
+      const we = (detail.we) || row.we || {};
+      const stpl = (detail.stellplaetze) || row.stellplaetze || {};
+      const derived = (detail.derived) || {};
+      const profile = (window.Kalk.PROFILES && window.Kalk.PROFILES[_weListeProfil]) || {};
+
+      let effKaltmiete = derived.subventionKaltmieteAdjustiert
+        || (sd.mieteBeiVerkauf > 0 && /neuvermietung|staffel|leer/i.test(String(sd.vermietungsModus || '')) ? sd.mieteBeiVerkauf : we.kaltmiete) || 0;
+
+      let subventionPhasen = [];
+      if (Array.isArray(derived.subventionPhasen) && derived.subventionPhasen.length > 0) {
+        subventionPhasen = derived.subventionPhasen;
+      } else if (sd.mietzuschuss > 0) {
+        subventionPhasen = [{ mo: sd.mietzuschuss, monate: sd.mietzuschussMonate || 36 }];
+      }
+
+      const inputs = Object.assign({
+        kaufpreis: we.kp || 0, stellplatzKp: stpl.kaufpreisSumme || 0, qm: we.qm || 0,
+        kaltmiete: effKaltmiete, stellplatzMiete: stpl.mieteMoSumme || 0,
+        subventionMo: subventionPhasen[0] ? subventionPhasen[0].mo : 0,
+        subventionMonate: subventionPhasen[0] ? subventionPhasen[0].monate : 0,
+        subventionPhasen,
+        mietsteigerungsModus: /neuvermietung|staffel/i.test(String(sd.vermietungsModus || '')) ? 'staffel' : 'sprung',
+        steigerungProz: 0.15, monateSeitMieterhoehung: 0,
+        hausgeld: sd.hausgeld || 60, hgInflation: 0,
+        mietverwaltung: sd.mietverwaltung || 0, hausverwaltung: sd.hausverwaltung || 30,
+        afaSatz: (sd.afaSatz || 0.02), gebaeudeAnteil: (sd.gebaeudeAnteil || 0.85), afaBemessung: 'kaufpreis',
+        wertsteigerung: 0.03, marktwertProQm: sd.marktpreisImmoscout || sd.marktpreisHomeday || 0,
+        grEstPct: sd.grEstPct || 0.05,
+      }, profile);
+      calcByWeId[row.we.id] = window.Kalk.recalc(inputs);
+    } catch (e) {
+      calcByWeId[row.we.id] = null;
+    }
+  }
+
+  const fmtEur = (v) => (v == null || !isFinite(v)) ? '–' : Math.round(v).toLocaleString('de-DE') + ' €';
+  const fmtEurMo = (v) => (v == null || !isFinite(v)) ? '–' : Math.round(v).toLocaleString('de-DE') + ' €/Mo';
+  const fmtPct  = (v) => (v == null || !isFinite(v)) ? '–' : (v * 100).toFixed(1).replace('.', ',') + ' %';
+
+  // Spalten = WEs. Zeilen = Kennzahlen. Best-Value pro Zeile bekommt eine Hervorhebung.
+  const weCols = audit.map(row => {
+    const we = row.we || {};
+    const calc = calcByWeId[we.id];
+    return { we, calc, projekt: row.stammdaten && row.stammdaten.projektName || '' };
+  });
+
+  const metrics = [
+    { label: 'Kaufpreis (WHG)', get: c => c && c.inputs ? (c.inputs.kaufpreis || 0) : null, fmt: fmtEur, best: 'min' },
+    { label: '€/qm Wohnung',    get: c => c ? c.kaufpreisWohnungProQm : null, fmt: v => v ? Math.round(v).toLocaleString('de-DE') + ' €/qm' : '–', best: 'min' },
+    { label: 'Brutto-Rendite',  get: c => c ? c.bruttorendite : null, fmt: fmtPct, best: 'max' },
+    { label: 'Cashflow J1 n. St.', get: c => c && c.cf && c.cf[0] ? c.cf[0].cfJahr : null, fmt: fmtEur, best: 'max' },
+    { label: 'Belastung €/Mo',  get: c => c ? c.belastungMo : null, fmt: fmtEurMo, best: 'max' },
+    { label: 'Cashflow J10',    get: c => c && c.cf && c.cf[9] ? c.cf[9].cfJahr : null, fmt: fmtEur, best: 'max' },
+    { label: 'Vermögen J10 (Netto)', get: c => c ? c.vermoegenNetto10 : null, fmt: fmtEur, best: 'max' },
+    { label: 'IRR 10 J',         get: c => c ? c.irr : null, fmt: fmtPct, best: 'max' },
+  ];
+
+  // Pro Metric: Best-Value finden für Highlight
+  const bestById = {};
+  metrics.forEach((m, mi) => {
+    const vals = weCols.map((col, ci) => ({ ci, v: m.get(col.calc) }));
+    const valid = vals.filter(x => x.v !== null && isFinite(x.v));
+    if (valid.length === 0) return;
+    if (m.best === 'max') valid.sort((a, b) => b.v - a.v);
+    else valid.sort((a, b) => a.v - b.v);
+    bestById[mi] = valid[0].ci;
+  });
+
+  const headerHtml = weCols.map(col => `
+    <th style="padding:12px 14px;background:var(--cream-subtle);border-bottom:2px solid var(--accent);text-align:left;min-width:170px;">
+      <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;">${esc(col.projekt || '–')}</div>
+      <div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-top:2px;">WE ${esc(String(col.we.weNr || '?'))}</div>
+      <div style="font-size:11px;color:var(--text-tertiary);">${esc(col.we.lageText || col.we.lage || '')}${col.we.qm > 0 ? ' · ' + (col.we.qm + ' qm') : ''}</div>
+    </th>
+  `).join('');
+
+  const rowsHtml = metrics.map((m, mi) => `
+    <tr>
+      <td style="padding:10px 14px;color:var(--text-secondary);font-size:12px;border-bottom:1px solid var(--border);background:var(--bg-primary);">${m.label}</td>
+      ${weCols.map((col, ci) => {
+        const v = m.get(col.calc);
+        const isBest = bestById[mi] === ci && weCols.length > 1;
+        const txt = v === null ? '–' : m.fmt(v);
+        return `<td style="padding:10px 14px;font-size:14px;font-weight:${isBest ? '700' : '500'};color:${isBest ? '#2D6E47' : 'var(--text-primary)'};border-bottom:1px solid var(--border);${isBest ? 'background:rgba(45,110,71,.06);' : ''}">${txt}${isBest ? ' <span title="bestes Resultat" style="color:#2D6E47;font-size:10px;">●</span>' : ''}</td>`;
+      }).join('')}
+    </tr>
+  `).join('');
+
+  // Profil-Label für den Header (vor Template-String definieren)
+  const profilLabel = (() => {
+    const p = (window.Kalk && window.Kalk.PROFILES && window.Kalk.PROFILES[_weListeProfil]) || null;
+    return p ? `${Math.round((p.steuersatz || 0) * 100)} % StSatz · ${((p.zins || 0) * 100).toFixed(1).replace('.', ',')} % Zins · ${p.knkMitfinanziert ? 'KP + KNK finanziert' : 'KP ohne KNK'}` : '(unbekannt)';
+  })();
+
+  // Modal anzeigen
+  let modalEl = document.getElementById('we-vergleich-modal');
+  if (!modalEl) {
+    modalEl = document.createElement('div');
+    modalEl.id = 'we-vergleich-modal';
+    document.body.appendChild(modalEl);
+  }
+  modalEl.innerHTML = `
+    <div style="position:fixed;inset:0;background:rgba(26,26,23,.55);z-index:120;display:flex;align-items:center;justify-content:center;padding:24px;" onclick="if(event.target===this)window._weVergleichClose()">
+      <div style="background:#FBFAF7;border-radius:12px;max-width:1100px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 24px 64px rgba(26,26,23,.32);">
+        <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;">Vergleich</div>
+            <div style="font-size:17px;font-weight:600;color:var(--text-primary);margin-top:2px;">${weCols.length} Wohneinheiten · Profil <strong>${esc(profilLabel)}</strong></div>
+          </div>
+          <button onclick="window._weVergleichClose()" style="background:transparent;border:1px solid var(--border);padding:6px 12px;font-size:13px;border-radius:6px;cursor:pointer;font-family:inherit;">✕ Schließen</button>
+        </div>
+        <div style="padding:20px 22px;overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr><th style="background:var(--cream-subtle);border-bottom:2px solid var(--accent);padding:12px 14px;text-align:left;min-width:160px;font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;">Kennzahl</th>${headerHtml}</tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+          <div style="margin-top:14px;font-size:11px;color:var(--text-tertiary);">
+            ● = bestes Resultat dieser Kennzahl. Alle Werte mit dem Profil <strong>${esc(profilLabel)}</strong> gerechnet. Bei Wechsel des Profils oben links → Vergleich neu öffnen.
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+function _weVergleichClose() {
+  const m = document.getElementById('we-vergleich-modal');
+  if (m) m.remove();
+}
+window._weVergleichClose = _weVergleichClose;
+
+// Welle 4 (2026-05-24): Pflegelücken-Detail-Modal. Schenki-Pain-Reducer.
+function _weLuckenShow(weId) {
+  const data = (window._weLuckenCache || {})[weId];
+  if (!data) return;
+  const pflicht = data.lueckenLeer.filter(d => d.pflicht);
+  const optional = data.lueckenLeer.filter(d => !d.pflicht);
+
+  // Pro Rolle gruppieren — Vertriebler sieht „Domi pingen" mit allen Feldern auf einmal
+  const groupByRolle = (arr) => {
+    const g = {};
+    arr.forEach(d => { (g[d.rolle] = g[d.rolle] || []).push(d.feld); });
+    return g;
+  };
+  const pflichtByRolle = groupByRolle(pflicht);
+  const optByRolle = groupByRolle(optional);
+
+  const renderGroup = (group, kind) => {
+    const keys = Object.keys(group);
+    if (keys.length === 0) return '';
+    return keys.map(rolle => `
+      <div style="margin-bottom:10px;padding:10px 12px;background:${kind === 'pflicht' ? 'rgba(154,62,51,.04)' : 'var(--cream-subtle)'};border-left:3px solid ${kind === 'pflicht' ? '#9A3E33' : '#B08A4D'};border-radius:0 4px 4px 0;">
+        <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Pflegen: ${esc(rolle)}</div>
+        <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-primary);line-height:1.5;">
+          ${group[rolle].map(f => `<li>${esc(f)}</li>`).join('')}
+        </ul>
+      </div>
+    `).join('');
+  };
+
+  let modalEl = document.getElementById('we-lucken-modal');
+  if (!modalEl) {
+    modalEl = document.createElement('div');
+    modalEl.id = 'we-lucken-modal';
+    document.body.appendChild(modalEl);
+  }
+  modalEl.innerHTML = `
+    <div style="position:fixed;inset:0;background:rgba(26,26,23,.55);z-index:130;display:flex;align-items:center;justify-content:center;padding:24px;" onclick="if(event.target===this)window._weLuckenClose()">
+      <div style="background:#FBFAF7;border-radius:12px;max-width:560px;width:100%;max-height:85vh;overflow:auto;box-shadow:0 24px 64px rgba(26,26,23,.32);">
+        <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:start;justify-content:space-between;gap:14px;">
+          <div>
+            <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;">Datenpflege-Lücken</div>
+            <div style="font-size:17px;font-weight:600;color:var(--text-primary);margin-top:2px;">WE ${esc(String(data.weNr || '?'))} · ${esc(data.projekt || '')}</div>
+          </div>
+          <button onclick="window._weLuckenClose()" style="background:transparent;border:1px solid var(--border);padding:4px 10px;font-size:13px;border-radius:6px;cursor:pointer;font-family:inherit;">✕</button>
+        </div>
+        <div style="padding:18px 22px;">
+          ${pflicht.length > 0 ? `
+            <div style="font-size:13px;color:#9A3E33;font-weight:600;margin-bottom:10px;">⚠ ${pflicht.length} Pflichtfeld${pflicht.length === 1 ? '' : 'er'} fehlt — bevor Du dem Kunden Zahlen zeigst, sollte das gepflegt sein.</div>
+            ${renderGroup(pflichtByRolle, 'pflicht')}
+          ` : ''}
+          ${optional.length > 0 ? `
+            <div style="font-size:12px;color:var(--text-tertiary);margin:14px 0 8px;">Optional (Qualitäts-Verbesserer, nicht blockierend):</div>
+            ${renderGroup(optByRolle, 'optional')}
+          ` : ''}
+          ${pflicht.length === 0 && optional.length === 0 ? `<div style="color:#2D6E47;font-size:13px;">✓ Vollständig gepflegt.</div>` : ''}
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);font-size:11px;color:var(--text-tertiary);">
+            Rollen-Vorgaben nach SOP-A „Datenpflege" (Stand 2026-04-27). Im Zweifel: Schenki pingen — sie koordiniert.
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+window._weLuckenShow = _weLuckenShow;
+function _weLuckenClose() {
+  const m = document.getElementById('we-lucken-modal');
+  if (m) m.remove();
+}
+window._weLuckenClose = _weLuckenClose;
 
 function _weListeOpenWe(weId) {
   if (!weId) return;

@@ -380,7 +380,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
             : '<p class="narrative" style="margin-top:5mm">Über die 10 Jahre bleibt die Belastung im negativen Bereich — der Vermögenseffekt entsteht über die Tilgung und Wertsteigerung.</p>'}
         </div>
       </div>
-      <div class="pdf-c-page-foot"><div>02 · Eckdaten &amp; Plan</div><div class="pdf-c-page-num">Seite 2 von 7</div></div>
+      <div class="pdf-c-page-foot"><div>02 · Eckdaten &amp; Plan</div><div class="pdf-c-page-num">Seite 2 von 8</div></div>
     </div>
   `;
 
@@ -407,7 +407,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           ? `<div class="cell"><div class="label">Interner Zinsfuß</div><div class="v">${(r.irr * 100).toFixed(1).replace('.',',')}<span class="unit">% p.a.</span></div></div>`
           : `<div class="cell"><div class="label">Vermögenszuwachs</div><div class="v">${Math.round(r.vermoegenNetto10 || 0).toLocaleString('de-DE')}<span class="unit">€</span></div></div>`}
       </div>
-      <div class="pdf-c-page-foot"><div>03 · Aussicht</div><div class="pdf-c-page-num">Seite 3 von 7</div></div>
+      <div class="pdf-c-page-foot"><div>03 · Aussicht</div><div class="pdf-c-page-num">Seite 3 von 8</div></div>
     </div>
   `;
 
@@ -430,7 +430,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <p class="pdf-c-p4-sub">Bei 110-%-Finanzierung setzt Du kein eigenes Kapital ein. Trotzdem baust Du in zehn Jahren ${fmt(r.vermoegenNetto10)} Nettovermögen auf — getragen von Tilgung und Wertentwicklung. Der Hebel kommt aus dem Sachwert, nicht aus Deinem Sparbuch.</p>
         <p class="pdf-c-p4-sub" style="margin-top:6mm;font-size:10pt;color:#7A7A72;font-style:italic">Ein klassischer Sparbuch-Vergleich entfällt: ohne Eigenkapital-Einsatz wäre auch das Sparbuch-Ergebnis 0 €. Die monatliche Belastung über die Laufzeit ist die einzige Eigenleistung.</p>
       </div>
-      <div class="pdf-c-page-foot"><div>04 · Der Hebel</div><div class="pdf-c-page-num">Seite 4 von 7</div></div>
+      <div class="pdf-c-page-foot"><div>04 · Der Hebel</div><div class="pdf-c-page-num">Seite 4 von 8</div></div>
     </div>
   ` : `
     <div class="pdf-page pdf-c-page">
@@ -441,7 +441,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <div class="pdf-c-p4-delta">${_spDeltaVz}<span class="num">${fmt(r.sparenVsKaufenDelta)}</span><br><span style="font-size:11pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500;display:inline-block;margin-top:4mm">${_spDeltaLabel}</span></div>
         <p class="pdf-c-p4-sub">${fmt(r.ekBedarf)} auf einem Sparbuch zu ${((i.sparZins || 0.025) * 100).toFixed(2).replace('.', ',')} % p.a. wären in zehn Jahren auf rund ${fmt(sparen10.nurSparen)} gewachsen. Dasselbe Eigenkapital, in den Sachwert Immobilie investiert, kommt auf ${fmt(sparen10.mitImmo)}. Die Differenz von ${fmt(r.sparenVsKaufenDelta)} ${_spDeltaPos ? 'ist der reine Sachwert-Vorteil' : 'zeigt, dass dieses Szenario unter Sparbuch-Niveau bleibt — Wertsteigerungs- oder Mietsteigerungs-Annahmen prüfen'}.</p>
       </div>
-      <div class="pdf-c-page-foot"><div>04 · Im Vergleich</div><div class="pdf-c-page-num">Seite 4 von 7</div></div>
+      <div class="pdf-c-page-foot"><div>04 · Im Vergleich</div><div class="pdf-c-page-num">Seite 4 von 8</div></div>
     </div>
   `;
 
@@ -521,7 +521,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <!-- QA-Fix 2026-05-23 (Edgar P3): Disclaimer von Seite 5 entfernt — durch B5
            war er 5× länger und Seite 5 (Annahmen + Cashflow-Tabelle) lief in
            overflow:hidden über. Disclaimer jetzt auf Seite 7. -->
-      <div class="pdf-c-page-foot"><div>05 · Im Detail</div><div class="pdf-c-page-num">Seite 5 von 7</div></div>
+      <div class="pdf-c-page-foot"><div>05 · Im Detail</div><div class="pdf-c-page-num">Seite 5 von 8</div></div>
     </div>
   `;
 
@@ -542,15 +542,60 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <li><span class="pdf-c-weg-num">5</span><div class="pdf-c-weg-body"><strong>Besichtigung vor Ort.</strong>Du siehst die Wohnung mit eigenen Augen — Lage, Substanz, Treppenhaus, Umfeld. Erst wenn das passt, machen wir den letzten Schritt.</div></li>
         <li><span class="pdf-c-weg-num">6</span><div class="pdf-c-weg-body"><strong>Notartermin.</strong>Beurkundung des Kaufvertrags. Wir beurkunden nur, wenn die drei Voraussetzungen Finanzierung, Objektunterlagen und Besichtigung sauber erfüllt sind.</div></li>
       </ol>
-      <div class="pdf-c-page-foot"><div>06 · Wie es weitergeht</div><div class="pdf-c-page-num">Seite 6 von 7</div></div>
+      <div class="pdf-c-page-foot"><div>06 · Wie es weitergeht</div><div class="pdf-c-page-num">Seite 6 von 8</div></div>
     </div>
   `;
 
-  // ===== SEITE 7 · BROT & BUTTER =====
+  // ===== SEITE 7 · NACH DEM NOTARTERMIN (Edgar-Feedback 24.05.2026) =====
+  // Vorher fehlte in der PDF die Post-Notar-Sektion komplett — Käufer sah
+  // nur den Vor-Notar-Pfad (Seite 6) und „wer wir sind" (alte Seite 7).
+  // Die Magazin-Section_8 ist hier 1:1 als eigene Seite reingenommen.
   const seite7 = `
     <div class="pdf-page pdf-c-page">
       ${ph()}
-      <div class="pdf-c-section-num">07 · Wer wir sind</div>
+      <div class="pdf-c-section-num">07 · Nach dem Notartermin</div>
+      <h2 class="pdf-c-section-title">Du stehst nicht alleine da.</h2>
+      <p class="pdf-c-lead" style="max-width:62ch">
+        Du musst Dich nicht um Mieterhöhungen, Steuerformulare, Übergaben oder Handwerker kümmern. Wir bauen Dich an wie einen alten Bekannten und Du hast direkten Draht über WhatsApp — auch für Dinge, von denen Du noch gar nicht weißt, dass sie auftreten werden.
+      </p>
+      <div class="pdf-c-bub-grid" style="grid-template-columns:1fr 1fr 1fr;gap:6mm 8mm;margin-top:8mm;">
+        <div class="pdf-c-bub-cell">
+          <div class="pdf-c-bub-step" style="font-size:13pt">Mietsubvention bankentauglich</div>
+          <div class="pdf-c-bub-text">Wir richten sie so ein, dass die Bank sie als Einkommen anrechnet — positiver Bonitäts-Effekt für Folge-Käufe.</div>
+        </div>
+        <div class="pdf-c-bub-cell">
+          <div class="pdf-c-bub-step" style="font-size:13pt">Steuereffekt monatlich</div>
+          <div class="pdf-c-bub-text">Wir reichen die Lohnsteuerermäßigung beim Finanzamt ein, damit Dein Steuervorteil Monat für Monat direkt auf dem Konto landet — nicht erst mit der Steuererklärung.</div>
+        </div>
+        <div class="pdf-c-bub-cell">
+          <div class="pdf-c-bub-step" style="font-size:13pt">Restnutzungsdauer-Gutachten</div>
+          <div class="pdf-c-bub-text">Wir übertragen es Dir so, dass es vor dem Finanzamt hält — höhere AfA, mehr Steuervorteil über die volle Laufzeit.</div>
+        </div>
+        <div class="pdf-c-bub-cell">
+          <div class="pdf-c-bub-step" style="font-size:13pt">Übergabe &amp; WEG</div>
+          <div class="pdf-c-bub-text">Wohnungs-Übergabeprotokoll, Ummeldungen Versorger, Mitteilung an die Hausverwaltung — alles in unserer Hand.</div>
+        </div>
+        <div class="pdf-c-bub-cell">
+          <div class="pdf-c-bub-step" style="font-size:13pt">Neuvermietung &amp; Renovierung</div>
+          <div class="pdf-c-bub-text">Wenn die Wohnung leer ist: die erste Neuvermietung machen wir umsonst. Bei Renovierung: passende Dienstleister-Empfehlung + Angebots-Prüfung.</div>
+        </div>
+        <div class="pdf-c-bub-cell" style="background:rgba(45,110,71,.05);border:.5px solid #2D6E47;padding:4mm 5mm;border-radius:2mm;">
+          <div class="pdf-c-bub-step" style="font-size:13pt;color:#2D6E47">WhatsApp-Direktdraht</div>
+          <div class="pdf-c-bub-text">Eine WhatsApp-Gruppe mit B&amp;B — für Fragen die jetzt schon da sind, und für die die später kommen.</div>
+        </div>
+      </div>
+      <div style="margin-top:10mm;padding-top:6mm;border-top:.4px solid #B08A4D;font-size:10pt;line-height:1.65;color:#3A3A35;">
+        <strong style="color:#1A1A17;font-weight:500;">Maßgeschneidert.</strong> Wir betrachten Dein Investment aus drei Perspektiven — steuerlich, wirtschaftlich, Aufwand. Anfänger müssen keine Komplexität verstehen; Fortgeschrittene bekommen alles in die Hand was sie selbst steuern wollen.
+      </div>
+      <div class="pdf-c-page-foot"><div>07 · Nach dem Notartermin</div><div class="pdf-c-page-num">Seite 7 von 8</div></div>
+    </div>
+  `;
+
+  // ===== SEITE 8 · BROT & BUTTER =====
+  const seite8 = `
+    <div class="pdf-page pdf-c-page">
+      ${ph()}
+      <div class="pdf-c-section-num">08 · Wer wir sind</div>
       <h2 class="pdf-c-section-title">Brot &amp; Butter.</h2>
       <p class="pdf-c-lead" style="max-width:60ch">Unser Name ist unser Geschäftsmodell. Wir kaufen die großen Brote und veredeln sie mit Butter — bevor wir scheibenweise an Dich weitergeben.</p>
       <div class="pdf-c-bub-grid">
@@ -567,12 +612,12 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <p class="pdf-c-disclaimer" style="font-size:7pt;line-height:1.45;margin-top:6mm;">
         Diese Investitionsrechnung beruht auf den dokumentierten Annahmen. Keine Anlageberatung im Sinne des WpHG. Vermittlung im Rahmen einer Erlaubnis nach § 34c GewO. Verbindlich ist ausschließlich der notarielle Kaufvertrag. Steuerliche Aspekte (insb. AfA-Rechtsgrundlage und ‑Bemessung) sind mit Deinem Steuerberater abzustimmen. Wertsteigerung und Mietsteigerung sind langfristige Modell-Annahmen; tatsächliche Werte können abweichen. „Modellwert J10" ist eine rechnerische Hochrechnung (Kaufpreis × Wertsteigerung) und kein gutachterlicher Verkehrswert i.S.d. § 194 BauGB. Der Sparbuch-Vergleich rechnet Brutto-Renditen (vor Abgeltungssteuer); die Immobilien-Rendite enthält den persönlichen Steuervorteil. Für die Finanzierungs-Vermittlung berechnen wir Dir keine Provision; eventuelle Bank-Vermittlungs-Provisionen fließen in die Kondition ein. Die 80&nbsp;%-Mietanrechnung entspricht dem Standard unserer Partnerbanken; andere Banken können abweichen.
       </p>
-      <div class="pdf-c-page-foot"><div>07 · Brot &amp; Butter</div><div class="pdf-c-page-num">Seite 7 von 7</div></div>
+      <div class="pdf-c-page-foot"><div>08 · Brot &amp; Butter</div><div class="pdf-c-page-num">Seite 8 von 8</div></div>
     </div>
   `;
 
   _doPrint(
-    pdfCStyle + seite1 + seite2 + seite3 + seite4 + seite5 + seite6 + seite7,
+    pdfCStyle + seite1 + seite2 + seite3 + seite4 + seite5 + seite6 + seite7 + seite8,
     'invest',
     _filenameHint('Investitions-Doc', kunde, {
       weNr: kalkInputs && kalkInputs._weNr,

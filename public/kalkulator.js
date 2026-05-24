@@ -150,6 +150,12 @@ const BB_DEFAULTS = Object.freeze({
 // Backward-Compat: ältere Stellen lesen evtl. noch SPAR_ZINS_DEFAULT
 const SPAR_ZINS_DEFAULT = BB_DEFAULTS.sparZinsPa;
 
+// Welle 0 (2026-05-24): ENGINE_VERSION wird in jedem recalc-Ergebnis mitgeschrieben.
+// Bei Engine-Änderungen (z.B. Welle 1: Sensitivitäts-Matrix, Sondertilgung) Major-Bump,
+// damit Snapshots beim Anzeigen markieren können „mit alter Engine-Version berechnet".
+// Format: 'major.minor' — minor für additive Outputs, major für Logik-Bruch.
+const ENGINE_VERSION = '3.0';
+
 function applyProfile(state, profile) {
   Object.assign(state, JSON.parse(JSON.stringify(profile)));
   return state;
@@ -1085,6 +1091,7 @@ function recalc(i) {
 
   return {
     inputs: i,
+    engineVersion: ENGINE_VERSION,
     kpGesamt, knk, investitionGesamt, ekBedarf, darlehen,
     annuityMo, nper, afaMo, afaJahr, afaBemessungBetrag, anschaffungskosten, gebaeudeAnteilFaktor,
     cf, cfMonate, vermoegen, irr: irrValue,
@@ -1360,11 +1367,115 @@ function recalcPaket(weInputsArr, personSettings) {
 }
 
 /* ====================================================================
+   WELLE 1 (2026-05-24): SENSITIVITÄTS-MATRIX + STRESS-SZENARIEN
+   Pure Wrapper um recalc() — keine Engine-Änderung, kein Bruch-Risiko.
+   ==================================================================== */
+
+/**
+ * Sensitivitäts-Matrix: rechnet recalc() für ein Raster aus
+ * Zins-Deltas × Leerstand-Monaten. Liefert die Schlüssel-KPIs pro Zelle.
+ *
+ * Anwendung:
+ *   const m = sensitivitaetsMatrix(weInputs, {
+ *     zinsDeltas: [-0.005, 0, 0.005, 0.01, 0.02],     // -0,5 % .. +2 %
+ *     leerstandMonateProJahr: [0, 1, 2, 3]
+ *   });
+ *   m.cells[y][x] = { cfJ1, cfJ10, vermoegenNetto10, irr, belastungMo }
+ *
+ * Leerstand-Modell: Kaltmiete + Stellplatzmiete werden um (12-x)/12 reduziert,
+ * Hausgeld bleibt voll (Käufer trägt es weiter). Pragmatischer Ansatz — keine
+ * Modellierung von „Leerstand nur in einem Jahr".
+ */
+function sensitivitaetsMatrix(baseInputs, opts) {
+  opts = opts || {};
+  const zinsDeltas = opts.zinsDeltas || [-0.005, 0, 0.005, 0.01, 0.02];
+  const leerstandMonate = opts.leerstandMonateProJahr || [0, 1, 2, 3];
+
+  const baseZins = parseFloat(baseInputs.zins) || 0.045;
+  const cells = [];
+  for (let yi = 0; yi < leerstandMonate.length; yi++) {
+    const lMo = leerstandMonate[yi];
+    const mietFaktor = Math.max(0, (12 - lMo) / 12);
+    const row = [];
+    for (let xi = 0; xi < zinsDeltas.length; xi++) {
+      const dz = zinsDeltas[xi];
+      const i2 = Object.assign({}, baseInputs, {
+        zins: baseZins + dz,
+        kaltmiete:       (parseFloat(baseInputs.kaltmiete) || 0)       * mietFaktor,
+        stellplatzMiete: (parseFloat(baseInputs.stellplatzMiete) || 0) * mietFaktor,
+      });
+      const r = recalc(i2);
+      if (!r) {
+        row.push(null);
+        continue;
+      }
+      row.push({
+        zinsDelta: dz,
+        zinsAbs: baseZins + dz,
+        leerstandMo: lMo,
+        cfJ1: r.cf[0].cfJahr,
+        cfJ10: r.cf[9].cfJahr,
+        belastungMo: r.belastungMo,
+        vermoegenNetto10: r.vermoegenNetto10,
+        irr: r.irr,
+      });
+    }
+    cells.push(row);
+  }
+  return {
+    engineVersion: ENGINE_VERSION,
+    zinsDeltas, leerstandMonate,
+    baseZins,
+    cells,
+    base: recalc(baseInputs),
+  };
+}
+
+/**
+ * Stress-Szenario: 1-Klick-Worst-Case. Edgar/Vertriebler kann dem
+ * Käufer zeigen: „Auch unter widrigen Bedingungen sieht's so aus."
+ *
+ * Default-Worst-Case: Zins +2 %, dauerhaft 3 Mo Leerstand p.a., +0,5 %
+ * Mietausfall (uneinbringliche Mietforderungen).
+ */
+function stressSzenario(baseInputs, opts) {
+  opts = opts || {};
+  const zinsDelta = opts.zinsDelta !== undefined ? opts.zinsDelta : 0.02;
+  const leerstandMo = opts.leerstandMonateProJahr !== undefined ? opts.leerstandMonateProJahr : 3;
+  const mietausfallPct = opts.mietausfallPct !== undefined ? opts.mietausfallPct : 0.005;
+
+  const mietFaktor = Math.max(0, (12 - leerstandMo) / 12) * (1 - mietausfallPct);
+  const baseZins = parseFloat(baseInputs.zins) || 0.045;
+  const i2 = Object.assign({}, baseInputs, {
+    zins: baseZins + zinsDelta,
+    kaltmiete:       (parseFloat(baseInputs.kaltmiete) || 0)       * mietFaktor,
+    stellplatzMiete: (parseFloat(baseInputs.stellplatzMiete) || 0) * mietFaktor,
+  });
+  const stress = recalc(i2);
+  const base = recalc(baseInputs);
+  if (!stress || !base) return null;
+  return {
+    engineVersion: ENGINE_VERSION,
+    annahmen: { zinsDelta, leerstandMonateProJahr: leerstandMo, mietausfallPct },
+    base, stress,
+    delta: {
+      cfJ1: stress.cf[0].cfJahr - base.cf[0].cfJahr,
+      cfJ10: stress.cf[9].cfJahr - base.cf[9].cfJahr,
+      belastungMo: stress.belastungMo - base.belastungMo,
+      vermoegenNetto10: stress.vermoegenNetto10 - base.vermoegenNetto10,
+      irr: (stress.irr || 0) - (base.irr || 0),
+    },
+  };
+}
+
+/* ====================================================================
    EXPORTS — als window.* nutzbar in app.js / pdf.js
    ==================================================================== */
 window.Kalk = {
   recalc, recalcPaket, irr, computeBonitaetDetailed,
+  sensitivitaetsMatrix, stressSzenario,
   fmtEur, fmtEurMo, fmtEurMoDec, fmtPct, fmtEurQm,
   PROFILES, PRESETS, BB_DEFAULTS, SPAR_ZINS_DEFAULT,
+  ENGINE_VERSION,
   getDefaults, applyProfile,
 };

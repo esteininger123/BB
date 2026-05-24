@@ -5,6 +5,7 @@ node_modules/
 .env.*.local
 .env-secrets.txt
 .jwt-secret.txt
+.vercel-token.txt
 .DS_Store
 *.log
 *.bak
