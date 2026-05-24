@@ -424,6 +424,25 @@ function renderDashboard() {
             Noch keine Kunden. Klick auf <strong>"+ Neuer Kunde"</strong>.
           </div>
         ` : `
+          <!-- FS-2p (Edgar 25.05.2026): Phase-/WV-Filter-Chips + Suche immer sichtbar -->
+          <div class="kf-chips-row">
+            <div class="kf-chip-group">
+              <span class="kf-chip-label">Phase:</span>
+              <button class="kf-chip ${!_kfState.phase ? 'active' : ''}" onclick="_kfPhase(null)">Alle <span class="kf-chip-count">${meine.length}</span></button>
+              <button class="kf-chip ${_kfState.phase === 'phase1' ? 'active' : ''}" onclick="_kfPhase('phase1')">Strategie <span class="kf-chip-count">${phasenCounts.phase1 || 0}</span></button>
+              <button class="kf-chip ${_kfState.phase === 'phase2' ? 'active' : ''}" onclick="_kfPhase('phase2')">Abwicklung <span class="kf-chip-count">${phasenCounts.phase2 || 0}</span></button>
+              <button class="kf-chip ${_kfState.phase === 'phase3' ? 'active' : ''}" onclick="_kfPhase('phase3')">Notar <span class="kf-chip-count">${phasenCounts.phase3 || 0}</span></button>
+              <button class="kf-chip ${_kfState.phase === 'abgeschlossen' ? 'active' : ''}" onclick="_kfPhase('abgeschlossen')">Beurkundet <span class="kf-chip-count">${phasenCounts.abgeschlossen || 0}</span></button>
+            </div>
+            <div class="kf-chip-group">
+              <span class="kf-chip-label">Wiedervorlage:</span>
+              <button class="kf-chip ${!_kfState.wv ? 'active' : ''}" onclick="_kfWv(null)">Alle</button>
+              <button class="kf-chip kf-chip-overdue ${_kfState.wv === 'overdue' ? 'active' : ''}" onclick="_kfWv('overdue')">⚠ Überfällig <span class="kf-chip-count">${wvOverdue.length}</span></button>
+              <button class="kf-chip kf-chip-today ${_kfState.wv === 'today' ? 'active' : ''}" onclick="_kfWv('today')">🔔 Heute <span class="kf-chip-count">${wvToday.length}</span></button>
+              <button class="kf-chip kf-chip-soon ${_kfState.wv === 'soon' ? 'active' : ''}" onclick="_kfWv('soon')">🔔 Bald <span class="kf-chip-count">${wvSoon.length}</span></button>
+              <button class="kf-chip ${_kfState.wv === 'none' ? 'active' : ''}" onclick="_kfWv('none')">Ohne WV</button>
+            </div>
+          </div>
           <table class="table kunden-tbl" id="kunden-tbl">
             <thead>
               <tr>
@@ -434,14 +453,14 @@ function renderDashboard() {
                 <th>Wunschregionen</th>
                 <th>Letzte Aktivität</th>
               </tr>
-              ${meine.length >= 3 ? `<tr class="kf-row">
-                <th><input type="text" id="kf-search" placeholder="Suche…" value="${esc(_kfState.q || '')}" oninput="applyKundenFilter()"></th>
+              <tr class="kf-row">
+                <th><input type="text" id="kf-search" placeholder="Name / E-Mail …" value="${esc(_kfState.q || '')}" oninput="applyKundenFilter()"></th>
                 <th><span class="kf-count" id="kf-count">${meine.length}</span></th>
                 <th><input type="number" id="kf-ek" placeholder="min €" min="0" step="1000" value="${_kfState.ekMin || ''}" oninput="applyKundenFilter()"></th>
                 <th><input type="number" id="kf-eink" placeholder="min €/Mo" min="0" step="50" value="${_kfState.einkMin || ''}" oninput="applyKundenFilter()"></th>
                 <th>${_kfBlDropdownHtml(meine)}</th>
                 <th><button onclick="_kfReset()" class="kf-reset" title="Filter zurücksetzen">↺</button></th>
-              </tr>` : ''}
+              </tr>
             </thead>
             <tbody>
               ${meine.map(k => _renderKundeRow(k)).join('')}
@@ -518,6 +537,10 @@ function _renderKundeRow(k) {
   const _hasSa = !!k.saJson;
   // Letzte Aktivität: wenn null → klarer Hinweis statt leerer Zelle
   const _lastActAt = k.lastActivity ? fmtDate(k.lastActivity) : '— noch keine —';
+  // FS-2p: Phase + WV pro Zeile für Filter (analog data-ek/data-bls)
+  const _trackerForFilter = (typeof getKavTracker === 'function') ? getKavTracker(k) : null;
+  const _phaseId = _trackerForFilter ? kavCurrentPhase(_trackerForFilter) : '';
+  const _wvStatus = _trackerForFilter ? (kavWiedervorlageStatus(_trackerForFilter).status || 'none') : 'none';
   // Anzeige Wunschregionen: Bundesland-Namen + Kreis-Anzahl
   const regCells = [...fd.blSet].map(bl => {
     const krCount = [...fd.kreisSet].filter(key => key.startsWith(bl + ':')).length;
@@ -539,6 +562,8 @@ function _renderKundeRow(k) {
         data-eink="${Math.round(fd.ueber)}"
         data-bls="${esc(blsCsv)}"
         data-kreise="${esc(kreisCsv)}"
+        data-phase="${esc(_phaseId)}"
+        data-wv="${esc(_wvStatus)}"
         onclick="go('/kunde/${esc(k.id)}')">
       <td><strong>${esc(_displayName)}</strong>${k.email && _displayName !== k.email ? `<div class="text-tertiary text-small">${esc(k.email)}</div>` : ''}</td>
       <td>${kavListeBadges(k)}</td>
@@ -568,16 +593,20 @@ const _kfState = (() => {
         einkMin: o.einkMin || 0,
         bls: new Set(Array.isArray(o.bls) ? o.bls : []),
         kreise: new Set(Array.isArray(o.kreise) ? o.kreise : []),
+        // FS-2p (Edgar 25.05.2026): Phase- und WV-Filter persistent
+        phase: o.phase || null,  // 'phase1' | 'phase2' | 'phase3' | 'abgeschlossen' | null
+        wv: o.wv || null,        // 'overdue' | 'today' | 'soon' | 'future' | 'none' | null
       };
     }
   } catch {}
-  return { q: '', ekMin: 0, einkMin: 0, bls: new Set(), kreise: new Set() };
+  return { q: '', ekMin: 0, einkMin: 0, bls: new Set(), kreise: new Set(), phase: null, wv: null };
 })();
 function _kfPersist() {
   try {
     sessionStorage.setItem(_KF_LS_KEY, JSON.stringify({
       q: _kfState.q, ekMin: _kfState.ekMin, einkMin: _kfState.einkMin,
-      bls: [..._kfState.bls], kreise: [..._kfState.kreise]
+      bls: [..._kfState.bls], kreise: [..._kfState.kreise],
+      phase: _kfState.phase, wv: _kfState.wv,
     }));
   } catch {}
 }
@@ -714,10 +743,13 @@ function _kfReset() {
   _kfState.einkMin = 0;
   _kfState.bls.clear();
   _kfState.kreise.clear();
+  _kfState.phase = null;  // FS-2p
+  _kfState.wv = null;     // FS-2p
   _kfPersist();
   document.querySelectorAll('#kf-bl-popup .kf-bl-opt input[type=checkbox]').forEach(cb => cb.checked = false);
   _kfRefreshDropdownTrigger();
-  applyKundenFilter();
+  // FS-2p: bei Phase/WV-Reset auch re-render damit Chips ihren Aktiv-State aktualisieren
+  renderDashboard();
 }
 window._kfReset = _kfReset;
 
@@ -738,6 +770,8 @@ function applyKundenFilter() {
     const eink = parseFloat(r.dataset.eink) || 0;
     const bls = (r.dataset.bls || '').split(',').filter(Boolean);
     const kreise = (r.dataset.kreise || '').split('|').filter(Boolean);
+    const phase = r.dataset.phase || '';
+    const wv = r.dataset.wv || 'none';
     let match = true;
     if (q && !text.includes(q)) match = false;
     if (ekMin > 0 && ek < ekMin) match = false;
@@ -748,14 +782,15 @@ function applyKundenFilter() {
       if (!blMatch) match = false;
     }
     // Multi-Kreis: Kunde matched wenn EINER seiner Kreise in der Filter-Auswahl ist
-    // (Kreis-Filter implizit innerhalb der BL-Filter — wenn Kreise gesetzt, müssen sie matchen)
     if (_kfState.kreise.size > 0) {
-      // Wenn der BL des Kreises insgesamt aktiv ist UND keine Kreise diesem BL gefiltert,
-      // gilt der Kunde als „BL-weite Auswahl" und matched.
       const krMatch = kreise.some(k => _kfState.kreise.has(k))
         || bls.some(bl => _kfState.bls.has(bl) && ![..._kfState.kreise].some(k => k.startsWith(bl + ':')));
       if (!krMatch) match = false;
     }
+    // FS-2p: Phase-Filter
+    if (_kfState.phase && phase !== _kfState.phase) match = false;
+    // FS-2p: WV-Filter
+    if (_kfState.wv && wv !== _kfState.wv) match = false;
     r.style.display = match ? '' : 'none';
     if (match) visible++;
   });
@@ -765,6 +800,21 @@ function applyKundenFilter() {
   if (cnt) cnt.textContent = `${visible} von ${rows.length} Kunden`;
 }
 window.applyKundenFilter = applyKundenFilter;
+
+// FS-2p (Edgar 25.05.2026): Chip-Click-Handler für Phase + WV.
+// Klick auf bereits aktiven Chip = toggle aus (= „Alle").
+function _kfPhase(phaseId) {
+  _kfState.phase = (_kfState.phase === phaseId) ? null : phaseId;
+  _kfPersist();
+  renderDashboard();
+}
+window._kfPhase = _kfPhase;
+function _kfWv(status) {
+  _kfState.wv = (_kfState.wv === status) ? null : status;
+  _kfPersist();
+  renderDashboard();
+}
+window._kfWv = _kfWv;
 
 // QA-Fix 2026-05-23 (Audit-EE-3): Live-Suche auf Dashboard. Backward-Compat —
 // ruft jetzt den neuen applyKundenFilter mit übersetztem Wert auf.

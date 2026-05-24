@@ -3672,6 +3672,74 @@ input[type="range"].spar-zins-range::-moz-range-track {
   border-color: var(--accent);
 }
 
+/* FS-2p (Edgar 25.05.2026): Phase- + WV-Filter-Chips über der Tabelle.
+   Klare Quick-Filter pro Pipeline-Stand. */
+.kf-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+  background: var(--bg-section, #f7f5f0);
+  border-radius: 8px;
+  border: 1px solid var(--border-light, #e8e4dc);
+}
+.kf-chip-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.kf-chip-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary, #888);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+.kf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  background: #fff;
+  border: 1px solid var(--border, #d6d2c8);
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #555);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  font-family: inherit;
+}
+.kf-chip:hover {
+  background: var(--bg-cream, #faf7f0);
+  border-color: var(--accent, #B08A4D);
+}
+.kf-chip.active {
+  background: var(--accent, #B08A4D);
+  border-color: var(--accent-dark, #8e6e3d);
+  color: #fff;
+}
+.kf-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  padding: 0 5px;
+  background: rgba(0,0,0,0.08);
+  border-radius: 9px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.kf-chip.active .kf-chip-count {
+  background: rgba(255,255,255,0.25);
+}
+.kf-chip-overdue.active { background: var(--negative, #9A3E33); border-color: var(--negative, #9A3E33); }
+.kf-chip-today.active   { background: var(--accent-dark, #8e6e3d); border-color: var(--accent-dark, #8e6e3d); }
+.kf-chip-soon.active    { background: var(--accent, #B08A4D); border-color: var(--accent, #B08A4D); }
+
 /* BL-Multi-Select-Dropdown im Filter-Header */
 .kf-bl-dd {
   position: relative;
