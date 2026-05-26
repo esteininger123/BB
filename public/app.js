@@ -3674,12 +3674,16 @@ function renderStoryPremium(r) {
   // ===== SECTION 3 · Aussicht =====
   // Iter 90: bei 110%-Finanzierung (EK=0) IRR nicht zeigen — mathematisch undefiniert.
   const ekIstNull = !r.ekBedarf || r.ekBedarf <= 100;
+  // FS-3r (Edgar 26.05.2026): „Aus X € EK werden Y € Nettovermögen" war
+  // irreführend — Engine rechnet vermoegenNetto = vermoegenBrutto − ekBedarf,
+  // also ist Y der **Zuwachs** *über* das eingesetzte EK hinaus, nicht der
+  // Endwert von X. Klare Formulierung: „entstehen +Y € Vermögenszuwachs".
   const ekHeadline = ekIstNull
-    ? `In zehn Jahren baust Du <span style="color:var(--accent-dark)">${fmt(r.vermoegenNetto10)}</span> Nettovermögen auf — ohne Eigenkapital-Einsatz.`
-    : `Aus ${fmt(r.ekBedarf)} Eigenkapital werden ${fmt(r.vermoegenNetto10)} Nettovermögen.`;
+    ? `In zehn Jahren entstehen <span style="color:var(--accent-dark)">+${fmt(r.vermoegenNetto10)}</span> Vermögenszuwachs — ohne Eigenkapital-Einsatz.`
+    : `Aus ${fmt(r.ekBedarf)} Eigenkapital entstehen in 10 Jahren <span style="color:var(--accent-dark)">+${fmt(r.vermoegenNetto10)}</span> Vermögenszuwachs.`;
   const renditeSatz = ekIstNull
     ? `Da Du kein eigenes Kapital einsetzt, gibt es keine klassische Eigenkapital-Rendite — der gesamte Vermögenszuwachs entsteht aus Restschuld-Abbau und Wertsteigerung.`
-    : `Dein Nettowert — Marktwert abzüglich Restschuld und kumulierter Eigenleistung — erreicht im Jahr 10 die genannten ${fmt(r.vermoegenNetto10)}. Das ist nach 10 Jahren ein interner Zinsfuß von <strong>${fmtPct(r.irr)}</strong>.`;
+    : `Der Vermögenszuwachs ist Dein Gesamtvermögen (Marktwert minus Restschuld plus kumulierte Cashflows) abzüglich der eingesetzten ${fmt(r.ekBedarf)} Eigenkapital — also der echte Mehrwert nach 10 Jahren. Das entspricht einem internen Zinsfuß von <strong>${fmtPct(r.irr)}</strong>.`;
   // FS-3g (Audit PDF+Magazin P2.2 25.05.2026): Vorher zeigten die Section
   // zwei verschiedene J10-Werte direkt nebeneinander ohne Erklärung:
   //  - ekHeadline: vermoegenNetto10 (Reingewinn = Brutto − EK-Bedarf)
@@ -7758,10 +7762,25 @@ function _renderWeListeContent() {
         <summary class="admin-audit-summary-bar"><strong>${esc(pn)}</strong> <span class="text-tertiary text-small" style="font-weight:normal;margin-left:8px;">${rows.length} WEs</span></summary>
         <div style="overflow-x:auto;">
           <table class="table mt-8 we-liste-table">
+            <colgroup>
+              <col style="width:32px;">
+              <col style="width:11%;">
+              <col style="width:7%;">
+              <col style="width:9%;">
+              <col style="width:13%;">
+              <col style="width:6%;">
+              <col style="width:6%;">
+              <col style="width:11%;">
+              <col style="width:7%;">
+              <col style="width:8%;">
+              <col style="width:8%;">
+              <col style="width:7%;">
+              <col style="width:5%;">
+            </colgroup>
             <thead>
               <tr>
-                <th style="width:32px;padding:6px 4px;" title="Zum Vergleich auswählen"></th>
-                <th style="min-width:170px;">Wohneinheit</th>
+                <th style="padding:6px 4px;" title="Zum Vergleich auswählen"></th>
+                <th>Wohneinheit</th>
                 <th>Vermietungs-Modus</th>
                 <th class="num">Kaufpreis WHG</th>
                 <th class="num">Kaltmiete WHG</th>

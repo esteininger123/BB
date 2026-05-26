@@ -2523,9 +2523,12 @@ input[type="range"].spar-zins-range::-moz-range-track {
 }
 
 /* QA-Sprint 2026-05-23: Vertriebs-WE-Liste */
-.we-liste-table{ width:100%; font-size:13px; }
-.we-liste-table th{ font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--text-tertiary); font-weight:500; padding:8px 10px; }
-.we-liste-table td{ padding:10px; border-bottom:1px solid var(--border); vertical-align:top; }
+/* FS-3s (Edgar 26.05.2026): table-layout:fixed + colgroup-%-Breiten — sonst
+   verteilt der Browser nach Header-Text-Länge, „Wohneinheit"+„Vermietungs-Modus"
+   bekommen zu viel Platz, „Kaltmiete WHG" (2-Wert-Stack) bricht in 5 Zeilen. */
+.we-liste-table{ width:100%; font-size:13px; table-layout:fixed; }
+.we-liste-table th{ font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--text-tertiary); font-weight:500; padding:8px 8px; word-wrap:break-word; }
+.we-liste-table td{ padding:10px 8px; border-bottom:1px solid var(--border); vertical-align:top; word-wrap:break-word; }
 .we-liste-row{ cursor:pointer; transition:background .12s ease; }
 .we-liste-row:hover{ background:var(--bg-section); }
 .we-liste-table td.num{ text-align:right; font-variant-numeric:tabular-nums; }
