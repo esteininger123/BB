@@ -2279,22 +2279,33 @@ function kalkInputsThemenHtml(i) {
                               quelle === 'mietvertrag' ? 'aus Mietvertrag' :
                               quelle === 'leerstand-keine' ? '(Leerstand)' :
                               quelle === 'unbekannt' ? '⚠ nicht gepflegt' : '';
-          // Iter 78: Tag-1-Override-Hinweis (Vereinbarung oder Iter63-Annahme)
-          let tag1Hint = '';
+          // FS-3w (Edgar 26.05.2026, UX-Fix): Wenn Tag-1-Anhebung greift, ist die
+          //   Original-Quelle für den Vertriebler nicht mehr relevant — was zählt
+          //   ist die Vereinbarung. Statuszeile zeigt dann NUR den Tag-1-Hinweis
+          //   (vorher 4-teiliger Bandwurm "— · aus Stammdaten · ↑ Tag-1 · Original").
+          //   Bei Iter63-Annahme (kein konkretes Datum) bleibt das Original-Datum als
+          //   Kontext für den Vertriebler sichtbar.
+          let statusLabel = '';
           if (state.kalk._subventionTag1Erhoehung) {
             const altDate = state.kalk._letzteMietsteigerung;
             const altStr = altDate ? (() => {
               const d = new Date(altDate);
               return isNaN(d.getTime()) ? '' : `${('0'+(d.getMonth()+1)).slice(-2)}/${d.getFullYear()}`;
             })() : '';
-            const altSuffix = altStr ? ` · Original: ${altStr}` : '';
-            tag1Hint = state.kalk._subventionTag1Quelle === 'vereinbarung'
-              ? ` · <span style="color:#0f5132;">↑ Tag-1-Anhebung aus Vereinbarung${altSuffix}</span>`
-              : ` · <span style="color:#664d03;">↑ Tag-1-Anhebung (Annahme${altSuffix})</span>`;
+            if (state.kalk._subventionTag1Quelle === 'vereinbarung') {
+              statusLabel = `<span style="color:#0f5132;">↑ Tag-1-Anhebung aus Vereinbarung — gültig ab oben gewähltem Datum</span>`;
+            } else {
+              // Iter63-Annahme: kein vereinbartes Datum → Original als Kontext zeigen
+              const altSuffix = altStr ? ` (Original: ${altStr})` : '';
+              statusLabel = `<span style="color:#664d03;">↑ Tag-1-Anhebung (rechnerische Annahme, >3 J seit letzter Erhöhung)${altSuffix}</span>`;
+            }
+          } else {
+            // Normalfall: Monatszahl + Quellen-Label
+            statusLabel = esc(monateAnzeige) + (quelleLabel ? ' · ' + esc(quelleLabel) : '');
           }
           return `
             <div class="slider-row">
-              <label>Letzte Mieterhöhung <span class="slider-val">${esc(monateAnzeige)}${quelleLabel ? ' · ' + esc(quelleLabel) : ''}${tag1Hint}</span></label>
+              <label>Letzte Mieterhöhung <span class="slider-val">${statusLabel}</span></label>
               <input data-kalk="letzteMietsteigerung" type="date" value="${esc(datum || '')}" style="padding:6px 10px; font-size:14px;">
             </div>
           `;
@@ -2697,7 +2708,15 @@ async function loadWeIntoKalk(weId) {
         state.kalk.kaltmiete = state.kalk._subventionKaltmieteAdjustiert;
         state.kalk._mieteBeiVerkaufActive = true;
         // Tag-1-Erhöhung gilt als „gerade gemacht" → Phase 1 läuft volle 36 Mo ab jetzt.
-        state.kalk.letzteMietsteigerung = null;
+        // FS-3w (Edgar 26.05.2026, UX-Fix): Datum-Input nicht auf null setzen, sondern
+        //   auf das Vereinbarungs-Datum (falls vorhanden) oder heute. Vorher zeigte
+        //   der Date-Input `tt.mm.jjjj`-Placeholder, dazu eine 4-teilige Status-Zeile
+        //   („— · aus Stammdaten · ↑ Tag-1-Anhebung · Original: 06/2026") — sah aus
+        //   wie ein Daten-Pflegefehler, war aber nur Engine-Status.
+        //   Engine-Korrektheit bleibt: zukünftige Daten clampt kalkulator.js:714
+        //   via Math.max(0, ...) auf monateSeit=0 → M1=36 → Phase 1 volle 36 Mo. ✓
+        const vereinbDatum = state.kalk._vereinbarung && state.kalk._vereinbarung.datum;
+        state.kalk.letzteMietsteigerung = vereinbDatum || new Date().toISOString().slice(0, 10);
         state.kalk.monateSeitMieterhoehung = 0;
       }
       // Iter 41.9 — Markt-Schnitt (IS + HD)
