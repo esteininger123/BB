@@ -153,7 +153,12 @@ const KALK_STAMMDATEN_FIELDS = {
   LETZTE_MIETSTEIGERUNG: 'fldpLwMLe2PTCO3t7',
   GRESt:                 'fld8pmE00wfH0v7jR',
   GEBAEUDE_ANTEIL:       'fld56AAbrC4yPJQrb',
-  HG_INFLATION:          'fld6KJtkjtXjSVhtk',
+  // HG_INFLATION entfernt (Edgar 26.05.2026): Feld in Airtable physisch gelöscht.
+  // Solange die Field-ID in dieser Liste stand, scheiterte JEDER listAll-Call
+  // auf KALK_STAMMDATEN mit Airtable-422 — Folge: kalkStammdaten=null → Frontend
+  // zeigte für ALLE WEs „Keine Stammdaten gepflegt — läuft mit Defaults".
+  // hgInflation wird seit 24.05.2026 ohnehin als 0 hartcodiert (siehe
+  // kalkStammRecordToApi + maybeWriteBackAutoSubv).
   NOTIZEN:               'fld097ACU9qRS5kwq',
   QUELLE:                'fldrMUcQs06YF0lGi',
   // Iter 41.9 — Henry-Feedback 17.05.2026:
