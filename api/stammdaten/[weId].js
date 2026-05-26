@@ -677,7 +677,10 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
         : `${('0'+d.getDate()).slice(-2)}.${('0'+(d.getMonth()+1)).slice(-2)}.${d.getFullYear()}`;
       erl = `Miete bei Verkauf ≥ Marktmiete — keine legale Erhöhung möglich. Hinweis: Mit dem Mieter ist eine Erhöhung auf ${Math.round(vereinbarungInfo.kaltmiete)} €/Mo ab ${datumStr} (${vereinbarungInfo.monateBisErhoehung} Mo Vorlauf) vereinbart, aber wegen langer Vorlaufzeit nicht in die Kalkulation übernommen.`;
     } else {
-      erl = 'Miete bei Verkauf ≥ Marktmiete — keine legale Erhöhung möglich.';
+      // FS-3y (Edgar 26.05.2026): Erläuterung an FS-3x-Engine-Verhalten angepasst.
+      // Vertragsmiete bleibt konstant — Cap holt erst über die Jahre auf, dann
+      // sind reguläre Mietsteigerungen möglich.
+      erl = 'Miete bei Verkauf liegt über der heutigen Marktmiete — kein B&B-Subv-Aufschlag möglich. Der Mieter zahlt die Vertragsmiete konstant; reguläre Erhöhungen greifen erst, wenn der Marktwert (mit Wertsteigerung) die Vertragsmiete einholt.';
     }
     return Object.assign({}, empty, {
       quelle: tag1Quelle === 'vereinbarung' ? 'auto-vereinbart' : 'auto-kein-spielraum',

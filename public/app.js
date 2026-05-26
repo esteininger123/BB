@@ -2192,13 +2192,19 @@ function kalkInputsThemenHtml(i) {
           // fehlte hier — Folge: Vertriebler sah neutrale graue Card „Keine Mietsubvention"
           // statt roter Warn-Card. Glaubwürdigkeits-Falle (Henry: „keine Subv" sagt er
           // dem Kunden, später kommt raus dass Marktmiete einfach nicht gepflegt war).
-          const istLuecke = ['auto-mbv-fehlt','auto-kappung-fehlt','auto-modus-fehlt','auto-kein-spielraum','auto-marktmiete-fehlt'].includes(quelle);
+          //
+          // FS-3y (Edgar 26.05.2026): `auto-kein-spielraum` raus aus der Pflegelücken-Liste.
+          // Mit dem FS-3x-Fix ist das KEIN Fehler mehr: Mieter zahlt vertraglich MbV
+          // konstant, Käufer-Cashflow bleibt stabil bis Marktmiete (mit Wertsteigerung)
+          // die Vertragsmiete einholt. Die rote Warn-Card war für diese WEs (Bestandsmieter
+          // über Markt) falsch alarmistisch — fällt jetzt in den neutralen „Keine
+          // Mietsubvention"-Block unten.
+          const istLuecke = ['auto-mbv-fehlt','auto-kappung-fehlt','auto-modus-fehlt','auto-marktmiete-fehlt'].includes(quelle);
           if (istLuecke) {
             const pflegeMap = {
               'auto-mbv-fehlt':         'Miete bei Verkauf',
               'auto-kappung-fehlt':     'Kappungsgrenze',
               'auto-modus-fehlt':       'Vermietungs-Modus',
-              'auto-kein-spielraum':    'Marktmiete (liegt aktuell ≤ Miete bei Verkauf)',
               'auto-marktmiete-fehlt':  'Marktmiete (€/qm)',
             };
             const fehlend = pflegeMap[quelle] || quelle;
