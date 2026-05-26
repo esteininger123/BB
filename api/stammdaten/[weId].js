@@ -331,6 +331,15 @@ async function loadKalkStammdatenForWE(weId) {
     return pick;
   } catch (e) {
     console.error('loadKalkStammdatenForWE failed:', e.message);
+    // FS-3A (Edgar 26.05.2026): Schema-Drift (422 Field-missing) NICHT silent
+    // schlucken — sonst sieht der Vertriebler nur „Keine Stammdaten gepflegt"
+    // statt der eigentlichen Ursache. Heute Vormittag (HG_INFLATION) +
+    // 18:51 (Vereinbarte-Erhöhung) waren genau dieser Fall.
+    // Andere Fehler (Netzwerk, Auth) bleiben silent → Frontend zeigt
+    // „kein Stammdatensatz".
+    if (e && e.message && /Could not find a field with name or ID/i.test(e.message)) {
+      throw e;
+    }
     return null;
   }
 }
