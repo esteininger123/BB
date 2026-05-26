@@ -7697,30 +7697,43 @@ function _renderWeListeContent() {
           <td>${modusBadge}</td>
           <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
           <td class="num">${(() => {
-            // FS-2r (Edgar 25.05.2026, Option A): Anzeige spiegelt die effektive
-            // Käufer-Miete = MBV wenn gepflegt, sonst IST. Bei Bestand mit
-            // MBV-Override (MBV != IST) zeigen wir beide Werte (MBV oben, IST
-            // als „Mietvertrag aktuell X €" Sub-Info).
+            // FS-3p (Edgar 26.05.2026): Spalte zeigt jetzt zwei Werte parallel
+            // analog zum Kaufpreis (KP + €/qm):
+            //   Zeile 1: „Ohne Subv" = was der Mieter zahlt (= adj | MBV | IST)
+            //   Zeile 2: „Mit Subv"  = Käufer-Einnahme = Mieter + Phase-1-Subv
+            //   Zeile 3: €/qm der Käufer-Einnahme (analog €/qm beim KP)
+            // Wenn Subv = 0 (Neuvermietung, MBV ≈ Markt): nur die Miete + €/qm
+            // (keine Doppel-Zeile, weil identisch).
             const det = detailById && detailById[we.id];
             const adj = det && det.derived && det.derived.subventionKaltmieteAdjustiert;
             const sdLocal = (det && det.kalkStammdaten) || sd;
             const mbvLocal = sdLocal.mieteBeiVerkauf || 0;
             const istLocal = we.kaltmiete || 0;
-            const modusLocal = String(sdLocal.vermietungsModus || '').toLowerCase();
-            const istNeuLocal = modusLocal.includes('neuvermietung') || modusLocal.includes('staffel') || modusLocal.includes('leer');
-            if (adj > 0) {
-              return fmtEurMo(adj) + '<div class="text-tertiary text-small">Tag-1 (vorher ' + Math.round(istLocal).toLocaleString('de-DE') + ' €)</div>';
+            // Mieter-Miete: Tag-1-Anhebung > MBV-Pflege > IST aus Vertrag
+            let mieterMiete = 0;
+            if (adj > 0) mieterMiete = adj;
+            else if (mbvLocal > 0) mieterMiete = mbvLocal;
+            else mieterMiete = istLocal;
+            if (mieterMiete <= 0) return '–';
+            const subvAufschlag = (calc && calc.subvMoPhase1) || 0;
+            const kaeuferMiete = mieterMiete + subvAufschlag;
+            const qm = we.qm || 0;
+            const eurProQmStr = qm > 0
+              ? (kaeuferMiete / qm).toFixed(2).replace('.', ',') + ' €/qm'
+              : '';
+            if (subvAufschlag > 0) {
+              return `
+                <div>${fmtEurMo(mieterMiete)}</div>
+                <div class="text-tertiary text-small">ohne Subv</div>
+                <div style="margin-top:3px;"><strong>${fmtEurMo(kaeuferMiete)}</strong></div>
+                <div class="text-tertiary text-small">mit Subv${eurProQmStr ? ' · ' + eurProQmStr : ''}</div>
+              `;
             }
-            if (istNeuLocal && mbvLocal > 0) {
-              const vorher = istLocal > 0 ? Math.round(istLocal).toLocaleString('de-DE') + ' € alt' : 'leer';
-              return fmtEurMo(mbvLocal) + '<div class="text-tertiary text-small">Neuvermietung (vorher ' + vorher + ')</div>';
-            }
-            // Bestand: MBV vor IST. Wenn Differenz > 5 €, IST als Sub-Info.
-            if (mbvLocal > 0 && Math.abs(mbvLocal - istLocal) > 5) {
-              return fmtEurMo(mbvLocal) + '<div class="text-tertiary text-small">MBV-Pflege (Vertrag aktuell ' + Math.round(istLocal).toLocaleString('de-DE') + ' €)</div>';
-            }
-            if (mbvLocal > 0) return fmtEurMo(mbvLocal);
-            return istLocal > 0 ? fmtEurMo(istLocal) : '–';
+            // Keine Subv (Neuvermietung, MBV ≈ Markt) → nur eine Zeile + €/qm
+            return `
+              <div>${fmtEurMo(mieterMiete)}</div>
+              ${eurProQmStr ? `<div class="text-tertiary text-small">${eurProQmStr}</div>` : ''}
+            `;
           })()}</td>
           <td class="num">${(stpl.anzahl > 0) ? fmtEur(stpl.kaufpreisSumme) : '–'}</td>
           <td class="num">${(stpl.anzahl > 0 && stpl.mieteMoSumme > 0) ? fmtEurMo(stpl.mieteMoSumme) : '–'}</td>
