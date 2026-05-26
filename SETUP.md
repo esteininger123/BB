@@ -75,7 +75,7 @@ Annahme: Du hast einen GitHub-Account. Wenn nicht: erstelle einen kostenlosen.
 1. Auf GitHub: **+ → New Repository** → Name: `bb-kalkulator-v2`, Privat
 2. **Lokal** in deinem Terminal:
    ```bash
-   cd ~/Documents/Claude-Cowork/02_BB_Immo/Kalkulations-Vorlage/webapp-v2/
+   cd ~/Documents/Claude-Cowork/02_BB_Immo/BB-Backstube/webapp-v2/
    git init
    git add .
    git commit -m "Initial commit — BB Kalkulator V2"

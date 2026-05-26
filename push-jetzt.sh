@@ -1,7 +1,7 @@
 #!/bin/bash
 # Push-Skript für die aktuelle Iteration (Iter 41 — Airtable-Stammdaten-Migration).
 # Ausführen mit:
-#   bash ~/Documents/Claude-Cowork/02_BB_Immo/Kalkulations-Vorlage/webapp-v2/push-jetzt.sh
+#   bash ~/Documents/Claude-Cowork/02_BB_Immo/BB-Backstube/webapp-v2/push-jetzt.sh
 #
 # Es committet alle Änderungen, die Claude im Mount gemacht hat,
 # und pusht zu GitHub. Vercel deployed dann automatisch (~30 Sek).
@@ -649,7 +649,7 @@ Iter 41 — Airtable als Single Source für Kalkulations-Stammdaten
   MIETER_FIELDS, KALK_STAMMDATEN_FIELDS und Status-Konstanten.
 
 - SOP-E v1.0 → v1.1: Verantwortungs-Split Henry/Schenki dokumentiert.
-- Neue Anleitung für Henry: _Cockpit/anleitungen/2026-05-15_Henry-Auftrag-Kalkulations-Stammdaten.md
+- Neue Anleitung für Henry: BB-Backstube/docs/2026-05-15_Henry-Auftrag-Kalkulations-Stammdaten.md
 - Cockpit aktualisiert.
 
 - Cache-Bust auf v=44."
