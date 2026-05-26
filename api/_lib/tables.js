@@ -173,13 +173,16 @@ const KALK_STAMMDATEN_FIELDS = {
   // ab, was bei leerstehenden Einheiten zu falscher Mietsteigerungs-Logik führte
   // (alter Vertragsbeginn wurde als „letzte Mieterhöhung" weiterverwendet).
   WE_VERMIETUNGSSTATUS:  'fld22W6xF260RHuNv', // Lookup aus Wohneinheit: "vermietet" | "leerstehend"
-  // Iter 70 (21.05.2026) — Einvernehmlich mit dem Mieter VOR Übergabe vereinbarte
-  // Mieterhöhung. Pflegt Henry, wenn ein neuer Mietvertrags-Nachtrag mit Mieter
-  // unterschrieben ist (z.B. „ab 1.7. zahlt der Mieter 800 €/Mo"). Beide Felder
-  // zusammen pflegen — der App-Code rechnet erst, wenn Datum UND neue Kaltmiete
-  // gesetzt sind. Vorrang vor der automatischen Tag-1-Erhöhung (Iter 63).
-  GEPLANTE_ERHOEHUNG_DATUM:    'fldlgR66D0zzaQ1hA', // Date — ab wann gilt die vereinbarte Miete
-  GEPLANTE_ERHOEHUNG_KALTMIETE: 'fldg9Pmx9sfFowLl9', // Currency €/Mo — neue Kaltmiete laut Vereinbarung
+  // GEPLANTE_ERHOEHUNG_DATUM + GEPLANTE_ERHOEHUNG_KALTMIETE entfernt
+  // (Edgar 26.05.2026): die zwei Stammdaten-Override-Felder wurden in Airtable
+  // physisch gelöscht — sie waren ein manueller Edgar-Override neben dem
+  // Mietvertrag-Default-Pfad (Schenki pflegt Anpassung gültig ab + Kaltmiete
+  // direkt in der Mietvertrag-Tabelle, das Backend liest das auto). Override
+  // wurde nie genutzt → weg.
+  //
+  // Solange die Field-IDs noch in dieser Liste standen, scheiterte JEDER
+  // listAll-Call auf KALK_STAMMDATEN mit Airtable-422 (gleiche Falle wie
+  // FS-3v / HG_INFLATION heute Vormittag) — Folge: WE-Liste „Backend-Fehler".
   // Iter-4 (21.05.2026) — Auto-Subv-Write-back. Backend schreibt nach jeder
   // /api/stammdaten/[weId]-Berechnung die computeAutoSubvention-Ergebnisse zurück,
   // damit die Airtable-KP-Vorschlag-Formel auch dann eine Subvention drin hat,

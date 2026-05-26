@@ -375,9 +375,10 @@ function kalkStammRecordToApi(rec) {
     // Iter 41.17 — Lookup „Miet-status (ist)" aus WE. Roher Wert wird in
     // resolveVermietungsstatus() normalisiert.
     weVermietungsstatusRaw: f[KALK_STAMMDATEN_FIELDS.WE_VERMIETUNGSSTATUS] || null,
-    // Iter 70 (21.05.2026) — Einvernehmliche Mieterhöhung vor Übergabe (siehe tables.js).
-    geplanteErhoehungDatum:     f[KALK_STAMMDATEN_FIELDS.GEPLANTE_ERHOEHUNG_DATUM] || null,
-    geplanteErhoehungKaltmiete: num(f[KALK_STAMMDATEN_FIELDS.GEPLANTE_ERHOEHUNG_KALTMIETE]),
+    // geplanteErhoehungDatum/Kaltmiete entfernt (Edgar 26.05.2026): die zwei
+    // Stammdaten-Override-Felder wurden physisch in Airtable gelöscht. Default-
+    // Pfad läuft jetzt ausschließlich über die Mietvertrag-Tabelle
+    // (vermietung.geplanteErhoehung) — siehe computeAutoSubvention.
     // Iter-4 (21.05.2026) — vom Backend zurückgeschriebene Auto-Subv (Vergleichswerte
     // für Idempotenz-Check beim Write-back).
     autoSubvMo:    num(f[KALK_STAMMDATEN_FIELDS.AUTO_SUBV_MO]),
@@ -590,14 +591,13 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   //   (b) Mietvertrag (Schenki legt bei unterschriebener Erhöhung einen neuen
   //       Mietvertrag mit GUELTIG_AB in der Zukunft an — Default-Workflow).
   //   Wenn (a) gepflegt: schlägt (b).
+  // Edgar 26.05.2026: stammdaten-override-Pfad entfernt — die zwei Felder
+  // (Vereinbarte Erhöhung — gültig ab / neue Kaltmiete) wurden in Airtable
+  // gelöscht. Default-Workflow läuft jetzt ausschließlich über den Mietvertrag.
   let geplDatumRaw = null;
   let geplKaltmiete = null;
-  let geplQuelle = null; // 'stammdaten-override' | 'mietvertrag'
-  if (kalkApi.geplanteErhoehungDatum && kalkApi.geplanteErhoehungKaltmiete && kalkApi.geplanteErhoehungKaltmiete > 0) {
-    geplDatumRaw = kalkApi.geplanteErhoehungDatum;
-    geplKaltmiete = kalkApi.geplanteErhoehungKaltmiete;
-    geplQuelle = 'stammdaten-override';
-  } else if (vermietung && vermietung.geplanteErhoehung) {
+  let geplQuelle = null; // 'mietvertrag'
+  if (vermietung && vermietung.geplanteErhoehung) {
     geplDatumRaw = vermietung.geplanteErhoehung.datum;
     geplKaltmiete = vermietung.geplanteErhoehung.kaltmiete;
     geplQuelle = 'mietvertrag';
