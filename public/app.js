@@ -7709,19 +7709,15 @@ function _renderWeListeContent() {
           <td>${modusBadge}</td>
           <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
           <td class="num">${(() => {
-            // FS-3p (Edgar 26.05.2026): Spalte zeigt jetzt zwei Werte parallel
-            // analog zum Kaufpreis (KP + €/qm):
-            //   Zeile 1: „Ohne Subv" = was der Mieter zahlt (= adj | MBV | IST)
-            //   Zeile 2: „Mit Subv"  = Käufer-Einnahme = Mieter + Phase-1-Subv
-            //   Zeile 3: €/qm der Käufer-Einnahme (analog €/qm beim KP)
-            // Wenn Subv = 0 (Neuvermietung, MBV ≈ Markt): nur die Miete + €/qm
-            // (keine Doppel-Zeile, weil identisch).
+            // FS-3t (Edgar 26.05.2026): von 4 Zeilen auf 2 Zeilen — einfacher
+            // aber vollständig. Zeile 1: Käufer-Miete (bold) · €/qm. Zeile 2:
+            // Mieter-Miete „ohne Subv" (klein). Bei WEs ohne Subv nur 2 Zeilen
+            // (Miete + €/qm).
             const det = detailById && detailById[we.id];
             const adj = det && det.derived && det.derived.subventionKaltmieteAdjustiert;
             const sdLocal = (det && det.kalkStammdaten) || sd;
             const mbvLocal = sdLocal.mieteBeiVerkauf || 0;
             const istLocal = we.kaltmiete || 0;
-            // Mieter-Miete: Tag-1-Anhebung > MBV-Pflege > IST aus Vertrag
             let mieterMiete = 0;
             if (adj > 0) mieterMiete = adj;
             else if (mbvLocal > 0) mieterMiete = mbvLocal;
@@ -7735,13 +7731,10 @@ function _renderWeListeContent() {
               : '';
             if (subvAufschlag > 0) {
               return `
-                <div>${fmtEurMo(mieterMiete)}</div>
-                <div class="text-tertiary text-small">ohne Subv</div>
-                <div style="margin-top:3px;"><strong>${fmtEurMo(kaeuferMiete)}</strong></div>
-                <div class="text-tertiary text-small">mit Subv${eurProQmStr ? ' · ' + eurProQmStr : ''}</div>
+                <div><strong>${fmtEurMo(kaeuferMiete)}</strong>${eurProQmStr ? ` · ${eurProQmStr}` : ''}</div>
+                <div class="text-tertiary text-small">${fmtEurMo(mieterMiete)} ohne Subv</div>
               `;
             }
-            // Keine Subv (Neuvermietung, MBV ≈ Markt) → nur eine Zeile + €/qm
             return `
               <div>${fmtEurMo(mieterMiete)}</div>
               ${eurProQmStr ? `<div class="text-tertiary text-small">${eurProQmStr}</div>` : ''}
@@ -7772,34 +7765,34 @@ function _renderWeListeContent() {
           <table class="table mt-8 we-liste-table">
             <colgroup>
               <col style="width:32px;">
+              <col style="width:9%;">
+              <col style="width:8%;">
+              <col style="width:8%;">
+              <col style="width:12%;">
+              <col style="width:5%;">
+              <col style="width:6%;">
               <col style="width:11%;">
+              <col style="width:7%;">
               <col style="width:7%;">
               <col style="width:9%;">
-              <col style="width:13%;">
-              <col style="width:6%;">
-              <col style="width:6%;">
-              <col style="width:11%;">
-              <col style="width:7%;">
               <col style="width:8%;">
-              <col style="width:8%;">
-              <col style="width:7%;">
-              <col style="width:5%;">
+              <col style="width:6%;">
             </colgroup>
             <thead>
               <tr>
                 <th style="padding:6px 4px;" title="Zum Vergleich auswählen"></th>
                 <th>Wohneinheit</th>
-                <th>Vermietungs-Modus</th>
-                <th class="num">Kaufpreis WHG</th>
-                <th class="num">Kaltmiete WHG</th>
+                <th>Modus</th>
+                <th class="num">Kaufpreis</th>
+                <th class="num">Kaltmiete</th>
                 <th class="num">Garage KP</th>
                 <th class="num">Garage Miete</th>
                 <th class="num">Mietsubvention</th>
                 <th class="num">Brutto-Rendite</th>
-                <th class="num">Cashflow J1 n. St.</th>
+                <th class="num" title="Cashflow Jahr 1 nach Steuern">CF J1 n.St.</th>
                 <th class="num">Vermögen J10</th>
-                <th class="num" title="Vermögensaufbau J10 ÷ Kaufpreis (Whg + Garage) — wie viel Vermögen pro investiertem €">Wachstum %</th>
-                <th class="num">IRR 10 J</th>
+                <th class="num" title="Vermögensaufbau J10 ÷ Kaufpreis (Whg + Garage) — wie viel Vermögen pro investiertem €">Wachstum</th>
+                <th class="num">IRR 10J</th>
               </tr>
             </thead>
             <tbody>${trs}</tbody>
