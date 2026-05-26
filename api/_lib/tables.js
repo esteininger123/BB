@@ -182,16 +182,15 @@ const KALK_STAMMDATEN_FIELDS = {
   // Henry/Vertrieb pflegt diese Felder NICHT manuell — sie sind Backend-Output.
   AUTO_SUBV_MO:    'fldLV8CC1wvrRSJ6x', // Currency €/Mo — Phase-1-Subv-Rate
   AUTO_SUBV_TOTAL: 'fld99AS9ebipT5TSO', // Currency € — Total über alle Phasen
-  // Iter-4: Vermarktungs-KP-Vorschlag inkl. Subv-Aufschlag. Formel kombiniert
-  // den klassischen 'KP-Vorschlag Wohnung'-Wert (Ertragswert-basiert, ohne Subv)
-  // mit dem Subv-Aufschlag: manueller Mietzuschuss × Laufzeit, sonst Auto-Subv-Total.
-  KP_VORSCHLAG_BASIS:        'fldaxnWdFP1mLYVtH', // alt — ohne Subv
-  KP_VORSCHLAG_INKL_SUBV:    'fldHKSqsRVmKPlY5t', // Wohnung + Subv
-  // Iter-4 (22.05.2026): KP-Vorschlag GESAMT inkl. Stellplätze. Analog zu Henrys
-  // Auflistung (Spalten: Wohnung / Stellplätze / Gesamt). Das ist die Vermarktungs-
-  // Komplett-Paket-Zahl, die Käufer sieht.
+  // FS-3u (Edgar 26.05.2026): Pricing-Felder konsolidiert. Eine einzige
+  // Mega-Formel im KP_VORSCHLAG_WOHNUNG-Feld rechnet alles inline:
+  // Ertragswert + Vergleichswert (Mittelwert) − ½ × Subv-Total (Risiko-Abzug).
+  // Stellplatz bleibt separat. Die früheren Helper-Felder (KP_VORSCHLAG_INKL_SUBV,
+  // KP_VORSCHLAG_GESAMT, Marktpreis-Mittel, KP-Ertragswert, KP-Vergleichswert,
+  // KP-Diff-Warnung, Brutto-Rendite-Ist) wurden in Airtable mit [LÖSCHEN]-Präfix
+  // markiert und werden physisch entfernt.
+  KP_VORSCHLAG_WOHNUNG:      'fldaxnWdFP1mLYVtH', // Haupt-Pricing-Feld (inkl. Subv-Risiko-Abzug)
   STELLPLATZ_KP_GESAMT:      'fldwNFyzAk2EaQ15Q', // SUM aller verlinkten Stellplatz-KPs
-  KP_VORSCHLAG_GESAMT:       'fldmZHWs15KaPfmKD', // KP inkl. Subv + Stellplatz-KP-Summe
 };
 
 const KALK_STATUS_AKTIV    = 'Aktiv';
