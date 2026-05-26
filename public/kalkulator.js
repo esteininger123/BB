@@ -770,21 +770,41 @@ function recalc(i) {
   }
 
   function kaltmieteForMonth(m) {
-    const raw = i.kaltmiete * faktorFor(m);
+    const baseMbv = i.kaltmiete || 0;
+    const raw = baseMbv * faktorFor(m);
     // Iter 91.5 (22.05.2026): Im Sprung-Modus den Marktmiete-Cap zwischen
     // den Sprüngen einfrieren — sonst überlagert der jährlich wachsende
     // Cap (Iter 77) die Sprung-Logik und die effektive Miete steigt jährlich
     // statt alle 3 Jahre. Edgar-Befund: Belastung J7-J10 sollte konstant
     // bleiben (Sprung-Periode), stieg aber +20 €/Mo pro Jahr durch
     // jährliches Cap-Wachstum.
+    let capValue;
     if (i.mietsteigerungsModus === 'sprung') {
       const n = nSprungeSprung(m);
       // Cap am letzten Sprung-Übergang einfrieren; vor dem ersten Sprung
       // gilt der Cap am Anfang (m=1).
       const lastSprungM = (n > 0) ? (M1 + (n - 1) * 36) : 1;
-      return Math.min(raw, marktCapForMonth(lastSprungM));
+      capValue = marktCapForMonth(lastSprungM);
+    } else {
+      capValue = marktCapForMonth(m);
     }
-    return Math.min(raw, marktCapForMonth(m));
+    // FS-3x (Edgar 26.05.2026): Cap ist rechtliche Obergrenze für Erhöhungen,
+    // NICHT eine künstliche Reduktion der IST-Miete. Wenn die Vertragsmiete (MbV)
+    // bereits über der heutigen Marktmiete liegt, zahlt der Mieter weiter den
+    // vertraglich vereinbarten Wert — nicht weniger. Erhöhungen sind erst möglich,
+    // wenn der wachsende Markt-Cap die Vertragsmiete überholt; dann steigt die
+    // Miete mit dem Markt weiter mit.
+    //
+    // Vorher: Math.min(raw, capValue) — kappte MbV ab Tag 1 nach unten auf
+    // Cap-Niveau, wenn MbV > Markt. Edgar-Befund WE 11 Heidelberger: MbV 1.032,
+    // Markt 993 → Engine bucht 993 € statt vertraglicher 1.032, CF Jahr 2
+    // schon höher als CF Jahr 1 wegen Cap-Wachstum.
+    //
+    // Jetzt: Math.max(baseMbv, Math.min(raw, capValue)) — MbV als Floor.
+    //  - raw ≤ cap (Erhöhung passt unter Cap): nimm raw, Floor bleibt MbV
+    //  - raw > cap (Erhöhung würde Cap überschreiten): kappe auf cap
+    //  - cap < MbV (Markt noch nicht über Vertragsmiete): MbV bleibt
+    return Math.max(baseMbv, Math.min(raw, capValue));
   }
 
   // Iter 47/48: Globale Effektivmiete über alle Subv-Phasen konstant.
