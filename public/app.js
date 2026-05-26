@@ -3674,16 +3674,23 @@ function renderStoryPremium(r) {
   // ===== SECTION 3 · Aussicht =====
   // Iter 90: bei 110%-Finanzierung (EK=0) IRR nicht zeigen — mathematisch undefiniert.
   const ekIstNull = !r.ekBedarf || r.ekBedarf <= 100;
-  // FS-3r (Edgar 26.05.2026): „Aus X € EK werden Y € Nettovermögen" war
-  // irreführend — Engine rechnet vermoegenNetto = vermoegenBrutto − ekBedarf,
-  // also ist Y der **Zuwachs** *über* das eingesetzte EK hinaus, nicht der
-  // Endwert von X. Klare Formulierung: „entstehen +Y € Vermögenszuwachs".
+  // FS-3r v2 (Edgar 26.05.2026): Zwei-Werte-Darstellung — Headline zeigt
+  // Gesamtvermögen (intuitive „Aus X € werden Y €"-Story), Subline schlüsselt
+  // den Netto-Zuwachs auf. Engine: vermoegenBrutto = Marktwert − Restschuld
+  // + kumCF (Gesamt-Topf), vermoegenNetto = Brutto − ekBedarf (echter Mehrwert).
+  // Edgar's Logik: Brutto = EK + Zuwachs + Cashflow, Netto = Brutto − EK.
+  const vermoegenBrutto10 = (typeof r.vermoegenBrutto10 === 'number')
+    ? r.vermoegenBrutto10
+    : ((r.vermoegenNetto10 || 0) + (r.ekBedarf || 0));
   const ekHeadline = ekIstNull
-    ? `In zehn Jahren entstehen <span style="color:var(--accent-dark)">+${fmt(r.vermoegenNetto10)}</span> Vermögenszuwachs — ohne Eigenkapital-Einsatz.`
-    : `Aus ${fmt(r.ekBedarf)} Eigenkapital entstehen in 10 Jahren <span style="color:var(--accent-dark)">+${fmt(r.vermoegenNetto10)}</span> Vermögenszuwachs.`;
+    ? `In zehn Jahren wachsen <span style="color:var(--accent-dark)">${fmt(vermoegenBrutto10)}</span> Gesamtvermögen — ohne Eigenkapital-Einsatz.`
+    : `Aus ${fmt(r.ekBedarf)} Eigenkapital wachsen in 10 Jahren <span style="color:var(--accent-dark)">${fmt(vermoegenBrutto10)}</span> Gesamtvermögen.`;
+  const ekSubheadline = ekIstNull
+    ? `Reiner Vermögenszuwachs: <strong>${fmt(r.vermoegenNetto10)}</strong> — entsteht aus Wertsteigerung, Tilgung und Cashflow.`
+    : `Davon <strong>+${fmt(r.vermoegenNetto10)} Vermögenszuwachs netto</strong> — die ${fmt(r.ekBedarf)} eingesetztes Eigenkapital sind hier bereits abgezogen.`;
   const renditeSatz = ekIstNull
     ? `Da Du kein eigenes Kapital einsetzt, gibt es keine klassische Eigenkapital-Rendite — der gesamte Vermögenszuwachs entsteht aus Restschuld-Abbau und Wertsteigerung.`
-    : `Der Vermögenszuwachs ist Dein Gesamtvermögen (Marktwert minus Restschuld plus kumulierte Cashflows) abzüglich der eingesetzten ${fmt(r.ekBedarf)} Eigenkapital — also der echte Mehrwert nach 10 Jahren. Das entspricht einem internen Zinsfuß von <strong>${fmtPct(r.irr)}</strong>.`;
+    : `Das Gesamtvermögen setzt sich zusammen aus drei Quellen: Wertsteigerung der Immobilie, Tilgung der Restschuld und kumulierten Cashflows aus der Vermietung. Nach Abzug Deiner eingesetzten ${fmt(r.ekBedarf)} ergibt sich ein interner Zinsfuß von <strong>${fmtPct(r.irr)}</strong>.`;
   // FS-3g (Audit PDF+Magazin P2.2 25.05.2026): Vorher zeigten die Section
   // zwei verschiedene J10-Werte direkt nebeneinander ohne Erklärung:
   //  - ekHeadline: vermoegenNetto10 (Reingewinn = Brutto − EK-Bedarf)
@@ -3693,16 +3700,17 @@ function renderStoryPremium(r) {
   // Brutto-Wert braucht, findet ihn im Detail-Modal (Section 05).
   const metaLine3 = ekIstNull
     ? `Mein Anteil J10 · ${fmt(r.vermoegenNetto10)} &nbsp;·&nbsp; ohne EK-Einsatz`
-    : `IRR 10 J · ${fmtPct(r.irr)} &nbsp;·&nbsp; Vermögenszuwachs · ${fmt(r.vermoegenNetto10)}`;
+    : `IRR 10 J · ${fmtPct(r.irr)} &nbsp;·&nbsp; Gesamtvermögen · ${fmt(vermoegenBrutto10)} &nbsp;·&nbsp; davon netto · +${fmt(r.vermoegenNetto10)}`;
   const SECTION_03_VERMOEGEN = `
     <section class="kalk-c-section">
       <div class="kalk-c-section-head">
         <div class="kalk-c-left">
           <div class="kalk-c-section-num">03 · Vermögenszuwachs</div>
           <h2 class="kalk-c-section-title">${ekHeadline}</h2>
+          <p class="kalk-c-section-subtitle" style="margin:14px 0 0;font-size:16px;line-height:1.5;color:var(--text-secondary);max-width:62ch;">${ekSubheadline}</p>
         </div>
         <div class="kalk-c-right">
-          Dein Vermögensaufbau speist sich aus zwei Quellen: dem laufenden Tilgungsanteil Deiner Annuität und einer moderat gerechneten Wertsteigerung des Sachwerts.
+          Dein Vermögensaufbau speist sich aus drei Quellen: Wertsteigerung der Immobilie, Tilgung der Restschuld und kumulierte Cashflows aus der Vermietung.
         </div>
       </div>
       <div class="kalk-c-two-col kalk-c-reverse">
