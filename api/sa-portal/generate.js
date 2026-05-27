@@ -74,7 +74,10 @@ module.exports = async (req, res) => {
     ]);
     // Vercel-Preview-Pattern: bb-brown-pi-git-xxx.vercel.app
     const isPreview = /^bb-brown-pi-[a-z0-9-]+\.vercel\.app$/i.test(rawHost);
-    const host = (ALLOWED_HOSTS.has(rawHost) || isPreview) ? rawHost : 'bb-brown-pi.vercel.app';
+    // FS-4c (27.05.2026): Default-Host auf neue Production-Domain. Falls Host-Header
+    // weder Allowlist matched noch Preview-Pattern: backstube.bub-immo.de (statt
+    // bb-brown-pi.vercel.app) — wir migrieren auf die eigene Domain.
+    const host = (ALLOWED_HOSTS.has(rawHost) || isPreview) ? rawHost : 'backstube.bub-immo.de';
     const url = `${protoHeader}://${host}/sa-portal.html?token=${encodeURIComponent(token)}`;
 
     return res.status(200).json({
