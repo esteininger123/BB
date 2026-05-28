@@ -725,6 +725,11 @@ input[type="range"].spar-zins-range::-moz-range-track {
   /* Iter 85 (22.05.2026): page-break-inside: avoid für sa-table entfernt —
      Persönliche-Verhältnisse-Tabelle ist mit ~30 Zeilen größer als A4
      und wurde komplett auf die nächste Seite verschoben → Seite 1 war leer. */
+  /* 28.05.2026 (Edgar): Immobilien-Detail-Tabellen sind klein (≤ Seite) und dürfen
+     NICHT mitten im Block umbrechen — jede Immobilie bleibt zusammen. Gilt nur für
+     diese, nicht für die große Verhältnisse-Tabelle (s.o.). */
+  .sa-immo-table { page-break-inside: avoid; break-inside: avoid; }
+  .sa-immo-table tr { page-break-inside: avoid; break-inside: avoid; }
 
   /* SA: kein wiederholter sticky-Footer pro Sektion — der globale Bottom-Footer
      im letzten .pdf-page reicht aus. Andere PDFs (Investitionsrechnung, Reservierung)

@@ -1179,7 +1179,7 @@ function _buildSelbstauskunftBody(kunde, user) {
             const antSuffix = (full) => f < 1 ? ` <span style="color:#777;font-size:9px;">· davon Dein Anteil ${esc(fmtNum((parseFloat(full) || 0) * f))}</span>` : '';
             const notiz = (immo.notiz || '').trim();
             return `
-              <table class="sa-table" style="margin-top:3mm;">
+              <table class="sa-table sa-immo-table" style="margin-top:3mm;">
                 <thead><tr><th class="sa-section-h">IMMOBILIE ${idx + 1}${gemeinsam ? ' · ' + esc(rolle) : ''}</th><th colspan="2">${esc(immo.art || '')}${immo.anschrift ? ' · ' + esc(immo.anschrift) : ''}</th></tr></thead>
                 <tbody>
                   <tr><td class="sa-label">Anschrift</td><td colspan="2">${fld(immo.anschrift || '')}</td></tr>
