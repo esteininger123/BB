@@ -4912,6 +4912,19 @@ async function saveSnapshot() {
       weBezeichnung: weBez,
       pdfTyp: 'Investitionsrechnung',
       kalkJson: state.kalk,
+      // Kern-Ergebnisse für die lesbaren Airtable-Spalten (Backoffice).
+      kalkErgebnis: (function () {
+        const r = state.kalkResult;
+        if (!r) return null;
+        const cfJ1 = (Array.isArray(r.cf) && r.cf[0]) ? r.cf[0].cfJahr : null;
+        return {
+          ekBedarf: r.ekBedarf,
+          cfJ1Mo: (cfJ1 != null) ? cfJ1 / 12 : null,
+          vermoegenNetto10: r.vermoegenNetto10,
+          irr: r.irr,
+          bruttorendite: r.bruttorendite,
+        };
+      })(),
       bezeichnung: bez,
     });
     // POST-Response ist schon der gemappte Snapshot, aber Sicherheit halber gleich

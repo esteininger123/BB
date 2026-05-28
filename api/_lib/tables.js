@@ -75,7 +75,34 @@ const SNAPSHOT_FIELDS = {
   ERSTELLT_VON:   'fldOfahUEZJOvSzUy',
   PDF_TYP:        'fldXDtsB9FyqDh6Pu',
   KALK_JSON:      'fldi8yTPSesezJRYv',
-  CREATED:        'fldGeavlVvA5feJTC'
+  CREATED:        'fldGeavlVvA5feJTC',
+  // --- Klartext-Basis-Werte (28.05.2026): Backoffice sieht ohne JSON-Parse,
+  //     auf welcher Basis gerechnet wurde. Auto-befüllt aus kalkJson beim POST. ---
+  KAUFPREIS:        'fldUCIaouk06a9g05',
+  WOHNFLAECHE:      'fldy7gMlU6dGu5zZB',
+  KAUFPREIS_QM:     'fldCJwSRdGErsxrrP',
+  KALTMIETE:        'fldjNSivJDQIdBjiy',
+  MIETVERWALTUNG:   'fld6yycNNWeKM30ZN',
+  ZINS:             'fld9uABNRIAIEcC0J',
+  TILGUNG:          'fldlBjQ7DPDg3NZx3',
+  STEUERSATZ:       'fldLB5ICVUlsUyCtE',
+  AFA_SATZ:         'fldNeyUHc4kREBYIu',
+  WERTSTEIGERUNG:   'flddLfg2S7dgYElzv',
+  MARKTWERT_QM:     'fldmg7lNG8zdJKE6M',
+  KNK_MITFINANZIERT:'fldKvm1fzMdljWPOh',
+  VERMIETUNGSMODUS: 'fldFnbHAeuK8XORjG',
+  // --- Subvention-Details ---
+  SUBV_MO:          'fldGq9svE7UH4dG6T',
+  SUBV_MONATE:      'fld5LJQz3YtEfrkQm',
+  SUBV_GESAMT:      'fldxoEKYQzsGRJ81o',
+  SUBV_PHASEN:      'fldfZnfcbcElOAIMu',
+  SUBV_ERLAEUTERUNG:'fldXtRqKAbrEfxkOV',
+  // --- Kern-Ergebnisse (aus body.kalkErgebnis — neue Snapshots; Altbestand bleibt leer) ---
+  EK_BEDARF:        'fldtFOGrxFPt648CW',
+  CASHFLOW_J1_MO:   'fldu6FxAZ8TR1X5oY',
+  VERMOEGEN_NETTO_10:'fldKfP9D08CKFIP8R',
+  IRR:              'fldNnqRN4lWSeQvri',
+  BRUTTORENDITE:    'fldCq3Q9j6zqcUQay'
 };
 
 const WE_FIELDS = {

@@ -114,6 +114,56 @@ function snapshotBodyToFields(body, opts = {}) {
   if (body.pdfTyp        !== undefined) out[SNAPSHOT_FIELDS.PDF_TYP]     = body.pdfTyp || 'Investitionsrechnung';
   if (body.kalkJson      !== undefined) out[SNAPSHOT_FIELDS.KALK_JSON]   = stringifyJson(body.kalkJson);
   if (opts.erstelltVon) out[SNAPSHOT_FIELDS.ERSTELLT_VON] = [opts.erstelltVon];
+
+  // --- Klartext-Basis-Werte aus kalkJson (28.05.2026) ---
+  // Backoffice sieht in der Grid-Ansicht ohne JSON-Parse, auf welcher Basis gerechnet wurde.
+  const num = (v) => (v == null || v === '' || isNaN(Number(v))) ? null : Number(v);
+  const setIf = (field, val) => { if (val != null) out[field] = val; };
+
+  const k = (body.kalkJson && typeof body.kalkJson === 'object') ? body.kalkJson : null;
+  if (k) {
+    setIf(SNAPSHOT_FIELDS.KAUFPREIS, num(k.kaufpreis));
+    setIf(SNAPSHOT_FIELDS.WOHNFLAECHE, num(k.qm));
+    const kp = num(k.kaufpreis), qmv = num(k.qm);
+    setIf(SNAPSHOT_FIELDS.KAUFPREIS_QM, (kp != null && qmv) ? Math.round(kp / qmv) : null);
+    setIf(SNAPSHOT_FIELDS.KALTMIETE, num(k.kaltmiete));
+    setIf(SNAPSHOT_FIELDS.MIETVERWALTUNG, num(k.mietverwaltung));
+    setIf(SNAPSHOT_FIELDS.ZINS, num(k.zins));
+    setIf(SNAPSHOT_FIELDS.TILGUNG, num(k.tilgung));
+    setIf(SNAPSHOT_FIELDS.STEUERSATZ, num(k.steuersatz));
+    setIf(SNAPSHOT_FIELDS.AFA_SATZ, num(k.afaSatz));
+    setIf(SNAPSHOT_FIELDS.WERTSTEIGERUNG, num(k.wertsteigerung));
+    setIf(SNAPSHOT_FIELDS.MARKTWERT_QM, num(k.marktwertProQm));
+    out[SNAPSHOT_FIELDS.KNK_MITFINANZIERT] = !!k.knkMitfinanziert;
+    const vmod = k.vermietungsModus || k._vermietungsModus || '';
+    if (vmod) out[SNAPSHOT_FIELDS.VERMIETUNGSMODUS] = String(vmod);
+
+    // Subvention-Details
+    setIf(SNAPSHOT_FIELDS.SUBV_MO, num(k.subventionMo));
+    setIf(SNAPSHOT_FIELDS.SUBV_MONATE, num(k.subventionMonate));
+    setIf(SNAPSHOT_FIELDS.SUBV_GESAMT, num(k._subventionTotalEur));
+    if (Array.isArray(k.subventionPhasen) && k.subventionPhasen.length) {
+      const phasenTxt = k.subventionPhasen.map((p, idx) => {
+        const mo = num(p.mo), monate = num(p.monate);
+        const label = p.label || ('Phase ' + (idx + 1));
+        return `${label}: ${mo != null ? Math.round(mo) : '?'} €/Mo × ${monate != null ? monate : '?'} Mo`;
+      }).join('\n');
+      if (phasenTxt) out[SNAPSHOT_FIELDS.SUBV_PHASEN] = phasenTxt;
+    }
+    if (k._subventionErlaeuterung) out[SNAPSHOT_FIELDS.SUBV_ERLAEUTERUNG] = String(k._subventionErlaeuterung);
+  }
+
+  // --- Kern-Ergebnisse aus kalkErgebnis (Frontend sendet sie mit; Altbestand bleibt leer) ---
+  const e = (body.kalkErgebnis && typeof body.kalkErgebnis === 'object') ? body.kalkErgebnis : null;
+  if (e) {
+    setIf(SNAPSHOT_FIELDS.EK_BEDARF, num(e.ekBedarf));
+    const cf = num(e.cfJ1Mo);
+    setIf(SNAPSHOT_FIELDS.CASHFLOW_J1_MO, cf != null ? Math.round(cf) : null);
+    setIf(SNAPSHOT_FIELDS.VERMOEGEN_NETTO_10, num(e.vermoegenNetto10));
+    setIf(SNAPSHOT_FIELDS.IRR, num(e.irr));
+    setIf(SNAPSHOT_FIELDS.BRUTTORENDITE, num(e.bruttorendite));
+  }
+
   return out;
 }
 
