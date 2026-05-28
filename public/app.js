@@ -1922,6 +1922,7 @@ function renderTabKalkulator() {
       <div class="toolbar mt-16">
         <button onclick="saveSnapshot()">Snapshot speichern</button>
         <button class="secondary" onclick="openInvestDocModal()">Investitionsanalyse senden / herunterladen</button>
+        <button class="secondary" onclick="openRechenblatt()" title="Alle Zahlen tabellarisch zum Durchgehen mit dem Kunden — keine Story, eigener Tab, mit Excel-Download">Rechenblatt (Excel-Ansicht)</button>
         ${state.kalk && state.kalk._isPaket
           ? `<button disabled title="Bei Paket-Auswahl noch nicht unterstützt — bitte einzelne WE wählen" style="opacity:0.45;cursor:not-allowed;">Reservierung digital senden (nur Einzel-WE)</button>`
           : `<button onclick="sendReservierungForSignature()">Reservierung digital senden</button>`}
@@ -5017,6 +5018,30 @@ function exportSaPdf() {
 window.exportInvestPdf = exportInvestPdf;
 window.exportReservPdf = exportReservPdf;
 window.exportSaPdf = exportSaPdf;
+
+// Rechenblatt — Excel-artige Detail-Ansicht (eigener Tab, kein Teil des Investment-Reports).
+function openRechenblatt() {
+  if (!state.kalkResult || !state.kalk) {
+    toast('Erst eine Wohneinheit kalkulieren', 'warning');
+    return;
+  }
+  if (!window.Rechenblatt || !window.Rechenblatt.open) {
+    toast('Rechenblatt-Modul nicht geladen — Seite neu laden (Cmd+Shift+R).', 'error');
+    return;
+  }
+  // WE-Label auflösen (analog exportInvestPdf), ohne state.kalk zu mutieren.
+  let kalk = state.kalk;
+  try {
+    const w = state.kalk._weId ? (state.wohneinheiten || []).find(x => x.id === state.kalk._weId) : null;
+    if (w) {
+      const label = (w.projektName ? w.projektName + ' · ' : '') + (w.lageText || ('WE ' + w.weNr));
+      kalk = Object.assign({}, state.kalk, { _weLabel: label });
+    }
+  } catch {}
+  window.Rechenblatt.open(state.kunde, kalk, state.kalkResult, state.user);
+  try { _appendActivityToNotizen('Rechenblatt geöffnet'); } catch {}
+}
+window.openRechenblatt = openRechenblatt;
 
 // QA-Fix 2026-05-23 (Edgar-Doc Bug-10): Modal für Invest-Doc — wählen zwischen
 // Per Mail an Kunden senden oder als PDF herunterladen.
