@@ -299,6 +299,9 @@ async function loadInitialData() {
 
 async function loadKunde(id) {
   try {
+    // 28.05.2026: Ausstehenden Steuersatz-Save des VORHERIGEN Kunden sofort schreiben,
+    // bevor wir den neuen laden — sonst geht ein < 600ms alter Wert verloren.
+    if (typeof flushSteuersatzSave === 'function') flushSteuersatzSave();
     // FS-2f BLOCKER (24.05.2026 Bug-Sweep BUG-6): Queue beim Kunden-Wechsel
     // resetten. Sonst hängen alle Notizen-Mutations bei Kunde B in der Queue
     // hinter einem evtl. blockierten Save von Kunde A → „Buttons reagieren nicht".
@@ -2402,15 +2405,28 @@ window.addEventListener('beforeunload', (e) => {
 //   persistiert (debounced). So bleibt der Steuersatz über Quick/SA/Kalkulation
 //   und über WE-Wechsel + Kunde-Reload konsistent.
 let _steuersatzSaveTimer = null;
+let _steuersatzPending = null; // { kundeId, v } — captured zum Änderungs-Zeitpunkt
+// Speichert einen ausstehenden Steuersatz sofort (clear Timer). Wird beim
+// Kunde-Wechsel aufgerufen, damit kein Wert verloren geht (Bug-Fix 28.05.2026).
+function flushSteuersatzSave() {
+  if (_steuersatzSaveTimer) { clearTimeout(_steuersatzSaveTimer); _steuersatzSaveTimer = null; }
+  const p = _steuersatzPending;
+  _steuersatzPending = null;
+  if (!p || !p.kundeId) return;
+  api.put('/api/kunden/' + p.kundeId, { steuersatz: p.v })
+    .then(() => { if (state.kunde && state.kunde.id === p.kundeId) state.kunde.steuersatz = p.v; })
+    .catch(() => { /* nicht kritisch — nächste Änderung speichert erneut */ });
+}
 function persistKundeSteuersatz(v) {
-  if (!state.kundeId) return;
+  const kundeId = state.kundeId; // WICHTIG: jetzt capturen, nicht zum Feuer-Zeitpunkt
+  if (!kundeId) return;
   if (typeof v !== 'number' || !isFinite(v) || v <= 0) return;
+  // Optimistic: lokalen Kunde-Cache sofort setzen — sonst zeigt der renderKunde-
+  // Cache-Pfad (loadKunde wird übersprungen) den alten Wert.
+  if (state.kunde && state.kunde.id === kundeId) state.kunde.steuersatz = v;
+  _steuersatzPending = { kundeId, v };
   if (_steuersatzSaveTimer) clearTimeout(_steuersatzSaveTimer);
-  _steuersatzSaveTimer = setTimeout(() => {
-    api.put('/api/kunden/' + state.kundeId, { steuersatz: v })
-      .then(() => { if (state.kunde) state.kunde.steuersatz = v; })
-      .catch(() => { /* nicht kritisch — die nächste Änderung speichert erneut */ });
-  }, 800);
+  _steuersatzSaveTimer = setTimeout(flushSteuersatzSave, 600);
 }
 function syncSteuersatzInState(v) {
   if (typeof v !== 'number' || !isFinite(v)) return;
