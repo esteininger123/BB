@@ -6664,11 +6664,12 @@ function saHerkunftEkHtml(h) {
   // Iter 82 (22.05.2026): Radikal kompakter — Edgar-Vorgabe „nicht so Wichtigste in der App,
   //   kleine Frage". Eine Zeile pro Quelle (Checkbox · Label · Betrag · ggf. Inline-Anbieter).
   //   Default zugeklappt. Nur 5 Standard-Quellen sichtbar, „weitere anzeigen"-Toggle für den Rest.
-  const aktiv = (key) => !!h[key] || (parseFloat(h[key + 'Betrag']) || 0) > 0;
+  // 28.05.2026 (Edgar): Keine Beträge mehr in der SA — nur die Mittelherkunft
+  //   (welche Quelle) + eine Notiz. Beträge/Summen sind raus (sahen auf dem PDF
+  //   unfertig aus und sind GwG-seitig nicht nötig). Aktiv = nur das Quellen-Flag.
+  const aktiv = (key) => !!h[key];
   const anyAktiv = ['ersparnisse','schenkung','verkauf','bauspar','lv','wertpapier','immobilien','erbe','eigenleistung','darlehen','sonstiges'].some(aktiv);
 
-  // QA-Fix 2026-05-24 (Edgar): Inline-Styles → CSS-Klassen (.sa-ek-* siehe styles.css)
-  // → konsistent zum restlichen System.
   const zeile = (key, label, extraInputKey, extraPlaceholder) => {
     const istAktiv = aktiv(key);
     const extraInputHtml = extraInputKey
@@ -6679,9 +6680,6 @@ function saHerkunftEkHtml(h) {
         <input type="checkbox" data-sa="sa.herkunftEk.${key}" ${istAktiv ? 'checked' : ''}>
         <label>${esc(label)}</label>
         ${extraInputKey ? `<div>${extraInputHtml}</div>` : ''}
-        <div class="sa-ek-betrag-wrap">
-          <input type="number" step="any" placeholder="€" data-sa="sa.herkunftEk.${key}Betrag" value="${(parseFloat(h[key + 'Betrag']) || '') || ''}" class="sa-ek-betrag">
-        </div>
       </div>`;
   };
 

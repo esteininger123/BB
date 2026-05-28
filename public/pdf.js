@@ -1238,23 +1238,21 @@ function _buildSelbstauskunftBody(kunde, user) {
     { k: 'eigenleistung', label: 'Eigenleistung / Muskelhypothek', beleg: 'Stunden-Kalkulation als Anlage' },
     { k: 'darlehen', label: 'Arbeitgeber-/Familien-Darlehen', beleg: `Darlehensgeber: ${esc(ek.darlehGeber || '—')}` },
   ];
-  // Nur aktive Quellen (Checkbox gesetzt ODER Betrag > 0)
-  const aktiveQuellen = ekQuellen.filter(q =>
-    ek[q.k] === true || ek[q.k] === 'ja' || (parseFloat(ek[q.k + 'Betrag']) || 0) > 0
-  );
-  const ekGesamt = aktiveQuellen.reduce((s, q) => s + (parseFloat(ek[q.k + 'Betrag']) || 0), 0);
+  // 28.05.2026 (Edgar): Keine Beträge/Summe mehr in der SA — nur die Mittelherkunft
+  //   (welche Quelle) + Beleg. Die Betrag-Spalte und „Gesamtes Eigenkapital" sind raus
+  //   (sahen unfertig aus, GwG-seitig nicht nötig). Aktiv = Quellen-Flag gesetzt.
+  const aktiveQuellen = ekQuellen.filter(q => ek[q.k] === true || ek[q.k] === 'ja');
 
   let seite3InhaltHtml;
   if (aktiveQuellen.length === 0) {
-    // Fallback: kompakter Hinweis-Block mit 3 leeren handschriftlich-ausfüllbaren Zeilen
+    // Fallback: kompakter Hinweis + leere handschriftlich-ausfüllbare Quellen-Zeilen (kein Betrag).
     seite3InhaltHtml = `
-      <table class="sa-table">
-        <thead><tr><th class="sa-section-h">EIGENKAPITAL FÜR DIE FINANZIERUNG <span style="font-weight:normal;font-size:9px;">(noch zu ergänzen)</span></th><th>QUELLE</th><th>BETRAG (€)</th></tr></thead>
+      <table class="sa-table sa-immo-table">
+        <thead><tr><th class="sa-section-h">EIGENKAPITAL FÜR DIE FINANZIERUNG <span style="font-weight:normal;font-size:9px;">(noch zu ergänzen)</span></th><th colspan="2">QUELLE / BELEG</th></tr></thead>
         <tbody>
-          <tr><td class="sa-label">${fld('')}</td><td>${fld('')}</td><td>${fld('')}</td></tr>
-          <tr><td class="sa-label">${fld('')}</td><td>${fld('')}</td><td>${fld('')}</td></tr>
-          <tr><td class="sa-label">${fld('')}</td><td>${fld('')}</td><td>${fld('')}</td></tr>
-          <tr style="background:#FAF7F0;"><td class="sa-label" style="font-weight:700;">Gesamtes Eigenkapital</td><td style="color:#777;font-size:9px;">Summe aller Quellen</td><td>${fld('')}</td></tr>
+          <tr><td class="sa-label">${fld('')}</td><td colspan="2">${fld('')}</td></tr>
+          <tr><td class="sa-label">${fld('')}</td><td colspan="2">${fld('')}</td></tr>
+          <tr><td class="sa-label">${fld('')}</td><td colspan="2">${fld('')}</td></tr>
         </tbody>
       </table>
       <div style="margin-top:4mm;font-size:9.5px;color:#777;font-style:italic;">
@@ -1263,13 +1261,12 @@ function _buildSelbstauskunftBody(kunde, user) {
       </div>`;
   } else {
     seite3InhaltHtml = `
-      <table class="sa-table">
-        <thead><tr><th class="sa-section-h">EIGENKAPITAL FÜR DIE FINANZIERUNG <span style="font-weight:normal;font-size:9px;">(Mittelherkunft nach § 8 GwG)</span></th><th>QUELLE / BELEG</th><th>BETRAG (€)</th></tr></thead>
+      <table class="sa-table sa-immo-table">
+        <thead><tr><th class="sa-section-h">EIGENKAPITAL FÜR DIE FINANZIERUNG <span style="font-weight:normal;font-size:9px;">(Mittelherkunft nach § 8 GwG)</span></th><th colspan="2">QUELLE / BELEG</th></tr></thead>
         <tbody>
           ${aktiveQuellen.map(q =>
-            `<tr><td class="sa-label">${esc(q.label)}</td><td><span class="sa-chk on">☑</span> ${q.beleg}</td><td>${fld(fmtNum(parseFloat(ek[q.k + 'Betrag']) || ''))}</td></tr>`
+            `<tr><td class="sa-label">${esc(q.label)}</td><td colspan="2"><span class="sa-chk on">☑</span> ${q.beleg}</td></tr>`
           ).join('')}
-          <tr style="background:#FAF7F0;"><td class="sa-label" style="font-weight:700;">Gesamtes Eigenkapital</td><td style="color:#777;font-size:9px;">Summe aller Quellen</td><td style="font-weight:700;">${ekGesamt > 0 ? fmtNum(ekGesamt) : fld('')}</td></tr>
         </tbody>
       </table>`;
   }

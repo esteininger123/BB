@@ -3430,13 +3430,13 @@ input[type="range"].spar-zins-range::-moz-range-track {
 }
 .sa-ek-row {
   display: grid;
-  grid-template-columns: 20px 1fr 110px;
+  grid-template-columns: 20px 1fr;
   gap: 8px;
   align-items: center;
   padding: 5px 0;
 }
 .sa-ek-row.has-extra {
-  grid-template-columns: 20px 1fr 1.2fr 110px;
+  grid-template-columns: 20px 1fr 1.2fr;
 }
 .sa-ek-row + .sa-ek-row {
   border-top: 1px solid rgba(176,138,77,0.08);
@@ -3463,29 +3463,6 @@ input[type="range"].spar-zins-range::-moz-range-track {
   border-radius: var(--radius-sm);
   background: #fff;
   width: 100%;
-}
-.sa-ek-betrag-wrap {
-  position: relative;
-}
-.sa-ek-row input.sa-ek-betrag {
-  width: 100%;
-  text-align: right;
-  padding: 5px 22px 5px 8px;
-  font-size: 13px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: #fff;
-  font-variant-numeric: tabular-nums;
-}
-.sa-ek-betrag-wrap::after {
-  content: '€';
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-tertiary);
-  pointer-events: none;
-  font-size: 11px;
 }
 .sa-ek-erlauterung {
   margin-top: 10px;
