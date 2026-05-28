@@ -731,6 +731,17 @@ input[type="range"].spar-zins-range::-moz-range-track {
   .sa-immo-table { page-break-inside: avoid; break-inside: avoid; }
   .sa-immo-table tr { page-break-inside: avoid; break-inside: avoid; }
 
+  /* 28.05.2026 (Edgar): Robuste Pagination für ALLE SA-Tabellen-Varianten.
+     Eine einzelne Zeile (z.B. zweizeilige Miet-Adresszeile, lange Notiz) darf NIE
+     mitten vom Seitenumbruch zerschnitten werden, und ein Sektions-Header (thead)
+     darf nicht verwaist am Seitenende stehen. Bewusst NUR auf tr/thead — NICHT auf
+     die ganze .sa-table (sonst Iter-85-Regression: 30-Zeilen-Tabelle komplett auf
+     Seite 2, Seite 1 leer). So bricht die Tabelle weiter zwischen Zeilen um, aber
+     nie innerhalb einer Zeile. */
+  .sa-table tr { page-break-inside: avoid; break-inside: avoid; }
+  .sa-table thead { page-break-inside: avoid; break-inside: avoid; page-break-after: avoid; break-after: avoid; }
+  .sa-table td, .sa-table th { page-break-inside: avoid; break-inside: avoid; }
+
   /* SA: kein wiederholter sticky-Footer pro Sektion — der globale Bottom-Footer
      im letzten .pdf-page reicht aus. Andere PDFs (Investitionsrechnung, Reservierung)
      behalten ihr eigenes Footer-Verhalten. */
