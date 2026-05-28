@@ -2277,6 +2277,22 @@ function kalkInputsThemenHtml(i) {
           // die Vertragsmiete einholt. Die rote Warn-Card war für diese WEs (Bestandsmieter
           // über Markt) falsch alarmistisch — fällt jetzt in den neutralen „Keine
           // Mietsubvention"-Block unten.
+          // Henry 28.05.2026: nur EINES der beiden Mietzuschuss-Felder gepflegt →
+          //   prominente Warnung statt stiller Fehlannahme. (0 in beiden = bewusst
+          //   deaktiviert, fällt unten in die neutrale „Keine Mietsubvention"-Card.)
+          if (quelle === 'manuell-unvollstaendig') {
+            return `
+              <div class="subv-status-card warn">
+                <div class="title">⚠ Mietzuschuss unvollständig gepflegt</div>
+                <div class="hint">${esc(erlaut || 'Nur eines der beiden Felder ist gefüllt.')}</div>
+                <ul>
+                  <li><strong>Beide</strong> Felder pflegen: Mietzuschuss (€/Mo) <em>und</em> Laufzeit (Monate).</li>
+                  <li>Oder <strong>beide leer</strong> lassen → Auto-Berechnung greift.</li>
+                  <li>Für „keine Subvention": <strong>0</strong> eintragen.</li>
+                  <li>Fix in Airtable: <a href="${AIRTABLE_LINKS.KALK_STAMMDATEN}" target="_blank" rel="noopener">Stammdaten-Tabelle öffnen</a></li>
+                </ul>
+              </div>`;
+          }
           const istLuecke = ['auto-mbv-fehlt','auto-kappung-fehlt','auto-modus-fehlt','auto-marktmiete-fehlt'].includes(quelle);
           if (istLuecke) {
             const pflegeMap = {

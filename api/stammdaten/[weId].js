@@ -495,14 +495,29 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
 
   if (!kalkApi) return Object.assign({}, empty, { quelle: 'keine-stammdaten' });
 
-  // Manueller Override → eine Phase
-  // QA-Fix 2026-05-23 (Audit-BB-1): Vorher reichte nur Monate > 0, um eine
-  // Subv-Phase mit mo=0 zu erzeugen. Resultat: PDF zeigte „0 €/Mo über X Monate"
-  // als Subv-Story — sinnlos und unseriös im Live-Verkauf. Jetzt: BEIDE Werte
-  // müssen > 0 sein, sonst fällt es in den Auto-Pfad.
+  // Manueller Mietzuschuss vs. Auto-Berechnung.
+  // num() liefert null für leere Felder und 0 für eine explizit eingetragene Null —
+  // diese Unterscheidung ist hier entscheidend (Henry, 28.05.2026):
+  //   • beide Felder leer        → Auto-Berechnung (unten)
+  //   • Höhe ODER Monate = 0      → Subvention bewusst deaktiviert, KEINE Auto-Berechnung
+  //   • beide > 0                 → manueller Override
+  //   • nur eines gepflegt        → Pflegelücke, klare Warnung, keine Phase, kein Auto
+  // QA-Fix 2026-05-23 (Audit-BB-1) bleibt erhalten: keine „0 €/Mo über X Monate"-Story.
   const manMo  = kalkApi.mietzuschuss;
   const manMon = kalkApi.mietzuschussMonate;
-  if (manMo != null && manMo > 0 && manMon != null && manMon > 0) {
+  const moSet  = manMo != null;
+  const monSet = manMon != null;
+
+  // Explizite 0 in einem der Felder → Subvention bewusst aus. Vorher verhielt sich
+  // die 0 wie „leer" und die Auto-Subvention lief trotzdem weiter (Henrys Bug).
+  if ((moSet && manMo === 0) || (monSet && manMon === 0)) {
+    return Object.assign({}, empty, {
+      quelle: 'manuell-deaktiviert',
+      erlaeuterung: 'Mietzuschuss in Stammdaten auf 0 gesetzt — keine Subvention (Auto-Berechnung bewusst deaktiviert).'
+    });
+  }
+  // Beide gepflegt (und > 0, da 0 oben abgefangen) → manueller Override → eine Phase.
+  if (moSet && monSet) {
     return {
       phasen: [{ mo: manMo, monate: manMon, label: 'Manuell (Override)' }],
       totalEur: Math.round(manMo * manMon),
@@ -510,11 +525,11 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
       erlaeuterung: 'Manuell gepflegter Mietzuschuss in Stammdaten hat Vorrang.'
     };
   }
-  // Pflegelücke: nur Höhe ODER nur Monate gepflegt → klare Warnung, keine Phase.
-  if ((manMo != null && manMo > 0) || (manMon != null && manMon > 0)) {
+  // Genau eines gepflegt → Pflegelücke. Klare Warnung, keine Phase, KEIN Auto-Fallback.
+  if (moSet || monSet) {
     return Object.assign({}, empty, {
       quelle: 'manuell-unvollstaendig',
-      erlaeuterung: 'Mietzuschuss in Stammdaten unvollständig — beide Felder (Höhe + Monate) müssen gepflegt sein.'
+      erlaeuterung: 'Mietzuschuss in Stammdaten unvollständig — bitte beide Felder pflegen (Höhe + Laufzeit in Monaten), beide leer lassen (Auto-Berechnung) oder 0 eintragen (keine Subvention).'
     });
   }
 
