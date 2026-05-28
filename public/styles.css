@@ -745,7 +745,12 @@ input[type="range"].spar-zins-range::-moz-range-track {
   /* SA: kein wiederholter sticky-Footer pro Sektion — der globale Bottom-Footer
      im letzten .pdf-page reicht aus. Andere PDFs (Investitionsrechnung, Reservierung)
      behalten ihr eigenes Footer-Verhalten. */
-  .sa-page .pdf-footer { display: none; }
+  /* 28.05.2026 (Edgar): Footer für die SA NICHT position:fixed. Ein fixed-Element
+     wird im Druck auf JEDER physischen Seite wiederholt und liegt mit weißem
+     Hintergrund am unteren Rand ÜBER dem Tabelleninhalt → die letzte Zeile (z.B.
+     "…Overath") wurde verdeckt/abgeschnitten. Statisch fließt der Footer einmal
+     ans Dokumentende und überlagert nichts mehr. Scope nur .sa-page. */
+  .sa-page .pdf-footer { display: none; position: static; }
   .sa-page:last-child .pdf-footer { display: grid; }
   /* Iter 91.6 (22.05.2026): Folgeseiten-Header KOMPLETT ausblenden.
      Vorher waren die Headers nur „kompakter", aber das Problem ist nicht
