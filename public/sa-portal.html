@@ -397,7 +397,7 @@ function _newAntragsteller() {
     kinderAnzahl: 0,
     mieteMo: 0, lebenshaltungMo: 0, pkvMo: 0, leasingMo: 0, unterhaltZahlungMo: 0,
     bankguthaben: 0,
-    immobilien: [], // [{ adresse, verkehrswert, baufiRestsaldo, baufiBelastungMo, mietenMo }]
+    immobilien: [], // [{ adresse, verkehrswert, anteil, baufiRestsaldo, baufiBelastungMo, mietenMo, notiz }]
     zusatzEinnahmen: [], zusatzAusgaben: [], zusatzVermoegen: [], zusatzVerbindlichkeiten: [],
   };
 }
@@ -553,10 +553,12 @@ function renderImmoList(p, isMit) {
       <div class="grid-3">
         <div><label>Adresse / Bezeichnung</label><input type="text" value="${esc(immo.adresse || '')}" oninput="window._updArr('${px}','immobilien',${i},'adresse',this.value)"></div>
         <div><label>Verkehrswert €</label><input type="number" min="0" step="1000" value="${immo.verkehrswert || ''}" oninput="window._updArr('${px}','immobilien',${i},'verkehrswert',parseFloat(this.value)||0)"></div>
+        <div><label>Dein Anteil % <span class="unit-hint">(z.B. 50 bei hälftigem Besitz)</span></label><input type="number" min="0" max="100" step="1" value="${immo.anteil !== undefined && immo.anteil !== null ? immo.anteil : 100}" oninput="window._updArr('${px}','immobilien',${i},'anteil', this.value===''?100:(parseFloat(this.value)||0))"></div>
         <div><label>Baufi-Restschuld €</label><input type="number" min="0" step="1000" value="${immo.baufiRestsaldo || ''}" oninput="window._updArr('${px}','immobilien',${i},'baufiRestsaldo',parseFloat(this.value)||0)"></div>
         <div><label>Baufi-Rate €/Mo</label><input type="number" min="0" step="10" value="${immo.baufiBelastungMo || ''}" oninput="window._updArr('${px}','immobilien',${i},'baufiBelastungMo',parseFloat(this.value)||0)"></div>
         <div><label>Mieten €/Mo <span class="unit-hint">(falls vermietet)</span></label><input type="number" min="0" step="10" value="${immo.mietenMo || ''}" oninput="window._updArr('${px}','immobilien',${i},'mietenMo',parseFloat(this.value)||0)"></div>
       </div>
+      <div style="margin-top:8px;"><label>Notiz / Besonderheiten <span class="unit-hint">(Erbpacht, Eigentumsverhältnisse, Sanierungsstau …)</span></label><textarea rows="2" style="width:100%;" oninput="window._updArr('${px}','immobilien',${i},'notiz',this.value)">${esc(immo.notiz || '')}</textarea></div>
     </div>
   `).join('');
 }
@@ -616,7 +618,7 @@ window._updArr = function(px, listKey, idx, field, val) {
 window._addImmo = function(px) {
   const p = _person(px); if (!p) return;
   if (!Array.isArray(p.immobilien)) p.immobilien = [];
-  p.immobilien.push({ adresse: '', verkehrswert: 0, baufiRestsaldo: 0, baufiBelastungMo: 0, mietenMo: 0 });
+  p.immobilien.push({ adresse: '', verkehrswert: 0, anteil: 100, baufiRestsaldo: 0, baufiBelastungMo: 0, mietenMo: 0, notiz: '' });
   render();
 };
 window._rmImmo = function(px, idx) {

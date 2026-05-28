@@ -425,6 +425,17 @@ const PRESETS = {
  *   - Freies Vermögen (für Bank): Bankguthaben + Wertpapiere + Sparbücher + Bausparen +
  *     Sonstige + Rückkaufwert Versicherung (Bestandsimmobilien-EK NICHT zählen)
  */
+// 28.05.2026 (Edgar): Anteiliger Immobilienbesitz. Besitzt der Kunde eine Immobilie
+//   nur zur Hälfte/Viertel, zählen Verkehrswert, Restsaldo, mtl. Belastung UND Miete
+//   nur anteilig. `anteil` ist ein Prozentwert (0–100). Fehlt/ungültig/0 → 100 %
+//   (backward-compat: alle Alt-SAs ohne Feld rechnen unverändert mit Vollbesitz).
+function immoAnteilFaktor(immo) {
+  if (!immo) return 1;
+  const a = parseFloat(immo.anteil);
+  if (!isFinite(a) || a <= 0) return 1;
+  return Math.min(100, a) / 100;
+}
+
 function computeBonitaetDetailed(sa, gemeinsam) {
   if (!sa) return null;
   const a = sa.antragsteller || {};
@@ -456,7 +467,7 @@ function computeBonitaetDetailed(sa, gemeinsam) {
     if (!p) return { netto: 0, vermAnr: 0, sonstigeAnr: 0, zusatz: 0, total: 0 };
     const netto = (parseFloat(p.nettoMo) || 0) * gehaelter(p) / 12;
     const immoMieten = Array.isArray(p.immobilien)
-      ? p.immobilien.reduce((s, x) => s + (parseFloat(x && x.mietenMo) || 0), 0)
+      ? p.immobilien.reduce((s, x) => s + (parseFloat(x && x.mietenMo) || 0) * immoAnteilFaktor(x), 0)
       : 0;
     const vermAnr = immoMieten * 0.8; // 80 % Mietanrechnung Bank-Standard
     const sonst = (parseFloat(p.unterhaltMo) || 0) + (parseFloat(p.kindergeldMo) || 0);
@@ -505,7 +516,7 @@ function computeBonitaetDetailed(sa, gemeinsam) {
     if (!p) return 0;
     let s = 0;
     if (Array.isArray(p.immobilien)) {
-      p.immobilien.forEach(immo => { if (immo) s += parseFloat(immo.baufiBelastungMo) || 0; });
+      p.immobilien.forEach(immo => { if (immo) s += (parseFloat(immo.baufiBelastungMo) || 0) * immoAnteilFaktor(immo); });
     }
     s += sumZusatz(p, 'zusatzVerbindlichkeiten', 'mo');
     return s;
@@ -514,7 +525,7 @@ function computeBonitaetDetailed(sa, gemeinsam) {
     if (!p) return 0;
     let s = 0;
     if (Array.isArray(p.immobilien)) {
-      p.immobilien.forEach(immo => { if (immo) s += parseFloat(immo.baufiRestsaldo) || 0; });
+      p.immobilien.forEach(immo => { if (immo) s += (parseFloat(immo.baufiRestsaldo) || 0) * immoAnteilFaktor(immo); });
     }
     s += sumZusatz(p, 'zusatzVerbindlichkeiten', 'wert');
     return s;
@@ -542,8 +553,9 @@ function computeBonitaetDetailed(sa, gemeinsam) {
     if (Array.isArray(p.immobilien)) {
       p.immobilien.forEach(immo => {
         if (!immo) return;
-        const vk = parseFloat(immo.verkehrswert) || 0;
-        const sa = parseFloat(immo.baufiRestsaldo) || 0;
+        const f = immoAnteilFaktor(immo);
+        const vk = (parseFloat(immo.verkehrswert) || 0) * f;
+        const sa = (parseFloat(immo.baufiRestsaldo) || 0) * f;
         s += (vk - sa);
       });
     }
@@ -1553,7 +1565,7 @@ function renovierungsStress(baseInputs, kostenArr) {
    EXPORTS — als window.* nutzbar in app.js / pdf.js
    ==================================================================== */
 window.Kalk = {
-  recalc, recalcPaket, irr, computeBonitaetDetailed,
+  recalc, recalcPaket, irr, computeBonitaetDetailed, immoAnteilFaktor,
   sensitivitaetsMatrix, stressSzenario, renovierungsStress,
   fmtEur, fmtEurMo, fmtEurMoDec, fmtPct, fmtEurQm,
   PROFILES, PRESETS, BB_DEFAULTS, SPAR_ZINS_DEFAULT,

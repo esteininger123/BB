@@ -6224,10 +6224,13 @@ function saAuswertungHtml() {
           });
           // Immobilien-Mieten (80 % Anrechnung)
           (Array.isArray(p.immobilien) ? p.immobilien : []).forEach(immo => {
-            const v = parseFloat(immo && immo.mietenMo) || 0;
+            const f = (window.Kalk && window.Kalk.immoAnteilFaktor) ? window.Kalk.immoAnteilFaktor(immo) : 1;
+            const vFull = parseFloat(immo && immo.mietenMo) || 0;
+            const v = vFull * f;
             if (v > 0) {
               const anr = v * 0.8;
-              einnahmenRows.push(`<tr><td>${prefix}Miete · ${esc(immo.art || 'Immobilie')}${immo.anschrift ? ', ' + esc(immo.anschrift) : ''} <span class="text-tertiary text-small">(${v.toLocaleString('de-DE')} × 80 %)</span></td><td class="num">${eurNum(anr)}</td></tr>`);
+              const antHint = f < 1 ? ` · ${Math.round(f * 100)} % Anteil` : '';
+              einnahmenRows.push(`<tr><td>${prefix}Miete · ${esc(immo.art || 'Immobilie')}${immo.anschrift ? ', ' + esc(immo.anschrift) : ''} <span class="text-tertiary text-small">(${vFull.toLocaleString('de-DE')}${antHint} × 80 %)</span></td><td class="num">${eurNum(anr)}</td></tr>`);
               einSum += anr;
             }
           });
@@ -6261,9 +6264,11 @@ function saAuswertungHtml() {
           });
           // Annuität Baufinanzierungen (pro Immobilie) — fließt in Ausgaben
           (Array.isArray(p.immobilien) ? p.immobilien : []).forEach(immo => {
-            const mo = parseFloat(immo && immo.baufiBelastungMo) || 0;
+            const f = (window.Kalk && window.Kalk.immoAnteilFaktor) ? window.Kalk.immoAnteilFaktor(immo) : 1;
+            const mo = (parseFloat(immo && immo.baufiBelastungMo) || 0) * f;
             if (mo > 0) {
-              ausgabenRows.push(`<tr><td>${prefix}Annuität · Baufi ${esc(immo.art || 'Immobilie')}${immo.anschrift ? ', ' + esc(immo.anschrift) : ''} <span class="text-tertiary text-small">(Zins + Tilgung)</span></td><td class="num">${eurNum(mo)}</td></tr>`);
+              const antHint = f < 1 ? ` · ${Math.round(f * 100)} % Anteil` : '';
+              ausgabenRows.push(`<tr><td>${prefix}Annuität · Baufi ${esc(immo.art || 'Immobilie')}${immo.anschrift ? ', ' + esc(immo.anschrift) : ''} <span class="text-tertiary text-small">(Zins + Tilgung${antHint})</span></td><td class="num">${eurNum(mo)}</td></tr>`);
               ausSum += mo; annuitaetSum += mo;
             }
           });
@@ -6294,9 +6299,12 @@ function saAuswertungHtml() {
           });
           // Iter 77: Immobilie als Vollwert (Verkehrswert). Schulden separat in ④.
           (Array.isArray(p.immobilien) ? p.immobilien : []).forEach(immo => {
-            const vk = parseFloat(immo && immo.verkehrswert) || 0;
+            const f = (window.Kalk && window.Kalk.immoAnteilFaktor) ? window.Kalk.immoAnteilFaktor(immo) : 1;
+            const vkFull = parseFloat(immo && immo.verkehrswert) || 0;
+            const vk = vkFull * f;
             if (vk > 0) {
-              vermoegenRows.push(`<tr><td>${prefix}Immobilie · ${esc(immo.art || 'Immobilie')}${immo.anschrift ? ', ' + esc(immo.anschrift) : ''} <span class="text-tertiary text-small">(Verkehrswert)</span></td><td class="num">${eurNum(vk)}</td></tr>`);
+              const antHint = f < 1 ? ` · ${Math.round(f * 100)} % Anteil von ${vkFull.toLocaleString('de-DE')} €` : '';
+              vermoegenRows.push(`<tr><td>${prefix}Immobilie · ${esc(immo.art || 'Immobilie')}${immo.anschrift ? ', ' + esc(immo.anschrift) : ''} <span class="text-tertiary text-small">(Verkehrswert${antHint})</span></td><td class="num">${eurNum(vk)}</td></tr>`);
               vermSum += vk; immoVerkehrSum += vk;
             }
           });
@@ -6320,11 +6328,13 @@ function saAuswertungHtml() {
           });
           // Immobilien-Baufi — Restsaldo
           (Array.isArray(p.immobilien) ? p.immobilien : []).forEach(immo => {
-            const mo = parseFloat(immo && immo.baufiBelastungMo) || 0;
-            const w = parseFloat(immo && immo.baufiRestsaldo) || 0;
+            const f = (window.Kalk && window.Kalk.immoAnteilFaktor) ? window.Kalk.immoAnteilFaktor(immo) : 1;
+            const mo = (parseFloat(immo && immo.baufiBelastungMo) || 0) * f;
+            const w = (parseFloat(immo && immo.baufiRestsaldo) || 0) * f;
             if (w > 0) {
               const moHint = mo > 0 ? ` <span class="text-tertiary text-small">(Annuität ${eurNum(mo)}/Mo in ②)</span>` : '';
-              verbRows.push(`<tr><td>${prefix}Baufi · ${esc(immo.art || 'Immobilie')}${immo.anschrift ? ', ' + esc(immo.anschrift) : ''}${moHint}</td><td class="num">${eurNum(w)}</td></tr>`);
+              const antHint = f < 1 ? ` <span class="text-tertiary text-small">· ${Math.round(f * 100)} % Anteil</span>` : '';
+              verbRows.push(`<tr><td>${prefix}Baufi · ${esc(immo.art || 'Immobilie')}${immo.anschrift ? ', ' + esc(immo.anschrift) : ''}${antHint}${moHint}</td><td class="num">${eurNum(w)}</td></tr>`);
               verbRestSum += w;
             }
           });
@@ -6774,6 +6784,7 @@ function saPersonHtml(prefix, p) {
             <div><label>Erwerbsjahr</label><input type="number" step="1" inputmode="numeric" ${dz(idx, 'erwerbsjahr')} value="${item.erwerbsjahr !== undefined && item.erwerbsjahr !== null ? item.erwerbsjahr : ''}"></div>
             <div><label>Wohnfläche (m²)</label><input type="number" step="any" inputmode="decimal" ${dz(idx, 'wohnflaeche')} value="${item.wohnflaeche !== undefined && item.wohnflaeche !== null ? item.wohnflaeche : ''}"></div>
             <div><label>Verkehrswert (€)</label><input type="number" step="any" inputmode="decimal" ${dz(idx, 'verkehrswert')} value="${item.verkehrswert !== undefined && item.verkehrswert !== null ? item.verkehrswert : ''}"></div>
+            <div><label>Eigentumsanteil (%) <span class="text-tertiary text-small">→ Wert, Schulden, Rate &amp; Miete zählen anteilig</span></label><input type="number" step="any" inputmode="decimal" min="0" max="100" ${dz(idx, 'anteil')} value="${item.anteil !== undefined && item.anteil !== null ? item.anteil : ''}" placeholder="100 = Vollbesitz"></div>
             <div><label>Mieteinnahmen (€/Mo) <span class="text-tertiary text-small">→ fließt in ① Einnahmen</span></label><input type="number" step="any" inputmode="decimal" ${dz(idx, 'mietenMo')} value="${item.mietenMo !== undefined && item.mietenMo !== null ? item.mietenMo : ''}"></div>
           </div>
           <div class="sa-immo-section-label" style="margin-top:14px;">Baufinanzierung <span style="font-weight:normal;">→ fließt in ④ Verbindlichkeiten</span></div>
@@ -6786,6 +6797,8 @@ function saPersonHtml(prefix, p) {
             <div><label>Mtl. Belastung (€/Mo)</label><input type="number" step="any" inputmode="decimal" ${dz(idx, 'baufiBelastungMo')} value="${item.baufiBelastungMo !== undefined && item.baufiBelastungMo !== null ? item.baufiBelastungMo : ''}"></div>
             <div><label>Restsaldo (€)</label><input type="number" step="any" inputmode="decimal" ${dz(idx, 'baufiRestsaldo')} value="${item.baufiRestsaldo !== undefined && item.baufiRestsaldo !== null ? item.baufiRestsaldo : ''}"></div>
           </div>
+          <div class="sa-immo-section-label" style="margin-top:14px;">Notiz / Besonderheiten</div>
+          <div><textarea ${dz(idx, 'notiz')} rows="2" placeholder="Erbpacht, Sanierungsstau, Eigentumsverhältnisse, Zusatzinfos zur Immobilie …" style="width:100%;">${esc(item.notiz || '')}</textarea></div>
         </div>`;
     }).join('');
     // Iter 72: nur Inhalt zurückgeben — Block-Container wird außen aufgesetzt

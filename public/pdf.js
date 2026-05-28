@@ -1005,9 +1005,12 @@ function _buildSelbstauskunftBody(kunde, user) {
               let html = '';
               liste.forEach(immo => {
                 if (!immo) return;
-                const mo = parseFloat(immo.mietenMo) || 0;
+                const anteil = parseFloat(immo.anteil);
+                const f = (isFinite(anteil) && anteil > 0) ? Math.min(100, anteil) / 100 : 1;
+                const mo = (parseFloat(immo.mietenMo) || 0) * f;
                 if (mo <= 0) return;
-                const titel = `Miete · ${immo.art || 'Immobilie'}${immo.anschrift ? ', ' + immo.anschrift : ''}`;
+                const antHint = f < 1 ? ` (${Math.round(f * 100)} % Anteil)` : '';
+                const titel = `Miete · ${immo.art || 'Immobilie'}${immo.anschrift ? ', ' + immo.anschrift : ''}${antHint}`;
                 const cellA = spalte === 'A' ? fld(fmtNum(mo)) : '';
                 const cellM = spalte === 'M' && gemeinsam ? fld(fmtNum(mo)) : (gemeinsam ? '' : '');
                 html += `<tr><td class="sa-label">${esc(titel)}</td><td>${cellA}</td><td>${cellM}</td></tr>`;
@@ -1170,6 +1173,11 @@ function _buildSelbstauskunftBody(kunde, user) {
           return liste.map((immo, idx) => {
             if (!immo) return '';
             const baufiVorhanden = parseFloat(immo.baufiBelastungMo) > 0 || parseFloat(immo.baufiRestsaldo) > 0 || parseFloat(immo.baufiUrspruenglich) > 0;
+            const anteil = parseFloat(immo.anteil);
+            const f = (isFinite(anteil) && anteil > 0) ? Math.min(100, anteil) / 100 : 1;
+            // Bei Teilbesitz: Vollwert zeigen + transparent den anteilig angerechneten Betrag dazu.
+            const antSuffix = (full) => f < 1 ? ` <span style="color:#777;font-size:9px;">· davon Dein Anteil ${esc(fmtNum((parseFloat(full) || 0) * f))}</span>` : '';
+            const notiz = (immo.notiz || '').trim();
             return `
               <table class="sa-table" style="margin-top:3mm;">
                 <thead><tr><th class="sa-section-h">IMMOBILIE ${idx + 1}${gemeinsam ? ' · ' + esc(rolle) : ''}</th><th colspan="2">${esc(immo.art || '')}${immo.anschrift ? ' · ' + esc(immo.anschrift) : ''}</th></tr></thead>
@@ -1177,15 +1185,17 @@ function _buildSelbstauskunftBody(kunde, user) {
                   <tr><td class="sa-label">Anschrift</td><td colspan="2">${fld(immo.anschrift || '')}</td></tr>
                   <tr><td class="sa-label">Baujahr / Erwerbsjahr</td><td colspan="2" style="white-space:nowrap;"><span style="display:inline-block;min-width:90px;">${fld(immo.baujahr || '')}</span> &nbsp;/&nbsp; <span style="display:inline-block;min-width:90px;">${fld(immo.erwerbsjahr || '')}</span></td></tr>
                   <tr><td class="sa-label">Wohnfläche (m²)</td><td colspan="2">${fld(immo.wohnflaeche || '')}</td></tr>
-                  <tr><td class="sa-label">Verkehrswert</td><td colspan="2">${fld(fmtNum(immo.verkehrswert))}</td></tr>
-                  <tr><td class="sa-label">Mieteinnahmen pro Monat</td><td colspan="2">${fld(fmtNum(immo.mietenMo))}</td></tr>
+                  ${f < 1 ? `<tr><td class="sa-label">Eigentumsanteil</td><td colspan="2">${fld(Math.round(f * 100) + ' %')}</td></tr>` : ''}
+                  <tr><td class="sa-label">Verkehrswert</td><td colspan="2">${fld(fmtNum(immo.verkehrswert))}${antSuffix(immo.verkehrswert)}</td></tr>
+                  <tr><td class="sa-label">Mieteinnahmen pro Monat</td><td colspan="2">${fld(fmtNum(immo.mietenMo))}${antSuffix(immo.mietenMo)}</td></tr>
                   ${baufiVorhanden ? `
                     <tr><td class="sa-label" style="font-weight:600;padding-top:6px;">Baufinanzierung</td><td colspan="2"></td></tr>
                     <tr><td class="sa-label">— urspr. Darlehenshöhe</td><td colspan="2">${fld(fmtNum(immo.baufiUrspruenglich))}</td></tr>
                     <tr><td class="sa-label">— Laufzeit bis</td><td colspan="2">${fld(dt(immo.baufiLaufzeitBis))}</td></tr>
-                    <tr><td class="sa-label">— mtl. Belastung</td><td colspan="2">${fld(fmtNum(immo.baufiBelastungMo))}</td></tr>
-                    <tr><td class="sa-label">— Restsaldo</td><td colspan="2">${fld(fmtNum(immo.baufiRestsaldo))}</td></tr>
+                    <tr><td class="sa-label">— mtl. Belastung</td><td colspan="2">${fld(fmtNum(immo.baufiBelastungMo))}${antSuffix(immo.baufiBelastungMo)}</td></tr>
+                    <tr><td class="sa-label">— Restsaldo</td><td colspan="2">${fld(fmtNum(immo.baufiRestsaldo))}${antSuffix(immo.baufiRestsaldo)}</td></tr>
                   ` : ''}
+                  ${notiz ? `<tr><td class="sa-label">Notiz</td><td colspan="2">${fld(notiz)}</td></tr>` : ''}
                 </tbody>
               </table>`;
           }).join('');

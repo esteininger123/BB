@@ -125,12 +125,24 @@ label {
    Kein Bronze-Mark mehr — eine durchgängige Markenidentität von App bis PDF. */
 .bub-brand {
   display: inline-flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   text-decoration: none;
   line-height: 1.05;
-  gap: 4px;
+  gap: 11px;
 }
 .bub-brand:hover { opacity: 0.75; }
+.bub-brand-mark {
+  width: 40px; height: 40px;
+  border-radius: 11px;
+  flex: 0 0 auto;
+  display: block;
+}
+.bub-brand-text {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+}
 .bub-brand-main {
   font-family: 'Helvetica Neue','Inter',Helvetica,Arial,sans-serif;
   font-weight: 200;

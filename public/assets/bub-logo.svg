@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="B&amp;B Backstube">
+  <defs>
+    <linearGradient id="bubBronze" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#C9A572"/>
+      <stop offset="1" stop-color="#8E6E3D"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="url(#bubBronze)"/>
+  <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="14.25" fill="none" stroke="#FBFAF7" stroke-opacity="0.18" stroke-width="1.5"/>
+  <text x="32" y="33" text-anchor="middle" dominant-baseline="central"
+        font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="300"
+        font-size="25" letter-spacing="-1.2" fill="#FBFAF7">B&amp;B</text>
+</svg>
