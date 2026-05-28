@@ -368,21 +368,21 @@ function renderDashboard() {
         ${wvOverdue.map(({k, wv}) => `
           <div class="wv-row overdue" onclick="go('/kunde/${esc(k.id)}')">
             <div class="wv-row-status">⚠ ${wv.tageUeber}d überfällig</div>
-            <div class="wv-row-main"><strong>${esc(k.name || ((k.vorname || '') + ' ' + (k.nachname || '')).trim() || k.email || '—')}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
+            <div class="wv-row-main"><strong>${esc(kundeDisplayName(k))}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
             <div class="wv-row-date">${esc(fmtDate(wv.datum))}</div>
           </div>
         `).join('')}
         ${wvToday.map(({k, wv}) => `
           <div class="wv-row today" onclick="go('/kunde/${esc(k.id)}')">
             <div class="wv-row-status">🔔 heute</div>
-            <div class="wv-row-main"><strong>${esc(k.name || ((k.vorname || '') + ' ' + (k.nachname || '')).trim() || k.email || '—')}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
+            <div class="wv-row-main"><strong>${esc(kundeDisplayName(k))}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
             <div class="wv-row-date">${esc(fmtDate(wv.datum))}</div>
           </div>
         `).join('')}
         ${wvSoon.map(({k, wv}) => `
           <div class="wv-row soon" onclick="go('/kunde/${esc(k.id)}')">
             <div class="wv-row-status">in ${wv.tage}d</div>
-            <div class="wv-row-main"><strong>${esc(k.name || ((k.vorname || '') + ' ' + (k.nachname || '')).trim() || k.email || '—')}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
+            <div class="wv-row-main"><strong>${esc(kundeDisplayName(k))}</strong>${wv.notiz ? ' · <span class="text-tertiary">' + esc(wv.notiz) + '</span>' : ''}</div>
             <div class="wv-row-date">${esc(fmtDate(wv.datum))}</div>
           </div>
         `).join('')}
@@ -556,15 +556,42 @@ function _kfStBucket(k) {
   return 'low';
 }
 
+// Bug-Fix 28.05.2026 (Laurin): Anzeigename robust auflösen. Kunden, die über das
+//   SA-Portal/PandaDoc angelegt wurden, haben oft leere Top-Level-Felder (NAME/
+//   VORNAME/NACHNAME) — der Name steckt nur in der Selbstauskunft (saJson.antragsteller,
+//   dort ist `vorname` der Vor- und `name` der Nachname). Ohne diesen Fallback zeigte
+//   die Liste 'Kunde <ID-Suffix>', obwohl die Detail-Ansicht den SA-Namen kennt.
+function kundeSaPerson(k) {
+  let sa = k && k.saJson;
+  if (typeof sa === 'string') { try { sa = JSON.parse(sa); } catch { sa = null; } }
+  return (sa && sa.antragsteller) || null;
+}
+function kundeDisplayName(k) {
+  if (!k) return 'Kunde';
+  const top = k.name || ((k.vorname || '') + ' ' + (k.nachname || '')).trim();
+  if (top) return top;
+  const a = kundeSaPerson(k);
+  if (a) {
+    const saName = ((a.vorname || '') + ' ' + (a.name || '')).trim();
+    if (saName) return saName;
+    if (a.email) return a.email;
+  }
+  return k.email || ('Kunde ' + (k.id || '').slice(-6));
+}
+function kundeDisplayEmail(k) {
+  if (!k) return '';
+  if (k.email) return k.email;
+  const a = kundeSaPerson(k);
+  return (a && a.email) || '';
+}
+
 function _renderKundeRow(k) {
   const fd = _kundeFilterData(k);
   const REG = window.REGIONEN || {};
-  // FS-2o (Edgar 24.05.2026 23:00, Loom-Bugs): Name-Fallback robuster.
-  // Wenn name + vorname + nachname alle leer → fall back auf E-Mail, dann ID-Suffix.
-  const _displayName = k.name
-    || ((k.vorname || '') + ' ' + (k.nachname || '')).trim()
-    || k.email
-    || ('Kunde ' + (k.id || '').slice(-6));
+  // FS-2o (Edgar 24.05.2026) + Laurin-Fix (28.05.2026): Name robust auflösen,
+  //   inkl. Fallback aus der Selbstauskunft (SA-Portal-Kunden ohne Top-Level-Name).
+  const _displayName = kundeDisplayName(k);
+  const _displayEmail = kundeDisplayEmail(k);
   const _hasSa = !!k.saJson;
   // Letzte Aktivität: wenn null → klarer Hinweis statt leerer Zelle
   const _lastActAt = k.lastActivity ? fmtDate(k.lastActivity) : '— noch keine —';
@@ -588,7 +615,7 @@ function _renderKundeRow(k) {
     ? (fd.ueber !== 0 ? `<span style="color:${fd.ueber > 0 ? 'var(--positive)' : 'var(--negative)'}">${Math.round(fd.ueber).toLocaleString('de-DE')} €</span>` : '<span class="text-tertiary">0 €</span>')
     : '<span class="text-tertiary text-small" title="Selbstauskunft noch nicht ausgefüllt">SA fehlt</span>';
   return `
-    <tr data-search="${esc((_displayName + ' ' + (k.email || '')).toLowerCase())}"
+    <tr data-search="${esc((_displayName + ' ' + (_displayEmail || '')).toLowerCase())}"
         data-ek="${Math.round(fd.liquid)}"
         data-eink="${Math.round(fd.ueber)}"
         data-bls="${esc(blsCsv)}"
@@ -597,7 +624,7 @@ function _renderKundeRow(k) {
         data-wv="${esc(_wvStatus)}"
         data-st="${_kfStBucket(k)}"
         onclick="go('/kunde/${esc(k.id)}')">
-      <td><strong>${esc(_displayName)}</strong>${k.email && _displayName !== k.email ? `<div class="text-tertiary text-small">${esc(k.email)}</div>` : ''}</td>
+      <td><strong>${esc(_displayName)}</strong>${_displayEmail && _displayName !== _displayEmail ? `<div class="text-tertiary text-small">${esc(_displayEmail)}</div>` : ''}</td>
       <td>${kavListeBadges(k)}</td>
       <td class="num">${_ekCell}</td>
       <td class="num">${_einkCell}</td>
@@ -1092,7 +1119,7 @@ async function renderKunde() {
     app.innerHTML = '<div class="main"><div class="error-banner">Kunde nicht gefunden.</div></div>';
     return;
   }
-  const displayName = k.name || ((k.vorname || '') + ' ' + (k.nachname || '')).trim() || 'Kunde';
+  const displayName = kundeDisplayName(k);
   const isOwner = (k.ownerId === state.user.id) || state.user.rolle === 'Admin';
   const isAdmin = state.user.rolle === 'Admin';
   const isArchived = !!k.archiviert;
@@ -3582,7 +3609,7 @@ function renderStoryPremium(r) {
   const heute = new Date().toLocaleDateString('de-DE');
 
   // Personalisierung
-  const displayName = k.name || ((k.vorname || '') + ' ' + (k.nachname || '')).trim() || '—';
+  const displayName = kundeDisplayName(k);
 
   // Adresse-Anker
   const adresseZeile = (state.kalk._projektName ? esc(state.kalk._projektName) + ' · ' : '')
@@ -7314,10 +7341,7 @@ async function renderAdmin() {
         const aktiv = alle.filter(k => !k.archiviert);
         const archiv = alle.filter(k => !!k.archiviert);
         const kundenRow = (k) => {
-          const displayName = k.name
-            || ((k.vorname || '') + ' ' + (k.nachname || '')).trim()
-            || k.email
-            || ('Kunde ' + (k.id || '').slice(-6));
+          const displayName = kundeDisplayName(k);
           return `
             <tr onclick="go('/kunde/${esc(k.id)}')" style="cursor:pointer;">
               <td><strong>${esc(displayName)}</strong></td>
