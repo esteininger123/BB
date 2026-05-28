@@ -761,20 +761,10 @@ input[type="range"].spar-zins-range::-moz-range-track {
   .sa-page:not(:first-child) .sa-head {
     display: none;
   }
-  /* Mini-Wasserzeichen unten links auf Folgeseiten — Branding bleibt
-     dezent erhalten, ohne im Inhalt aufzutauchen. */
-  .sa-page:not(:first-child)::before {
-    content: 'BROT & BUTTER · SELBSTAUSKUNFT · VERTRAULICH';
-    position: fixed;
-    bottom: 4mm;
-    left: 12mm;
-    font-size: 7px;
-    letter-spacing: 1.8px;
-    color: #B08A4D;
-    font-weight: 500;
-    opacity: 0.7;
-    pointer-events: none;
-  }
+  /* 28.05.2026 (Edgar): Mini-Wasserzeichen entfernt. Es war position:fixed und wurde
+     im Druck relativ zum Inhaltsbereich am unteren Rand platziert → es legte sich
+     ueber die letzte Tabellenzeile (z.B. "Miete … 1.900 €"). Dekoratives Branding ist
+     den Inhalts-Konflikt nicht wert; die B&B-Kennung steht im statischen End-Footer. */
 
   .pdf-footer {
     position: fixed;
