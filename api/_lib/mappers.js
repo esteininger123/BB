@@ -42,6 +42,8 @@ function kundeRecordToFull(rec, ownerNameById = {}) {
     notizen:       f[KUNDEN_FIELDS.NOTIZEN]        || '',
     quickBonJson:  parseJsonField(f[KUNDEN_FIELDS.QUICK_BON_JSON]),
     saJson:        parseJsonField(f[KUNDEN_FIELDS.SA_JSON]),
+    // Persönlicher Steuersatz (Dezimal, z.B. 0.42) — null wenn nie gesetzt (Altbestand).
+    steuersatz:    (typeof f[KUNDEN_FIELDS.STEUERSATZ] === 'number') ? f[KUNDEN_FIELDS.STEUERSATZ] : null,
     created:       f[KUNDEN_FIELDS.CREATED]        || null
   };
 }
@@ -59,6 +61,10 @@ function kundeBodyToFields(body, opts = {}) {
   if (body.quickBonJson !== undefined) out[KUNDEN_FIELDS.QUICK_BON_JSON] = stringifyJson(body.quickBonJson);
   if (body.saJson       !== undefined) out[KUNDEN_FIELDS.SA_JSON]       = stringifyJson(body.saJson);
   if (body.archiviert   !== undefined) out[KUNDEN_FIELDS.ARCHIVIERT]    = !!body.archiviert;
+  if (body.steuersatz   !== undefined) {
+    const st = Number(body.steuersatz);
+    out[KUNDEN_FIELDS.STEUERSATZ] = (isFinite(st) && st > 0) ? st : null;
+  }
 
   // Name = "Vorname Nachname" (Primary)
   if (body.vorname !== undefined || body.nachname !== undefined) {

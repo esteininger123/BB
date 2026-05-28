@@ -64,7 +64,10 @@ const KUNDEN_FIELDS = {
   CREATED:        'fld9s7XunLXCfx6pa',
   LAST_ACTIVITY:  'fldRghZ5CtIBw2rWn',
   // Iter 52 — Archivierung (Checkbox). Vertrieb archiviert, Admin löscht.
-  ARCHIVIERT:     'fldHIc3gclVok2ggj'
+  ARCHIVIERT:     'fldHIc3gclVok2ggj',
+  // 28.05.2026 — Persönlicher Steuersatz pro Kunde (Single Source of Truth, percent
+  // als Dezimal z.B. 0.42). Synchron über Quick/SA/Kalkulation, persistent über WE-Wechsel.
+  STEUERSATZ:     'fldQpGCMkF8LhgTZm'
 };
 
 const SNAPSHOT_FIELDS = {

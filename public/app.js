@@ -308,6 +308,13 @@ async function loadKunde(id) {
     state.snapshots = await api.get('/api/snapshots?kundeId=' + id).catch(() => []);
     // Kalk-State aus selbstauskunft-JSON oder Default
     state.kalk = makeDefaultKalkInput();
+    // 28.05.2026 — Persönlicher Steuersatz pro Kunde (Option B): hat der Kunde
+    //   einen gespeicherten Steuersatz, überschreibt er den Default. Synchron in
+    //   steuersatz + saSteuersatz. Altbestand ohne Wert → Default bleibt (kein Bruch).
+    if (k && typeof k.steuersatz === 'number' && isFinite(k.steuersatz) && k.steuersatz > 0) {
+      state.kalk.steuersatz = k.steuersatz;
+      state.kalk.saSteuersatz = k.steuersatz;
+    }
     clearKalkDirty();
   } catch (e) {
     toast('Kunde konnte nicht geladen werden: ' + e.message, 'error');
@@ -2390,6 +2397,37 @@ window.addEventListener('beforeunload', (e) => {
   }
 });
 
+// 28.05.2026 — Persönlicher Steuersatz pro Kunde (Single Source of Truth).
+//   steuersatz + saSteuersatz werden immer synchron gehalten und am Kunde-Record
+//   persistiert (debounced). So bleibt der Steuersatz über Quick/SA/Kalkulation
+//   und über WE-Wechsel + Kunde-Reload konsistent.
+let _steuersatzSaveTimer = null;
+function persistKundeSteuersatz(v) {
+  if (!state.kundeId) return;
+  if (typeof v !== 'number' || !isFinite(v) || v <= 0) return;
+  if (_steuersatzSaveTimer) clearTimeout(_steuersatzSaveTimer);
+  _steuersatzSaveTimer = setTimeout(() => {
+    api.put('/api/kunden/' + state.kundeId, { steuersatz: v })
+      .then(() => { if (state.kunde) state.kunde.steuersatz = v; })
+      .catch(() => { /* nicht kritisch — die nächste Änderung speichert erneut */ });
+  }, 800);
+}
+function syncSteuersatzInState(v) {
+  if (typeof v !== 'number' || !isFinite(v)) return;
+  state.kalk.steuersatz = v;
+  state.kalk.saSteuersatz = v;
+  // Beide Steuersatz-Regler/Inputs/Labels im DOM mitziehen (Quick + Selbstauskunft).
+  ['steuersatz', 'saSteuersatz'].forEach(key => {
+    const sl = document.querySelector(`input[type="range"][data-slider="${key}"]`);
+    if (sl) sl.value = String(v * 100);
+    const num = document.querySelector(`input[data-kalk="${key}"]`);
+    if (num) num.value = v.toFixed(4);
+    const lbl = document.querySelector(`[data-slider-val="${key}"]`);
+    if (lbl) lbl.textContent = (v * 100).toFixed(2) + ' %';
+  });
+  persistKundeSteuersatz(v);
+}
+
 function bindKalkInputs() {
   // Slider <input type="range"> — schreiben in Dezimal (Prozent/100), oder bei Euro-Slidern als Roh-Wert.
   document.querySelectorAll('[data-slider]').forEach(slider => {
@@ -2402,6 +2440,7 @@ function bindKalkInputs() {
       const raw = parseFloat(slider.value);
       const v = isEur ? raw : (raw / 100); // Prozent → Dezimal
       state.kalk[k] = v;
+      if (k === 'steuersatz' || k === 'saSteuersatz') syncSteuersatzInState(v);
       markKalkDirty();
       // Iter 41.15 (Audit-Fix #5): Manuelle Subv-Slider-Verstellung deaktiviert das
       // 2-Phasen-Modell, damit der Slider-Wert wirklich Effekt hat.
@@ -2439,6 +2478,7 @@ function bindKalkInputs() {
       // NaN → null (für leere Number-Felder)
       if (typeof v === 'number' && !isFinite(v)) v = null;
       state.kalk[k] = v;
+      if ((k === 'steuersatz' || k === 'saSteuersatz') && typeof v === 'number') syncSteuersatzInState(v);
       markKalkDirty();
       // Iter 41.15 (Audit-Fix #5): Wenn 2-Phasen-Subv aktiv ist und der Vertriebler
       // den Subv-Slider manuell verstellt → Phasen-Array zurücksetzen, damit recalc
