@@ -341,6 +341,7 @@ function renderDashboard() {
   // QA-Sprint 2026-05-23 (CRM-Redesign): KAV-Phase aus Tracker (statt altem Phase-Feld).
   // Stats: pro Phase Anzahl + Wiedervorlagen-Status (overdue / today / soon).
   const phasenCounts = { phase1: 0, phase2: 0, phase3: 0, abgeschlossen: 0 };
+  const stCounts = { low: 0, mid: 0, high: 0 }; // Steuersatz-Buckets
   const wvOverdue = [];
   const wvToday = [];
   const wvSoon = [];
@@ -348,6 +349,8 @@ function renderDashboard() {
     const tracker = getKavTracker(k);
     const phId = kavCurrentPhase(tracker);
     if (phasenCounts[phId] !== undefined) phasenCounts[phId]++;
+    const stB = _kfStBucket(k);
+    if (stCounts[stB] !== undefined) stCounts[stB]++;
     const wv = kavWiedervorlageStatus(tracker);
     if (wv.status === 'overdue') wvOverdue.push({ k, wv });
     else if (wv.status === 'today') wvToday.push({ k, wv });
@@ -452,6 +455,13 @@ function renderDashboard() {
               <button class="kf-chip kf-chip-soon ${_kfState.wv === 'soon' ? 'active' : ''}" onclick="_kfWv('soon')">🔔 Bald <span class="kf-chip-count">${wvSoon.length}</span></button>
               <button class="kf-chip ${_kfState.wv === 'none' ? 'active' : ''}" onclick="_kfWv('none')">Ohne WV</button>
             </div>
+            <div class="kf-chip-group">
+              <span class="kf-chip-label">Steuersatz:</span>
+              <button class="kf-chip ${!_kfState.st ? 'active' : ''}" onclick="_kfSt(null)">Alle</button>
+              <button class="kf-chip ${_kfState.st === 'low' ? 'active' : ''}" onclick="_kfSt('low')">&lt; 35 % <span class="kf-chip-count">${stCounts.low || 0}</span></button>
+              <button class="kf-chip ${_kfState.st === 'mid' ? 'active' : ''}" onclick="_kfSt('mid')">35–41 % <span class="kf-chip-count">${stCounts.mid || 0}</span></button>
+              <button class="kf-chip ${_kfState.st === 'high' ? 'active' : ''}" onclick="_kfSt('high')">≥ 42 % <span class="kf-chip-count">${stCounts.high || 0}</span></button>
+            </div>
           </div>
           <table class="table kunden-tbl" id="kunden-tbl">
             <thead>
@@ -499,7 +509,7 @@ function _kundeFilterData(k) {
   // für sich nicht änderndes Volumen)
   const saStr = k.saJson ? JSON.stringify(k.saJson) : '';
   const notStr = k.notizen || '';
-  const key = k.id + ':' + saStr.length + ':' + notStr.length + ':' + (saStr.length > 0 ? saStr.charCodeAt(saStr.length - 1) : 0) + ':' + (notStr.length > 0 ? notStr.charCodeAt(notStr.length - 1) : 0);
+  const key = k.id + ':' + saStr.length + ':' + notStr.length + ':' + (saStr.length > 0 ? saStr.charCodeAt(saStr.length - 1) : 0) + ':' + (notStr.length > 0 ? notStr.charCodeAt(notStr.length - 1) : 0) + ':st' + (k.steuersatz || 0);
   if (_kfDataCache.has(key)) return _kfDataCache.get(key);
   const fd = _computeKundeFilterData(k);
   // Cache-Größe begrenzen (alte Einträge raus wenn > 500)
@@ -523,6 +533,8 @@ function _computeKundeFilterData(k) {
     } catch {}
   }
   const wp = (typeof parseWunschProfil === 'function') ? parseWunschProfil((k && k.notizen) || '') : { regionen: [] };
+  // Effektiver Steuersatz (gespeichert am Kunden, sonst Default 0.30 wie in der Engine)
+  const stEffektiv = (k && typeof k.steuersatz === 'number' && isFinite(k.steuersatz) && k.steuersatz > 0) ? k.steuersatz : 0.30;
   const blSet = new Set();
   const kreisSet = new Set();
   (wp.regionen || []).forEach(r => {
@@ -532,7 +544,16 @@ function _computeKundeFilterData(k) {
       if (p.kreis !== '*') kreisSet.add(r);
     }
   });
-  return { liquid, ueber, wp, blSet, kreisSet };
+  return { liquid, ueber, wp, blSet, kreisSet, stEffektiv };
+}
+
+// 28.05.2026 (Edgar): Steuersatz-Bucket aus effektivem Satz. <35 = low, 35–41 = mid, ≥42 = high.
+function _kfStBucket(k) {
+  const fd = _kundeFilterData(k);
+  const pct = Math.round((fd.stEffektiv || 0.30) * 100);
+  if (pct >= 42) return 'high';
+  if (pct >= 35) return 'mid';
+  return 'low';
 }
 
 function _renderKundeRow(k) {
@@ -574,6 +595,7 @@ function _renderKundeRow(k) {
         data-kreise="${esc(kreisCsv)}"
         data-phase="${esc(_phaseId)}"
         data-wv="${esc(_wvStatus)}"
+        data-st="${_kfStBucket(k)}"
         onclick="go('/kunde/${esc(k.id)}')">
       <td><strong>${esc(_displayName)}</strong>${k.email && _displayName !== k.email ? `<div class="text-tertiary text-small">${esc(k.email)}</div>` : ''}</td>
       <td>${kavListeBadges(k)}</td>
@@ -606,17 +628,19 @@ const _kfState = (() => {
         // FS-2p (Edgar 25.05.2026): Phase- und WV-Filter persistent
         phase: o.phase || null,  // 'phase1' | 'phase2' | 'phase3' | 'abgeschlossen' | null
         wv: o.wv || null,        // 'overdue' | 'today' | 'soon' | 'future' | 'none' | null
+        // 28.05.2026 (Edgar): Steuersatz-Bucket-Filter
+        st: o.st || null,        // 'low' (<35) | 'mid' (35–41) | 'high' (≥42) | null
       };
     }
   } catch {}
-  return { q: '', ekMin: 0, einkMin: 0, bls: new Set(), kreise: new Set(), phase: null, wv: null };
+  return { q: '', ekMin: 0, einkMin: 0, bls: new Set(), kreise: new Set(), phase: null, wv: null, st: null };
 })();
 function _kfPersist() {
   try {
     sessionStorage.setItem(_KF_LS_KEY, JSON.stringify({
       q: _kfState.q, ekMin: _kfState.ekMin, einkMin: _kfState.einkMin,
       bls: [..._kfState.bls], kreise: [..._kfState.kreise],
-      phase: _kfState.phase, wv: _kfState.wv,
+      phase: _kfState.phase, wv: _kfState.wv, st: _kfState.st,
     }));
   } catch {}
 }
@@ -755,6 +779,7 @@ function _kfReset() {
   _kfState.kreise.clear();
   _kfState.phase = null;  // FS-2p
   _kfState.wv = null;     // FS-2p
+  _kfState.st = null;     // 28.05.2026 Steuersatz-Bucket
   _kfPersist();
   // FS-3f (Audit Frontend P2-2 25.05.2026): BL-Popup-Listener vor Re-Render
   // schließen — sonst sammelt sich pro Reset ein verwaister Document-Listener.
@@ -784,6 +809,7 @@ function applyKundenFilter() {
     const kreise = (r.dataset.kreise || '').split('|').filter(Boolean);
     const phase = r.dataset.phase || '';
     const wv = r.dataset.wv || 'none';
+    const st = r.dataset.st || 'low';
     let match = true;
     if (q && !text.includes(q)) match = false;
     if (ekMin > 0 && ek < ekMin) match = false;
@@ -803,6 +829,8 @@ function applyKundenFilter() {
     if (_kfState.phase && phase !== _kfState.phase) match = false;
     // FS-2p: WV-Filter
     if (_kfState.wv && wv !== _kfState.wv) match = false;
+    // 28.05.2026: Steuersatz-Bucket-Filter
+    if (_kfState.st && st !== _kfState.st) match = false;
     r.style.display = match ? '' : 'none';
     if (match) visible++;
   });
@@ -827,6 +855,13 @@ function _kfWv(status) {
   renderDashboard();
 }
 window._kfWv = _kfWv;
+// 28.05.2026 (Edgar): Steuersatz-Bucket-Filter. Klick auf aktiven Chip = toggle aus.
+function _kfSt(bucket) {
+  _kfState.st = (_kfState.st === bucket) ? null : bucket;
+  _kfPersist();
+  renderDashboard();
+}
+window._kfSt = _kfSt;
 
 // QA-Fix 2026-05-23 (Audit-EE-3): Live-Suche auf Dashboard. Backward-Compat —
 // ruft jetzt den neuen applyKundenFilter mit übersetztem Wert auf.
@@ -1235,6 +1270,12 @@ function renderWunschProfilCard(k) {
   const ekDefault = wp.ekMin > 0 ? wp.ekMin : Math.round(saLiquid);
   const einkDefault = wp.einkommenMin > 0 ? wp.einkommenMin : Math.round(Math.max(0, saUeber));
 
+  // Persönlicher Steuersatz — eigene Airtable-Spalte am Kunden (nicht im Wunsch-JSON),
+  //   Single Source of Truth. Wird in jede Kalkulation dieses Kunden übernommen.
+  const stSatzVal = (typeof k.steuersatz === 'number' && isFinite(k.steuersatz) && k.steuersatz > 0) ? k.steuersatz : null;
+  const stSatzPct = stSatzVal != null ? Math.round(stSatzVal * 100) : 30;
+  const stSatzIsSet = stSatzVal != null;
+
   // Bundesland-Pills
   const blPills = BL.map(bl => {
     const hasAny = (wp.regionen || []).some(r => r.startsWith(bl + ':'));
@@ -1274,7 +1315,7 @@ function renderWunschProfilCard(k) {
     <details class="card mt-16 wp-card" ${openAttr}>
       <summary style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;list-style:none;">
         <div>
-          <div class="card-title" style="margin:0;">Wunsch-Profil <span class="text-tertiary text-small" style="font-weight:normal;">· wo &amp; wie viel Kunde investieren möchte</span></div>
+          <div class="card-title" style="margin:0;">Investment-Profil <span class="text-tertiary text-small" style="font-weight:normal;">· Regionen, Schwellen &amp; Steuersatz des Kunden</span></div>
           <div class="text-tertiary text-small" style="margin-top:2px;">${esc(summaryText)}</div>
         </div>
         <span class="wp-toggle" style="font-size:13px;color:var(--text-tertiary);">▾</span>
@@ -1288,6 +1329,14 @@ function renderWunschProfilCard(k) {
           <label class="text-tertiary text-small" for="wp-eink-min">Min. freies Einkommen / Mo ${wp.einkommenMin > 0 ? '<span style="color:var(--accent-dark);font-size:10px;">(Override)</span>' : '<span style="color:var(--text-tertiary);font-size:10px;">(Default = SA-Wert)</span>'}</label>
           <input type="number" id="wp-eink-min" value="${einkDefault}" placeholder="${Math.round(Math.max(0,saUeber)) || 'z.B. 500'}" min="0" step="50" style="width:100%;padding:8px 12px;font-size:14px;border:1px solid var(--border);border-radius:4px;" onblur="window._wpSaveSchwellen()">
         </div>
+      </div>
+      <div style="margin-top:14px;max-width:calc(50% - 7px);">
+        <label class="text-tertiary text-small" for="ip-steuersatz">Persönlicher Steuersatz ${stSatzIsSet ? '<span style="color:var(--accent-dark);font-size:10px;">(gespeichert)</span>' : '<span style="color:var(--text-tertiary);font-size:10px;">(Default 30 %)</span>'}</label>
+        <div style="position:relative;">
+          <input type="number" id="ip-steuersatz" value="${stSatzPct}" min="0" max="50" step="1" style="width:100%;padding:8px 28px 8px 12px;font-size:14px;border:1px solid var(--border);border-radius:4px;" onblur="window._ipSaveSteuersatz()" onchange="window._ipSaveSteuersatz()">
+          <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--text-tertiary);font-size:13px;">%</span>
+        </div>
+        <div class="text-tertiary text-small" style="margin-top:4px;">Single Source of Truth — wird in jede Kalkulation dieses Kunden übernommen.</div>
       </div>
       ${bonInfo}
       <div style="margin-top:18px;">
@@ -1327,6 +1376,24 @@ function _wpRender() {
   else newCard.removeAttribute('open');
   oldCard.replaceWith(newCard);
 }
+
+// Investment-Profil: persönlicher Steuersatz (eigene Kunde-Spalte). Schreibt direkt
+//   am Kunden + spiegelt in den Kalk-State, damit jede Kalkulation den Wert übernimmt.
+//   persistKundeSteuersatz debounced den PUT auf /api/kunden/:id.
+function _ipSaveSteuersatz() {
+  const el = document.getElementById('ip-steuersatz');
+  if (!el || !state.kunde) return;
+  let pct = parseFloat(String(el.value).replace(',', '.'));
+  if (!isFinite(pct)) { el.value = ''; return; }
+  pct = Math.max(0, Math.min(50, Math.round(pct)));
+  el.value = String(pct);
+  const v = pct / 100;
+  if (v <= 0) return; // 0 = nicht setzen — Default-Verhalten bleibt
+  state.kunde.steuersatz = v;
+  if (state.kalk) { state.kalk.steuersatz = v; state.kalk.saSteuersatz = v; }
+  persistKundeSteuersatz(v);
+}
+window._ipSaveSteuersatz = _ipSaveSteuersatz;
 
 // FS-2f BLOCKER (24.05.2026 Bug-Sweep BUG-9): EK + Einkommens-Eingaben aus
 // dem DOM einsammeln BEVOR sie durch _wpRender verschwinden. Sonst tippt
@@ -1407,7 +1474,7 @@ async function _wpSaveSchwellen() {
   // dann Save-Toast als Bestätigung damit Vertriebler weiß "gespeichert".
   if (wp.ekMin === oldEk && wp.einkommenMin === oldEink) return;
   await saveWunschProfil(wp);
-  if (typeof toast === 'function') toast('Wunsch-Profil gespeichert', 'success');
+  if (typeof toast === 'function') toast('Investment-Profil gespeichert', 'success');
 }
 window._wpSaveSchwellen = _wpSaveSchwellen;
 
@@ -2424,9 +2491,26 @@ function persistKundeSteuersatz(v) {
   // Optimistic: lokalen Kunde-Cache sofort setzen — sonst zeigt der renderKunde-
   // Cache-Pfad (loadKunde wird übersprungen) den alten Wert.
   if (state.kunde && state.kunde.id === kundeId) state.kunde.steuersatz = v;
+  // Auch die Dashboard-Liste mitziehen, damit der Steuersatz-Bucket-Filter sofort
+  // stimmt (analog notizen-Sync). Ohne das zeigt der Filter den alten Bucket bis Reload.
+  if (Array.isArray(state.kunden)) {
+    const idx = state.kunden.findIndex(x => x.id === kundeId);
+    if (idx >= 0) state.kunden[idx].steuersatz = v;
+  }
   _steuersatzPending = { kundeId, v };
   if (_steuersatzSaveTimer) clearTimeout(_steuersatzSaveTimer);
   _steuersatzSaveTimer = setTimeout(flushSteuersatzSave, 600);
+}
+// 28.05.2026 (Bug-Fix Edgar): Legt den gespeicherten Kunde-Steuersatz wieder über
+//   state.kalk. loadWeIntoKalk/resetKalk setzen state.kalk per getDefaults() auf den
+//   Standard-Satz (0.30) zurück — ohne diesen Aufruf springt der Satz bei jedem
+//   WE-/Kalkulations-Wechsel auf Default. Altbestand ohne Wert → Default bleibt.
+function applyKundeSteuersatz() {
+  const s = state.kunde && state.kunde.steuersatz;
+  if (typeof s === 'number' && isFinite(s) && s > 0) {
+    state.kalk.steuersatz = s;
+    state.kalk.saSteuersatz = s;
+  }
 }
 function syncSteuersatzInState(v) {
   if (typeof v !== 'number' || !isFinite(v)) return;
@@ -2634,6 +2718,9 @@ async function loadWeIntoKalk(weId) {
     if (k === 'sparZins') return; // sparZins nicht überschreiben (UI-Slider-State)
     state.kalk[k] = def[k];
   });
+  // Persönlicher Steuersatz bleibt am Kunden hängen — Default aus getDefaults() wieder
+  // mit dem gespeicherten Kunde-Wert überschreiben (sonst springt er bei WE-Wechsel zurück).
+  applyKundeSteuersatz();
   // WE-Basis aus Airtable
   state.kalk.kaufpreis = w.kp || w.kaufpreis || 0;
   state.kalk.qm = w.qm || 0;
@@ -2883,6 +2970,7 @@ window.loadWeIntoKalk = loadWeIntoKalk;
 
 function resetKalk() {
   state.kalk = makeDefaultKalkInput();
+  applyKundeSteuersatz(); // Kunde-Steuersatz auch bei neuer Kalkulation halten
   renderTabKalkulator();
 }
 window.resetKalk = resetKalk;
@@ -8489,9 +8577,9 @@ const TOUR_STEPS = [
     needsTab: 'uebersicht',
   },
   {
-    title: 'Schritt 7 — Wunsch-Profil ausfüllen',
-    action: 'Scroll weiter zur „Wunsch-Profil"-Karte. Wähl 2-3 Bundesländer in Deiner Nähe + ein paar Kreise. Trag auch grobe Schwellen ein (max. EK, max. Investitionssumme).',
-    tip: 'Wunsch-Profil filtert später die „Wohnungen"-Liste nach passenden WEs für diesen Kunden. Pflege das früh — spart Dir später viel Klick-Arbeit.',
+    title: 'Schritt 7 — Investment-Profil ausfüllen',
+    action: 'Scroll weiter zur „Investment-Profil"-Karte. Wähl 2-3 Bundesländer in Deiner Nähe + ein paar Kreise. Trag auch grobe Schwellen ein (max. EK, max. Investitionssumme) und den persönlichen Steuersatz.',
+    tip: 'Das Investment-Profil filtert später die „Wohnungen"-Liste nach passenden WEs für diesen Kunden. Pflege das früh — spart Dir später viel Klick-Arbeit.',
     target: '.wp-card, [data-card="wunschprofil"]',
     needsView: 'kunde',
     needsTab: 'uebersicht',
