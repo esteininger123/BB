@@ -1365,6 +1365,7 @@ function renderWunschProfilCard(k) {
         </div>
         <div class="text-tertiary text-small" style="margin-top:4px;">Single Source of Truth — wird in jede Kalkulation dieses Kunden übernommen.</div>
       </div>
+      ${_steuersatzInfoBox(k, 'profil')}
       ${bonInfo}
       <div style="margin-top:18px;">
         <div class="text-tertiary text-small" style="margin-bottom:6px;">Bundesländer auswählen (Klick toggelt — alle Kreise werden automatisch aktiv, lassen sich einzeln rausnehmen)</div>
@@ -1421,6 +1422,89 @@ function _ipSaveSteuersatz() {
   persistKundeSteuersatz(v);
 }
 window._ipSaveSteuersatz = _ipSaveSteuersatz;
+
+// === Steuersatz-Hilfe (Edgar 29.05.2026) ============================================
+// Hilft dem Vertriebler, einen realistischen persönlichen Grenzsteuersatz zu wählen,
+// und schlägt aus der Selbstauskunft einen groben Wert vor.
+// Eckwerte: Einkommensteuertarif 2026 (§32a EStG) — Grundfreibetrag 12.348 € (ledig),
+// 42 %-Schwelle ab 69.879 € zvE (ledig). Der GRENZsteuersatz ist innerhalb jeder
+// Progressionszone linear im zvE → exakte Interpolation aus den Zonengrenzen (kein
+// Raten von Tarif-Koeffizienten). Verheiratet = Splitting → Tarif auf halbes zvE.
+function _grenzsteuersatz2026(zvE, splitting) {
+  const z = splitting ? zvE / 2 : zvE;
+  if (z <= 12348) return 0;
+  if (z <= 17799) return 14 + (z - 12348) / (17799 - 12348) * (23.97 - 14);
+  if (z <= 69878) return 23.97 + (z - 17799) / (69878 - 17799) * (42 - 23.97);
+  if (z <= 277825) return 42;
+  return 45;
+}
+
+// Schätzt aus saJson einen Steuersatz-Vorschlag. null, wenn kein Brutto-Gehalt erfasst.
+function _steuersatzVorschlag(saJson) {
+  if (!saJson || typeof saJson !== 'object') return null;
+  const a = saJson.antragsteller || {};
+  const m = saJson.mitantragsteller || {};
+  const jahr = (p) => (parseFloat(p.bruttoMo) || 0) * (parseFloat(p.anzahlGehaelter) || 12);
+  const bruttoA = jahr(a);
+  if (bruttoA <= 0) return null;
+  const bruttoM = jahr(m);
+  const verheiratet = a.familienstand === 'verheiratet' || saJson.gemeinsam === true;
+  const bruttoGes = bruttoA + bruttoM;
+  // Grobe Brutto→zvE-Brücke: ~22 % ab für Vorsorgeaufwendungen + Pauschalen.
+  const zvE = Math.round(bruttoGes * 0.78);
+  const satz = _grenzsteuersatz2026(zvE, verheiratet);
+  return { bruttoA, bruttoM, bruttoGes, zvE, verheiratet,
+           satzPct: Math.round(satz), satzDez: Math.round(satz) / 100 };
+}
+
+// Ausklappbare i-Box mit Vorschlag + Faustregel. kontext: 'profil' | 'kalk' (Ziel des Buttons).
+function _steuersatzInfoBox(kunde, kontext) {
+  const _eur = (x) => Math.round(x).toLocaleString('de-DE') + ' €';
+  const v = _steuersatzVorschlag(kunde && kunde.saJson);
+  const vorschlag = v ? `
+      <div class="st-help-vorschlag">
+        <div class="st-help-vorschlag-head">Vorschlag aus der Selbstauskunft</div>
+        <div class="st-help-satz">≈ ${v.satzPct} %</div>
+        <div class="st-help-herleitung">Brutto/Jahr ${v.verheiratet && v.bruttoM > 0 ? '(gemeinsam) ' : ''}${_eur(v.bruttoGes)} · ${v.verheiratet ? 'verheiratet (Splitting)' : 'ledig'} · angenommenes zvE ~${_eur(v.zvE)}</div>
+        <button type="button" class="st-help-btn" onclick="window._applySteuersatz(${v.satzDez}, '${kontext}')">Als ${v.satzPct} % übernehmen</button>
+        <div class="st-help-disclaimer">Grobe Schätzung: zvE ≈ Brutto − 22 % (Vorsorge/Pauschalen). Tatsächliche Abschreibungen (AfA) senken das zvE des Kunden weiter — die kennen wir aus der SA nicht, der Satz kann real etwas niedriger liegen. Bei hohem Einkommen kommen Soli/Kirchensteuer obendrauf.</div>
+      </div>` : `
+      <div class="st-help-keine">Noch kein Brutto-Gehalt in der Selbstauskunft erfasst → kein Auto-Vorschlag. Nutze die Faustregel unten.</div>`;
+  return `
+    <details class="st-help">
+      <summary class="st-help-summary"><span class="st-help-i">i</span> Welcher Steuersatz? — Hilfe &amp; Vorschlag</summary>
+      <div class="st-help-body">
+        ${vorschlag}
+        <div class="st-help-sub">So schätzt Du den Grenzsteuersatz</div>
+        <p class="st-help-p">Gemeint ist der <strong>Grenzsteuersatz</strong> — was der Kunde auf den letzten Euro Einkommen zahlt. Je höher das Einkommen, desto höher.</p>
+        <p class="st-help-p"><strong>1. Verheiratet?</strong> Bei gemeinsamer Veranlagung zählt das <strong>gemeinsame</strong> Brutto, und die Schwellen unten <strong>verdoppeln</strong> sich (Ehegatten-Splitting).</p>
+        <p class="st-help-p"><strong>2. Grobe Faustregel</strong> nach Brutto-Jahreseinkommen (ledig):</p>
+        <table class="st-help-tbl">
+          <tr><td>bis 30.000 €</td><td>~25–30 %</td></tr>
+          <tr><td>30.000 – 45.000 €</td><td>~32–36 %</td></tr>
+          <tr><td>45.000 – 65.000 €</td><td>~38–40 %</td></tr>
+          <tr><td>ab ~70.000 €</td><td><strong>42 %</strong> (Spitze)</td></tr>
+        </table>
+        <p class="st-help-note">Default <strong>30 %</strong> passt für viele Angestellte im mittleren Einkommen. Im Zweifel konservativ runden — verbindlich klärt das der Steuerberater.</p>
+      </div>
+    </details>`;
+}
+
+// Übernimmt den vorgeschlagenen Satz ins passende Feld. dez = Dezimal (0.42 = 42 %).
+function _applySteuersatz(dez, kontext) {
+  if (typeof dez !== 'number' || !isFinite(dez) || dez <= 0) return;
+  const pct = Math.round(dez * 100);
+  if (kontext === 'profil') {
+    const el = document.getElementById('ip-steuersatz');
+    if (el) el.value = String(pct);
+    if (typeof _ipSaveSteuersatz === 'function') _ipSaveSteuersatz();
+  } else {
+    syncSteuersatzInState(dez);
+    if (typeof recalcAndRender === 'function') recalcAndRender();
+  }
+  toast('Steuersatz ' + pct + ' % übernommen', 'success');
+}
+window._applySteuersatz = _applySteuersatz;
 
 // FS-2f BLOCKER (24.05.2026 Bug-Sweep BUG-9): EK + Einkommens-Eingaben aus
 // dem DOM einsammeln BEVOR sie durch _wpRender verschwinden. Sonst tippt
@@ -2194,6 +2278,7 @@ function kalkInputsPaketHtml(i) {
           : slider('Persönlicher Steuersatz (aus Selbstauskunft)', 'saSteuersatz', 25, 50, 1)
         }
       </div>
+      ${_steuersatzInfoBox(state.kunde, 'kalk')}
     </details>
     ${isQuick ? `
     <details class="kalk-section" ${sec('pbon')} data-sec="pbon" ontoggle="toggleKalkSection('pbon', this)">

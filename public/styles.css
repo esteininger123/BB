@@ -3951,6 +3951,29 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .kalk-c-cta-btn-secondary:hover {
   background: var(--bg-cream-subtle, #FAFAF6);
 }
+/* === Steuersatz-Hilfe (i-Box) — Edgar 29.05.2026 ============================ */
+.st-help { margin-top: 12px; border: 1px solid var(--border, #E2DFD6); border-radius: 6px; background: var(--bg-cream-subtle, #FBFAF7); }
+.st-help[open] { background: var(--bg-card, #fff); }
+.st-help-summary { cursor: pointer; list-style: none; padding: 9px 12px; font-size: 12.5px; font-weight: 600; color: var(--accent-dark, #8E6E3D); display: flex; align-items: center; gap: 8px; }
+.st-help-summary::-webkit-details-marker { display: none; }
+.st-help-summary::marker { content: ''; }
+.st-help-i { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 50%; background: var(--accent-dark, #8E6E3D); color: #fff; font-size: 11px; font-style: italic; font-weight: 700; flex: 0 0 auto; line-height: 1; }
+.st-help-body { padding: 2px 14px 14px; font-size: 12.5px; color: var(--text-secondary, #3A3A35); line-height: 1.5; }
+.st-help-vorschlag { background: var(--bg-cream-subtle, #FBFAF7); border: 1px solid var(--border, #E2DFD6); border-left: 3px solid var(--accent-dark, #8E6E3D); border-radius: 5px; padding: 11px 13px; margin-bottom: 13px; }
+.st-help-vorschlag-head { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-tertiary, #8A867B); font-weight: 600; }
+.st-help-satz { font-size: 27px; font-weight: 300; color: var(--accent-dark, #8E6E3D); line-height: 1.1; margin: 2px 0 4px; }
+.st-help-herleitung { font-size: 12px; color: var(--text-secondary, #555); margin-bottom: 10px; }
+.st-help-btn { appearance: none; border: 1px solid var(--accent-dark, #8E6E3D); background: var(--accent-dark, #8E6E3D); color: #fff; border-radius: 5px; padding: 6px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.st-help-btn:hover { opacity: .9; }
+.st-help-disclaimer { font-size: 11px; color: var(--text-tertiary, #8A867B); margin-top: 10px; line-height: 1.45; }
+.st-help-keine { font-size: 12px; color: var(--text-tertiary, #8A867B); margin-bottom: 13px; font-style: italic; }
+.st-help-sub { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-tertiary, #8A867B); font-weight: 600; margin-bottom: 7px; }
+.st-help-p { margin: 0 0 7px; }
+.st-help-tbl { width: 100%; border-collapse: collapse; margin: 5px 0 10px; font-size: 12px; }
+.st-help-tbl td { padding: 3px 0; border-bottom: 1px dotted var(--border, #E2DFD6); }
+.st-help-tbl td:last-child { text-align: right; color: var(--accent-dark, #8E6E3D); font-weight: 500; white-space: nowrap; padding-left: 10px; }
+.st-help-note { font-size: 11.5px; color: var(--text-tertiary, #8A867B); margin: 0; line-height: 1.45; }
+
 @media (max-width: 600px) {
   .kalk-c-cta-section { padding: 36px 0 40px; }
   .kalk-c-cta-title { font-size: 24px; }
