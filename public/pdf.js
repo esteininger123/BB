@@ -351,6 +351,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <div class="pdf-c-obj-row"><span class="k">Adresse</span><span class="v">${esc(projekt || i._weLage || '—')}</span></div>
           ${i._weNr ? `<div class="pdf-c-obj-row"><span class="k">Wohneinheit</span><span class="v">${esc(i._weNr)}</span></div>` : ''}
           <div class="pdf-c-obj-row"><span class="k">Wohnfläche</span><span class="v">${(i.qm || 0).toLocaleString('de-DE')}<span class="unit">qm</span></span></div>
+          ${i._objektvorstellungLink ? `<div class="pdf-c-obj-row"><span class="k">Objektvorstellung</span><span class="v"><a href="${esc(i._objektvorstellungLink)}" target="_blank" rel="noopener" style="color:#8E6E3D;text-decoration:underline;font-weight:500;">Objekt online ansehen ↗</a></span></div>` : ''}
 
           <h4>Kaufpreis</h4>
           <div class="pdf-c-obj-row"><span class="k">Wohnung</span><span class="v">${Math.round(i.kaufpreis || 0).toLocaleString('de-DE')}<span class="unit">€</span></span></div>

@@ -5180,6 +5180,15 @@ function exportInvestPdf() {
     const btns = _pdfButtonBusy('exportInvestPdf', 'PDF wird erstellt…');
     setTimeout(() => {
       try {
+        // 29.05.2026 (Edgar): Objektvorstellungs-Link IMMER frisch aus der Live-WE ziehen
+        //   (nicht aus einem evtl. geladenen Snapshot), damit der aktuelle Drive-Link im
+        //   Report steht, auch wenn er zwischenzeitlich geändert wurde.
+        try {
+          if (state.kalk && state.kalk._weId && Array.isArray(state.wohneinheiten)) {
+            const liveWe = state.wohneinheiten.find(x => x.id === state.kalk._weId);
+            if (liveWe) state.kalk._objektvorstellungLink = liveWe.objektvorstellungLink || '';
+          }
+        } catch {}
         window.PDF.investitionsrechnung(state.kunde, state.kalk, state.kalkResult, state.user);
         // Audit-Log: PDF-Export in Aktivitäten-Historie loggen (Edgar-Feedback 24.05.2026).
         // Wird nicht bei jedem Druckdialog-Abbruch geloggt — wir registrieren den Trigger.
