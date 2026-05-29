@@ -236,10 +236,12 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       .pdf-c-p2-grid{display:grid;grid-template-columns:1fr 1.4fr;gap:14mm;margin-top:6mm;flex:1}
       .pdf-c-obj h4{font-size:8pt;letter-spacing:.2em;text-transform:uppercase;color:#7A7A72;font-weight:500;margin:5mm 0 2mm 0}
       .pdf-c-obj h4:first-child{margin-top:0}
-      .pdf-c-obj-row{display:flex;justify-content:space-between;align-items:baseline;padding:2mm 0;border-bottom:.4px solid #E8E6DD;font-size:10pt;font-variant-numeric:tabular-nums}
-      .pdf-c-obj-row .k{color:#7A7A72;font-weight:400}
-      .pdf-c-obj-row .v{color:#1A1A17;font-weight:400}
+      .pdf-c-obj-row{display:flex;justify-content:space-between;align-items:baseline;gap:6mm;padding:2mm 0;border-bottom:.4px solid #E8E6DD;font-size:10pt;font-variant-numeric:tabular-nums}
+      .pdf-c-obj-row .k{color:#7A7A72;font-weight:400;flex:0 0 auto;white-space:nowrap}
+      .pdf-c-obj-row .v{color:#1A1A17;font-weight:400;text-align:right;min-width:0}
       .pdf-c-obj-row .v .unit{font-size:8pt;color:#7A7A72;margin-left:3px}
+      .pdf-c-obj-row.is-link{flex-direction:column;align-items:flex-start;gap:1.5mm}
+      .pdf-c-obj-row.is-link a{white-space:nowrap;color:#8E6E3D;text-decoration:underline;font-weight:500}
       .pdf-c-p2-right .hero-line{font-size:14pt;font-weight:300;letter-spacing:-.005em;line-height:1.4;color:#1A1A17;margin-bottom:5mm}
       .pdf-c-p2-right .narrative{font-size:10pt;line-height:1.65;color:#3A3A35;font-weight:400;margin-bottom:4mm}
       .pdf-c-p2-belastung-table{width:100%;border-collapse:collapse;font-size:9pt;font-variant-numeric:tabular-nums;margin-top:4mm}
@@ -271,11 +273,12 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       .pdf-c-p5-grid{display:grid;grid-template-columns:1fr 1fr;gap:8mm 12mm;margin-top:4mm}
       .pdf-c-p5-block h4{font-size:8pt;letter-spacing:.2em;text-transform:uppercase;color:#8E6E3D;font-weight:500;margin-bottom:3mm}
       .pdf-c-p5-block h5{font-size:8pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500;margin:4mm 0 2mm 0}
-      .pdf-c-saldo-row{display:flex;justify-content:space-between;padding:1.6mm 0;border-bottom:.4px solid #E8E6DD;font-size:9.5pt;font-variant-numeric:tabular-nums}
+      .pdf-c-saldo-row{display:flex;justify-content:space-between;gap:5mm;padding:1.6mm 0;border-bottom:.4px solid #E8E6DD;font-size:9.5pt;font-variant-numeric:tabular-nums}
+      .pdf-c-saldo-row>span:last-child{text-align:right;flex:0 0 auto}
       .pdf-c-saldo-row.tot{border-bottom:none;border-top:.5px solid #B08A4D;padding-top:2.5mm;margin-top:1.5mm;font-weight:500;color:#8E6E3D}
-      .pdf-c-ass-row{display:flex;justify-content:space-between;padding:1.4mm 0;border-bottom:.4px dotted #E8E6DD;font-size:9pt;font-variant-numeric:tabular-nums}
-      .pdf-c-ass-row .k{color:#7A7A72}
-      .pdf-c-ass-row .v{color:#1A1A17}
+      .pdf-c-ass-row{display:flex;justify-content:space-between;gap:5mm;padding:1.4mm 0;border-bottom:.4px dotted #E8E6DD;font-size:9pt;font-variant-numeric:tabular-nums}
+      .pdf-c-ass-row .k{color:#7A7A72;flex:0 0 auto;white-space:nowrap}
+      .pdf-c-ass-row .v{color:#1A1A17;text-align:right;min-width:0}
       .pdf-c-p5-cashflow{width:100%;border-collapse:collapse;font-size:8.5pt;font-variant-numeric:tabular-nums;margin-top:2mm}
       .pdf-c-p5-cashflow th{padding:1.6mm 1mm;font-size:7pt;letter-spacing:.16em;text-transform:uppercase;color:#7A7A72;font-weight:500;text-align:left;border-bottom:.4px solid #E8E6DD}
       .pdf-c-p5-cashflow th.r{text-align:right}
@@ -351,7 +354,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <div class="pdf-c-obj-row"><span class="k">Adresse</span><span class="v">${esc(projekt || i._weLage || '—')}</span></div>
           ${i._weNr ? `<div class="pdf-c-obj-row"><span class="k">Wohneinheit</span><span class="v">${esc(i._weNr)}</span></div>` : ''}
           <div class="pdf-c-obj-row"><span class="k">Wohnfläche</span><span class="v">${(i.qm || 0).toLocaleString('de-DE')}<span class="unit">qm</span></span></div>
-          ${i._objektvorstellungLink ? `<div class="pdf-c-obj-row"><span class="k">Objektvorstellung</span><span class="v"><a href="${esc(i._objektvorstellungLink)}" target="_blank" rel="noopener" style="color:#8E6E3D;text-decoration:underline;font-weight:500;">Objekt online ansehen ↗</a></span></div>` : ''}
+          ${i._objektvorstellungLink ? `<div class="pdf-c-obj-row is-link"><span class="k">Objektvorstellung</span><span class="v"><a href="${esc(i._objektvorstellungLink)}" target="_blank" rel="noopener">Objekt online ansehen ↗</a></span></div>` : ''}
 
           <h4>Kaufpreis</h4>
           <div class="pdf-c-obj-row"><span class="k">Wohnung</span><span class="v">${Math.round(i.kaufpreis || 0).toLocaleString('de-DE')}<span class="unit">€</span></span></div>
@@ -570,11 +573,11 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <div style="font-size:7pt; color:#7A7A72; text-transform:uppercase; letter-spacing:.14em;">IRR 10 J</div>
           <div style="font-size:18pt; font-weight:400; color:${color}; line-height:1; margin-top:1mm;">${fmtIRRpct(irr)}</div>
         </div>
-        <div style="margin-top:3mm; display:flex; justify-content:space-between; font-size:9pt; color:#3A3A35;">
-          <span>Belastung</span><span class="pdf-c-num">${fmtMo(bel)}</span>
+        <div style="margin-top:3mm; display:flex; justify-content:space-between; gap:3mm; font-size:9pt; color:#3A3A35;">
+          <span style="white-space:nowrap;">Belastung</span><span class="pdf-c-num" style="white-space:nowrap;">${fmtMo(bel)}</span>
         </div>
-        <div style="margin-top:1mm; display:flex; justify-content:space-between; font-size:9pt; color:#3A3A35;">
-          <span>Vermögen J10</span><span class="pdf-c-num">${fmt(verm)}</span>
+        <div style="margin-top:1mm; display:flex; justify-content:space-between; gap:3mm; font-size:9pt; color:#3A3A35;">
+          <span style="white-space:nowrap;">Vermögen J10</span><span class="pdf-c-num" style="white-space:nowrap;">${fmt(verm)}</span>
         </div>
       </div>
     `;
