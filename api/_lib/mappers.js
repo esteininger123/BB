@@ -160,15 +160,20 @@ function snapshotBodyToFields(body, opts = {}) {
     const vmod = k.vermietungsModus || k._vermietungsModus || '';
     if (vmod) out[SNAPSHOT_FIELDS.VERMIETUNGSMODUS] = String(vmod);
 
-    // Subvention-Details
-    setIf(SNAPSHOT_FIELDS.SUBV_MO, num(k.subventionMo));
+    // Subvention-Details — 2026-06-01: mit Subventionsregler-Faktor skaliert; echte Engine-Summe bevorzugt.
+    const _sf = (k.subventionFaktor != null && isFinite(Number(k.subventionFaktor))) ? Number(k.subventionFaktor) : 1;
+    setIf(SNAPSHOT_FIELDS.SUBV_MO, num(k.subventionMo != null ? k.subventionMo * _sf : null));
     setIf(SNAPSHOT_FIELDS.SUBV_MONATE, num(k.subventionMonate));
-    setIf(SNAPSHOT_FIELDS.SUBV_GESAMT, num(k._subventionTotalEur));
+    // Echte (ggf. skalierte) Gesamt-Subvention aus kalkErgebnis bevorzugen; sonst nominal × Faktor (Altbestand)
+    const _subvEcht = (body.kalkErgebnis && typeof body.kalkErgebnis === 'object' && body.kalkErgebnis.mietsubventionGesamt != null)
+      ? body.kalkErgebnis.mietsubventionGesamt
+      : (k._subventionTotalEur != null ? k._subventionTotalEur * _sf : null);
+    setIf(SNAPSHOT_FIELDS.SUBV_GESAMT, num(_subvEcht));
     if (Array.isArray(k.subventionPhasen) && k.subventionPhasen.length) {
       const phasenTxt = k.subventionPhasen.map((p, idx) => {
         const mo = num(p.mo), monate = num(p.monate);
         const label = p.label || ('Phase ' + (idx + 1));
-        return `${label}: ${mo != null ? Math.round(mo) : '?'} €/Mo × ${monate != null ? monate : '?'} Mo`;
+        return `${label}: ${mo != null ? Math.round(mo * _sf) : '?'} €/Mo × ${monate != null ? monate : '?'} Mo`;
       }).join('\n');
       if (phasenTxt) out[SNAPSHOT_FIELDS.SUBV_PHASEN] = phasenTxt;
     }

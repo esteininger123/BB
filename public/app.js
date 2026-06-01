@@ -309,6 +309,11 @@ async function loadKunde(id) {
     const k = await api.get('/api/kunden/' + id);
     state.kunde = k;
     state.snapshots = await api.get('/api/snapshots?kundeId=' + id).catch(() => []);
+    // 2026-06-01: bei Deeplink direkt auf /kunde/X ist die WE-Liste evtl. noch nicht geladen —
+    // ohne sie lässt sich die WE-Nummer der beratenen Wohnungen nicht auflösen (fällt auf Lage zurück).
+    if (!Array.isArray(state.wohneinheiten) || state.wohneinheiten.length === 0) {
+      state.wohneinheiten = await api.get('/api/wohneinheiten').catch(() => []);
+    }
     // Kalk-State aus selbstauskunft-JSON oder Default
     state.kalk = makeDefaultKalkInput();
     // 28.05.2026 — Persönlicher Steuersatz pro Kunde (Option B): hat der Kunde
@@ -2533,7 +2538,7 @@ function kalkInputsThemenHtml(i) {
                 <span>Mietsubvention <strong id="subv-regler-subv">${aktuell.toLocaleString('de-DE')} €</strong></span>
                 <span>Kaufpreis-Rabatt <strong id="subv-regler-rabatt">${rabatt.toLocaleString('de-DE')} €</strong></span>
               </div>
-              <div class="text-tertiary text-small" style="margin-top:3px;line-height:1.4;">Spielerei: weniger Subvention = günstigerer Kaufpreis (1:1). Wirkt live auf Cashflow, Annuität und PDF.</div>
+              <div class="text-tertiary text-small" style="margin-top:3px;line-height:1.4;">Wahlweise statt Mietsubvention ein Kaufpreis-Rabatt (1:1). Wirkt live auf Cashflow, Annuität und PDF.</div>
             </div>`;
         })()}
         ${select('Mietsteigerungs-Modus', 'mietsteigerungsModus', [
@@ -3507,9 +3512,11 @@ function renderStories(r) {
   // Drift. Jetzt: Label-Hinweis „Tag-1-Aufschlüsselung" macht Erwartung klar.
   const kaltmieteJ1Mo = i.kaltmiete || 0;
   const stellplatzMieteJ1Mo = i.stellplatzMiete || 0;
-  const subvJ1Mo = (Array.isArray(i.subventionPhasen) && i.subventionPhasen[0] && i.subventionPhasen[0].monate >= 1)
+  // 2026-06-01: Subventionsregler-Faktor in der Story-Aufschlüsselung berücksichtigen
+  const _sfStory = (i.subventionFaktor != null && isFinite(i.subventionFaktor)) ? i.subventionFaktor : 1;
+  const subvJ1Mo = ((Array.isArray(i.subventionPhasen) && i.subventionPhasen[0] && i.subventionPhasen[0].monate >= 1)
     ? i.subventionPhasen[0].mo
-    : (i.subventionMo || 0);
+    : (i.subventionMo || 0)) * _sfStory;
   const tag1Sum = kaltmieteJ1Mo + stellplatzMieteJ1Mo + subvJ1Mo;
   const j1Mean = r.mieteJ1Mo || 0;
   const hatDrift = Math.abs(tag1Sum - j1Mean) > 1; // > 1 € Drift → Hinweis zeigen
@@ -3610,15 +3617,15 @@ function renderStories(r) {
           if (phasen.length >= 2) {
             const p1 = phasen[0], p2 = phasen[1];
             return `<p><strong>Deine Mietsubvention gesamt: ${fmt(totalEur)}</strong>${capInfo}<br>
-              · Phase 1: <strong>${fmtEurMo(p1.mo)}</strong> × ${p1.monate} Mo = ${fmt(p1.mo * p1.monate)}<br>
-              · Phase 2: <strong>${fmtEurMo(p2.mo)}</strong> × ${p2.monate} Mo = ${fmt(p2.mo * p2.monate)}<br>
+              · Phase 1: <strong>${fmtEurMo(p1.mo * _sfStory)}</strong> × ${p1.monate} Mo = ${fmt(p1.mo * _sfStory * p1.monate)}<br>
+              · Phase 2: <strong>${fmtEurMo(p2.mo * _sfStory)}</strong> × ${p2.monate} Mo = ${fmt(p2.mo * _sfStory * p2.monate)}<br>
               ${state.kalk._subventionErlaeuterung ? `<span class="text-tertiary text-small">${esc(state.kalk._subventionErlaeuterung)}</span>` : ''}
               ${hinweisHtml}
             </p>`;
           } else if (phasen.length === 1) {
             const p = phasen[0];
             return `<p><strong>Deine Mietsubvention gesamt: ${fmt(totalEur)}</strong>${capInfo}<br>
-              · ${esc(p.label || 'Phase 1')}: <strong>${fmtEurMo(p.mo)}</strong> × ${p.monate} Mo<br>
+              · ${esc(p.label || 'Phase 1')}: <strong>${fmtEurMo(p.mo * _sfStory)}</strong> × ${p.monate} Mo<br>
               ${state.kalk._subventionErlaeuterung ? `<span class="text-tertiary text-small">${esc(state.kalk._subventionErlaeuterung)}</span>` : ''}
               ${hinweisHtml}
             </p>`;
@@ -4567,7 +4574,7 @@ function renderStoryPremium(r) {
       case 'miete': return '§ 558 BGB: max. 15 % in 3 Jahren bei Bestand. Bei Neuvermietung: Mietspiegel-Konformität';
       case 'st': return 'Persönlicher Grenzsteuersatz — aus Selbstauskunft oder Annahme';
       case 'afa': return (i.afaSatz > 0.025) ? 'Restnutzungsdauer-Gutachten (Sprengnetter — Marktführer, gute Durchsetzungs-Quote beim Finanzamt)' : 'Standard 2 % linear nach § 7 EStG';
-      case 'subv': return 'B&B-Glättungs-Modell — Phase 1 absichern Marktmiete-Cap (§ 558 BGB)';
+      case 'subv': return 'B&B-Glättungs-Modell — Phase 1 abgesichert gegen Marktmiete-Cap (§ 558 BGB)';
       case 'spar': return 'Tagesgeld-Vergleichszins — frei wählbar';
       case 'markt': return 'Aus Immoscout/Homeday-Vergleichswerten (Stand letzter Marktanker)';
       default: return '';
@@ -5480,6 +5487,8 @@ async function saveSnapshot() {
           vermoegenNetto10: r.vermoegenNetto10,
           irr: r.irr,
           bruttorendite: r.bruttorendite,
+          // 2026-06-01: echte (ggf. per Regler skalierte) Gesamt-Subvention fürs Backoffice-Klartextfeld
+          mietsubventionGesamt: r.mietsubventionGesamt,
         };
       })(),
       bezeichnung: bez,
@@ -7487,7 +7496,7 @@ function renderTabSnapshots() {
               return `
                 <tr>
                   <td>${labelHtml}</td>
-                  <td class="text-tertiary">${esc(s.weBezeichnung || '—')}</td>
+                  <td class="text-tertiary">${esc(_weNummerLabel(s && s.weRecordId, s && s.weBezeichnung) || '—')}</td>
                   <td>${esc(s.pdfTyp || '—')}</td>
                   <td class="text-tertiary">${esc(fmtDate(s.created))}</td>
                   <td style="white-space:nowrap; display:flex; gap:6px; justify-content:flex-end;">
@@ -9080,7 +9089,7 @@ const TOUR_STEPS = [
     needsTab: 'kalkulator',
   },
   {
-    title: 'Schritt 16 — Snapshot speichern',
+    title: 'Schritt 15 — Snapshot speichern',
     action: 'Scroll ganz nach unten zur Toolbar und klick „Snapshot speichern". Vergib eine Bezeichnung, z.B. „Pitch 1 — Erstgespräch".',
     tip: 'Snapshots sind eingefrorene Zwischenstände — ändern sich nicht mehr, auch wenn Stammdaten oder Person-Settings sich ändern. Beim Reload zeigt ein Toast „Werte eingefroren".',
     target: '.toolbar button[onclick*="saveSnapshot"]',
@@ -9089,7 +9098,7 @@ const TOUR_STEPS = [
     detectCompleted: () => Array.isArray(state.snapshots) && state.snapshots.length > 0,
   },
   {
-    title: 'Schritt 17 — Investitionsanalyse als PDF runterladen + lesen',
+    title: 'Schritt 16 — Investitionsanalyse als PDF runterladen + lesen',
     action: 'In der Toolbar klick auf „Investitionsanalyse". Wähl „Als PDF herunterladen". Öffne das PDF und schau es Dir AUS KUNDEN-SICHT durch (9 Seiten).',
     tip: 'Das PDF ist Dein Standard-Pitch: Cover mit Kundenname, 9 Seiten Magazin-Story, am Ende ein CTA-Block. Beim Mail-Send geht es direkt an die Kunden-E-Mail mit kurzem Begleittext.',
     target: '.toolbar button[onclick*="openInvestDocModal"]',
@@ -9100,7 +9109,7 @@ const TOUR_STEPS = [
 
   // ============== TEIL 5: SELBSTAUSKUNFT — DU FÜLLST DEINE EIGENE AUS ==============
   {
-    title: 'Schritt 18 — Selbstauskunft öffnen',
+    title: 'Schritt 17 — Selbstauskunft öffnen',
     action: 'Wechsel oben auf den Tab „Selbstauskunft". Du siehst das SA-Formular für Antragsteller (+ optional Mit-Antragsteller).',
     tip: 'Auto-Save aktiv — jede Änderung wird sofort gespeichert. Pflichtfelder (Brutto, Steuerklasse, IBAN, Steuer-ID) werden vor dem digitalen Send geprüft.',
     target: '.tab[data-tab="selbstauskunft"]',
@@ -9108,7 +9117,7 @@ const TOUR_STEPS = [
     detectCompleted: () => state.tab === 'selbstauskunft',
   },
   {
-    title: 'Schritt 19 — Deine eigene Bonität eintragen',
+    title: 'Schritt 18 — Deine eigene Bonität eintragen',
     action: 'Trag DEINE echten Bonitätsdaten ein: Bruttogehalt, Steuerklasse, KFZ-Ausgaben, Sparrate, Eigenkapital. So siehst Du gleich Deinen eigenen Cashflow-Saldo aus Bank-Sicht.',
     tip: 'Bonitäts-Box oben (Einnahmen / Ausgaben / Saldo) wird live aktualisiert — das ist genau was der Banker sieht wenn er die SA aufschlägt.',
     target: null,
@@ -9117,7 +9126,7 @@ const TOUR_STEPS = [
   },
   {
     // FS-3g (Audit Tour 25.05.2026): Wording matched die echten Button-Labels.
-    title: 'Schritt 20 — SA digital an Dich selbst senden',
+    title: 'Schritt 19 — SA digital an Dich selbst senden',
     action: 'Wähl in der Toolbar entweder „→ Selbstauskunft via PandaDoc senden" (digitale Unterschrift) ODER „📋 Link für Selbst-Ausfüllen erzeugen" (Magic-Link zum Online-Ausfüllen). Für den Test reicht der Link — geht an Deine eigene E-Mail.',
     tip: 'Magic-Link mit JWT, 14 Tage gültig. Kunde sieht das SA-Portal als eigene URL, kann zwischenspeichern, später weitermachen. Du siehst den Status in der Aktivitäten-Historie.',
     target: 'button[onclick*="generateSaPortalLink"], button[onclick*="sendSaForSignature"]',
@@ -9126,7 +9135,7 @@ const TOUR_STEPS = [
     detectCompleted: () => false,
   },
   {
-    title: 'Schritt 21 — Mail im eigenen Posteingang öffnen',
+    title: 'Schritt 20 — Mail im eigenen Posteingang öffnen',
     action: 'Öffne Dein E-Mail-Postfach (in einem anderen Tab). Du hast eine Mail von „B&B Immo" → klick den Magic-Link in der Mail.',
     tip: 'Falls Mail nicht angekommen ist: Spam-Ordner checken. Dauert üblicherweise 30 Sekunden bis 2 Minuten. Edgar hat alle Auth-Domains verifiziert.',
     target: null,
@@ -9134,14 +9143,14 @@ const TOUR_STEPS = [
     needsTab: 'selbstauskunft',
   },
   {
-    title: 'Schritt 22 — Das SA-Portal aus Kunden-Sicht',
+    title: 'Schritt 21 — Das SA-Portal aus Kunden-Sicht',
     action: 'Du bist jetzt im SA-Portal — das was der Kunde sieht. Schau Dich um: gleiche Brot & Butter-Logo, vereinfachte Form, Auto-Save unten. Trag was ein, klick „Speichern".',
     tip: 'Das SA-Portal ist eine eigene HTML (sa-portal.html) — schlanker als die App. Kein Login nötig, läuft via JWT-Token in der URL. Kunde kann hin- und herwechseln zwischen Antragsteller 1 und 2.',
     target: null,
     needsView: 'kunde',
   },
   {
-    title: 'Schritt 23 — Zurück in die Backstube: Webhook-Status',
+    title: 'Schritt 22 — Zurück in die Backstube: Webhook-Status',
     action: 'Geh zurück in den App-Tab. Wechsel auf den Übersicht-Tab. In der Aktivitäten-Historie steht jetzt ein neuer Eintrag: „SA gespeichert von Kunde" — der Webhook hat funktioniert.',
     tip: 'PandaDoc + SA-Portal nutzen Webhooks: sobald der Kunde was speichert, postet der Server an /api/sa/webhook. Der Webhook trägt in die Aktivität ein und passt den Phasen-Tracker an.',
     target: '.activity-list',
@@ -9149,7 +9158,7 @@ const TOUR_STEPS = [
     needsTab: 'uebersicht',
   },
   {
-    title: 'Schritt 24 — SA-Snapshots-Tab',
+    title: 'Schritt 23 — SA-Snapshots-Tab',
     action: 'Klick auf den Tab „SA-Snapshots". Hier siehst Du alle versionierten SA-Stände. Jede Speicherung erzeugt einen Snapshot.',
     tip: 'Sinn: Banker bekommt immer den vom Kunden VERSCHICKTEN Stand. Du kannst alte SAs zurückladen, vergleichen, oder einfach archivieren. PandaDoc bekommt den letzten Snapshot.',
     target: '.tab[data-tab="snapshots"]',
@@ -9159,7 +9168,7 @@ const TOUR_STEPS = [
 
   // ============== TEIL 6: RESERVIERUNG — DU UNTERSCHREIBST DEINE EIGENE ==============
   {
-    title: 'Schritt 25 — Reservierung digital an Dich senden',
+    title: 'Schritt 24 — Reservierung digital an Dich senden',
     action: 'Wechsel zurück zum Kalkulator-Tab. In der Toolbar ganz unten ist „Reservierung digital senden" — klick drauf. Die Reservierung geht via PandaDoc an Deine E-Mail.',
     tip: 'PandaDoc-Doc wird automatisch befüllt: Käufer (Du), Verkäufer (B&B), Objekt-Daten aus Airtable, Frist 30 Tage. Status landet automatisch in der Aktivitäten-Historie via Webhook.',
     target: '.toolbar button[onclick*="sendReservierungForSignature"]',
@@ -9168,14 +9177,14 @@ const TOUR_STEPS = [
     detectCompleted: () => false,
   },
   {
-    title: 'Schritt 26 — PandaDoc-Mail öffnen + selbst unterschreiben',
+    title: 'Schritt 25 — PandaDoc-Mail öffnen + selbst unterschreiben',
     action: 'Wieder Mail-Postfach. PandaDoc-Mail mit „Reservierungsvereinbarung — bitte unterschreiben". Klick den Link, gehe durch das PandaDoc-Doc, unterschreib digital.',
     tip: 'Du siehst genau was der Kunde sieht. Felder die der Käufer ausfüllen muss sind farblich markiert. Am Ende klick „Fertigstellen" — Du bekommst eine Kopie per Mail.',
     target: null,
     needsView: 'kunde',
   },
   {
-    title: 'Schritt 27 — Webhook bestätigt: Reservierung signiert',
+    title: 'Schritt 26 — Webhook bestätigt: Reservierung signiert',
     action: 'Zurück in die Backstube, Übersicht-Tab. In der Aktivitäten-Historie steht jetzt: „Reservierung signiert von Test-Kunde". Der Phasen-Tracker springt auf „Abwicklung".',
     tip: 'PandaDoc-Webhook + HMAC-Signatur — manipulationssicher. Bei jedem Status-Event (Sent → Viewed → Signed → Completed) kommt ein neuer Aktivitäts-Eintrag.',
     target: '.activity-list',
@@ -9185,7 +9194,7 @@ const TOUR_STEPS = [
 
   // ============== TEIL 7: WOHNUNGEN-LISTE + MATCH ==============
   {
-    title: 'Schritt 28 — Wohnungen-Liste öffnen',
+    title: 'Schritt 27 — Wohnungen-Liste öffnen',
     action: 'Klick oben in der Navigation auf „Wohnungen". Du siehst alle WEs in Vermarktung, pro Projekt gruppiert, mit Kennzahlen.',
     tip: 'Profil-Dropdown oben rechts wechselt zwischen 6 Bank-Szenarien (3 Steuersätze × KNK ohne/mit). KNK „mit" = 4,8 % Zins (Bank-Aufschlag), „ohne" = 4,5 %. Jede WE-Zeile ist klickbar — direkt zur Kalkulation.',
     target: 'a[href="#/we-liste"]',
@@ -9195,14 +9204,14 @@ const TOUR_STEPS = [
   {
     // FS-3d (Audit Tour-Steps 25.05.2026): WE-Liste hat keine Filter-Bar.
     // Statt fiktiver Filter zeigen wir das Profil-Dropdown (Bank-Szenario).
-    title: 'Schritt 29 — Bank-Szenario wechseln',
+    title: 'Schritt 28 — Bank-Szenario wechseln',
     action: 'Oben rechts ist das Profil-Dropdown (z.B. „35 % StSatz · 4,5 % Zins · KP ohne KNK"). Wechsel zwischen 6 Bank-Szenarien — alle Renditen + Cashflow rechnen sich live um.',
     tip: 'Profile sind Kombinationen aus Steuersatz (28/35/42 %) × KNK ohne/mit. So siehst Du dieselbe WE mit verschiedenen Käufer-Bonitäten ohne neue Kalkulation.',
     target: '#we-profil-select, select[onchange*="weListeProfil"]',
     needsView: 'we-liste',
   },
   {
-    title: 'Schritt 30 — Zurück zu Meine Kunden, Filter nutzen',
+    title: 'Schritt 29 — Zurück zu Meine Kunden, Filter nutzen',
     action: 'Klick oben links auf „Meine Kunden". Probier die Filter-Bar: nach Phase, nach Wunsch-Region, nach offenen WV. Sortier nach „Wiedervorlage" — die fälligsten Kunden zuerst.',
     tip: 'Das ist Dein Tages-Cockpit: alle Kunden mit offener Wiedervorlage, gefiltert nach was Du gerade brauchst. Spalten zeigen Phase, Wunsch-Region, EK, Einkommen, Investitionsschwelle.',
     target: 'a[href="#/dashboard"]',
@@ -9212,7 +9221,7 @@ const TOUR_STEPS = [
 
   // ============== TEIL 8: AUFRÄUMEN + ABSCHLUSS ==============
   {
-    title: 'Schritt 31 — Test-Kunde archivieren',
+    title: 'Schritt 30 — Test-Kunde archivieren',
     action: 'Klick in „Meine Kunden" auf Dich selbst (Test-Kunde). Im Header der Kundenseite ist der Button „Archivieren" — klick ihn an.',
     tip: 'Vertrieb darf nicht endgültig löschen, nur archivieren. Edgar als Admin kann später echte Löschungen durchführen. Damit fliegt der Test-Kunde aus Deiner Liste raus.',
     target: 'button[onclick*="archiveKunde"]',

@@ -173,18 +173,21 @@ module.exports = async (req, res) => {
         : (parseFloat(snapKalk.subventionMo) > 0 && parseInt(snapKalk.subventionMonate) > 0
             ? [{ mo: parseFloat(snapKalk.subventionMo), monate: parseInt(snapKalk.subventionMonate), label: 'Mietsubvention' }]
             : []);
-      // Total aus Vorberechnung oder neu berechnen
+      // 2026-06-01: Subventionsregler-Faktor berücksichtigen — sonst zeigt das Reservierungs-Doc
+      // die volle nominale Subvention, obwohl der Vertriebler sie per Regler reduziert hat (Haftung!).
+      const _subvFaktor = (typeof snapKalk.subventionFaktor === 'number' && isFinite(snapKalk.subventionFaktor)) ? snapKalk.subventionFaktor : 1;
+      // Total aus Vorberechnung oder neu berechnen — jeweils mit Regler-Faktor skaliert
       if (typeof snapKalk._subventionTotalEur === 'number' && snapKalk._subventionTotalEur > 0) {
-        mietsubventionTotal = snapKalk._subventionTotalEur;
+        mietsubventionTotal = snapKalk._subventionTotalEur * _subvFaktor;
       } else if (phasen.length > 0) {
-        mietsubventionTotal = phasen.reduce((sum, p) => sum + (parseFloat(p.mo) || 0) * (parseInt(p.monate) || 0), 0);
+        mietsubventionTotal = phasen.reduce((sum, p) => sum + (parseFloat(p.mo) || 0) * (parseInt(p.monate) || 0), 0) * _subvFaktor;
       }
       if (phasen.length > 0 && mietsubventionTotal > 0) {
         // Beschreibung: "60,23 €/Monat × 12 Monate" (eine Phase) oder "X + Y" (mehrere)
         // Labels wie "Manuell (Override)" sind interne Kalkulator-Infos und
         // gehören NICHT ins Kunden-Doc — wir lassen sie hier weg.
         mietsubventionBeschreibung = phasen.map(p => {
-          const mo = formatEUR(parseFloat(p.mo) || 0);
+          const mo = formatEUR((parseFloat(p.mo) || 0) * _subvFaktor);
           const monate = parseInt(p.monate) || 0;
           return `${mo}/Monat × ${monate} Monate`;
         }).join(' + ');
