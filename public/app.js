@@ -614,6 +614,10 @@ function _renderKundeRow(k) {
   const _einkCell = _hasSa
     ? (fd.ueber !== 0 ? `<span style="color:${fd.ueber > 0 ? 'var(--positive)' : 'var(--negative)'}">${Math.round(fd.ueber).toLocaleString('de-DE')} €</span>` : '<span class="text-tertiary">0 €</span>')
     : '<span class="text-tertiary text-small" title="Selbstauskunft noch nicht ausgefüllt">SA fehlt</span>';
+  // Beratene WE (Team-Feedback 2026-06-01): aus den Snapshots des Kunden (Backend liefert k.berateneWE)
+  const _beratenWE = (k.berateneWE && k.berateneWE.length)
+    ? k.berateneWE.slice(0, 3).map(esc).join(' · ') + (k.berateneWE.length > 3 ? ` +${k.berateneWE.length - 3}` : '')
+    : '';
   return `
     <tr data-search="${esc((_displayName + ' ' + (_displayEmail || '')).toLowerCase())}"
         data-ek="${Math.round(fd.liquid)}"
@@ -624,7 +628,7 @@ function _renderKundeRow(k) {
         data-wv="${esc(_wvStatus)}"
         data-st="${_kfStBucket(k)}"
         onclick="go('/kunde/${esc(k.id)}')">
-      <td><strong>${esc(_displayName)}</strong>${_displayEmail && _displayName !== _displayEmail ? `<div class="text-tertiary text-small">${esc(_displayEmail)}</div>` : ''}</td>
+      <td><strong>${esc(_displayName)}</strong>${_displayEmail && _displayName !== _displayEmail ? `<div class="text-tertiary text-small">${esc(_displayEmail)}</div>` : ''}${_beratenWE ? `<div class="berat-we-inline" title="Beratene Wohnungen (Snapshots)">${_beratenWE}</div>` : ''}</td>
       <td>${kavListeBadges(k)}</td>
       <td class="num">${_ekCell}</td>
       <td class="num">${_einkCell}</td>
@@ -1685,7 +1689,23 @@ function renderTabUebersicht() {
   // FS-2j (Edgar 24.05.2026 18:50): Phasen-Tracker ist jetzt das oberste
   // Element im Übersicht-Tab — nicht mehr global über allen Tabs. Vermeidet
   // visuelle Wiederholung im Kalkulator/SA/Snapshots.
-  el.innerHTML = renderKavCockpit(k) + aktivitaetenCard + notizenCard + renderWunschProfilCard(k) + stammCard;
+  // Beratene Wohnungen (Team-Feedback 2026-06-01): zeigt aus den Snapshots des Kunden,
+  // zu welchen WE bereits beraten/gerechnet wurde. state.snapshots ist im Kundendetail geladen.
+  const berateneWECard = (() => {
+    const snaps = (state.snapshots || []).filter(s => s && s.weBezeichnung && String(s.weBezeichnung).trim());
+    if (!snaps.length) return '';
+    const counts = {};
+    snaps.forEach(s => { const b = String(s.weBezeichnung).trim(); counts[b] = (counts[b] || 0) + 1; });
+    const items = Object.keys(counts).sort().map(b =>
+      `<span class="berat-we-chip">${esc(b)}${counts[b] > 1 ? ` <span class="text-tertiary">· ${counts[b]}×</span>` : ''}</span>`).join('');
+    return `
+      <div class="card mt-16">
+        <div class="card-title">Beratene Wohnungen <span class="text-tertiary text-small" style="font-weight:normal;">· aus gespeicherten Snapshots</span></div>
+        <div class="berat-we-list">${items}</div>
+      </div>`;
+  })();
+
+  el.innerHTML = renderKavCockpit(k) + berateneWECard + aktivitaetenCard + notizenCard + renderWunschProfilCard(k) + stammCard;
   // Iter 68 (21.05.2026): Auto-Save für Stammdaten — gleiche Logik wie SA-Auto-Save.
   //   Bei jedem `input` wird state.kunde lokal aktualisiert, debounced 600 ms später
   //   das PUT abgesetzt. saveStammdaten ruft syncStammdatenInSa auf, damit die

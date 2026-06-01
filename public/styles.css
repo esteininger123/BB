@@ -2338,6 +2338,10 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .kalk-c-ev{font-size:10.5px;line-height:1.5;padding:2px 8px;border-radius:999px;letter-spacing:.01em;white-space:nowrap;border:1px solid var(--border,#E8E6DD)}
 .kalk-c-ev-miete{color:#8E6E3D;background:rgba(176,138,77,.08);border-color:rgba(176,138,77,.35)}
 .kalk-c-ev-subv{color:#9A3E33;background:rgba(154,62,51,.07);border-color:rgba(154,62,51,.30)}
+/* 2026-06-01 Team-Feedback Block C: beratene Wohnungen (Snapshots) in der Kundenübersicht */
+.berat-we-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.berat-we-chip{display:inline-flex;align-items:center;gap:4px;font-size:13px;padding:5px 12px;border-radius:999px;background:rgba(176,138,77,.09);border:1px solid rgba(176,138,77,.32);color:#8E6E3D;font-weight:500}
+.berat-we-inline{margin-top:3px;font-size:11px;color:#8E6E3D;line-height:1.4}
 
 /* Section 1 — Objekt-Liste */
 /* FS-3l (Re-Audit P2 25.05.2026): align-content: start sodass beide Spalten

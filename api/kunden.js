@@ -4,7 +4,7 @@
 const { verifySession, requireSafeOrigin } = require('./_lib/auth');
 const { airtable, listAll, escapeFormulaString } = require('./_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('./_lib/http');
-const { TABLES, KUNDEN_FIELDS, VERTRIEBLER_FIELDS } = require('./_lib/tables');
+const { TABLES, KUNDEN_FIELDS, VERTRIEBLER_FIELDS, SNAPSHOT_FIELDS } = require('./_lib/tables');
 const { kundeRecordToBasic, kundeBodyToFields } = require('./_lib/mappers');
 
 async function getOwnerNameMap() {
@@ -80,7 +80,27 @@ module.exports = async (req, res) => {
 
       const records = await listAll(TABLES.KUNDEN, listParams, 1000);
       const ownerMap = await getOwnerNameMap();
-      const out = records.map(r => kundeRecordToBasic(r, ownerMap));
+      // Beratene WE pro Kunde (Team-Feedback 2026-06-01): einmal alle Snapshots laden
+      // (nur Kunde-Link + WE-Bezeichnung), nach Kunde gruppieren. Defensiv — bei Fehler
+      // liefert die Kundenliste einfach ohne WE-Info weiter.
+      let snapshotsByKunde = {};
+      try {
+        const snaps = await listAll(TABLES.SNAPSHOTS, {
+          fields: [SNAPSHOT_FIELDS.KUNDE, SNAPSHOT_FIELDS.WE_BEZ]
+        }, 5000);
+        snaps.forEach(s => {
+          const link = (s.fields && s.fields[SNAPSHOT_FIELDS.KUNDE]) || [];
+          const kId = Array.isArray(link) && link.length
+            ? (typeof link[0] === 'object' ? link[0].id : link[0]) : null;
+          if (!kId) return;
+          const bez = (s.fields && s.fields[SNAPSHOT_FIELDS.WE_BEZ]) || '';
+          (snapshotsByKunde[kId] = snapshotsByKunde[kId] || []).push(bez);
+        });
+      } catch (e) {
+        console.error('[kunden:GET] Snapshot-Aggregation fehlgeschlagen:', e && e.message);
+        snapshotsByKunde = {};
+      }
+      const out = records.map(r => kundeRecordToBasic(r, ownerMap, snapshotsByKunde));
       return res.status(200).json(out);
     }
 

@@ -102,6 +102,22 @@
       ['Vermögen netto', 'nach fiktiven Verkaufskosten', jahre.map((y) => eur(verm[y] && verm[y].vermoegenNetto))],
     ];
 
+    // Monatsansicht (Team-Feedback 2026-06-01): dieselben FLUSS-Größen je Jahr ÷ 12 —
+    // „so sieht ein Monat des Jahres aus". Bestandsgrößen (Restschuld, Immobilienwert,
+    // Vermögen) entfallen bewusst — Stichtagswerte lassen sich nicht durch 12 teilen.
+    const moVal = (v) => (v == null || !isFinite(v)) ? null : v / 12;
+    const projZeilenMonat = [
+      ['Miete', 'cf[y].mieteJahr ÷ 12', jahre.map((y) => eur(cf[y - 1] ? moVal(cf[y - 1].mieteJahr) : null))],
+      ['Zinsen', 'cf[y].zinsenJahr ÷ 12', jahre.map((y) => eur(cf[y - 1] ? moVal(cf[y - 1].zinsenJahr) : null))],
+      ['Tilgung', 'cf[y].tilgungJahr ÷ 12', jahre.map((y) => eur(cf[y - 1] ? moVal(cf[y - 1].tilgungJahr) : null))],
+      ['Annuität', '(Zinsen + Tilgung) ÷ 12', jahre.map((y) => eur(cf[y - 1] ? moVal(cf[y - 1].annuJahr) : null))],
+      ['Hausgeld', 'cf[y].hgJahr ÷ 12', jahre.map((y) => eur(cf[y - 1] ? moVal(cf[y - 1].hgJahr) : null))],
+      ['AfA', 'cf[y].afaJahr ÷ 12', jahre.map((y) => eur(cf[y - 1] ? moVal(cf[y - 1].afaJahr) : null))],
+      ['Steuervorteil', '(steuerl. Verlust × Steuersatz) ÷ 12', jahre.map((y) => eur(cf[y - 1] ? moVal(cf[y - 1].stVorteilJahr) : null))],
+      ['Cashflow vor Steuer', '(Miete − Zinsen − Tilgung − Hausgeld) ÷ 12', jahre.map((y) => { const c = cf[y - 1]; return eur(c ? moVal(c.cfJahr - (c.stVorteilJahr || 0)) : null); })],
+      ['Cashflow nach Steuer', 'cf[y].cfJahr ÷ 12', jahre.map((y) => eur(cf[y - 1] ? moVal(cf[y - 1].cfJahr) : null))],
+    ];
+
     return {
       meta: {
         kunde: (kunde && (kunde.name || [kunde.vorname, kunde.nachname].filter(Boolean).join(' '))) || '—',
@@ -116,7 +132,7 @@
         { titel: 'C — Monatliche Größen', zeilen: monatlich },
         { titel: 'E — Kennzahlen', zeilen: kennzahlen },
       ],
-      projektion: { jahre, zeilen: projZeilen },
+      projektion: { jahre, zeilen: projZeilen, monat: projZeilenMonat },
     };
   }
 
@@ -146,6 +162,16 @@
       lines.push([q(z[0]), ...z[2].map((v) => q(v)), q(z[1])].join(sep));
     });
 
+    // Projektion pro Monat (Jahreswert ÷ 12)
+    if (d.projektion.monat && d.projektion.monat.length) {
+      lines.push('');
+      lines.push(q('D2 — Projektion pro Monat (Jahreswert ÷ 12)'));
+      lines.push([q('Position'), ...d.projektion.jahre.map((y) => q('Jahr ' + y)), q('Berechnung')].join(sep));
+      d.projektion.monat.forEach((z) => {
+        lines.push([q(z[0]), ...z[2].map((v) => q(v)), q(z[1])].join(sep));
+      });
+    }
+
     return '﻿' + lines.join('\r\n'); // BOM für Umlaute in Excel
   }
 
@@ -164,6 +190,8 @@
 
     const projHead = `<tr><th>Position</th>${d.projektion.jahre.map((y) => `<th class="r">J ${y}</th>`).join('')}<th>Berechnung</th></tr>`;
     const projBody = d.projektion.zeilen.map((z) => `
+      <tr><td>${esc(z[0])}</td>${z[2].map((v) => `<td class="r mono">${esc(v)}</td>`).join('')}<td class="f">${esc(z[1])}</td></tr>`).join('');
+    const projBodyMonat = (d.projektion.monat || []).map((z) => `
       <tr><td>${esc(z[0])}</td>${z[2].map((v) => `<td class="r mono">${esc(v)}</td>`).join('')}<td class="f">${esc(z[1])}</td></tr>`).join('');
 
     const csv = toCsv(d);
@@ -229,6 +257,14 @@
     <table>
       <thead>${projHead}</thead>
       <tbody>${projBody}</tbody>
+    </table>
+  </section>
+
+  <section class="blk proj">
+    <h2>D2 — Projektion pro Monat <span style="text-transform:none;font-weight:400;color:#9a9488;">(Jahreswert ÷ 12)</span></h2>
+    <table>
+      <thead>${projHead}</thead>
+      <tbody>${projBodyMonat}</tbody>
     </table>
   </section>
 

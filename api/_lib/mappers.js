@@ -4,10 +4,17 @@ const { KUNDEN_FIELDS, SNAPSHOT_FIELDS, VERTRIEBLER_FIELDS, WE_FIELDS } = requir
 
 // --- Kunden ---
 
-function kundeRecordToBasic(rec, ownerNameById = {}) {
+function kundeRecordToBasic(rec, ownerNameById = {}, snapshotsByKunde = {}) {
   const f = rec.fields || {};
   const ownerIds = f[KUNDEN_FIELDS.OWNER] || [];
   const ownerId = Array.isArray(ownerIds) ? ownerIds[0] : null;
+  // Beratene WE (Team-Feedback 2026-06-01): unique WE-Bezeichnungen aus den Snapshots
+  const _berateneWE = (() => {
+    const arr = snapshotsByKunde[rec.id] || [];
+    const uniq = [];
+    arr.forEach(b => { const t = String(b == null ? '' : b).trim(); if (t && uniq.indexOf(t) === -1) uniq.push(t); });
+    return uniq;
+  })();
   return {
     id: rec.id,
     name:     f[KUNDEN_FIELDS.NAME]     || '',
@@ -29,7 +36,9 @@ function kundeRecordToBasic(rec, ownerNameById = {}) {
     // rechnen kann. Größe akzeptabel bei <100 Kunden pro Vertriebler.
     saJson:   parseJsonField(f[KUNDEN_FIELDS.SA_JSON]),
     // Iter 52: archiviert-Flag durchreichen (für Vertrieb-Filter und Admin-Ansicht)
-    archiviert: !!f[KUNDEN_FIELDS.ARCHIVIERT]
+    archiviert: !!f[KUNDEN_FIELDS.ARCHIVIERT],
+    // Team-Feedback 2026-06-01: beratene WE (aus Snapshots) für die Kundenliste
+    berateneWE: _berateneWE
   };
 }
 
