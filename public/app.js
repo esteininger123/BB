@@ -4554,7 +4554,7 @@ function _belastungSeries(mo) {
   for (let i = 1; i < n; i++) {
     const dMiete = miete[i] - miete[i - 1];
     if (dMiete >= STEP) {
-      events.push({ x: i + 1, kind: 'miete', short: `+${Math.round(dMiete)} €/Mo`, y: vals[i] });
+      events.push({ x: i + 1, kind: 'miete', short: `Mieterhöhung +${Math.round(dMiete)} €/Mo`, y: vals[i] });
     }
     if (subv[i - 1] > 0.5 && subv[i] <= 0.5) {
       events.push({ x: i + 1, kind: 'subv', short: 'Subvention endet', y: vals[i] });
