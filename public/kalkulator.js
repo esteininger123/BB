@@ -826,6 +826,9 @@ function recalc(i) {
   // Cashflow, bis alle Subv-Phasen durch sind UND die Bestandsmiete das Niveau erreicht hat.
   function subvForMonth(m) {
     const kaltmieteM = kaltmieteForMonth(m);
+    // 2026-06-01 (Subventionsregler): optionaler Skalierungsfaktor für den Frontend-Trade-off
+    // Subvention <-> Kaufpreis. Default 1 = unverändert → alle bestehenden Berechnungen identisch.
+    const subvFaktor = (i.subventionFaktor != null && isFinite(i.subventionFaktor)) ? i.subventionFaktor : 1;
     // QA-Fix 2026-05-23 (Audit-BB-7): Marktmiete-Cap auch auf effektivZielGlobal.
     // Vorher: bei Bestandsmieter mit Kaltmiete > Marktmiete „pumpte" subv über Plan
     // hinaus (Beispiel: Bestand 800€, Cap 600€, Phase1=200€ → Engine zahlte 400€
@@ -846,7 +849,7 @@ function recalc(i) {
         // sprang ab Phase-2-Start abrupt um die volle Mieter-Erhöhung
         // statt sanft via Subv-Glättung.
         if (ph && ph.mo > 0 && ph.monate > 0 && m > phaseStartMo && m <= phaseEndMo) {
-          return Math.max(0, effektivZielGlobal - kaltmieteM);
+          return Math.max(0, effektivZielGlobal - kaltmieteM) * subvFaktor;
         }
         monateBisher = phaseEndMo;
       }
@@ -854,7 +857,7 @@ function recalc(i) {
     }
     if ((i.subventionMonate || 0) > 0 && m <= (i.subventionMonate || 0)) {
       const effektivZiel = kaltmieteCapped + (i.subventionMo || 0);
-      return Math.max(0, effektivZiel - kaltmieteM);
+      return Math.max(0, effektivZiel - kaltmieteM) * subvFaktor;
     }
     return 0;
   }

@@ -3198,16 +3198,10 @@ function setSubvTradeoff(s) {
   const G0 = state.kalk._subvBasisGesamt;
   if (!(G0 > 0)) return;
   const S = Math.max(0, Math.min(G0, parseFloat(s) || 0));
-  const faktor = S / G0;
-  state.kalk.subventionFaktor = faktor;
-  const basisPhasen = state.kalk._subvBasisPhasen;
-  if (Array.isArray(basisPhasen) && basisPhasen.length) {
-    state.kalk.subventionPhasen = basisPhasen.map(p => ({ ...p, mo: (p.mo || 0) * faktor }));
-  } else {
-    state.kalk.subventionMo = (state.kalk._subvBasisSubvMo || 0) * faktor;
-    state.kalk.subventionMonate = state.kalk._subvBasisSubvMonate || 0;
-  }
-  // Kaufpreis 1:1 um weggenommene Subvention reduzieren (gleichsinnig zum Tausch)
+  // Engine skaliert die echte Subvention LINEAR über subventionFaktor (subvForMonth × faktor).
+  // Dadurch: angezeigte Subvention = S, Kaufpreis-Rabatt = G0 − S → sauber 1:1.
+  state.kalk.subventionFaktor = S / G0;
+  // Kaufpreis 1:1 um die weggenommene Subvention reduzieren (gleichsinniger Tausch)
   state.kalk.kaufpreis = Math.max(0, Math.round((state.kalk._subvBasisKP || 0) - (G0 - S)));
   recalcAndRender();
   // Regler-Anzeige live aus den frisch berechneten Werten (Panel wird bei oninput nicht neu gebaut)
