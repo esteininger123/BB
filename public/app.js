@@ -585,6 +585,15 @@ function kundeDisplayEmail(k) {
   return (a && a.email) || '';
 }
 
+// Beratene WE als WE-Nummer auflösen (Team-Feedback 2026-06-01): aus der WE-Record-ID
+// die aktuelle WE-Nummer ziehen (z.B. „Wesseling · WE 12") statt der Lage „1. OG links".
+// Fallback auf die gespeicherte Bezeichnung, wenn die WE nicht (mehr) auflösbar ist.
+function _weNummerLabel(recId, fallbackBez) {
+  const w = (recId && Array.isArray(state.wohneinheiten)) ? state.wohneinheiten.find(x => x.id === recId) : null;
+  if (w && w.weNr) return (w.projektName ? w.projektName + ' · ' : '') + 'WE ' + w.weNr;
+  return String(fallbackBez == null ? '' : fallbackBez).trim();
+}
+
 function _renderKundeRow(k) {
   const fd = _kundeFilterData(k);
   const REG = window.REGIONEN || {};
@@ -614,12 +623,16 @@ function _renderKundeRow(k) {
   const _einkCell = _hasSa
     ? (fd.ueber !== 0 ? `<span style="color:${fd.ueber > 0 ? 'var(--positive)' : 'var(--negative)'}">${Math.round(fd.ueber).toLocaleString('de-DE')} €</span>` : '<span class="text-tertiary">0 €</span>')
     : '<span class="text-tertiary text-small" title="Selbstauskunft noch nicht ausgefüllt">SA fehlt</span>';
-  // Beratene WE (Team-Feedback 2026-06-01): aus den Snapshots des Kunden (Backend liefert k.berateneWE)
-  const _beratenWE = (k.berateneWE && k.berateneWE.length)
-    ? k.berateneWE.slice(0, 3).map(esc).join(' · ') + (k.berateneWE.length > 3 ? ` +${k.berateneWE.length - 3}` : '')
+  // Beratene WE (Team-Feedback 2026-06-01): Backend liefert k.berateneWE = [{recId,bez}].
+  // Als WE-Nummer auflösen; nach Nummer/Bezeichnung suchbar (data-search).
+  const _weLabels = (k.berateneWE && k.berateneWE.length)
+    ? k.berateneWE.map(o => _weNummerLabel(o && o.recId, o && o.bez)).filter(Boolean)
+    : [];
+  const _beratenWE = _weLabels.length
+    ? _weLabels.slice(0, 3).map(esc).join(' · ') + (_weLabels.length > 3 ? ` +${_weLabels.length - 3}` : '')
     : '';
   return `
-    <tr data-search="${esc((_displayName + ' ' + (_displayEmail || '')).toLowerCase())}"
+    <tr data-search="${esc((_displayName + ' ' + (_displayEmail || '') + ' ' + _weLabels.join(' ')).toLowerCase())}"
         data-ek="${Math.round(fd.liquid)}"
         data-eink="${Math.round(fd.ueber)}"
         data-bls="${esc(blsCsv)}"
@@ -1692,11 +1705,14 @@ function renderTabUebersicht() {
   // Beratene Wohnungen (Team-Feedback 2026-06-01): zeigt aus den Snapshots des Kunden,
   // zu welchen WE bereits beraten/gerechnet wurde. state.snapshots ist im Kundendetail geladen.
   const berateneWECard = (() => {
-    const snaps = (state.snapshots || []).filter(s => s && s.weBezeichnung && String(s.weBezeichnung).trim());
-    if (!snaps.length) return '';
     const counts = {};
-    snaps.forEach(s => { const b = String(s.weBezeichnung).trim(); counts[b] = (counts[b] || 0) + 1; });
-    const items = Object.keys(counts).sort().map(b =>
+    (state.snapshots || []).forEach(s => {
+      const b = _weNummerLabel(s && s.weRecordId, s && s.weBezeichnung);
+      if (b) counts[b] = (counts[b] || 0) + 1;
+    });
+    const keys = Object.keys(counts);
+    if (!keys.length) return '';
+    const items = keys.sort().map(b =>
       `<span class="berat-we-chip">${esc(b)}${counts[b] > 1 ? ` <span class="text-tertiary">· ${counts[b]}×</span>` : ''}</span>`).join('');
     return `
       <div class="card mt-16">
@@ -2473,7 +2489,21 @@ function kalkInputsThemenHtml(i) {
           // Subventionsregler (Team-Feedback 2026-06-01): Trade-off Mietsubvention <-> Kaufpreis.
           // Skaliert die vereinbarte Subvention und reduziert den KP 1:1 um den weggenommenen
           // Betrag. Alles rechnet via recalcAndRender() durch (Cashflow, Annuität, Magazin, PDF).
-          const G0 = state.kalk._subvBasisGesamt;
+          // Selbst-initialisierend: das Panel rendert VOR recalcAndRender, darum ggf. hier
+          // einmal die Basis aus einem frischen recalc setzen, sonst bliebe der Regler versteckt.
+          let G0 = state.kalk._subvBasisGesamt;
+          if (G0 == null && !state.kalk._isPaket && window.Kalk && typeof window.Kalk.recalc === 'function') {
+            try {
+              const rr = window.Kalk.recalc(state.kalk);
+              G0 = (rr && rr.mietsubventionGesamt) || 0;
+              state.kalk._subvBasisGesamt = G0;
+              state.kalk._subvBasisKP = state.kalk.kaufpreis || 0;
+              state.kalk._subvBasisPhasen = Array.isArray(state.kalk.subventionPhasen) ? JSON.parse(JSON.stringify(state.kalk.subventionPhasen)) : [];
+              state.kalk._subvBasisSubvMo = state.kalk.subventionMo || 0;
+              state.kalk._subvBasisSubvMonate = state.kalk.subventionMonate || 0;
+              if (state.kalk.subventionFaktor == null) state.kalk.subventionFaktor = 1;
+            } catch (e) { G0 = 0; }
+          }
           if (!(G0 > 0)) return ''; // nur wenn eine Subvention vereinbart ist
           const faktor = (state.kalk.subventionFaktor != null) ? state.kalk.subventionFaktor : 1;
           const aktuell = Math.round(G0 * faktor);
@@ -2485,10 +2515,10 @@ function kalkInputsThemenHtml(i) {
                 <button type="button" class="subv-regler-reset" onclick="resetSubvTradeoff()">↺ Vereinbart</button>
               </div>
               <input type="range" class="subv-regler-range" min="0" max="${Math.round(G0)}" step="50" value="${aktuell}"
-                oninput="setSubvTradeoff(this.value)">
+                oninput="setSubvTradeoff(this.value)" onchange="renderTabKalkulator()">
               <div class="subv-regler-info">
-                <span>Mietsubvention <strong>${aktuell.toLocaleString('de-DE')} €</strong></span>
-                <span>Kaufpreis-Rabatt <strong>${rabatt.toLocaleString('de-DE')} €</strong></span>
+                <span>Mietsubvention <strong id="subv-regler-subv">${aktuell.toLocaleString('de-DE')} €</strong></span>
+                <span>Kaufpreis-Rabatt <strong id="subv-regler-rabatt">${rabatt.toLocaleString('de-DE')} €</strong></span>
               </div>
               <div class="text-tertiary text-small" style="margin-top:3px;line-height:1.4;">Spielerei: weniger Subvention = günstigerer Kaufpreis (1:1). Wirkt live auf Cashflow, Annuität und PDF.</div>
             </div>`;
@@ -3170,6 +3200,11 @@ function setSubvTradeoff(s) {
   // Kaufpreis 1:1 um weggenommene Subvention reduzieren (gleichsinnig zum Tausch)
   state.kalk.kaufpreis = Math.max(0, Math.round((state.kalk._subvBasisKP || 0) - (G0 - S)));
   recalcAndRender();
+  // Regler-Anzeige live aktualisieren (bei oninput wird das Eingabe-Panel nicht neu gebaut)
+  const elS = document.getElementById('subv-regler-subv');
+  const elR = document.getElementById('subv-regler-rabatt');
+  if (elS) elS.textContent = Math.round(S).toLocaleString('de-DE') + ' €';
+  if (elR) elR.textContent = Math.round(G0 - S).toLocaleString('de-DE') + ' €';
 }
 function resetSubvTradeoff() {
   const G0 = state.kalk && state.kalk._subvBasisGesamt;
@@ -5378,8 +5413,9 @@ async function saveSnapshot() {
   const fmtWeBez = (w) => {
     if (!w) return '';
     const projekt = w.projektName || '';
-    const lage = w.lageText || w.lage || (w.weNr ? 'WE ' + w.weNr : '');
-    return [projekt, lage].filter(Boolean).join(' — ') || w.id;
+    const nr = w.weNr ? 'WE ' + w.weNr : '';
+    const lage = w.lageText || w.lage || '';
+    return [projekt, nr, lage].filter(Boolean).join(' · ') || w.id;
   };
   // Bezeichnung & WE-Label kontextbezogen erzeugen (Einzel vs. Paket)
   let weBez, defaultBez;

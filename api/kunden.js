@@ -86,7 +86,7 @@ module.exports = async (req, res) => {
       let snapshotsByKunde = {};
       try {
         const snaps = await listAll(TABLES.SNAPSHOTS, {
-          fields: [SNAPSHOT_FIELDS.KUNDE, SNAPSHOT_FIELDS.WE_BEZ]
+          fields: [SNAPSHOT_FIELDS.KUNDE, SNAPSHOT_FIELDS.WE_BEZ, SNAPSHOT_FIELDS.WE_RECID]
         }, 5000);
         snaps.forEach(s => {
           const link = (s.fields && s.fields[SNAPSHOT_FIELDS.KUNDE]) || [];
@@ -94,7 +94,8 @@ module.exports = async (req, res) => {
             ? (typeof link[0] === 'object' ? link[0].id : link[0]) : null;
           if (!kId) return;
           const bez = (s.fields && s.fields[SNAPSHOT_FIELDS.WE_BEZ]) || '';
-          (snapshotsByKunde[kId] = snapshotsByKunde[kId] || []).push(bez);
+          const recId = (s.fields && s.fields[SNAPSHOT_FIELDS.WE_RECID]) || '';
+          (snapshotsByKunde[kId] = snapshotsByKunde[kId] || []).push({ recId, bez });
         });
       } catch (e) {
         console.error('[kunden:GET] Snapshot-Aggregation fehlgeschlagen:', e && e.message);

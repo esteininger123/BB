@@ -8,12 +8,19 @@ function kundeRecordToBasic(rec, ownerNameById = {}, snapshotsByKunde = {}) {
   const f = rec.fields || {};
   const ownerIds = f[KUNDEN_FIELDS.OWNER] || [];
   const ownerId = Array.isArray(ownerIds) ? ownerIds[0] : null;
-  // Beratene WE (Team-Feedback 2026-06-01): unique WE-Bezeichnungen aus den Snapshots
+  // Beratene WE (Team-Feedback 2026-06-01): {recId, bez} pro Snapshot, dedupliziert.
+  // recId erlaubt dem Frontend, die aktuelle WE-Nummer aufzulösen (statt der Lage).
   const _berateneWE = (() => {
     const arr = snapshotsByKunde[rec.id] || [];
-    const uniq = [];
-    arr.forEach(b => { const t = String(b == null ? '' : b).trim(); if (t && uniq.indexOf(t) === -1) uniq.push(t); });
-    return uniq;
+    const seen = {}; const out = [];
+    arr.forEach(o => {
+      const recId = (o && o.recId) || '';
+      const bez = String((o && o.bez) || '').trim();
+      const key = recId || bez;
+      if (!key || seen[key]) return;
+      seen[key] = 1; out.push({ recId, bez });
+    });
+    return out;
   })();
   return {
     id: rec.id,
