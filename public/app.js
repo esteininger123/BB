@@ -2478,11 +2478,14 @@ function kalkInputsThemenHtml(i) {
               <div class="hint">${esc(erlaut || 'aus Stammdaten berechnet')}</div>
             </div>`;
           }
+          // 2026-06-01: Phasen-Aufschlag mit dem Regler-Faktor mitskalieren (sonst zeigt die
+          // Card den vollen Aufschlag, während „Gesamt" bereits reduziert ist).
+          const _sf = (state.kalk.subventionFaktor != null && isFinite(state.kalk.subventionFaktor)) ? state.kalk.subventionFaktor : 1;
           const phasenList = phasen.length > 0 ? phasen : [{ mo: state.kalk.subventionMo, monate: state.kalk.subventionMonate, label: 'Mietsubvention' }];
           const zeilen = phasenList.map((p, idx) => `
             <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:13px;">
               <span class="text-tertiary">${phasenList.length > 1 ? 'Phase ' + (idx + 1) : 'Dein Aufschlag'}</span>
-              <span><strong>${fmt(p.mo)} €</strong>/Mo &middot; <strong>${p.monate}</strong> Mo</span>
+              <span><strong>${fmt((p.mo || 0) * _sf)} €</strong>/Mo &middot; <strong>${p.monate}</strong> Mo</span>
             </div>`).join('');
           return `
             <div class="subv-status-card">
@@ -4016,23 +4019,25 @@ function renderStoryPremium(r) {
           </div>
           ${(() => {
             const p = Array.isArray(i.subventionPhasen) ? i.subventionPhasen : [];
+            // 2026-06-01: Phasen-Aufschlag mit Regler-Faktor mitskalieren (Konsistenz zu „Subvention gesamt")
+            const _sf = (i.subventionFaktor != null && isFinite(i.subventionFaktor)) ? i.subventionFaktor : 1;
             if (p.length >= 2) {
               return `
                 <div class="kalk-c-einsatz-cell">
                   <div class="kalk-c-einsatz-label">Phase 1</div>
-                  <div class="kalk-c-einsatz-value">${Math.round(p[0].mo).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
+                  <div class="kalk-c-einsatz-value">${Math.round(p[0].mo * _sf).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
                   <div class="kalk-c-einsatz-sub">${p[0].monate} Monate · sichert die Anlaufphase</div>
                 </div>
                 <div class="kalk-c-einsatz-cell">
                   <div class="kalk-c-einsatz-label">Phase 2</div>
-                  <div class="kalk-c-einsatz-value">${Math.round(p[1].mo).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
+                  <div class="kalk-c-einsatz-value">${Math.round(p[1].mo * _sf).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
                   <div class="kalk-c-einsatz-sub">${p[1].monate} Monate · Übergang zur Marktmiete</div>
                 </div>`;
             } else if (p.length === 1) {
               return `
                 <div class="kalk-c-einsatz-cell">
                   <div class="kalk-c-einsatz-label">Pro Monat</div>
-                  <div class="kalk-c-einsatz-value">${Math.round(p[0].mo).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
+                  <div class="kalk-c-einsatz-value">${Math.round(p[0].mo * _sf).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
                   <div class="kalk-c-einsatz-sub">${p[0].monate} Monate · sichert die Anlaufphase</div>
                 </div>
                 <div class="kalk-c-einsatz-cell"></div>`;
@@ -4040,7 +4045,7 @@ function renderStoryPremium(r) {
               return `
                 <div class="kalk-c-einsatz-cell">
                   <div class="kalk-c-einsatz-label">Pro Monat</div>
-                  <div class="kalk-c-einsatz-value">${Math.round(i.subventionMo).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
+                  <div class="kalk-c-einsatz-value">${Math.round(i.subventionMo * _sf).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
                   <div class="kalk-c-einsatz-sub">${i.subventionMonate || 0} Monate</div>
                 </div>
                 <div class="kalk-c-einsatz-cell"></div>`;
@@ -4537,12 +4542,14 @@ function renderStoryPremium(r) {
   // Subv-Phasen-Anzeige (aus pdf.js-Logik portiert)
   let subvText = '—';
   const phasen = Array.isArray(i.subventionPhasen) ? i.subventionPhasen : [];
+  // 2026-06-01: Phasen-Aufschlag mit Regler-Faktor mitskalieren (gesamt = echte Engine-Summe)
+  const _sfP = (i.subventionFaktor != null && isFinite(i.subventionFaktor)) ? i.subventionFaktor : 1;
   if (phasen.length >= 2) {
-    subvText = `Phase 1: ${fmtEurMo(phasen[0].mo)} × ${phasen[0].monate} Mo · Phase 2: ${fmtEurMo(phasen[1].mo)} × ${phasen[1].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
+    subvText = `Phase 1: ${fmtEurMo(phasen[0].mo * _sfP)} × ${phasen[0].monate} Mo · Phase 2: ${fmtEurMo(phasen[1].mo * _sfP)} × ${phasen[1].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
   } else if (phasen.length === 1) {
-    subvText = `${fmtEurMo(phasen[0].mo)} × ${phasen[0].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
+    subvText = `${fmtEurMo(phasen[0].mo * _sfP)} × ${phasen[0].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
   } else if (i.subventionMo > 0) {
-    subvText = `${fmtEurMo(i.subventionMo)} × ${i.subventionMonate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
+    subvText = `${fmtEurMo(i.subventionMo * _sfP)} × ${i.subventionMonate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
   }
   // Welle 3 (2026-05-24): Quellen-Hinweise pro Annahme — Maurice's „Vertrauen
   // entsteht durch Transparenz". Wenn eine Annahme aus Stammdaten kommt (z.B.
