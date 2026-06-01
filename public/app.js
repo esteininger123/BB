@@ -4519,25 +4519,50 @@ function renderStoryPremium(r) {
 }
 
 /* Hilfsfunktion: Magazin-Charts rendern */
-// Leitet Ereignisse (Mieterhöhung, Subventionsende) aus der Monatsserie ab.
-// 2026-06-01 (Team-Feedback Punkt 3): macht im Belastungs-Chart sichtbar, was von
-// Monat zu Monat passiert. Kein Engine-Eingriff — reine Ableitung aus cfMonate.
-// dataIndex bezieht sich auf das Chart-Array [J0, M1..M120]: Monat mo[i] liegt auf Index i+1.
-function _belastungEvents(mo) {
-  const out = [];
-  for (let i = 1; i < mo.length; i++) {
-    const prev = mo[i - 1], cur = mo[i];
-    const dMiete = (cur.kaltmieteM || 0) - (prev.kaltmieteM || 0);
-    if (dMiete > 0.5) {
-      out.push({ dataIndex: i + 1, kind: 'miete', short: `+${Math.round(dMiete)} €/Mo`,
-        label: `Mieterhöhung +${Math.round(dMiete)} €/Mo · Jahr ${cur.y}` });
-    }
-    if ((prev.subvM || 0) > 0.5 && (cur.subvM || 0) <= 0.5) {
-      out.push({ dataIndex: i + 1, kind: 'subv', short: 'Subvention endet',
-        label: `Subvention endet · Jahr ${cur.y}` });
+// Baut aus der Monatsserie (cfMonate) die Daten für den Belastungs-Chart.
+// 2026-06-01 (Team-Feedback): GLATTE Kurve wie das Original (reduzierte Stützpunkte:
+// Jahres-Anker für den fließenden Verlauf) MIT scharfem Knick nur an großen Cashflow-
+// Sprüngen (enges Punkte-Paar am echten Monat) — statt der eckigen 120-Punkte-Treppe.
+// Ereignis-Marker: Mieterhöhung, Subventions-Höhe zum Start, Subventions-Stufen, -Ende.
+// x = Monat (0..120), lineare Achse. Kein Engine-Eingriff.
+function _belastungSeries(mo) {
+  const vals = mo.map(c => Math.round(c.cfNachStM));
+  const subv = mo.map(c => c.subvM || 0);
+  const miete = mo.map(c => c.kaltmieteM || 0);
+  const n = vals.length; // 120
+  const JUMP = 10;       // €/Mo: großer Cashflow-Sprung → enge Stützpunkte (scharfer Knick)
+  const STEP = 8;        // €/Mo: Schwelle für Mieterhöhungs-/Subv-Stufen-Marker (Mini-Rauschen aus)
+
+  // Stützpunkte: glatte Kurve, scharfer Knick nur an großen Sprüngen
+  const points = [{ x: 0, y: vals[0] }]; // J0 = heutiger Start
+  const pushP = (x, y) => { if (points[points.length - 1].x !== x) points.push({ x, y }); };
+  for (let i = 1; i < n; i++) {
+    if (Math.abs(vals[i] - vals[i - 1]) >= JUMP) {
+      pushP(i, vals[i - 1]);   // direkt vor dem Sprung
+      pushP(i + 1, vals[i]);   // direkt nach dem Sprung
+    } else if ((i + 1) % 12 === 0) {
+      pushP(i + 1, vals[i]);   // Jahres-Ankerpunkt → fließender Verlauf
     }
   }
-  return out;
+  pushP(n, vals[n - 1]);       // J10 Ende
+
+  // Ereignisse
+  const events = [];
+  if (subv[0] > 0.5) {
+    events.push({ x: 0, kind: 'subv', short: `Subvention ${Math.round(subv[0])} €/Mo`, y: vals[0] });
+  }
+  for (let i = 1; i < n; i++) {
+    const dMiete = miete[i] - miete[i - 1];
+    if (dMiete >= STEP) {
+      events.push({ x: i + 1, kind: 'miete', short: `+${Math.round(dMiete)} €/Mo`, y: vals[i] });
+    }
+    if (subv[i - 1] > 0.5 && subv[i] <= 0.5) {
+      events.push({ x: i + 1, kind: 'subv', short: 'Subvention endet', y: vals[i] });
+    } else if (subv[i] - subv[i - 1] <= -STEP) {
+      events.push({ x: i + 1, kind: 'subv', short: `Subvention ${Math.round(subv[i])} €/Mo`, y: vals[i] });
+    }
+  }
+  return { points, events };
 }
 
 function _drawCMagazinCharts(r) {
@@ -4551,45 +4576,41 @@ function _drawCMagazinCharts(r) {
   const border = '#E8E6DD';
   const bgPrimary = '#FBFAF7';
 
-  // Chart 1 — Belastung €/Mo, monatsgenau über 10 J (J0..J10)
-  // 2026-06-01 (Team-Feedback Punkte 1+2+3): Datenquelle von Jahres-Aggregat
-  // (cf[].cfJahr/12, 10 Punkte) auf die Monatsserie (cfMonate[].cfNachStM, 120 Punkte)
-  // umgestellt. So sitzt jede Mieterhöhung am ECHTEN Monat statt über ein Jahr verschmiert.
-  // Kurve bleibt smooth (cubicInterpolationMode 'monotone' → kein Überschwingen an Sprüngen).
-  // Punkt 1: J0 = Startzustand heute (erster Monat). Punkt 3: Ereignis-Marker + -Legende.
+  // Chart 1 — Belastung €/Mo (J0..J10)
+  // 2026-06-01 (Team-Feedback Punkte 1+2+3): GLATTE Kurve (reduzierte Stützpunkte) mit dem
+  // großen Sprung am ECHTEN Monat; J0 = heutiger Start; Ereignis-Marker direkt im Chart
+  // (Mieterhöhung, Subventions-Höhe/-Stufen/-Ende). Lineare x-Achse in Monaten. Kein Engine-Eingriff.
   const cBel = document.getElementById('chart-c-belastung');
   if (cBel) {
     if (_cMagazinCharts.belastung) _cMagazinCharts.belastung.destroy();
     const mo = (r.cfMonate && r.cfMonate.length) ? r.cfMonate : null;
-    let belData, belLabels, belEvents = [];
+    let belPoints, belEvents = [];
     if (mo) {
-      // J0 (Start = erster Monat, vor jeder Steigerung) + 120 Monate
-      belData = [Math.round(mo[0].cfNachStM)].concat(mo.map(c => Math.round(c.cfNachStM)));
-      belLabels = belData.map((_, idx) => idx % 12 === 0 ? 'J' + (idx / 12) : '');
-      belEvents = _belastungEvents(mo);
+      const series = _belastungSeries(mo);
+      belPoints = series.points;
+      belEvents = series.events;
     } else {
-      // Fallback (alte Snapshots ohne cfMonate): Jahres-Aggregat wie früher (J1..J10)
-      belData = r.cf.slice(0, 10).map(c => Math.round(c.cfJahr / 12));
-      belLabels = ['J1','J2','J3','J4','J5','J6','J7','J8','J9','J10'];
+      // Fallback (alte Snapshots ohne cfMonate): Jahres-Aggregat auf Monats-x (J0..J10)
+      belPoints = [{ x: 0, y: Math.round(r.cf[0].cfJahr / 12) }]
+        .concat(r.cf.slice(0, 10).map((c, j) => ({ x: (j + 1) * 12, y: Math.round(c.cfJahr / 12) })));
     }
     const evMiete = '#B08A4D', evSubv = '#9A3E33';
     _cMagazinCharts.belastung = new Chart(cBel, {
       type: 'line',
       data: {
-        labels: belLabels,
         datasets: [{
           label: 'Belastung €/Mo',
-          data: belData,
+          data: belPoints,
           borderColor: accent,
           backgroundColor: 'rgba(176,138,77,.08)',
           borderWidth: 2,
           fill: true,
-          pointBackgroundColor: belData.map(v => v >= 0 ? positive : negative),
+          pointBackgroundColor: ctx => (ctx.parsed && ctx.parsed.y >= 0) ? positive : negative,
           pointBorderColor: bgPrimary,
           pointBorderWidth: 2,
-          pointRadius: ctx => (ctx.dataIndex % 12 === 0) ? 4 : 0,
-          pointHoverRadius: ctx => (ctx.dataIndex % 12 === 0) ? 6 : 3,
-          tension: 0.3
+          pointRadius: ctx => (ctx.parsed && ctx.parsed.x % 12 === 0) ? 3.5 : 0,
+          pointHoverRadius: ctx => (ctx.parsed && ctx.parsed.x % 12 === 0) ? 6 : 3,
+          tension: 0.35
         }]
       },
       options: {
@@ -4599,18 +4620,18 @@ function _drawCMagazinCharts(r) {
         plugins: { legend: { display: false }, tooltip: {
           callbacks: {
             title: items => {
-              const idx = items[0].dataIndex;
-              if (!mo) return belLabels[idx];
-              if (idx === 0) return 'Heute (Start)';
-              return 'Jahr ' + Math.ceil(idx / 12) + ' · Monat ' + (((idx - 1) % 12) + 1);
+              const x = items[0].parsed.x;
+              if (x === 0) return 'Heute (Start)';
+              return 'Jahr ' + Math.ceil(x / 12) + ' · Monat ' + (((x - 1) % 12) + 1);
             },
             label: ctx => (ctx.parsed.y > 0 ? '+' : '') + ctx.parsed.y + ' €/Mo'
           }
         }},
         scales: {
           x: {
-            ticks: { color: tertiary, font: { size: 10 }, autoSkip: false, maxRotation: 0,
-              callback: (val, idx) => (idx % 12 === 0) ? 'J' + (idx / 12) : '' },
+            type: 'linear', min: 0, max: 120,
+            ticks: { color: tertiary, font: { size: 10 }, stepSize: 12, autoSkip: false, maxRotation: 0,
+              callback: v => (v % 12 === 0) ? 'J' + (v / 12) : '' },
             grid: { display: false }
           },
           y: {
@@ -4641,17 +4662,17 @@ function _drawCMagazinCharts(r) {
           // Events nach x sortieren, bei Nähe in mehreren Reihen staffeln (Anti-Überlappung)
           const evs = belEvents
             .map(ev => ({
-              short: ev.short || ev.label,
+              short: ev.short,
               color: ev.kind === 'subv' ? evSubv : evMiete,
-              x: scales.x.getPixelForValue(ev.dataIndex),
-              yPt: scales.y.getPixelForValue(belData[ev.dataIndex] != null ? belData[ev.dataIndex] : 0)
+              x: scales.x.getPixelForValue(ev.x),
+              yPt: scales.y.getPixelForValue(ev.y)
             }))
             .filter(e => e.x != null && !isNaN(e.x))
             .sort((a, b) => a.x - b.x);
           const bh = 15, rowGap = 4, topPad = 4;
           let prevX = -999, row = 0;
           evs.forEach(e => {
-            row = (e.x - prevX < 90) ? (row + 1) % 3 : 0;
+            row = (e.x - prevX < 96) ? (row + 1) % 3 : 0;
             prevX = e.x;
             const by = chartArea.top + topPad + row * (bh + rowGap);
             const tw = ctx.measureText(e.short).width;
