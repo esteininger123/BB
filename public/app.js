@@ -1943,6 +1943,11 @@ function renderTabKalkulator() {
   const i = state.kalk || makeDefaultKalkInput();
   state.kalk = i;
   if (!Array.isArray(state.kalk._paketWeIds)) state.kalk._paketWeIds = [];
+  // 2026-06-01: Vor dem Panel-Build die Berechnung frisch ziehen, damit Subventions-Card
+  // UND Regler denselben echten Gesamt-Subventionswert zeigen wie Magazin/PDF (mietsubventionGesamt).
+  if (!state.kalk._isPaket && window.Kalk && typeof window.Kalk.recalc === 'function') {
+    try { const _pre = window.Kalk.recalc(state.kalk); if (_pre) state.kalkResult = _pre; } catch (e) {}
+  }
   // Defensive Default für die EK-Verzinsung (Sparen-vs-Investieren-Vergleich).
   // Wird bei WE-Wechsel nicht aus den Stammdaten überschrieben — bleibt persistent.
   if (state.kalk.sparZins === undefined || state.kalk.sparZins === null) {
@@ -2405,7 +2410,11 @@ function kalkInputsThemenHtml(i) {
           // Vertriebler jetzt eine deutliche „warum greift das 2-Phasen-Modell nicht"-
           // Erklärung. Vorher: stiller Inline-Block, der CC2-Story-Lücken kaschiert hat.
           const phasen = Array.isArray(state.kalk.subventionPhasen) ? state.kalk.subventionPhasen : [];
-          const totalEur = state.kalk._subventionTotalEur || 0;
+          // 2026-06-01: echte Engine-Summe (= Magazin/PDF/Regler), nicht der nominale
+          // Stammdaten-Wert — sonst weicht die Card vom Regler/Magazin ab.
+          const totalEur = (state.kalkResult && state.kalkResult.mietsubventionGesamt != null)
+            ? state.kalkResult.mietsubventionGesamt
+            : (state.kalk._subventionTotalEur || 0);
           const erlaut = state.kalk._subventionErlaeuterung || '';
           const quelle = state.kalk._subventionQuelle || '';
           const fmt = (v) => Math.round(v).toLocaleString('de-DE');
@@ -2506,8 +2515,9 @@ function kalkInputsThemenHtml(i) {
           }
           if (!(G0 > 0)) return ''; // nur wenn eine Subvention vereinbart ist
           const faktor = (state.kalk.subventionFaktor != null) ? state.kalk.subventionFaktor : 1;
-          const aktuell = Math.round(G0 * faktor);
-          const rabatt = Math.round(G0 - aktuell);
+          // Anzeige aus Live-Werten: echte Gesamtsubvention (= Card/Magazin) + echte KP-Reduktion
+          const aktuell = Math.round((state.kalkResult && state.kalkResult.mietsubventionGesamt != null) ? state.kalkResult.mietsubventionGesamt : (G0 * faktor));
+          const rabatt = Math.max(0, Math.round((state.kalk._subvBasisKP || 0) - (state.kalk.kaufpreis || 0)));
           return `
             <div class="subv-regler">
               <div class="subv-regler-head">
@@ -3200,11 +3210,12 @@ function setSubvTradeoff(s) {
   // Kaufpreis 1:1 um weggenommene Subvention reduzieren (gleichsinnig zum Tausch)
   state.kalk.kaufpreis = Math.max(0, Math.round((state.kalk._subvBasisKP || 0) - (G0 - S)));
   recalcAndRender();
-  // Regler-Anzeige live aktualisieren (bei oninput wird das Eingabe-Panel nicht neu gebaut)
+  // Regler-Anzeige live aus den frisch berechneten Werten (Panel wird bei oninput nicht neu gebaut)
   const elS = document.getElementById('subv-regler-subv');
   const elR = document.getElementById('subv-regler-rabatt');
-  if (elS) elS.textContent = Math.round(S).toLocaleString('de-DE') + ' €';
-  if (elR) elR.textContent = Math.round(G0 - S).toLocaleString('de-DE') + ' €';
+  const liveSubv = (state.kalkResult && state.kalkResult.mietsubventionGesamt) || 0;
+  if (elS) elS.textContent = Math.round(liveSubv).toLocaleString('de-DE') + ' €';
+  if (elR) elR.textContent = Math.max(0, Math.round((state.kalk._subvBasisKP || 0) - (state.kalk.kaufpreis || 0))).toLocaleString('de-DE') + ' €';
 }
 function resetSubvTradeoff() {
   const G0 = state.kalk && state.kalk._subvBasisGesamt;
