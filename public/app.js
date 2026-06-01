@@ -4500,7 +4500,7 @@ function renderStoryPremium(r) {
     + SECTION_03_VERMOEGEN   // 03 Vermögen J10
     + SECTION_04_VERGLEICH   // 04 Vergleich (Sparbuch/Hebel)
     + SECTION_05_DETAIL   // 05 Im Detail
-    + SECTION_06_WAS_WENN   // 06 Was wäre wenn (NEU verschoben — vor Aktionsmodus)
+    // 06 "Was wäre wenn" (Szenarien + Renovierung) auf Edgar-Wunsch entfernt (2026-06-01)
     + SECTION_07_WEITERGEHT   // 07 Wie es weitergeht (vor Notar)
     + SECTION_08_NACH_NOTAR   // 08 Nach dem Notartermin
     + SECTION_09_BROT_BUTTER   // 09 Brot & Butter (NEU am ENDE)
@@ -4669,16 +4669,19 @@ function _drawCMagazinCharts(r) {
             }))
             .filter(e => e.x != null && !isNaN(e.x))
             .sort((a, b) => a.x - b.x);
-          const bh = 15, rowGap = 4, topPad = 4;
-          let prevX = -999, row = 0;
+          const bh = 15, rowGap = 4, topPad = 4, padX = 7, gap = 3;
+          const placed = []; // belegte Badge-Rechtecke gegen Überlappung: {x0,x1,row}
           evs.forEach(e => {
-            row = (e.x - prevX < 96) ? (row + 1) % 3 : 0;
-            prevX = e.x;
-            const by = chartArea.top + topPad + row * (bh + rowGap);
             const tw = ctx.measureText(e.short).width;
-            const padX = 7, bw = tw + padX * 2;
+            const bw = tw + padX * 2;
             let bx = e.x - bw / 2;
             bx = Math.max(chartArea.left + 1, Math.min(bx, chartArea.right - bw - 1));
+            const x0 = bx, x1 = bx + bw;
+            // niedrigste freie Reihe finden (echte Bounding-Box-Kollision, nicht nur x-Abstand)
+            let row = 0;
+            while (placed.some(p => p.row === row && !(x1 < p.x0 - gap || x0 > p.x1 + gap))) row++;
+            placed.push({ x0, x1, row });
+            const by = chartArea.top + topPad + row * (bh + rowGap);
             // Verbindungslinie vom Badge zum Punkt auf der Kurve
             ctx.beginPath();
             ctx.setLineDash([3, 3]);
@@ -8937,14 +8940,6 @@ const TOUR_STEPS = [
     action: 'Scroll im Magazin zur Sektion „05 · Im Detail". Dort findest Du den Trigger „Annahmen anzeigen" — Klick öffnet eine Übersicht aller Annahmen mit Quelle (AfA-Gutachter, Airtable-Stammdaten, Engine-Formel).',
     tip: 'Das ist Dein Banker-Modus: jede Zahl ist nachvollziehbar, jede Annahme dokumentiert. Wenn der Kunde fragt „woher kommt das?" — Annahmen-Modal öffnen.',
     target: 'button[onclick*="openAnnahmen"], .kalk-c-trigger-annahmen',
-    needsView: 'kunde',
-    needsTab: 'kalkulator',
-  },
-  {
-    title: 'Schritt 15 — Was-wäre-wenn (Sensitivität)',
-    action: 'Scroll weiter zur Sektion „06 · Was wäre wenn". Drei Szenarien als Karten: Basis (grün), Konservativ (Zins +1 %, 1 Mo Leerstand), Stress-Test (Zins +2 %, 3 Mo Leerstand).',
-    tip: 'Bank-Sprache statt Wetter-Metaphorik. Das ist Deine Antwort wenn der Kunde fragt „und wenn die Zinsen steigen?" — die Kalkulation ist robust gerechnet.',
-    target: '#section-was-waere-wenn',
     needsView: 'kunde',
     needsTab: 'kalkulator',
   },
