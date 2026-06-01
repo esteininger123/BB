@@ -4529,11 +4529,11 @@ function _belastungEvents(mo) {
     const prev = mo[i - 1], cur = mo[i];
     const dMiete = (cur.kaltmieteM || 0) - (prev.kaltmieteM || 0);
     if (dMiete > 0.5) {
-      out.push({ dataIndex: i + 1, kind: 'miete',
+      out.push({ dataIndex: i + 1, kind: 'miete', short: `+${Math.round(dMiete)} €/Mo`,
         label: `Mieterhöhung +${Math.round(dMiete)} €/Mo · Jahr ${cur.y}` });
     }
     if ((prev.subvM || 0) > 0.5 && (cur.subvM || 0) <= 0.5) {
-      out.push({ dataIndex: i + 1, kind: 'subv',
+      out.push({ dataIndex: i + 1, kind: 'subv', short: 'Subvention endet',
         label: `Subvention endet · Jahr ${cur.y}` });
     }
   }
@@ -4589,8 +4589,7 @@ function _drawCMagazinCharts(r) {
           pointBorderWidth: 2,
           pointRadius: ctx => (ctx.dataIndex % 12 === 0) ? 4 : 0,
           pointHoverRadius: ctx => (ctx.dataIndex % 12 === 0) ? 6 : 3,
-          cubicInterpolationMode: 'monotone',
-          tension: 0.32
+          tension: 0.3
         }]
       },
       options: {
@@ -4625,29 +4624,76 @@ function _drawCMagazinCharts(r) {
         afterDatasetsDraw(chart) {
           if (!belEvents.length) return;
           const { ctx, chartArea, scales } = chart;
+          const rr = (x, y, w, h, r) => {
+            if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); return; }
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.arcTo(x + w, y, x + w, y + h, r);
+            ctx.arcTo(x + w, y + h, x, y + h, r);
+            ctx.arcTo(x, y + h, x, y, r);
+            ctx.arcTo(x, y, x + w, y, r);
+            ctx.closePath();
+          };
           ctx.save();
-          belEvents.forEach(ev => {
-            const x = scales.x.getPixelForValue(ev.dataIndex);
-            if (x == null || isNaN(x)) return;
+          ctx.font = '600 10px Inter, -apple-system, system-ui, sans-serif';
+          ctx.textBaseline = 'middle';
+          ctx.textAlign = 'left';
+          // Events nach x sortieren, bei Nähe in mehreren Reihen staffeln (Anti-Überlappung)
+          const evs = belEvents
+            .map(ev => ({
+              short: ev.short || ev.label,
+              color: ev.kind === 'subv' ? evSubv : evMiete,
+              x: scales.x.getPixelForValue(ev.dataIndex),
+              yPt: scales.y.getPixelForValue(belData[ev.dataIndex] != null ? belData[ev.dataIndex] : 0)
+            }))
+            .filter(e => e.x != null && !isNaN(e.x))
+            .sort((a, b) => a.x - b.x);
+          const bh = 15, rowGap = 4, topPad = 4;
+          let prevX = -999, row = 0;
+          evs.forEach(e => {
+            row = (e.x - prevX < 90) ? (row + 1) % 3 : 0;
+            prevX = e.x;
+            const by = chartArea.top + topPad + row * (bh + rowGap);
+            const tw = ctx.measureText(e.short).width;
+            const padX = 7, bw = tw + padX * 2;
+            let bx = e.x - bw / 2;
+            bx = Math.max(chartArea.left + 1, Math.min(bx, chartArea.right - bw - 1));
+            // Verbindungslinie vom Badge zum Punkt auf der Kurve
             ctx.beginPath();
             ctx.setLineDash([3, 3]);
-            ctx.strokeStyle = ev.kind === 'subv' ? evSubv : evMiete;
+            ctx.globalAlpha = 0.55;
+            ctx.strokeStyle = e.color;
             ctx.lineWidth = 1;
-            ctx.moveTo(x, chartArea.top);
-            ctx.lineTo(x, chartArea.bottom);
+            ctx.moveTo(e.x, by + bh);
+            ctx.lineTo(e.x, e.yPt);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            ctx.setLineDash([]);
+            // Badge
+            rr(bx, by, bw, bh, 4);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fill();
+            ctx.strokeStyle = e.color;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.fillStyle = e.color;
+            ctx.fillText(e.short, bx + padX, by + bh / 2 + 0.5);
+            // Punkt auf der Kurve
+            ctx.beginPath();
+            ctx.arc(e.x, e.yPt, 4, 0, Math.PI * 2);
+            ctx.fillStyle = e.color;
+            ctx.fill();
+            ctx.strokeStyle = '#FBFAF7';
+            ctx.lineWidth = 1.5;
             ctx.stroke();
           });
           ctx.restore();
         }
       }]
     });
-    // Ereignis-Legende unter dem Chart (klar lesbar für den Endkunden)
+    // Ereignis-Info liegt jetzt direkt im Chart (Marker + Badge am Punkt) → Container leeren
     const evBox = document.getElementById('chart-c-belastung-events');
-    if (evBox) {
-      evBox.innerHTML = belEvents.length
-        ? belEvents.map(ev => `<span class="kalk-c-ev kalk-c-ev-${ev.kind}">${ev.label}</span>`).join('')
-        : '';
-    }
+    if (evBox) evBox.innerHTML = '';
   }
 
   // Chart 2 — Vermögen Netto (default sichtbar) + Restschuld + Brutto (default hidden, via Toggle)
