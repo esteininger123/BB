@@ -3955,6 +3955,7 @@ function renderStoryPremium(r) {
         <div class="kalk-c-col-chart">
           <div class="kalk-c-chart-frame"><canvas id="chart-c-belastung"></canvas></div>
           <div class="kalk-c-chart-caption">Cashflow nach Steuern, je Monat · Annuität konstant · ${_modusCaption}</div>
+          <div id="chart-c-belastung-events" class="kalk-c-chart-events"></div>
         </div>
         <div class="kalk-c-col-text">
           <p class="kalk-c-lead">Eine Annuität von ${fmtEurMo(r.annuityMo)} steht Mieteinnahmen von ${fmtEurMo(r.mieteJ1Mo)} gegenüber. Dein Steuervorteil${(r.mietsubventionGesamt && r.mietsubventionGesamt > 0) ? ' und in den ersten Jahren eine vereinbarte Mietsubvention glätten' : ' glättet'} die Anlaufphase.</p>
@@ -4518,6 +4519,27 @@ function renderStoryPremium(r) {
 }
 
 /* Hilfsfunktion: Magazin-Charts rendern */
+// Leitet Ereignisse (Mieterhöhung, Subventionsende) aus der Monatsserie ab.
+// 2026-06-01 (Team-Feedback Punkt 3): macht im Belastungs-Chart sichtbar, was von
+// Monat zu Monat passiert. Kein Engine-Eingriff — reine Ableitung aus cfMonate.
+// dataIndex bezieht sich auf das Chart-Array [J0, M1..M120]: Monat mo[i] liegt auf Index i+1.
+function _belastungEvents(mo) {
+  const out = [];
+  for (let i = 1; i < mo.length; i++) {
+    const prev = mo[i - 1], cur = mo[i];
+    const dMiete = (cur.kaltmieteM || 0) - (prev.kaltmieteM || 0);
+    if (dMiete > 0.5) {
+      out.push({ dataIndex: i + 1, kind: 'miete',
+        label: `Mieterhöhung +${Math.round(dMiete)} €/Mo · Jahr ${cur.y}` });
+    }
+    if ((prev.subvM || 0) > 0.5 && (cur.subvM || 0) <= 0.5) {
+      out.push({ dataIndex: i + 1, kind: 'subv',
+        label: `Subvention endet · Jahr ${cur.y}` });
+    }
+  }
+  return out;
+}
+
 function _drawCMagazinCharts(r) {
   if (!window.Chart) return;
 
@@ -4529,27 +4551,45 @@ function _drawCMagazinCharts(r) {
   const border = '#E8E6DD';
   const bgPrimary = '#FBFAF7';
 
-  // Chart 1 — Belastung €/Mo über 10 J
+  // Chart 1 — Belastung €/Mo, monatsgenau über 10 J (J0..J10)
+  // 2026-06-01 (Team-Feedback Punkte 1+2+3): Datenquelle von Jahres-Aggregat
+  // (cf[].cfJahr/12, 10 Punkte) auf die Monatsserie (cfMonate[].cfNachStM, 120 Punkte)
+  // umgestellt. So sitzt jede Mieterhöhung am ECHTEN Monat statt über ein Jahr verschmiert.
+  // Kurve bleibt smooth (cubicInterpolationMode 'monotone' → kein Überschwingen an Sprüngen).
+  // Punkt 1: J0 = Startzustand heute (erster Monat). Punkt 3: Ereignis-Marker + -Legende.
   const cBel = document.getElementById('chart-c-belastung');
   if (cBel) {
     if (_cMagazinCharts.belastung) _cMagazinCharts.belastung.destroy();
-    const belastungJe = r.cf.slice(0, 10).map(c => Math.round(c.cfJahr / 12));
+    const mo = (r.cfMonate && r.cfMonate.length) ? r.cfMonate : null;
+    let belData, belLabels, belEvents = [];
+    if (mo) {
+      // J0 (Start = erster Monat, vor jeder Steigerung) + 120 Monate
+      belData = [Math.round(mo[0].cfNachStM)].concat(mo.map(c => Math.round(c.cfNachStM)));
+      belLabels = belData.map((_, idx) => idx % 12 === 0 ? 'J' + (idx / 12) : '');
+      belEvents = _belastungEvents(mo);
+    } else {
+      // Fallback (alte Snapshots ohne cfMonate): Jahres-Aggregat wie früher (J1..J10)
+      belData = r.cf.slice(0, 10).map(c => Math.round(c.cfJahr / 12));
+      belLabels = ['J1','J2','J3','J4','J5','J6','J7','J8','J9','J10'];
+    }
+    const evMiete = '#B08A4D', evSubv = '#9A3E33';
     _cMagazinCharts.belastung = new Chart(cBel, {
       type: 'line',
       data: {
-        labels: ['J1','J2','J3','J4','J5','J6','J7','J8','J9','J10'],
+        labels: belLabels,
         datasets: [{
           label: 'Belastung €/Mo',
-          data: belastungJe,
+          data: belData,
           borderColor: accent,
           backgroundColor: 'rgba(176,138,77,.08)',
           borderWidth: 2,
           fill: true,
-          pointBackgroundColor: belastungJe.map(v => v >= 0 ? positive : negative),
+          pointBackgroundColor: belData.map(v => v >= 0 ? positive : negative),
           pointBorderColor: bgPrimary,
           pointBorderWidth: 2,
-          pointRadius: 4,
-          pointHoverRadius: 6,
+          pointRadius: ctx => (ctx.dataIndex % 12 === 0) ? 4 : 0,
+          pointHoverRadius: ctx => (ctx.dataIndex % 12 === 0) ? 6 : 3,
+          cubicInterpolationMode: 'monotone',
           tension: 0.32
         }]
       },
@@ -4558,17 +4598,56 @@ function _drawCMagazinCharts(r) {
         maintainAspectRatio: false,
         animation: false,
         plugins: { legend: { display: false }, tooltip: {
-          callbacks: { label: ctx => (ctx.parsed.y > 0 ? '+' : '') + ctx.parsed.y + ' €/Mo' }
+          callbacks: {
+            title: items => {
+              const idx = items[0].dataIndex;
+              if (!mo) return belLabels[idx];
+              if (idx === 0) return 'Heute (Start)';
+              return 'Jahr ' + Math.ceil(idx / 12) + ' · Monat ' + (((idx - 1) % 12) + 1);
+            },
+            label: ctx => (ctx.parsed.y > 0 ? '+' : '') + ctx.parsed.y + ' €/Mo'
+          }
         }},
         scales: {
-          x: { ticks: { color: tertiary, font: { size: 10 } }, grid: { display: false } },
+          x: {
+            ticks: { color: tertiary, font: { size: 10 }, autoSkip: false, maxRotation: 0,
+              callback: (val, idx) => (idx % 12 === 0) ? 'J' + (idx / 12) : '' },
+            grid: { display: false }
+          },
           y: {
             ticks: { color: tertiary, font: { size: 10 }, callback: v => (v > 0 ? '+' : '') + v + ' €' },
             grid: { color: ctx => ctx.tick.value === 0 ? '#1A1A17' : border, lineWidth: ctx => ctx.tick.value === 0 ? 1.2 : 1 }
           }
         }
-      }
+      },
+      plugins: [{
+        id: 'belEventMarkers',
+        afterDatasetsDraw(chart) {
+          if (!belEvents.length) return;
+          const { ctx, chartArea, scales } = chart;
+          ctx.save();
+          belEvents.forEach(ev => {
+            const x = scales.x.getPixelForValue(ev.dataIndex);
+            if (x == null || isNaN(x)) return;
+            ctx.beginPath();
+            ctx.setLineDash([3, 3]);
+            ctx.strokeStyle = ev.kind === 'subv' ? evSubv : evMiete;
+            ctx.lineWidth = 1;
+            ctx.moveTo(x, chartArea.top);
+            ctx.lineTo(x, chartArea.bottom);
+            ctx.stroke();
+          });
+          ctx.restore();
+        }
+      }]
     });
+    // Ereignis-Legende unter dem Chart (klar lesbar für den Endkunden)
+    const evBox = document.getElementById('chart-c-belastung-events');
+    if (evBox) {
+      evBox.innerHTML = belEvents.length
+        ? belEvents.map(ev => `<span class="kalk-c-ev kalk-c-ev-${ev.kind}">${ev.label}</span>`).join('')
+        : '';
+    }
   }
 
   // Chart 2 — Vermögen Netto (default sichtbar) + Restschuld + Brutto (default hidden, via Toggle)
