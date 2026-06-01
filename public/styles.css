@@ -2342,6 +2342,15 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .berat-we-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
 .berat-we-chip{display:inline-flex;align-items:center;gap:4px;font-size:13px;padding:5px 12px;border-radius:999px;background:rgba(176,138,77,.09);border:1px solid rgba(176,138,77,.32);color:#8E6E3D;font-weight:500}
 .berat-we-inline{margin-top:3px;font-size:11px;color:#8E6E3D;line-height:1.4}
+/* 2026-06-01 Team-Feedback Block D: Subventionsregler (Trade-off Subvention <-> Kaufpreis) */
+.subv-regler{margin:10px 0 4px;padding:12px 14px;border:1px solid rgba(176,138,77,.32);border-radius:8px;background:rgba(176,138,77,.05)}
+.subv-regler-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.subv-regler-title{text-transform:uppercase;letter-spacing:.05em;font-size:11px;font-weight:700;color:#8E6E3D}
+.subv-regler-reset{background:none;border:1px solid rgba(176,138,77,.4);color:#8E6E3D;font-size:11px;padding:3px 9px;border-radius:6px;cursor:pointer;font-family:inherit}
+.subv-regler-reset:hover{background:rgba(176,138,77,.12)}
+.subv-regler-range{width:100%;accent-color:#B08A4D;margin:2px 0}
+.subv-regler-info{display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);margin-top:4px}
+.subv-regler-info strong{color:var(--text-primary)}
 
 /* Section 1 — Objekt-Liste */
 /* FS-3l (Re-Audit P2 25.05.2026): align-content: start sodass beide Spalten

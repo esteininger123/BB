@@ -2469,6 +2469,30 @@ function kalkInputsThemenHtml(i) {
               ${erlaut ? `<div class="text-tertiary text-small" style="margin-top:4px;font-size:11.5px;line-height:1.4;">${esc(erlaut)}</div>` : ''}
             </div>`;
         })()}
+        ${(() => {
+          // Subventionsregler (Team-Feedback 2026-06-01): Trade-off Mietsubvention <-> Kaufpreis.
+          // Skaliert die vereinbarte Subvention und reduziert den KP 1:1 um den weggenommenen
+          // Betrag. Alles rechnet via recalcAndRender() durch (Cashflow, Annuität, Magazin, PDF).
+          const G0 = state.kalk._subvBasisGesamt;
+          if (!(G0 > 0)) return ''; // nur wenn eine Subvention vereinbart ist
+          const faktor = (state.kalk.subventionFaktor != null) ? state.kalk.subventionFaktor : 1;
+          const aktuell = Math.round(G0 * faktor);
+          const rabatt = Math.round(G0 - aktuell);
+          return `
+            <div class="subv-regler">
+              <div class="subv-regler-head">
+                <span class="subv-regler-title">Subvention ⇄ Kaufpreis-Rabatt</span>
+                <button type="button" class="subv-regler-reset" onclick="resetSubvTradeoff()">↺ Vereinbart</button>
+              </div>
+              <input type="range" class="subv-regler-range" min="0" max="${Math.round(G0)}" step="50" value="${aktuell}"
+                oninput="setSubvTradeoff(this.value)">
+              <div class="subv-regler-info">
+                <span>Mietsubvention <strong>${aktuell.toLocaleString('de-DE')} €</strong></span>
+                <span>Kaufpreis-Rabatt <strong>${rabatt.toLocaleString('de-DE')} €</strong></span>
+              </div>
+              <div class="text-tertiary text-small" style="margin-top:3px;line-height:1.4;">Spielerei: weniger Subvention = günstigerer Kaufpreis (1:1). Wirkt live auf Cashflow, Annuität und PDF.</div>
+            </div>`;
+        })()}
         ${select('Mietsteigerungs-Modus', 'mietsteigerungsModus', [
           {v:'sprung',  l:'Bestand · Vergleichsmiete-Sprünge alle 3 J'},
           {v:'staffel', l:'Neuvermietung · Staffelmiete linear p.a.'},
@@ -2818,6 +2842,8 @@ function _resetWeSnapshotFields() {
     'marktmieteEurQm', 'marktwertProQm',
     'mietsteigerungsModus', 'kappungsgrenze', 'indexmiete',
     'subventionPhasen', 'subventionMo', 'subventionMonate',
+    // Subventionsregler (2026-06-01): Trade-off-Faktor + Basis-Referenzen bei WE-Wechsel resetten
+    'subventionFaktor', '_subvBasisGesamt', '_subvBasisKP', '_subvBasisPhasen', '_subvBasisSubvMo', '_subvBasisSubvMonate',
     'wertsteigerung', 'hgInflation', 'gebaeudeAnteil', 'afaSatz',
     'hausgeld', 'hausverwaltung', 'mietverwaltung', 'grEstPct',
     'kaufpreis', 'qm', 'kaltmiete', 'stellplatzKp', 'stellplatzMiete',
@@ -3123,6 +3149,36 @@ function resetKalk() {
 }
 window.resetKalk = resetKalk;
 
+// Subventionsregler (Team-Feedback 2026-06-01): Trade-off Mietsubvention <-> Kaufpreis.
+// Skaliert die vereinbarte Subvention (Phasen oder manuell) auf den Slider-Wert und
+// reduziert den Kaufpreis 1:1 (nominal) um den weggenommenen Subventionsbetrag.
+// Kein Engine-Eingriff — nur Inputs anpassen, dann recalcAndRender() rechnet alles durch.
+function setSubvTradeoff(s) {
+  if (!state.kalk) return;
+  const G0 = state.kalk._subvBasisGesamt;
+  if (!(G0 > 0)) return;
+  const S = Math.max(0, Math.min(G0, parseFloat(s) || 0));
+  const faktor = S / G0;
+  state.kalk.subventionFaktor = faktor;
+  const basisPhasen = state.kalk._subvBasisPhasen;
+  if (Array.isArray(basisPhasen) && basisPhasen.length) {
+    state.kalk.subventionPhasen = basisPhasen.map(p => ({ ...p, mo: (p.mo || 0) * faktor }));
+  } else {
+    state.kalk.subventionMo = (state.kalk._subvBasisSubvMo || 0) * faktor;
+    state.kalk.subventionMonate = state.kalk._subvBasisSubvMonate || 0;
+  }
+  // Kaufpreis 1:1 um weggenommene Subvention reduzieren (gleichsinnig zum Tausch)
+  state.kalk.kaufpreis = Math.max(0, Math.round((state.kalk._subvBasisKP || 0) - (G0 - S)));
+  recalcAndRender();
+}
+function resetSubvTradeoff() {
+  const G0 = state.kalk && state.kalk._subvBasisGesamt;
+  if (!(G0 > 0)) return;
+  setSubvTradeoff(G0);
+}
+window.setSubvTradeoff = setSubvTradeoff;
+window.resetSubvTradeoff = resetSubvTradeoff;
+
 let chartV = null, chartC = null, chartS = null;
 
 function recalcAndRender() {
@@ -3226,6 +3282,18 @@ function recalcAndRender() {
     return;
   }
   state.kalkResult = r;
+
+  // Subventionsregler-Basis (Team-Feedback 2026-06-01): einmal pro WE die vereinbarten
+  // Referenzwerte merken (vor jeder Regler-Skalierung). Nur Einzel-Modus. Faktor 1 = neutral.
+  if (!state.kalk._isPaket && state.kalk._subvBasisGesamt == null) {
+    state.kalk._subvBasisGesamt = (r && r.mietsubventionGesamt) || 0;
+    state.kalk._subvBasisKP = state.kalk.kaufpreis || 0;
+    state.kalk._subvBasisPhasen = Array.isArray(state.kalk.subventionPhasen)
+      ? JSON.parse(JSON.stringify(state.kalk.subventionPhasen)) : [];
+    state.kalk._subvBasisSubvMo = state.kalk.subventionMo || 0;
+    state.kalk._subvBasisSubvMonate = state.kalk.subventionMonate || 0;
+    if (state.kalk.subventionFaktor == null) state.kalk.subventionFaktor = 1;
+  }
 
   // KPIs
   const fmt = window.Kalk.fmtEur;
