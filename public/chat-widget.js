@@ -7,6 +7,39 @@
 
   function el(id) { return document.getElementById(id); }
 
+  // Minimaler, sicherer Markdown-Renderer (fett, Listen, Absätze). Escaped HTML zuerst.
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function inlineMd(s) {
+    return esc(s)
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>');
+  }
+  function renderMarkdown(text) {
+    var lines = String(text).replace(/\r/g, '').split('\n');
+    var out = [], i = 0, m;
+    while (i < lines.length) {
+      if ((m = lines[i].match(/^\s*\d+\.\s+(.*)$/))) {
+        var oli = [];
+        while (i < lines.length && (m = lines[i].match(/^\s*\d+\.\s+(.*)$/))) { oli.push('<li>' + inlineMd(m[1]) + '</li>'); i++; }
+        out.push('<ol>' + oli.join('') + '</ol>'); continue;
+      }
+      if ((m = lines[i].match(/^\s*[-*]\s+(.*)$/))) {
+        var uli = [];
+        while (i < lines.length && (m = lines[i].match(/^\s*[-*]\s+(.*)$/))) { uli.push('<li>' + inlineMd(m[1]) + '</li>'); i++; }
+        out.push('<ul>' + uli.join('') + '</ul>'); continue;
+      }
+      if (lines[i].trim() === '') { i++; continue; }
+      var para = [];
+      while (i < lines.length && lines[i].trim() !== '' && !/^\s*\d+\.\s+/.test(lines[i]) && !/^\s*[-*]\s+/.test(lines[i])) {
+        para.push(inlineMd(lines[i])); i++;
+      }
+      out.push('<p>' + para.join('<br>') + '</p>');
+    }
+    return out.join('');
+  }
+
   function sammleKontext() {
     var s = window.state || {};
     var k = s.kunde || null;
@@ -22,7 +55,7 @@
     var root = document.createElement('div');
     root.id = 'bb-chat-root';
     root.innerHTML =
-      '<button id="bb-chat-fab" title="Backstube-Assistent" aria-label="Assistent öffnen">💬</button>' +
+      '<button id="bb-chat-fab" title="Backstube-Assistent" aria-label="Assistent öffnen"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/></svg></button>' +
       '<div id="bb-chat-panel" hidden>' +
         '<div id="bb-chat-head"><span>Backstube-Assistent</span><button id="bb-chat-close" aria-label="Schließen">×</button></div>' +
         '<div id="bb-chat-msgs"></div>' +
@@ -80,7 +113,7 @@
         var r = await reader.read();
         if (r.done) break;
         voll += dec.decode(r.value, { stream: true });
-        antwort.textContent = voll;
+        antwort.innerHTML = renderMarkdown(voll);
         el('bb-chat-msgs').scrollTop = el('bb-chat-msgs').scrollHeight;
       }
       verlauf.push({ role: 'user', content: frage });
