@@ -20,6 +20,16 @@ function formatKontext(kontext) {
     try { erg = JSON.stringify(kontext.ergebnis); } catch { erg = '(nicht darstellbar)'; }
     zeilen.push(`Berechnete Ergebnisse (echte Zahlen — nutze diese): ${erg}`);
   }
+  if (Array.isArray(kontext.cashflowProJahr)) {
+    let cf;
+    try { cf = JSON.stringify(kontext.cashflowProJahr); } catch { cf = '(nicht darstellbar)'; }
+    zeilen.push(`Cashflow-Verlauf pro Jahr J1–J10 (€, nutze diese): ${cf}`);
+  }
+  if (Array.isArray(kontext.vermoegenProJahr)) {
+    let vm;
+    try { vm = JSON.stringify(kontext.vermoegenProJahr); } catch { vm = '(nicht darstellbar)'; }
+    zeilen.push(`Vermögensentwicklung pro Jahr J0–J10 (€): ${vm}`);
+  }
   if (!zeilen.length) return 'Aktueller Bildschirm-Kontext: keiner.';
   return 'Aktueller Bildschirm-Kontext:\n' + zeilen.join('\n');
 }

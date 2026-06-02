@@ -40,6 +40,7 @@
     return out.join('');
   }
 
+  function r0(x) { return (typeof x === 'number' && isFinite(x)) ? Math.round(x) : null; }
   function compactResult(res) {
     if (!res || typeof res !== 'object') return null;
     var out = {};
@@ -59,7 +60,13 @@
       view: s.view || null,
       kunde: k ? { name: k.name || '', phase: k.phase || '' } : null,
       kalkulation: s.kalk || null,
-      ergebnis: compactResult(res)
+      ergebnis: compactResult(res),
+      cashflowProJahr: (res && Array.isArray(res.cf)) ? res.cf.slice(0, 10).map(function (c, idx) {
+        return { jahr: c.y || (idx + 1), cashflow: r0(c.cfJahr), kaltmieteMo: r0(c.kaltmieteMo), restschuld: r0(c.restschuld), steuervorteil: r0(c.stVorteilJahr) };
+      }) : null,
+      vermoegenProJahr: (res && Array.isArray(res.vermoegen)) ? res.vermoegen.map(function (v, idx) {
+        return { jahr: idx, marktwert: r0(v.wert), restschuld: r0(v.restschuld), gesamtvermoegen: r0(v.vermoegenBrutto) };
+      }) : null
     };
   }
 
