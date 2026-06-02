@@ -169,15 +169,17 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   // mehr als 5 % abweicht.
   let subvText = '—';
   const phasen = Array.isArray(i.subventionPhasen) ? i.subventionPhasen : [];
-  const nominalSum = phasen.reduce((s, p) => s + ((p && p.mo) || 0) * ((p && p.monate) || 0), 0);
+  // 2026-06-02: Phasen-Aufschlag mit Subventionsregler-Faktor skalieren (Gesamt = r.mietsubventionGesamt ist bereits skaliert)
+  const _sfP = (i.subventionFaktor != null && isFinite(i.subventionFaktor)) ? i.subventionFaktor : 1;
+  const nominalSum = phasen.reduce((s, p) => s + ((p && p.mo) || 0) * ((p && p.monate) || 0), 0) * _sfP;
   const istGeglaettet = (nominalSum > 0 && r.mietsubventionGesamt && Math.abs(r.mietsubventionGesamt - nominalSum) / nominalSum > 0.05);
   const glaettungsHinweis = istGeglaettet ? ' (über Phasen geglättet)' : '';
   if (phasen.length >= 2) {
-    subvText = `Phase 1 ${fmtMo(phasen[0].mo)} × ${phasen[0].monate} Mo · Phase 2 ${fmtMo(phasen[1].mo)} × ${phasen[1].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}${glaettungsHinweis}`;
+    subvText = `Phase 1 ${fmtMo(phasen[0].mo * _sfP)} × ${phasen[0].monate} Mo · Phase 2 ${fmtMo(phasen[1].mo * _sfP)} × ${phasen[1].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}${glaettungsHinweis}`;
   } else if (phasen.length === 1) {
-    subvText = `${fmtMo(phasen[0].mo)} × ${phasen[0].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
+    subvText = `${fmtMo(phasen[0].mo * _sfP)} × ${phasen[0].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
   } else if (i.subventionMo > 0) {
-    subvText = `${fmtMo(i.subventionMo)} × ${i.subventionMonate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
+    subvText = `${fmtMo(i.subventionMo * _sfP)} × ${i.subventionMonate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
   }
 
   // Vertriebler-Block für Cover/Footer
@@ -679,7 +681,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         </div>
         <div class="pdf-c-bub-cell" style="background:rgba(45,110,71,.05);border:.5px solid #2D6E47;padding:4mm 5mm;border-radius:2mm;">
           <div class="pdf-c-bub-step" style="font-size:13pt;color:#2D6E47">WhatsApp-Direktdraht</div>
-          <div class="pdf-c-bub-text">Eine WhatsApp-Gruppe mit B&amp;B — für Fragen die jetzt schon da sind, und für die die später kommen.</div>
+          <div class="pdf-c-bub-text">Eine WhatsApp-Gruppe mit B&amp;B — für Fragen, die jetzt schon da sind, und für die, die später kommen.</div>
         </div>
       </div>
       <div style="margin-top:10mm;padding-top:6mm;border-top:.4px solid #B08A4D;font-size:10pt;line-height:1.65;color:#3A3A35;">

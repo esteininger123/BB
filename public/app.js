@@ -2532,7 +2532,7 @@ function kalkInputsThemenHtml(i) {
                 <span class="subv-regler-title">Subvention ⇄ Kaufpreis-Rabatt</span>
                 <button type="button" class="subv-regler-reset" onclick="resetSubvTradeoff()">↺ Vereinbart</button>
               </div>
-              <input type="range" class="subv-regler-range" min="0" max="${Math.round(G0)}" step="50" value="${aktuell}"
+              <input type="range" class="subv-regler-range" min="0" max="${Math.round(G0)}" step="${Math.max(1, Math.round(G0 / 100))}" value="${aktuell}"
                 oninput="setSubvTradeoff(this.value)" onchange="renderTabKalkulator()">
               <div class="subv-regler-info">
                 <span>Mietsubvention <strong id="subv-regler-subv">${aktuell.toLocaleString('de-DE')} €</strong></span>
@@ -4320,7 +4320,7 @@ function renderStoryPremium(r) {
         </div>
         <div class="kalk-c-bub-cell" style="border-color:var(--positive);">
           <div class="kalk-c-bub-step" style="color:var(--positive);">WhatsApp-Direktdraht</div>
-          <div class="kalk-c-bub-body">Eine WhatsApp-Gruppe mit B&amp;B — für Fragen die jetzt schon da sind, und für die die später kommen.</div>
+          <div class="kalk-c-bub-body">Eine WhatsApp-Gruppe mit B&amp;B — für Fragen, die jetzt schon da sind, und für die, die später kommen.</div>
         </div>
       </div>
       <div class="kalk-c-bub-foot">
@@ -5573,7 +5573,7 @@ function exportInvestPdf() {
         // Wird nicht bei jedem Druckdialog-Abbruch geloggt — wir registrieren den Trigger.
         try {
           const w = state.kalk && state.kalk._weId ? (state.wohneinheiten || []).find(x => x.id === state.kalk._weId) : null;
-          const label = w ? ((w.projektName ? w.projektName + ' · ' : '') + (w.lageText || 'WE ' + w.weNr)) : '';
+          const label = w ? _weNummerLabel(w.id, (w.projektName ? w.projektName + ' · ' : '') + (w.lageText || ('WE ' + w.weNr))) : '';
           _appendActivityToNotizen(`Investitions-PDF erstellt${label ? ' für ' + label : ''}`);
         } catch {}
       }
@@ -5622,7 +5622,7 @@ function openRechenblatt() {
   try {
     const w = state.kalk._weId ? (state.wohneinheiten || []).find(x => x.id === state.kalk._weId) : null;
     if (w) {
-      const label = (w.projektName ? w.projektName + ' · ' : '') + (w.lageText || ('WE ' + w.weNr));
+      const label = _weNummerLabel(w.id, (w.projektName ? w.projektName + ' · ' : '') + (w.lageText || ('WE ' + w.weNr)));
       kalk = Object.assign({}, state.kalk, { _weLabel: label });
     }
   } catch {}
@@ -5703,7 +5703,7 @@ function sendInvestDocMail() {
   }
   const kundeName = ((state.kunde.vorname || '') + ' ' + (state.kunde.nachname || '')).trim() || 'Investor';
   const w = (state.wohneinheiten || []).find(x => x.id === state.kalk._weId);
-  const weLabel = w ? ((w.projektName ? w.projektName + ' · ' : '') + (w.lageText || ('WE ' + w.weNr))) : 'unsere besprochene Wohneinheit';
+  const weLabel = w ? _weNummerLabel(w.id, (w.projektName ? w.projektName + ' · ' : '') + (w.lageText || ('WE ' + w.weNr))) : 'unsere besprochene Wohneinheit';
   const senderName = (state.user && state.user.name) || 'B&B Immo';
   // Mailto-Body — Edgar's Stil: direkt, kein Floskeln-Marathon.
   const subject = `Investitionsanalyse · ${weLabel}`;
@@ -5776,7 +5776,7 @@ async function sendReservierungForSignature() {
 
   // Kontext für Modal
   const w = (state.wohneinheiten || []).find(x => x.id === weId);
-  const weLabel = (w && (w.projektName ? w.projektName + ' — ' : '') + (w.lageText || w.lage || ('WE ' + w.weNr))) || 'die ausgewählte WE';
+  const weLabel = (w && _weNummerLabel(w.id, (w.projektName ? w.projektName + ' — ' : '') + (w.lageText || w.lage || ('WE ' + w.weNr)))) || 'die ausgewählte WE';
   const kundeName = (((state.kunde && state.kunde.vorname) || '') + ' ' + ((state.kunde && state.kunde.nachname) || '')).trim() || '(unbekannt)';
 
   // QA-Fix 2026-05-23 (Audit-Z-1, DSGVO-Blocker): Kunde-Snapshot VOR Modal-Await.
