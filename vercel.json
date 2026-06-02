@@ -33,6 +33,9 @@
     },
     "api/pandadoc/webhook.js": {
       "maxDuration": 30
+    },
+    "api/assistent.js": {
+      "maxDuration": 30
     }
   },
   "crons": [
