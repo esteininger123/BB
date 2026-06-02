@@ -1,11 +1,23 @@
 // Reine Funktionen für den Assistenten — kein Netz, voll testbar.
 
+function standortLabel(view, tab) {
+  if (view === 'dashboard') return 'Dashboard / Startseite';
+  if (view === 'we-liste') return 'Wohneinheiten-Liste (Vertrieb)';
+  if (view === 'admin') return 'Admin-Bereich';
+  if (view === 'login') return 'Login-Seite';
+  if (view === 'kunde') {
+    const tabs = { uebersicht: 'Übersicht', kalkulator: 'Kalkulator / Investitionsanalyse', selbstauskunft: 'Selbstauskunft', snapshots: 'gespeicherte Berechnungen (Snapshots)' };
+    return 'Kundenseite · Tab: ' + (tabs[tab] || tab || 'Übersicht');
+  }
+  return view || 'unbekannt';
+}
+
 function formatKontext(kontext) {
   if (!kontext || typeof kontext !== 'object') {
     return 'Aktueller Bildschirm-Kontext: keiner (der Vertriebler hat gerade nichts Konkretes offen).';
   }
   const zeilen = [];
-  if (kontext.view) zeilen.push(`Ansicht: ${kontext.view}`);
+  zeilen.push(`Aktueller Bereich/Seite des Vertrieblers: ${standortLabel(kontext.view, kontext.tab)}`);
   if (kontext.kunde && kontext.kunde.name) {
     const phase = kontext.kunde.phase ? ` (Phase: ${kontext.kunde.phase})` : '';
     zeilen.push(`Offener Kunde: ${kontext.kunde.name}${phase}`);

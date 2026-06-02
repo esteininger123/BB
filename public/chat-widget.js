@@ -58,6 +58,7 @@
     try { if (s.kalk && window.Kalk && window.Kalk.recalc) res = window.Kalk.recalc(s.kalk); } catch (e) {}
     return {
       view: s.view || null,
+      tab: s.tab || null,
       kunde: k ? { name: k.name || '', phase: k.phase || '' } : null,
       kalkulation: s.kalk || null,
       ergebnis: compactResult(res),
