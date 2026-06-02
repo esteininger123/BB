@@ -51,7 +51,7 @@
       ['Hausgeld', eurMo(i.hausgeld), 'aus Hausverwaltung'],
       ['Mietverwaltung', eurMo(i.mietverwaltung), 'lfd. Bewirtschaftung'],
       ['Hausverwaltung (sonst.)', eurMo(i.hausverwaltung), 'optional'],
-      ['Marktmiete', qm(i.marktmieteEurQm), 'Mietspiegel-Cap (§558 BGB)'],
+      ['Marktmiete', qm(i.marktmieteEurQm), 'realistisch erzielbare Miete (eigene Einschätzung)'],
       ['Marktwert', qm(i.marktwertProQm), 'für Vermögensbasis'],
     ];
 

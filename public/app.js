@@ -4574,7 +4574,7 @@ function renderStoryPremium(r) {
       case 'miete': return '§ 558 BGB: max. 15 % in 3 Jahren bei Bestand. Bei Neuvermietung: Mietspiegel-Konformität';
       case 'st': return 'Persönlicher Grenzsteuersatz — aus Selbstauskunft oder Annahme';
       case 'afa': return (i.afaSatz > 0.025) ? 'Restnutzungsdauer-Gutachten (Sprengnetter — Marktführer, gute Durchsetzungs-Quote beim Finanzamt)' : 'Standard 2 % linear nach § 7 EStG';
-      case 'subv': return 'B&B-Glättungs-Modell — Phase 1 abgesichert gegen Marktmiete-Cap (§ 558 BGB)';
+      case 'subv': return 'B&B-Glättungs-Modell — Phase 1 abgesichert gegen die realistisch erzielbare Miete (eigene Einschätzung)';
       case 'spar': return 'Tagesgeld-Vergleichszins — frei wählbar';
       case 'markt': return 'Aus Immoscout/Homeday-Vergleichswerten (Stand letzter Marktanker)';
       default: return '';
