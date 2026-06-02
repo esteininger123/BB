@@ -4010,15 +4010,16 @@ input[type="range"].spar-zins-range::-moz-range-track {
 #bb-chat-fab:hover { transform: translateY(-1px); }
 #bb-chat-panel {
   position: absolute; right: 0; bottom: 66px; width: 348px; max-width: 92vw;
-  height: 500px; max-height: 72vh; display: flex; flex-direction: column;
+  height: 500px; max-height: 72vh; display: none; flex-direction: column;
   background: #FBFAF7; border: 1px solid rgba(40,36,30,.10);
   border-radius: 16px; box-shadow: 0 14px 40px rgba(40,36,30,.20); overflow: hidden;
 }
+#bb-chat-panel.bb-open { display: flex; }
 #bb-chat-head {
   display: flex; justify-content: space-between; align-items: center;
   padding: 13px 16px; border-bottom: 1px solid rgba(40,36,30,.10);
 }
-#bb-chat-head span { font-size: 14px; font-weight: 600; color: #2D6E47; letter-spacing: .01em; }
+#bb-chat-head span { font-size: 14px; font-weight: 600; color: #B08A4D; letter-spacing: .01em; }
 #bb-chat-head button { background: none; border: none; color: #bdb8ac; font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }
 #bb-chat-head button:hover { color: #8a8478; }
 #bb-chat-msgs { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
@@ -4029,7 +4030,7 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .bb-chat-bot { align-self: stretch; color: #2A2722; }
 .bb-chat-bot p { margin: 0 0 9px; }
 .bb-chat-bot p:last-child { margin-bottom: 0; }
-.bb-chat-bot strong { font-weight: 700; color: #2D6E47; }
+.bb-chat-bot strong { font-weight: 700; color: #B08A4D; }
 .bb-chat-bot code { background: rgba(40,36,30,.06); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
 .bb-chat-bot ol { margin: 7px 0 4px; padding: 0; list-style: none; counter-reset: bbn; }
 .bb-chat-bot ol li { counter-increment: bbn; position: relative; padding: 2px 0 2px 26px; line-height: 1.5; }

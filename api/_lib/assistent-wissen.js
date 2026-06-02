@@ -37,6 +37,23 @@ Ablauf: Kunde anlegen → Kalkulation mit Live-Stammdaten → Investitionsanalys
 - Subventionsregler: Trade-off Subvention ↔ Kaufpreis. Halbe Subvention ⇒ Kaufpreis
   sinkt 1:1 um den eingesparten Betrag.
 
+## Vermögensaufbau / "Gesamtvermögen nach 10 Jahren"
+Das Gesamtvermögen nach 10 Jahren (die Hero-Zahl im Magazin) setzt sich zusammen aus:
+- Marktwert der Immobilie nach 10 J. = Startwert × (1 + Wertsteigerung)^10
+- minus Restschuld nach 10 J. (Darlehen abzüglich kumulierter Tilgung)
+- plus kumulierte Cashflows der Jahre 1–10 (inkl. Mietsubvention und Steuereffekt)
+Formel (vereinfacht): Gesamtvermögen = Marktwert(J10) − Restschuld(J10) + Σ Cashflows(J1–10).
+Vermögenszuwachs (netto) = Gesamtvermögen − eingesetztes Eigenkapital (EK-Bedarf).
+IRR = interner Zinsfuß auf das eingesetzte Eigenkapital über 10 Jahre.
+
+## Feld-Namen im Live-Kontext (berechnete Ergebnisse)
+- vermoegenBrutto10 = Gesamtvermögen nach 10 J.
+- vermoegenNetto10 = Vermögenszuwachs (netto, nach Abzug Eigenkapital)
+- irr = IRR (interner Zinsfuß)
+- ekBedarf = Eigenkapital-Bedarf
+- mietsubventionGesamt = Gesamt-Mietsubvention
+Wenn der Vertriebler nach einer konkreten Zahl fragt, nimm den Wert aus diesen Feldern.
+
 ## Was der Assistent NICHT tut
 - Keine Steuer- oder Rechtsberatung (nur Modell-Rechnung).
 - Keine Zahlen erfinden, die nicht im Live-Kontext stehen.

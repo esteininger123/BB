@@ -40,13 +40,26 @@
     return out.join('');
   }
 
+  function compactResult(res) {
+    if (!res || typeof res !== 'object') return null;
+    var out = {};
+    Object.keys(res).forEach(function (k) {
+      if (k.charAt(0) === '_') return;
+      var v = res[k];
+      if (typeof v === 'number' || typeof v === 'string') out[k] = v;
+    });
+    return out;
+  }
   function sammleKontext() {
     var s = window.state || {};
     var k = s.kunde || null;
+    var res = s.kalkResult || null;
+    try { if (s.kalk && window.Kalk && window.Kalk.recalc) res = window.Kalk.recalc(s.kalk); } catch (e) {}
     return {
       view: s.view || null,
       kunde: k ? { name: k.name || '', phase: k.phase || '' } : null,
-      kalkulation: s.kalk || null
+      kalkulation: s.kalk || null,
+      ergebnis: compactResult(res)
     };
   }
 
@@ -56,7 +69,7 @@
     root.id = 'bb-chat-root';
     root.innerHTML =
       '<button id="bb-chat-fab" title="Backstube-Assistent" aria-label="Assistent öffnen"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/></svg></button>' +
-      '<div id="bb-chat-panel" hidden>' +
+      '<div id="bb-chat-panel">' +
         '<div id="bb-chat-head"><span>Backstube-Assistent</span><button id="bb-chat-close" aria-label="Schließen">×</button></div>' +
         '<div id="bb-chat-msgs"></div>' +
         '<form id="bb-chat-form"><input id="bb-chat-input" type="text" autocomplete="off" placeholder="Frag mich etwas…" /><button type="submit">Senden</button></form>' +
@@ -69,7 +82,7 @@
 
   function toggle() {
     offen = !offen;
-    el('bb-chat-panel').hidden = !offen;
+    el('bb-chat-panel').classList.toggle('bb-open', offen);
     if (offen) el('bb-chat-input').focus();
   }
 
@@ -129,7 +142,7 @@
     var root = el('bb-chat-root');
     if (loggedIn && !root) aufbau();
     if (el('bb-chat-root')) el('bb-chat-root').style.display = loggedIn ? '' : 'none';
-    if (!loggedIn) { offen = false; if (el('bb-chat-panel')) el('bb-chat-panel').hidden = true; }
+    if (!loggedIn) { offen = false; if (el('bb-chat-panel')) el('bb-chat-panel').classList.remove('bb-open'); }
   }
 
   // Leichter, isolierter Sichtbarkeits-Check (kein Eingriff in app.js-Routing).

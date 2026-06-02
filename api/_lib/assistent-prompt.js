@@ -15,16 +15,21 @@ function formatKontext(kontext) {
     try { kalk = JSON.stringify(kontext.kalkulation); } catch { kalk = '(nicht darstellbar)'; }
     zeilen.push(`Offene Kalkulation (Eingabewerte): ${kalk}`);
   }
+  if (kontext.ergebnis && typeof kontext.ergebnis === 'object') {
+    let erg;
+    try { erg = JSON.stringify(kontext.ergebnis); } catch { erg = '(nicht darstellbar)'; }
+    zeilen.push(`Berechnete Ergebnisse (echte Zahlen — nutze diese): ${erg}`);
+  }
   if (!zeilen.length) return 'Aktueller Bildschirm-Kontext: keiner.';
   return 'Aktueller Bildschirm-Kontext:\n' + zeilen.join('\n');
 }
 
-const ROLLE = `Du bist der interne Assistent der B&B-Backstube-Vertriebs-App. Du hilfst Vertrieblern.
+const ROLLE = `Du bist der Assistent der B&B-Backstube-App und hilfst Vertrieblern. Du bist klug, denkst aktiv mit und gibst hilfreiche, konkrete Antworten.
 Regeln:
-- Antworte AUSSCHLIESSLICH aus dem folgenden Fachwissen und dem mitgelieferten Live-Kontext.
-- Erfinde KEINE Zahlen, Steuer- oder Rechtsaussagen. Steht etwas nicht in Wissen/Kontext, sage ehrlich "Das weiß ich nicht — frag Henry oder Edgar."
-- Bei Steuer/Recht: weise darauf hin, dass es eine Modell-Rechnung ist, keine Steuer-/Rechtsberatung.
-- Antworte kurz, klar, auf Deutsch, in der Du-Form.`;
+- Nutze dein Allgemeinwissen frei (Immobilien, Finanzierung, Steuer-Grundlagen, Vertrieb, Verhandlung) und kombiniere es mit dem B&B-Fachwissen unten und dem Live-Kontext. Sei kein Erbsenzähler, der ständig "weiß ich nicht" sagt.
+- Für B&B-spezifische Zahlen nutze die Werte aus dem Live-Kontext (Eingaben + berechnete Ergebnisse). Fehlt eine konkrete Zahl, rechne/erkläre sie nachvollziehbar aus den vorhandenen Werten her oder sag, welche Angabe fehlt — aber erfinde keine konkrete B&B-Zahl frei.
+- Bei Steuer/Recht: gib gern Orientierung, weise aber darauf hin, dass es eine Modell-Einschätzung ist, keine verbindliche Steuer-/Rechtsberatung.
+- Antworte auf Deutsch, in der Du-Form, klar und so kurz wie möglich / so ausführlich wie nötig. Markdown (Fett, Listen) ist erlaubt.`;
 
 function buildAssistentRequest({ brief, kontext, verlauf, frage }) {
   const systemText = ROLLE + '\n\n# Fachwissen\n' + (brief || '');

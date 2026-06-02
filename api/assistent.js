@@ -6,7 +6,7 @@ const { readBody, methodNotAllowed } = require('./_lib/http');
 const { WISSEN } = require('./_lib/assistent-wissen');
 const { buildAssistentRequest } = require('./_lib/assistent-prompt');
 
-const MODEL = 'claude-haiku-4-5';
+const MODEL = 'claude-sonnet-4-6';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 
 module.exports = async (req, res) => {
