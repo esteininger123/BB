@@ -333,7 +333,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       </div>
       <div class="pdf-c-cover-bottom">
         <div class="meta">${vertrieblerBlock}<br><span style="font-weight:400;font-size:7.5pt;letter-spacing:.1em;text-transform:none;color:#7A7A72;">B&amp;B Immo GmbH · Burdastraße 23 · 77746 Schutterwald · HRB 727 814 (Amtsgericht Freiburg) · Geschäftsführer laut Handelsregister</span></div>
-        <div class="date">${esc(datum)}<br><span style="font-weight:400;font-size:7pt;letter-spacing:.08em;color:#888;">Seite 1 von 9</span></div>
+        <div class="date">${esc(datum)}<br><span style="font-weight:400;font-size:7pt;letter-spacing:.08em;color:#888;">Seite 1 von 8</span></div>
       </div>
     </div>
   `;
@@ -347,7 +347,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const seite2 = `
     <div class="pdf-page pdf-c-page">
       ${ph()}
-      <div class="pdf-c-section-num">01 · Das Objekt &nbsp;·&nbsp; 02 · Der Plan</div>
+      <div class="pdf-c-section-num">01 · Das Objekt &amp; Der Plan</div>
       <h2 class="pdf-c-section-title">Effektive Belastung im ersten Jahr: ${fmtMo(r.belastungMo)}.</h2>
       <p class="pdf-c-lead" style="max-width:48ch">${i.qm ? 'Eine ' + i.qm.toString().replace('.', ',') + '-qm-Wohnung' : 'Eine Wohnung'}${(() => { const m = i.mietsteigerungsModus || 'sprung'; if (m === 'staffel') return ', neu vermietet mit Staffelmiete'; if (m === 'index') return ' mit Indexmietvertrag'; if (m === 'keine') return ''; return ' im Bestand'; })()}. ${r.belastungMo >= 0 ? 'Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst.' : `Die Wohnung trägt sich zu rund ${selbsttragungPct} % selbst — die fehlenden ${100 - selbsttragungPct} % leistest Du als monatliche Eigenleistung von ${fmtMo(Math.abs(r.belastungMo))}, die mit jedem Jahr kleiner wird.`}</p>
       <div class="pdf-c-p2-grid">
@@ -372,9 +372,6 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         </div>
         <div class="pdf-c-p2-right">
           <div class="hero-line">Annuität <span class="pdf-c-num">${fmtMo(r.annuityMo)}</span> &nbsp;·&nbsp; Miete <span class="pdf-c-num">${fmtMo(r.mieteJ1Mo)}</span> &nbsp;·&nbsp; HG+HV+MV <span class="pdf-c-num">${fmtMo((r.hausgeldNurMo||0) + (r.hausverwaltungMo||0) + (r.mietverwaltungMo||0))}</span> &nbsp;·&nbsp; Steuervorteil <span class="pdf-c-num">${fmtMo(r.stVorteilJ1Mo)}</span></div>
-          <p class="narrative">${r.belastungMo >= 0
-            ? `Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst — Miete und Steuervorteil decken alle laufenden Kosten und liefern einen monatlichen Überschuss von ${fmtMo(r.belastungMo)}.`
-            : `Die Wohnung trägt sich aus laufender Miete und Steuervorteil zu rund ${selbsttragungPct} % selbst. Den Rest leistest Du als Eigenleistung — Jahr für Jahr kleiner werdend.`}</p>
           <table class="pdf-c-p2-belastung-table">
             <thead><tr><th>Jahr</th><th class="r">Belastung €/Mo</th></tr></thead>
             <tbody>${belastungJ110}</tbody>
@@ -386,7 +383,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
             : '<p class="narrative" style="margin-top:5mm">Über die 10 Jahre bleibt die Belastung im negativen Bereich — der Vermögenseffekt entsteht über die Tilgung und Wertsteigerung.</p>'}
         </div>
       </div>
-      <div class="pdf-c-page-foot"><div>02 · Eckdaten &amp; Plan</div><div class="pdf-c-page-num">Seite 2 von 9</div></div>
+      <div class="pdf-c-page-foot"><div>01 · Eckdaten &amp; Plan</div><div class="pdf-c-page-num">Seite 2 von 8</div></div>
     </div>
   `;
 
@@ -399,7 +396,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const seite3 = `
     <div class="pdf-page pdf-c-page">
       ${ph()}
-      <div class="pdf-c-section-num">03 · Vermögenszuwachs</div>
+      <div class="pdf-c-section-num">02 · Vermögenszuwachs</div>
       <h2 class="pdf-c-section-title">In zehn Jahren: <span class="pdf-c-accent" style="font-weight:300">${fmt(r.vermoegenNetto10)}</span> Nettovermögen.</h2>
       <p class="pdf-c-lead" style="max-width:56ch">${nettoPositivAbStart ? 'Dein Nettovermögen ist bereits zum Start positiv — Marktwert übersteigt den Eigenkapital-Einsatz' : (nettoCrossoverJahr ? 'Aus zunächst negativem Nettovermögen wird ab Jahr ' + nettoCrossoverJahr + ' der Pfad nach oben sichtbar' : 'Der Pfad zum positiven Nettovermögen braucht in diesem Profil mehr als 10 Jahre')} — getragen vom Restschuld-Abbau durch die Annuität und einer moderat gerechneten Wertentwicklung.</p>
       <table class="pdf-c-p3-vermoegen-table">
@@ -413,7 +410,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           ? `<div class="cell"><div class="label">Interner Zinsfuß</div><div class="v">${(r.irr * 100).toFixed(1).replace('.',',')}<span class="unit">% p.a.</span></div></div>`
           : `<div class="cell"><div class="label">Vermögenszuwachs</div><div class="v">${Math.round(r.vermoegenNetto10 || 0).toLocaleString('de-DE')}<span class="unit">€</span></div></div>`}
       </div>
-      <div class="pdf-c-page-foot"><div>03 · Aussicht</div><div class="pdf-c-page-num">Seite 3 von 9</div></div>
+      <div class="pdf-c-page-foot"><div>02 · Aussicht</div><div class="pdf-c-page-num">Seite 3 von 8</div></div>
     </div>
   `;
 
@@ -430,56 +427,35 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
     <div class="pdf-page pdf-c-page">
       ${ph()}
       <div class="pdf-c-p4-center">
-        <div class="pdf-c-section-num">04 · Der Hebel</div>
+        <div class="pdf-c-section-num">03 · Der Hebel</div>
         <h2 class="pdf-c-p4-headline">Ohne Eigenkapital-Einsatz zum Sachwert.</h2>
         <div class="pdf-c-p4-delta"><span class="num">${fmt(r.vermoegenNetto10)}</span><br><span style="font-size:11pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500;display:inline-block;margin-top:4mm">Vermögensaufbau über 10 Jahre</span></div>
         <p class="pdf-c-p4-sub">Bei 110-%-Finanzierung setzt Du kein eigenes Kapital ein. Trotzdem baust Du in zehn Jahren ${fmt(r.vermoegenNetto10)} Nettovermögen auf — getragen von Tilgung und Wertentwicklung. Der Hebel kommt aus dem Sachwert, nicht aus Deinem Sparbuch.</p>
         <p class="pdf-c-p4-sub" style="margin-top:6mm;font-size:10pt;color:#7A7A72;font-style:italic">Ein klassischer Sparbuch-Vergleich entfällt: ohne Eigenkapital-Einsatz wäre auch das Sparbuch-Ergebnis 0 €. Die monatliche Belastung über die Laufzeit ist die einzige Eigenleistung.</p>
       </div>
-      <div class="pdf-c-page-foot"><div>04 · Der Hebel</div><div class="pdf-c-page-num">Seite 4 von 9</div></div>
+      <div class="pdf-c-page-foot"><div>03 · Der Hebel</div><div class="pdf-c-page-num">Seite 4 von 8</div></div>
     </div>
   ` : `
     <div class="pdf-page pdf-c-page">
       ${ph()}
       <div class="pdf-c-p4-center">
-        <div class="pdf-c-section-num">04 · Die Alternative</div>
+        <div class="pdf-c-section-num">03 · Die Alternative</div>
         <h2 class="pdf-c-p4-headline">Wäre Dein Eigenkapital auf einem Sparbuch geblieben.</h2>
         <div class="pdf-c-p4-delta">${_spDeltaVz}<span class="num">${fmt(r.sparenVsKaufenDelta)}</span><br><span style="font-size:11pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500;display:inline-block;margin-top:4mm">${_spDeltaLabel}</span></div>
         <p class="pdf-c-p4-sub">${fmt(r.ekBedarf)} auf einem Sparbuch zu ${((i.sparZins || 0.025) * 100).toFixed(2).replace('.', ',')} % p.a. wären in zehn Jahren auf rund ${fmt(sparen10.nurSparen)} gewachsen. Dasselbe Eigenkapital, in den Sachwert Immobilie investiert, kommt auf ${fmt(sparen10.mitImmo)}. Die Differenz von ${fmt(r.sparenVsKaufenDelta)} ${_spDeltaPos ? 'ist der reine Sachwert-Vorteil' : 'zeigt, dass dieses Szenario unter Sparbuch-Niveau bleibt — Wertsteigerungs- oder Mietsteigerungs-Annahmen prüfen'}.</p>
       </div>
-      <div class="pdf-c-page-foot"><div>04 · Im Vergleich</div><div class="pdf-c-page-num">Seite 4 von 9</div></div>
+      <div class="pdf-c-page-foot"><div>03 · Im Vergleich</div><div class="pdf-c-page-num">Seite 4 von 8</div></div>
     </div>
   `;
 
   // ===== SEITE 5 · DETAIL =====
-  const cfRowsP5 = r.cf.slice(0, 10).map(c => {
-    const mo = Math.round(c.cfJahr / 12);
-    const cls = mo >= 0 ? 'pdf-c-pos' : 'pdf-c-neg';
-    return `<tr><td>${c.y}</td><td class="r ${cls}">${mo > 0 ? '+' : ''}${mo}</td><td class="r">${Math.round(c.cfJahr).toLocaleString('de-DE')}</td></tr>`;
-  }).join('');
   const seite5 = `
     <div class="pdf-page pdf-c-page">
       ${ph()}
-      <div class="pdf-c-section-num">05 · Im Detail</div>
+      <div class="pdf-c-section-num">04 · Im Detail</div>
       <h2 class="pdf-c-section-title">Damit Du jede Zahl nachvollziehen kannst.</h2>
       <div class="pdf-c-p5-grid">
-        <div class="pdf-c-p5-block">
-          <h4>Bonität · So rechnet die Bank das durch</h4>
-          <div class="pdf-c-saldo-row"><span>Freies Einkommen vor Investment</span><span class="pdf-c-pos">${fmtMo(r.bonVor || 0)}</span></div>
-          <div class="pdf-c-saldo-row"><span>+ Anrechenbare Miete (80 %)</span><span class="pdf-c-pos">+ ${fmtMo(r.bonMieteAnr || 0)}</span></div>
-          <div class="pdf-c-saldo-row"><span>− Annuität</span><span class="pdf-c-neg">− ${fmtMo(r.bonAnnuMo || 0)}</span></div>
-          ${r.bonModus === 'detail' ? `
-          <div class="pdf-c-saldo-row"><span>− Rücklage</span><span class="pdf-c-neg">− ${fmtMo(r.hausgeldNurMo || 0)}</span></div>
-          <div class="pdf-c-saldo-row"><span>− Hausverwaltung</span><span class="pdf-c-neg">− ${fmtMo(r.hausverwaltungMo || 0)}</span></div>` : ''}
-          <div class="pdf-c-saldo-row tot"><span>Nach Investment</span><span class="${(r.bonNach || 0) < 0 ? 'pdf-c-neg' : ''}">${fmtMo(r.bonNach || 0)}</span></div>
-          <h5>Freies Eigenkapital</h5>
-          <div class="pdf-c-saldo-row"><span>Vor Erwerb</span><span>${fmt(r.bonVermoegen || 0)}</span></div>
-          <div class="pdf-c-saldo-row"><span>Einsatz Erwerb (EK + KNK)</span><span class="pdf-c-neg">− ${fmt(r.ekBedarf)}</span></div>
-          <div class="pdf-c-saldo-row tot"><span>Nach Erwerb</span><span class="${(r.bonVermoegenVsEk || 0) < 0 ? 'pdf-c-neg' : ''}">${fmt(r.bonVermoegenVsEk || 0)}</span></div>
-          <p style="font-size:7.5pt;color:#7A7A72;margin-top:3mm;line-height:1.55">${(r.mietsubventionGesamt && r.mietsubventionGesamt > 0) ? 'Wir setzen die Mietsubvention bei der Bank als anrechenbare Miete an — das funktioniert mit unseren Partnerbanken zu 80 %.' : 'Die Bank rechnet 80 % der vereinbarten Miete als zusätzliches Einkommen.'}</p>
-        </div>
-
-        <div class="pdf-c-p5-block">
+        <div class="pdf-c-p5-block" style="grid-column:1/-1">
           <h4>Rechen-Annahmen</h4>
           <div class="pdf-c-ass-row"><span class="k">Kaufpreis gesamt</span><span class="v">${fmt(r.kpGesamt)}</span></div>
           <div class="pdf-c-ass-row"><span class="k">Kaufnebenkosten</span><span class="v">${fmt(knk)}${i.knkMitfinanziert ? ' (mitfinanziert)' : ''}</span></div>
@@ -515,19 +491,11 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <div class="pdf-c-ass-row"><span class="k">Mietsubvention</span><span class="v">${subvText}</span></div>
           <div class="pdf-c-ass-row"><span class="k">Sparbuch-Vergleich</span><span class="v">${((i.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a.</span></div>
         </div>
-
-        <div class="pdf-c-p5-block" style="grid-column:1/-1">
-          <h4>Cashflow Jahr 1 bis Jahr 10</h4>
-          <table class="pdf-c-p5-cashflow">
-            <thead><tr><th>Jahr</th><th class="r">Belastung €/Mo</th><th class="r">Jahres-Summe €</th></tr></thead>
-            <tbody>${cfRowsP5}</tbody>
-          </table>
-        </div>
       </div>
       <!-- QA-Fix 2026-05-23 (Edgar P3): Disclaimer von Seite 5 entfernt — durch B5
            war er 5× länger und Seite 5 (Annahmen + Cashflow-Tabelle) lief in
            overflow:hidden über. Disclaimer jetzt auf Seite 7. -->
-      <div class="pdf-c-page-foot"><div>05 · Im Detail</div><div class="pdf-c-page-num">Seite 5 von 9</div></div>
+      <div class="pdf-c-page-foot"><div>04 · Im Detail</div><div class="pdf-c-page-num">Seite 5 von 8</div></div>
     </div>
   `;
 
@@ -535,6 +503,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   // 3 Szenario-Karten + Renov-Block kompakt — analog zur neuen Magazin-Section_9.
   // Chronologie wie Magazin: kommt VOR „Wie es weitergeht" (Aktionsmodus).
   const seite6_www = (() => {
+    return '';  // Sektion "06 · Was wäre wenn" (3 Szenarien) aus dem PDF entfernt — Edgar 2026-06-03; Code bleibt als Referenz
     if (!window.Kalk || !window.Kalk.recalc) return '';
     let wind = null, sturm = null;
     try {
@@ -629,7 +598,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const seite6 = `
     <div class="pdf-page pdf-c-page">
       ${ph()}
-      <div class="pdf-c-section-num">07 · Wie es weitergeht</div>
+      <div class="pdf-c-section-num">05 · Wie es weitergeht</div>
       <h2 class="pdf-c-section-title">Sechs Schritte bis zum Notartermin.</h2>
       <p class="pdf-c-lead" style="max-width:60ch">
         Wir beurkunden den Kauf erst dann, wenn drei Voraussetzungen sauber erfüllt sind: Deine Finanzierung steht, die Objektunterlagen passen zu dem, was Du hier siehst, und Du hast die Wohnung besichtigt. Fehlt einer dieser Punkte — kein Notartermin.
@@ -642,7 +611,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <li><span class="pdf-c-weg-num">5</span><div class="pdf-c-weg-body"><strong>Besichtigung vor Ort.</strong>Du siehst die Wohnung mit eigenen Augen — Lage, Substanz, Treppenhaus, Umfeld. Erst wenn das passt, machen wir den letzten Schritt.</div></li>
         <li><span class="pdf-c-weg-num">6</span><div class="pdf-c-weg-body"><strong>Notartermin.</strong>Beurkundung des Kaufvertrags. Wir beurkunden nur, wenn die drei Voraussetzungen Finanzierung, Objektunterlagen und Besichtigung sauber erfüllt sind.</div></li>
       </ol>
-      <div class="pdf-c-page-foot"><div>07 · Wie es weitergeht</div><div class="pdf-c-page-num">Seite 7 von 9</div></div>
+      <div class="pdf-c-page-foot"><div>05 · Wie es weitergeht</div><div class="pdf-c-page-num">Seite 6 von 8</div></div>
     </div>
   `;
 
@@ -653,7 +622,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const seite7 = `
     <div class="pdf-page pdf-c-page">
       ${ph()}
-      <div class="pdf-c-section-num">08 · Nach dem Notartermin</div>
+      <div class="pdf-c-section-num">06 · Nach dem Notartermin</div>
       <h2 class="pdf-c-section-title">Du stehst nicht alleine da.</h2>
       <p class="pdf-c-lead" style="max-width:62ch">
         Mieterhöhungen, Steuerformulare, Übergaben, Handwerker — das übernehmen wir. Du hast einen WhatsApp-Direktdraht zu uns: für die Fragen, die jetzt schon da sind, und für die, die später kommen.
@@ -687,7 +656,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <div style="margin-top:10mm;padding-top:6mm;border-top:.4px solid #B08A4D;font-size:10pt;line-height:1.65;color:#3A3A35;">
         <strong style="color:#1A1A17;font-weight:500;">Maßgeschneidert.</strong> Wir betrachten Dein Investment aus drei Perspektiven — steuerlich, wirtschaftlich, Aufwand. Anfänger müssen keine Komplexität verstehen; Fortgeschrittene bekommen alles in die Hand was sie selbst steuern wollen.
       </div>
-      <div class="pdf-c-page-foot"><div>08 · Nach dem Notartermin</div><div class="pdf-c-page-num">Seite 8 von 9</div></div>
+      <div class="pdf-c-page-foot"><div>06 · Nach dem Notartermin</div><div class="pdf-c-page-num">Seite 7 von 8</div></div>
     </div>
   `;
 
@@ -695,7 +664,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const seite8 = `
     <div class="pdf-page pdf-c-page">
       ${ph()}
-      <div class="pdf-c-section-num">09 · Wer wir sind</div>
+      <div class="pdf-c-section-num">07 · Wer wir sind</div>
       <h2 class="pdf-c-section-title">Brot &amp; Butter.</h2>
       <p class="pdf-c-lead" style="max-width:60ch">Unser Name ist unser Geschäftsmodell. Wir kaufen die großen Brote und veredeln sie mit Butter — bevor wir scheibenweise an Dich weitergeben.</p>
       <div class="pdf-c-bub-grid" style="grid-template-columns:repeat(3,1fr);">
@@ -711,12 +680,12 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <p class="pdf-c-disclaimer" style="font-size:7pt;line-height:1.45;margin-top:6mm;">
         Diese Investitionsrechnung beruht auf den dokumentierten Annahmen. Keine Anlageberatung im Sinne des WpHG. Vermittlung im Rahmen einer Erlaubnis nach § 34c GewO. Verbindlich ist ausschließlich der notarielle Kaufvertrag. Steuerliche Aspekte (insb. AfA-Rechtsgrundlage und ‑Bemessung) sind mit Deinem Steuerberater abzustimmen. Wertsteigerung und Mietsteigerung sind langfristige Modell-Annahmen; tatsächliche Werte können abweichen. „Modellwert J10" ist eine rechnerische Hochrechnung (Kaufpreis × Wertsteigerung) und kein gutachterlicher Verkehrswert i.S.d. § 194 BauGB. Der Sparbuch-Vergleich rechnet Brutto-Renditen (vor Abgeltungssteuer); die Immobilien-Rendite enthält den persönlichen Steuervorteil. Für die Finanzierungs-Vermittlung berechnen wir Dir keine Provision; eventuelle Bank-Vermittlungs-Provisionen fließen in die Kondition ein. Die 80&nbsp;%-Mietanrechnung entspricht dem Standard unserer Partnerbanken; andere Banken können abweichen.
       </p>
-      <div class="pdf-c-page-foot"><div>09 · Brot &amp; Butter</div><div class="pdf-c-page-num">Seite 9 von 9</div></div>
+      <div class="pdf-c-page-foot"><div>07 · Brot &amp; Butter</div><div class="pdf-c-page-num">Seite 8 von 8</div></div>
     </div>
   `;
 
   _doPrint(
-    pdfCStyle + seite1 + seite2 + seite3 + seite4 + seite5 + seite6_www + seite6 + seite7 + seite8,
+    pdfCStyle + seite1 + seite2 + seite3 + seite4 + seite5 + seite6 + seite7 + seite8,
     'invest',
     _filenameHint('Investitionsanalyse', kunde, {
       weNr: kalkInputs && kalkInputs._weNr,
@@ -737,7 +706,8 @@ function reservierung(kunde, kalkInputs, user) {
   // Käufer-Daten (Vor- / Nachname aus Stammdaten, Adresse aus Selbstauskunft)
   const kaeuferName = ((k.vorname || '') + ' ' + (k.nachname || '')).trim() || k.name || '';
   const kaeuferStr  = A.strasse || '';
-  const kaeuferPlz  = (A.plz || '') + (A.plz && A.ort ? ' ' : '') + (A.ort || '');
+  // PLZ + Ort entkoppelt: fehlt die PLZ, verschwindet nicht der ganze Ort (Bug 2026-06-03).
+  const kaeuferPlzOrt = [A.plz, A.ort].filter(Boolean).join(' ');
   const kaeuferOrt  = A.ort || '';
 
   // Objekt-Daten: Lage + Wohnungs-Nr aus kalkInputs (WE-Auswahl), QM, KP, Stellplatz
@@ -814,8 +784,8 @@ function reservierung(kunde, kalkInputs, user) {
         <p class="party-block">
           Kaufinteressent/-in:<br>
           ${esc(kaeuferName || '—')}<br>
-          ${esc(kaeuferStr || '—')}<br>
-          ${esc(kaeuferPlz || '—')}
+          ${esc(kaeuferStr || '(Straße fehlt in der Selbstauskunft)')}<br>
+          ${esc(kaeuferPlzOrt || '(PLZ/Ort fehlen in der Selbstauskunft)')}
         </p>
       </div>
 
