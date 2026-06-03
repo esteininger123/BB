@@ -51,6 +51,36 @@
     });
     return out;
   }
+  function kompaktPipeline(s) {
+    if (!Array.isArray(s.kunden)) return null;
+    return s.kunden.slice(0, 80).map(function (x) {
+      return { name: x.name || '', phase: x.phase || '', letzteAktivitaet: x.lastActivity || null };
+    });
+  }
+  function kompaktSnapshots(s) {
+    if (!Array.isArray(s.snapshots)) return null;
+    return s.snapshots.slice(0, 30).map(function (x) {
+      return { bezeichnung: x.bezeichnung || '', we: x.weBezeichnung || '', erstellt: x.created || null };
+    });
+  }
+  function bonitaetDetail(s) {
+    try {
+      if (window.Kalk && window.Kalk.computeBonitaetDetailed && s.kunde && s.kunde.saJson) {
+        return compactResult(window.Kalk.computeBonitaetDetailed(s.kunde.saJson, true));
+      }
+    } catch (e) {}
+    return null;
+  }
+  function weMeta(kalk) {
+    if (!kalk || typeof kalk !== 'object') return null;
+    var keys = ['_adresse', 'adresse', '_lage', 'lage', '_projekt', 'projekt', '_weNr', 'weNr', '_stammdatenQuelle', '_excelTitel', '_baujahr', 'baujahr', '_zustand', 'zustand', '_kappungsgrenze', 'kappungsgrenze', '_vermietungsModus', 'vermietungsModus'];
+    var out = {};
+    keys.forEach(function (key) {
+      var v = kalk[key];
+      if (v != null && (typeof v === 'string' || typeof v === 'number')) out[key.replace(/^_/, '')] = v;
+    });
+    return Object.keys(out).length ? out : null;
+  }
   function sammleKontext() {
     var s = window.state || {};
     var k = s.kunde || null;
@@ -67,7 +97,12 @@
       }) : null,
       vermoegenProJahr: (res && Array.isArray(res.vermoegen)) ? res.vermoegen.map(function (v, idx) {
         return { jahr: idx, marktwert: r0(v.wert), restschuld: r0(v.restschuld), gesamtvermoegen: r0(v.vermoegenBrutto) };
-      }) : null
+      }) : null,
+      bonitaet: bonitaetDetail(s),
+      weDaten: weMeta(s.kalk),
+      snapshots: kompaktSnapshots(s),
+      pipeline: kompaktPipeline(s),
+      notizen: (k && k.notizen) ? String(k.notizen).slice(0, 1200) : null
     };
   }
 

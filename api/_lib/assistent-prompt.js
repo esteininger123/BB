@@ -42,6 +42,27 @@ function formatKontext(kontext) {
     try { vm = JSON.stringify(kontext.vermoegenProJahr); } catch { vm = '(nicht darstellbar)'; }
     zeilen.push(`Vermögensentwicklung pro Jahr J0–J10 (€): ${vm}`);
   }
+  if (kontext.bonitaet && typeof kontext.bonitaet === 'object') {
+    let b;
+    try { b = JSON.stringify(kontext.bonitaet); } catch { b = '(nicht darstellbar)'; }
+    zeilen.push(`Bonität/Selbstauskunft des Kunden (ausgewertet): ${b}`);
+  }
+  if (kontext.weDaten && typeof kontext.weDaten === 'object') {
+    let w;
+    try { w = JSON.stringify(kontext.weDaten); } catch { w = '(nicht darstellbar)'; }
+    zeilen.push(`Wohneinheit-Stammdaten (Klartext): ${w}`);
+  }
+  if (Array.isArray(kontext.snapshots) && kontext.snapshots.length) {
+    let sn;
+    try { sn = JSON.stringify(kontext.snapshots); } catch { sn = '(nicht darstellbar)'; }
+    zeilen.push(`Frühere Snapshots dieses Kunden: ${sn}`);
+  }
+  if (Array.isArray(kontext.pipeline) && kontext.pipeline.length) {
+    let p;
+    try { p = JSON.stringify(kontext.pipeline); } catch { p = '(nicht darstellbar)'; }
+    zeilen.push(`Pipeline — andere Kunden (Phase + letzte Aktivität): ${p}`);
+  }
+  if (kontext.notizen) zeilen.push(`Notizen/Profil zum offenen Kunden: ${kontext.notizen}`);
   if (!zeilen.length) return 'Aktueller Bildschirm-Kontext: keiner.';
   return 'Aktueller Bildschirm-Kontext:\n' + zeilen.join('\n');
 }
