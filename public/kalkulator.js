@@ -727,6 +727,11 @@ function recalc(i) {
     }
   }
   const M1 = Math.max(1, 36 - monateSeit);
+  // Staffel = Neuvermietung (Edgar 03.06.2026): Die Staffel-Uhr startet mit dem NEUEN Mietvertrag,
+  // nicht mit dem alten "Monate seit Erhöhung"-Feld (das beschreibt einen Bestandsmieter und ist bei
+  // leeren/neu vermieteten Einheiten irreführend). Erste Stufe nach 12 vollen Monaten (Monat 13,
+  // ab J1), dann jährlich. So bleibt Jahr 1 = Tag-0-Vertragsmiete (keine vorgezogene Stufe in Monat 1).
+  const M1Staffel = 13;
 
   function nSprungeSprung(m) {
     if (m < M1) return 0;
@@ -736,10 +741,14 @@ function recalc(i) {
     if (m < M1) return 0;
     return Math.floor((m - M1) / 12) + 1;
   }
+  function nSprungeStaffel(m) {
+    if (m < M1Staffel) return 0;
+    return Math.floor((m - M1Staffel) / 12) + 1;
+  }
   function nSprungeFor(m) {
     if (i.mietsteigerungsModus === 'sprung') return nSprungeSprung(m);
     if (i.mietsteigerungsModus === 'index')  return nSprungeJaehrlich(m);
-    if (i.mietsteigerungsModus === 'staffel') return nSprungeJaehrlich(m);
+    if (i.mietsteigerungsModus === 'staffel') return nSprungeStaffel(m);
     return 0;
   }
   function faktorFor(m) {
@@ -1169,8 +1178,9 @@ function recalc(i) {
   let ersteErhoehungMonat = null;
   let ersteErhoehungJahrLabel = null;
   if (['sprung', 'index', 'staffel'].includes(i.mietsteigerungsModus)) {
-    ersteErhoehungMonat = M1;
-    const yEst = Math.ceil(M1 / 12);
+    const m1Eff = (i.mietsteigerungsModus === 'staffel') ? M1Staffel : M1;
+    ersteErhoehungMonat = m1Eff;
+    const yEst = Math.ceil(m1Eff / 12);
     ersteErhoehungJahrLabel = 'Jahr ' + yEst;
   }
 
