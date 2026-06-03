@@ -76,9 +76,9 @@
     var root = document.createElement('div');
     root.id = 'bb-chat-root';
     root.innerHTML =
-      '<button id="bb-chat-fab" title="Backstube-Assistent" aria-label="Assistent öffnen"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/></svg></button>' +
+      '<button id="bb-chat-fab" title="Zipf" aria-label="Zipf öffnen"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/></svg></button>' +
       '<div id="bb-chat-panel">' +
-        '<div id="bb-chat-head"><span>Backstube-Assistent</span><button id="bb-chat-close" aria-label="Schließen">×</button></div>' +
+        '<div id="bb-chat-head"><span>Zipf · Assistent</span><button id="bb-chat-close" aria-label="Schließen">×</button></div>' +
         '<div id="bb-chat-msgs"></div>' +
         '<form id="bb-chat-form"><input id="bb-chat-input" type="text" autocomplete="off" placeholder="Frag mich etwas…" /><button type="submit">Senden</button></form>' +
       '</div>';
