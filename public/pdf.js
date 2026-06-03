@@ -167,7 +167,9 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const _mieteTag1Disp = Math.round(_mieteTag1Mo || 0);
   const _stVorteilTag1Disp = Math.round(_stVorteilTag1Mo || 0);
   const _annuTag1Disp = Math.round(r.annuityMo || 0);
-  const _rueckVerwTag1Disp = Math.round((r.hausgeldNurMo || 0) + (r.hausverwaltungMo || 0) + (r.mietverwaltungMo || 0));
+  // Kosten je Bestandteil runden (nicht die Summe) — identisch zur App, damit PDF und Online
+  // dieselbe Tag-0-Belastung zeigen (Generalprobe R5).
+  const _rueckVerwTag1Disp = Math.round(r.hausgeldNurMo || 0) + Math.round(r.hausverwaltungMo || 0) + Math.round(r.mietverwaltungMo || 0);
   const belastungTag1Mo = _mieteTag1Disp + _stVorteilTag1Disp - _annuTag1Disp - _rueckVerwTag1Disp;
   const marktQm = parseFloat(i.marktwertProQm) || 0;
   const kpQm = r.kaufpreisProQm || 0;
@@ -412,10 +414,15 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
     return `<tr><td>${c.y}</td><td class="r">${ein.toLocaleString('de-DE')} €</td><td class="r">${aus.toLocaleString('de-DE')} €</td><td class="r ${cls}">${ueb > 0 ? '+' : ''}${ueb.toLocaleString('de-DE')} €</td></tr>`;
   }).join('');
   // Cashflow-Verlaufs-Chart (monatliche Belastung/Überschuss J1–J10, Null-Linie, Crossover) — print-sicher.
-  function _cfChartSvg(cfArr, crossJ) {
+  function _cfChartSvg(cfArr, crossJ, dayZeroLoad) {
     if (!Array.isArray(cfArr) || !cfArr.length) return '';
     const m = cfArr.slice(0, 10).map(c => Math.round(c.cfJahr / 12));
-    const vals = [m[0]].concat(m);
+    // Review-Fix (Generalprobe): J0/"Heute" verankert am Tag-0-Vertragszustand (belastungTag0Mo),
+    // nicht am Jahr-1-Durchschnitt — sonst weicht der Chart-Start sichtbar vom "Effektive Belastung"-
+    // Wert auf Seite 2 ab, wenn eine fällige Erhöhung in Monat 1 vorgezogen wird. J1–J10 unverändert.
+    // Explizite null/isFinite-Prüfung (belastungTag0Mo kann legitim 0 sein).
+    const j0 = (dayZeroLoad != null && isFinite(dayZeroLoad)) ? Math.round(dayZeroLoad) : m[0];
+    const vals = [j0].concat(m);
     const n = vals.length;
     const W = 440, H = 230, padL = 4, padR = 4, padT = 18, padB = 20;
     const lo = Math.min(0, Math.min.apply(null, vals)), hi = Math.max(0, Math.max.apply(null, vals));
@@ -491,7 +498,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <div class="pdf-c-section-num">02 · Die nächsten zehn Jahre</div>
       <h2 class="pdf-c-section-title">So entwickelt sich Deine monatliche Belastung.</h2>
       <p class="pdf-c-lead" style="max-width:58ch">Die Annuität bleibt über die Laufzeit konstant — die Miete steigt, der Tilgungsanteil wächst. Deshalb sinkt Deine monatliche Belastung Jahr für Jahr.</p>
-      <div style="margin:6mm 0 4mm;">${_cfChartSvg(r.cf, crossoverJahr)}</div>
+      <div style="margin:6mm 0 4mm;">${_cfChartSvg(r.cf, crossoverJahr, belastungTag1Mo)}</div>
       <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:12mm;margin-top:4mm;">
         <div>
           <div style="font-size:8pt;color:#7A7A72;margin-bottom:1.5mm;">Werte je Monat im Jahresdurchschnitt · Annuität konstant · Steuervorteil und Mietsubvention enthalten</div>
