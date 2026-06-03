@@ -339,10 +339,55 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   `;
 
   // ===== SEITE 2 · ECKDATEN + PLAN =====
-  const belastungJ110 = r.cf.slice(0, 10).map((c, idx) => {
-    const mo = Math.round(c.cfJahr / 12);
-    const cls = mo >= 0 ? 'pdf-c-pos' : 'pdf-c-neg';
-    return `<tr><td>${c.y}</td><td class="r ${cls}">${mo > 0 ? '+' : ''}${mo} €</td></tr>`;
+  const _eur0 = (v) => Math.round(v || 0).toLocaleString('de-DE');
+  // Print-sichere SVG-Grafiken (kein Canvas) — Edgar 2026-06-03.
+  function _vermChartSvg(vArr) {
+    if (!Array.isArray(vArr) || vArr.length < 2) return '';
+    const n = vArr.length, mw = vArr.map(v => v.wert || 0), rs = vArr.map(v => v.restschuld || 0);
+    const max = (Math.max.apply(null, mw) * 1.05) || 1;
+    const W = 560, H = 188, padL = 4, padR = 4, padT = 12, padB = 18;
+    const x = i => (padL + i * (W - padL - padR) / (n - 1)).toFixed(1);
+    const y = v => (padT + (1 - v / max) * (H - padT - padB)).toFixed(1);
+    const ptsM = mw.map((v, i) => x(i) + ',' + y(v)).join(' ');
+    const ptsR = rs.map((v, i) => x(i) + ',' + y(v)).join(' ');
+    const area = ptsM + ' ' + rs.map((v, i) => x(n - 1 - i) + ',' + y(rs[n - 1 - i])).join(' ');
+    let labels = ''; [0, 2, 4, 6, 8, 10].forEach(i => { if (i < n) labels += `<text x="${x(i)}" y="${H - 5}" text-anchor="middle" font-size="7" fill="#9a958b">J${i}</text>`; });
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">`
+      + `<polygon points="${area}" fill="#2D6E47" opacity="0.08"/>`
+      + `<polyline points="${ptsM}" fill="none" stroke="#2D6E47" stroke-width="1.6"/>`
+      + `<polyline points="${ptsR}" fill="none" stroke="#9a958b" stroke-width="1.2" stroke-dasharray="3 2"/>`
+      + labels
+      + `<text x="${x(n - 1)}" y="${(+y(mw[n - 1]) - 4)}" text-anchor="end" font-size="7.5" font-weight="600" fill="#2D6E47">Marktwert</text>`
+      + `<text x="${x(n - 1)}" y="${(+y(rs[n - 1]) + 10)}" text-anchor="end" font-size="7.5" font-weight="600" fill="#7A7A72">Restschuld</text>`
+      + `</svg>`;
+  }
+  function _sparChartSvg(ek, sparEnd, immoEnd) {
+    const max = (Math.max(sparEnd, immoEnd) * 1.14) || 1;
+    const W = 560, H = 205, padB = 34, padT = 18, bw = 120, x1 = 130, x2 = 320;
+    const hh = v => (v / max) * (H - padT - padB);
+    const bar = (xx, label, total, col, sub) => {
+      const ekH = hh(ek), grH = hh(Math.max(0, total - ek)), yEk = H - padB - ekH, yGr = yEk - grH;
+      return `<rect x="${xx}" y="${yEk.toFixed(1)}" width="${bw}" height="${ekH.toFixed(1)}" fill="#7A7A72" opacity="0.26"/>`
+        + `<rect x="${xx}" y="${yGr.toFixed(1)}" width="${bw}" height="${grH.toFixed(1)}" fill="${col}"/>`
+        + `<text x="${xx + bw / 2}" y="${(yGr - 6).toFixed(1)}" text-anchor="middle" font-size="12" fill="#1A1A17">${_eur0(total)} €</text>`
+        + `<text x="${xx + bw / 2}" y="${H - padB + 14}" text-anchor="middle" font-size="9" font-weight="600" fill="#1A1A17">${label}</text>`
+        + `<text x="${xx + bw / 2}" y="${H - padB + 26}" text-anchor="middle" font-size="7" fill="#9a958b">${sub}</text>`;
+    };
+    const ekY = (H - padB - hh(ek)).toFixed(1);
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">`
+      + `<line x1="0" y1="${ekY}" x2="${W}" y2="${ekY}" stroke="rgba(40,36,30,.18)" stroke-width="0.5" stroke-dasharray="3 2"/>`
+      + `<text x="2" y="${(+ekY - 3).toFixed(1)}" font-size="7" fill="#9a958b">Eigenkapital ${_eur0(ek)} €</text>`
+      + bar(x1, 'Sparbuch', sparEnd, '#9a958b', '2,50 % p.a.')
+      + bar(x2, 'Immobilie', immoEnd, '#2D6E47', 'Sachwert · 10 Jahre')
+      + `</svg>`;
+  }
+  // Cashflow Jahr für Jahr (Einnahmen / Ausgaben / Überschuss pro Monat) — reconcilet mit cfJahr/12.
+  const cashflowRows = r.cf.slice(0, 10).map(c => {
+    const ein = Math.round((c.mieteJahr + c.stVorteilJahr) / 12);
+    const aus = Math.round((c.annuJahr + c.hgJahr) / 12);
+    const ueb = Math.round(c.cfJahr / 12);
+    const cls = ueb >= 0 ? 'pdf-c-pos' : 'pdf-c-neg';
+    return `<tr><td>${c.y}</td><td class="r">${ein.toLocaleString('de-DE')} €</td><td class="r">${aus.toLocaleString('de-DE')} €</td><td class="r ${cls}">${ueb > 0 ? '+' : ''}${ueb.toLocaleString('de-DE')} €</td></tr>`;
   }).join('');
   const seite2 = `
     <div class="pdf-page pdf-c-page">
@@ -356,6 +401,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <div class="pdf-c-obj-row"><span class="k">Adresse</span><span class="v">${esc(projekt || i._weLage || '—')}</span></div>
           ${i._weNr ? `<div class="pdf-c-obj-row"><span class="k">Wohneinheit</span><span class="v">${esc(i._weNr)}</span></div>` : ''}
           <div class="pdf-c-obj-row"><span class="k">Wohnfläche</span><span class="v">${(i.qm || 0).toLocaleString('de-DE')}<span class="unit">qm</span></span></div>
+          <div class="pdf-c-obj-row"><span class="k">Kaltmiete (Tag 1)</span><span class="v">${_eur0(i.kaltmiete)}<span class="unit">€/Mo</span></span></div>
           ${i._objektvorstellungLink ? `<div class="pdf-c-obj-row is-link"><span class="k">Objektvorstellung</span><span class="v"><a href="${esc(i._objektvorstellungLink)}" target="_blank" rel="noopener">Objekt online ansehen ↗</a></span></div>` : ''}
 
           <h4>Kaufpreis</h4>
@@ -371,10 +417,16 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <div class="pdf-c-obj-row"><span class="k">Darlehenshöhe</span><span class="v">${Math.round((r.darlehen != null ? r.darlehen : (i.knkMitfinanziert ? r.kpGesamt + knk : r.kpGesamt))).toLocaleString('de-DE')}<span class="unit">€${i.knkMitfinanziert ? ' · inkl. KNK' : ''}</span></span></div>
         </div>
         <div class="pdf-c-p2-right">
-          <div class="hero-line">Annuität <span class="pdf-c-num">${fmtMo(r.annuityMo)}</span> &nbsp;·&nbsp; Miete <span class="pdf-c-num">${fmtMo(r.mieteJ1Mo)}</span> &nbsp;·&nbsp; HG+HV+MV <span class="pdf-c-num">${fmtMo((r.hausgeldNurMo||0) + (r.hausverwaltungMo||0) + (r.mietverwaltungMo||0))}</span> &nbsp;·&nbsp; Steuervorteil <span class="pdf-c-num">${fmtMo(r.stVorteilJ1Mo)}</span></div>
+          <h4 style="font-size:8.5pt;letter-spacing:.14em;text-transform:uppercase;color:#7A7A72;margin:0 0 2mm;">So rechnet sich der Monat (Jahr 1)</h4>
+          <div class="pdf-c-obj-row"><span class="k">Mieteinnahme (Ø Jahr 1)</span><span class="v pdf-c-pos">+ ${_eur0(r.mieteJ1Mo)} €</span></div>
+          <div class="pdf-c-obj-row"><span class="k">Steuervorteil</span><span class="v pdf-c-pos">+ ${_eur0(r.stVorteilJ1Mo)} €</span></div>
+          <div class="pdf-c-obj-row"><span class="k">Annuität (Zins + Tilgung)</span><span class="v pdf-c-neg">− ${_eur0(r.annuityMo)} €</span></div>
+          <div class="pdf-c-obj-row"><span class="k">Rücklage + Verwaltung</span><span class="v pdf-c-neg">− ${_eur0((r.hausgeldNurMo||0) + (r.hausverwaltungMo||0) + (r.mietverwaltungMo||0))} €</span></div>
+          <div class="pdf-c-obj-row" style="border-top:1.2px solid #1A1A17;"><span class="k" style="font-weight:600;color:#1A1A17;">Effektive Belastung / Mo</span><span class="v ${r.belastungMo >= 0 ? 'pdf-c-pos' : 'pdf-c-neg'}" style="font-weight:600;">${r.belastungMo > 0 ? '+ ' : (r.belastungMo < 0 ? '− ' : '')}${_eur0(Math.abs(r.belastungMo))} €</span></div>
+          <h4 style="font-size:8.5pt;letter-spacing:.14em;text-transform:uppercase;color:#7A7A72;margin:6mm 0 2mm;">Cashflow Jahr für Jahr</h4>
           <table class="pdf-c-p2-belastung-table">
-            <thead><tr><th>Jahr</th><th class="r">Belastung €/Mo</th></tr></thead>
-            <tbody>${belastungJ110}</tbody>
+            <thead><tr><th>Jahr</th><th class="r">Einnahmen</th><th class="r">Ausgaben</th><th class="r">Überschuss</th></tr></thead>
+            <tbody>${cashflowRows}</tbody>
           </table>
           ${crossoverJahr
             ? (crossoverJahr <= 10
@@ -399,6 +451,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <div class="pdf-c-section-num">02 · Vermögenszuwachs</div>
       <h2 class="pdf-c-section-title">In zehn Jahren: <span class="pdf-c-accent" style="font-weight:300">${fmt(r.vermoegenNetto10)}</span> Nettovermögen.</h2>
       <p class="pdf-c-lead" style="max-width:56ch">${nettoPositivAbStart ? 'Dein Nettovermögen ist bereits zum Start positiv — Marktwert übersteigt den Eigenkapital-Einsatz' : (nettoCrossoverJahr ? 'Aus zunächst negativem Nettovermögen wird ab Jahr ' + nettoCrossoverJahr + ' der Pfad nach oben sichtbar' : 'Der Pfad zum positiven Nettovermögen braucht in diesem Profil mehr als 10 Jahre')} — getragen vom Restschuld-Abbau durch die Annuität und einer moderat gerechneten Wertentwicklung.</p>
+      <div style="margin:5mm 0 4mm;">${_vermChartSvg(r.vermoegen)}</div>
       <table class="pdf-c-p3-vermoegen-table">
         <thead><tr><th>Jahr</th><th class="r">Marktwert</th><th class="r">Restschuld</th><th class="r">Netto kumuliert</th></tr></thead>
         <tbody>${vermoegenRows}</tbody>
@@ -441,6 +494,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <div class="pdf-c-p4-center">
         <div class="pdf-c-section-num">03 · Die Alternative</div>
         <h2 class="pdf-c-p4-headline">Wäre Dein Eigenkapital auf einem Sparbuch geblieben.</h2>
+        <div style="margin:7mm 0 5mm;">${_sparChartSvg(r.ekBedarf, sparen10.nurSparen, sparen10.mitImmo)}</div>
         <div class="pdf-c-p4-delta">${_spDeltaVz}<span class="num">${fmt(r.sparenVsKaufenDelta)}</span><br><span style="font-size:11pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500;display:inline-block;margin-top:4mm">${_spDeltaLabel}</span></div>
         <p class="pdf-c-p4-sub">${fmt(r.ekBedarf)} auf einem Sparbuch zu ${((i.sparZins || 0.025) * 100).toFixed(2).replace('.', ',')} % p.a. wären in zehn Jahren auf rund ${fmt(sparen10.nurSparen)} gewachsen. Dasselbe Eigenkapital, in den Sachwert Immobilie investiert, kommt auf ${fmt(sparen10.mitImmo)}. Die Differenz von ${fmt(r.sparenVsKaufenDelta)} ${_spDeltaPos ? 'ist der reine Sachwert-Vorteil' : 'zeigt, dass dieses Szenario unter Sparbuch-Niveau bleibt — Wertsteigerungs- oder Mietsteigerungs-Annahmen prüfen'}.</p>
       </div>
