@@ -149,14 +149,17 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const nettoPositivAbStart = nettoCrossoverIdx === 0;
   const v10 = r.vermoegen[10] || {};
   const sparen10 = r.sparen[10] || {};
+  const _mieteTag1Mo = (r.mieteTag1Mo != null) ? r.mieteTag1Mo : (i.kaltmiete || 0);
   // Iter 91.2: Selbsttragung gegen ALLE laufenden Kosten (Annuität + HG + HV + MV),
   // gecappt auf 100 % — vorher konnte > 100 % zeigen obwohl Belastung negativ war.
   const laufendeKostenMo = (r.annuityMo || 0) + (r.hausgeldNurMo || 0)
     + (r.hausverwaltungMo || 0) + (r.mietverwaltungMo || 0);
-  const einnahmenMo = (r.mieteJ1Mo || 0) + (r.stVorteilJ1Mo || 0);
+  const einnahmenMo = (_mieteTag1Mo || 0) + (r.stVorteilJ1Mo || 0);
   const selbsttragungPct = laufendeKostenMo > 0
     ? Math.min(100, Math.round(einnahmenMo / laufendeKostenMo * 100))
     : 0;
+  // Tag-0-Belastung = Summe der 4 angezeigten Monats-Zeilen (Edgar: Jahr 0 auf Seite 2).
+  const belastungTag1Mo = einnahmenMo - laufendeKostenMo;
   const marktQm = parseFloat(i.marktwertProQm) || 0;
   const kpQm = r.kaufpreisProQm || 0;
 
@@ -333,7 +336,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       </div>
       <div class="pdf-c-cover-bottom">
         <div class="meta">${vertrieblerBlock}<br><span style="font-weight:400;font-size:7.5pt;letter-spacing:.1em;text-transform:none;color:#7A7A72;">B&amp;B Immo GmbH · Burdastraße 23 · 77746 Schutterwald · HRB 727 814 (Amtsgericht Freiburg) · Geschäftsführer laut Handelsregister</span></div>
-        <div class="date">${esc(datum)}<br><span style="font-weight:400;font-size:7pt;letter-spacing:.08em;color:#888;">Seite 1 von 8</span></div>
+        <div class="date">${esc(datum)}<br><span style="font-weight:400;font-size:7pt;letter-spacing:.08em;color:#888;">Seite 1 von 9</span></div>
       </div>
     </div>
   `;
@@ -344,40 +347,48 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   function _vermChartSvg(vArr) {
     if (!Array.isArray(vArr) || vArr.length < 2) return '';
     const n = vArr.length, mw = vArr.map(v => v.wert || 0), rs = vArr.map(v => v.restschuld || 0);
-    const max = (Math.max.apply(null, mw) * 1.05) || 1;
-    const W = 560, H = 188, padL = 4, padR = 4, padT = 12, padB = 18;
+    const max = (Math.max.apply(null, mw) * 1.06) || 1;
+    const W = 480, H = 210, padL = 4, padR = 4, padT = 16, padB = 22;
     const x = i => (padL + i * (W - padL - padR) / (n - 1)).toFixed(1);
     const y = v => (padT + (1 - v / max) * (H - padT - padB)).toFixed(1);
     const ptsM = mw.map((v, i) => x(i) + ',' + y(v)).join(' ');
     const ptsR = rs.map((v, i) => x(i) + ',' + y(v)).join(' ');
     const area = ptsM + ' ' + rs.map((v, i) => x(n - 1 - i) + ',' + y(rs[n - 1 - i])).join(' ');
-    let labels = ''; [0, 2, 4, 6, 8, 10].forEach(i => { if (i < n) labels += `<text x="${x(i)}" y="${H - 5}" text-anchor="middle" font-size="7" fill="#9a958b">J${i}</text>`; });
-    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">`
-      + `<polygon points="${area}" fill="#2D6E47" opacity="0.08"/>`
-      + `<polyline points="${ptsM}" fill="none" stroke="#2D6E47" stroke-width="1.6"/>`
-      + `<polyline points="${ptsR}" fill="none" stroke="#9a958b" stroke-width="1.2" stroke-dasharray="3 2"/>`
+    let grid = '';
+    [0, max / 2, max].forEach(g => { const yy = y(g); grid += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#E8E6DD" stroke-width="0.4"/><text x="${W - padR}" y="${(+yy - 3)}" text-anchor="end" font-size="9" fill="#9a958b">${Math.round(g / 1000)} T€</text>`; });
+    let labels = ''; [0, 2, 4, 6, 8, 10].forEach(i => { if (i < n) labels += `<text x="${x(i)}" y="${H - 5}" text-anchor="middle" font-size="10" fill="#7A7A72">J${i}</text>`; });
+    const midI = Math.floor(n / 2);
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;font-family:'Inter',Helvetica,Arial,sans-serif;">`
+      + grid
+      + `<polygon points="${area}" fill="#2D6E47" opacity="0.12"/>`
+      + `<text x="${x(midI)}" y="${(+y((mw[midI] + rs[midI]) / 2))}" text-anchor="middle" font-size="11" font-weight="500" fill="#2D6E47">Nettovermögen</text>`
+      + `<polyline points="${ptsM}" fill="none" stroke="#2D6E47" stroke-width="2"/>`
+      + `<polyline points="${ptsR}" fill="none" stroke="#7A7A72" stroke-width="1.2" stroke-dasharray="3 2"/>`
+      + `<circle cx="${x(n - 1)}" cy="${y(mw[n - 1])}" r="3" fill="#2D6E47"/>`
+      + `<circle cx="${x(n - 1)}" cy="${y(rs[n - 1])}" r="3" fill="#7A7A72"/>`
       + labels
-      + `<text x="${x(n - 1)}" y="${(+y(mw[n - 1]) - 4)}" text-anchor="end" font-size="7.5" font-weight="600" fill="#2D6E47">Marktwert</text>`
-      + `<text x="${x(n - 1)}" y="${(+y(rs[n - 1]) + 10)}" text-anchor="end" font-size="7.5" font-weight="600" fill="#7A7A72">Restschuld</text>`
+      + `<text x="${x(n - 1)}" y="${(+y(mw[n - 1]) - 6)}" text-anchor="end" font-size="11.5" font-weight="600" fill="#2D6E47">Marktwert</text>`
+      + `<text x="${x(n - 1)}" y="${(+y(rs[n - 1]) + 13)}" text-anchor="end" font-size="11.5" font-weight="600" fill="#7A7A72">Restschuld</text>`
       + `</svg>`;
   }
   function _sparChartSvg(ek, sparEnd, immoEnd) {
-    const max = (Math.max(sparEnd, immoEnd) * 1.14) || 1;
-    const W = 560, H = 205, padB = 34, padT = 18, bw = 120, x1 = 130, x2 = 320;
+    const max = (Math.max(sparEnd, immoEnd) * 1.16) || 1;
+    const W = 440, H = 250, padB = 42, padT = 24, bw = 130, x1 = 45, x2 = 245;
     const hh = v => (v / max) * (H - padT - padB);
     const bar = (xx, label, total, col, sub) => {
       const ekH = hh(ek), grH = hh(Math.max(0, total - ek)), yEk = H - padB - ekH, yGr = yEk - grH;
       return `<rect x="${xx}" y="${yEk.toFixed(1)}" width="${bw}" height="${ekH.toFixed(1)}" fill="#7A7A72" opacity="0.26"/>`
         + `<rect x="${xx}" y="${yGr.toFixed(1)}" width="${bw}" height="${grH.toFixed(1)}" fill="${col}"/>`
-        + `<text x="${xx + bw / 2}" y="${(yGr - 6).toFixed(1)}" text-anchor="middle" font-size="12" fill="#1A1A17">${_eur0(total)} €</text>`
-        + `<text x="${xx + bw / 2}" y="${H - padB + 14}" text-anchor="middle" font-size="9" font-weight="600" fill="#1A1A17">${label}</text>`
-        + `<text x="${xx + bw / 2}" y="${H - padB + 26}" text-anchor="middle" font-size="7" fill="#9a958b">${sub}</text>`;
+        + `<text x="${xx + bw / 2}" y="${(yGr - 8).toFixed(1)}" text-anchor="middle" font-size="20" font-weight="500" fill="#1A1A17">${_eur0(total)} €</text>`
+        + `<text x="${xx + bw / 2}" y="${H - padB + 17}" text-anchor="middle" font-size="12" font-weight="600" fill="#1A1A17">${label}</text>`
+        + `<text x="${xx + bw / 2}" y="${H - padB + 31}" text-anchor="middle" font-size="9" fill="#9a958b">${sub}</text>`;
     };
     const ekY = (H - padB - hh(ek)).toFixed(1);
-    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">`
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;font-family:'Inter',Helvetica,Arial,sans-serif;">`
+      + `<line x1="0" y1="${(H - padB).toFixed(1)}" x2="${W}" y2="${(H - padB).toFixed(1)}" stroke="rgba(40,36,30,.25)" stroke-width="0.6"/>`
       + `<line x1="0" y1="${ekY}" x2="${W}" y2="${ekY}" stroke="rgba(40,36,30,.18)" stroke-width="0.5" stroke-dasharray="3 2"/>`
-      + `<text x="2" y="${(+ekY - 3).toFixed(1)}" font-size="7" fill="#9a958b">Eigenkapital ${_eur0(ek)} €</text>`
-      + bar(x1, 'Sparbuch', sparEnd, '#9a958b', '2,50 % p.a.')
+      + `<text x="2" y="${(+ekY - 3).toFixed(1)}" font-size="9" fill="#9a958b">Eigenkapital-Einsatz ${_eur0(ek)} €</text>`
+      + bar(x1, 'Sparbuch', sparEnd, '#7A7A72', '2,50 % p.a.')
       + bar(x2, 'Immobilie', immoEnd, '#2D6E47', 'Sachwert · 10 Jahre')
       + `</svg>`;
   }
@@ -389,12 +400,44 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
     const cls = ueb >= 0 ? 'pdf-c-pos' : 'pdf-c-neg';
     return `<tr><td>${c.y}</td><td class="r">${ein.toLocaleString('de-DE')} €</td><td class="r">${aus.toLocaleString('de-DE')} €</td><td class="r ${cls}">${ueb > 0 ? '+' : ''}${ueb.toLocaleString('de-DE')} €</td></tr>`;
   }).join('');
+  // Cashflow-Verlaufs-Chart (monatliche Belastung/Überschuss J1–J10, Null-Linie, Crossover) — print-sicher.
+  function _cfChartSvg(cfArr, crossJ) {
+    if (!Array.isArray(cfArr) || !cfArr.length) return '';
+    const m = cfArr.slice(0, 10).map(c => Math.round(c.cfJahr / 12));
+    const vals = [m[0]].concat(m);
+    const n = vals.length;
+    const W = 440, H = 230, padL = 4, padR = 4, padT = 18, padB = 20;
+    const lo = Math.min(0, Math.min.apply(null, vals)), hi = Math.max(0, Math.max.apply(null, vals));
+    const span = (hi - lo) * 0.14 || 1, max = hi + span, min = lo - span;
+    const x = i => (padL + i * (W - padL - padR) / (n - 1)).toFixed(1);
+    const y = v => (padT + (1 - (v - min) / (max - min)) * (H - padT - padB)).toFixed(1);
+    const pts = vals.map((v, i) => x(i) + ',' + y(v)).join(' ');
+    const y0 = y(0);
+    const area = pts + ' ' + x(n - 1) + ',' + y0 + ' ' + x(0) + ',' + y0;
+    let xl = ''; [0, 2, 4, 6, 8, 10].forEach(i => { xl += `<text x="${x(i)}" y="${H - 5}" text-anchor="middle" font-size="9" fill="#7A7A72">J${i}</text>`; });
+    let cross = '';
+    if (crossJ && crossJ >= 1 && crossJ <= 10) {
+      const cx = x(crossJ);
+      cross = `<line x1="${cx}" y1="${y0}" x2="${cx}" y2="${y(vals[crossJ])}" stroke="#2D6E47" stroke-width="1" stroke-dasharray="3 3" opacity="0.55"/>`
+        + `<circle cx="${cx}" cy="${y(vals[crossJ])}" r="4" fill="#2D6E47" stroke="#FBFAF7" stroke-width="1.5"/>`
+        + `<text x="${cx}" y="${(+y(vals[crossJ]) - 8)}" text-anchor="middle" font-size="9" font-weight="600" fill="#2D6E47">Jahr ${crossJ}: erster Überschuss</text>`;
+    }
+    const endV = vals[n - 1], endCol = endV >= 0 ? '#2D6E47' : '#9A3E33';
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;font-family:'Inter',Helvetica,Arial,sans-serif;">`
+      + `<polygon points="${area}" fill="rgba(176,138,77,.08)"/>`
+      + `<line x1="${padL}" y1="${y0}" x2="${W - padR}" y2="${y0}" stroke="#1A1A17" stroke-width="1" opacity="0.55"/>`
+      + `<text x="${padL}" y="${(+y0 - 3)}" font-size="9" fill="#9a958b">0 €</text>`
+      + `<polyline points="${pts}" fill="none" stroke="#B08A4D" stroke-width="1.8" stroke-linejoin="round"/>`
+      + xl + cross
+      + `<text x="${x(n - 1)}" y="${(+y(endV) - 6)}" text-anchor="end" font-size="9" font-weight="600" fill="${endCol}">J10 ${endV > 0 ? '+' : ''}${endV} €/Mo</text>`
+      + `</svg>`;
+  }
   const seite2 = `
     <div class="pdf-page pdf-c-page">
       ${ph()}
       <div class="pdf-c-section-num">01 · Das Objekt &amp; Der Plan</div>
-      <h2 class="pdf-c-section-title">Effektive Belastung im ersten Jahr: ${fmtMo(r.belastungMo)}.</h2>
-      <p class="pdf-c-lead" style="max-width:48ch">${i.qm ? 'Eine ' + i.qm.toString().replace('.', ',') + '-qm-Wohnung' : 'Eine Wohnung'}${(() => { const m = i.mietsteigerungsModus || 'sprung'; if (m === 'staffel') return ', neu vermietet mit Staffelmiete'; if (m === 'index') return ' mit Indexmietvertrag'; if (m === 'keine') return ''; return ' im Bestand'; })()}. ${r.belastungMo >= 0 ? 'Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst.' : `Die Wohnung trägt sich zu rund ${selbsttragungPct} % selbst — die fehlenden ${100 - selbsttragungPct} % leistest Du als monatliche Eigenleistung von ${fmtMo(Math.abs(r.belastungMo))}, die mit jedem Jahr kleiner wird.`}</p>
+      <h2 class="pdf-c-section-title">${belastungTag1Mo >= 0 ? `Diese Wohnung trägt sich ab Tag 1 selbst — Überschuss ${fmtMo(belastungTag1Mo)}.` : `Dein Plan: rund ${fmtMo(Math.abs(belastungTag1Mo))} Eigenleistung ab Tag 1 — und was daraus wird.`}</h2>
+      <p class="pdf-c-lead" style="max-width:48ch">${i.qm ? 'Eine ' + i.qm.toString().replace('.', ',') + '-qm-Wohnung' : 'Eine Wohnung'}${(() => { const m = i.mietsteigerungsModus || 'sprung'; if (m === 'staffel') return ', neu vermietet mit Staffelmiete'; if (m === 'index') return ' mit Indexmietvertrag'; if (m === 'keine') return ''; return ' im Bestand'; })()}. ${belastungTag1Mo >= 0 ? 'Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst.' : `Die Wohnung trägt sich zu rund ${selbsttragungPct} % selbst — die fehlenden ${100 - selbsttragungPct} % leistest Du als monatliche Eigenleistung von ${fmtMo(Math.abs(belastungTag1Mo))}, die mit jedem Jahr kleiner wird.`}</p>
       <div class="pdf-c-p2-grid">
         <div class="pdf-c-obj">
           <h4>Objekt</h4>
@@ -417,29 +460,49 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <div class="pdf-c-obj-row"><span class="k">Darlehenshöhe</span><span class="v">${Math.round((r.darlehen != null ? r.darlehen : (i.knkMitfinanziert ? r.kpGesamt + knk : r.kpGesamt))).toLocaleString('de-DE')}<span class="unit">€${i.knkMitfinanziert ? ' · inkl. KNK' : ''}</span></span></div>
         </div>
         <div class="pdf-c-p2-right">
-          <h4 style="font-size:8.5pt;letter-spacing:.14em;text-transform:uppercase;color:#7A7A72;margin:0 0 2mm;">So rechnet sich der Monat (Jahr 1)</h4>
-          <div class="pdf-c-obj-row"><span class="k">Mieteinnahme (Ø Jahr 1)</span><span class="v pdf-c-pos">+ ${_eur0(r.mieteJ1Mo)} €</span></div>
+          <h4 style="font-size:8.5pt;letter-spacing:.14em;text-transform:uppercase;color:#7A7A72;margin:0 0 2mm;">So rechnet sich der Monat (Tag 1)</h4>
+          <div class="pdf-c-obj-row"><span class="k">Mieteinnahme (Tag 1)</span><span class="v pdf-c-pos">+ ${_eur0(_mieteTag1Mo)} €</span></div>
           <div class="pdf-c-obj-row"><span class="k">Steuervorteil</span><span class="v pdf-c-pos">+ ${_eur0(r.stVorteilJ1Mo)} €</span></div>
           <div class="pdf-c-obj-row"><span class="k">Annuität (Zins + Tilgung)</span><span class="v pdf-c-neg">− ${_eur0(r.annuityMo)} €</span></div>
           <div class="pdf-c-obj-row"><span class="k">Rücklage + Verwaltung</span><span class="v pdf-c-neg">− ${_eur0((r.hausgeldNurMo||0) + (r.hausverwaltungMo||0) + (r.mietverwaltungMo||0))} €</span></div>
-          <div class="pdf-c-obj-row" style="border-top:1.2px solid #1A1A17;"><span class="k" style="font-weight:600;color:#1A1A17;">Effektive Belastung / Mo</span><span class="v ${r.belastungMo >= 0 ? 'pdf-c-pos' : 'pdf-c-neg'}" style="font-weight:600;">${r.belastungMo > 0 ? '+ ' : (r.belastungMo < 0 ? '− ' : '')}${_eur0(Math.abs(r.belastungMo))} €</span></div>
-          <h4 style="font-size:8.5pt;letter-spacing:.14em;text-transform:uppercase;color:#7A7A72;margin:6mm 0 2mm;">Cashflow Jahr für Jahr</h4>
+          <div class="pdf-c-obj-row" style="border-top:1.2px solid #1A1A17;"><span class="k" style="font-weight:600;color:#1A1A17;">Effektive Belastung / Mo</span><span class="v ${belastungTag1Mo >= 0 ? 'pdf-c-pos' : 'pdf-c-neg'}" style="font-weight:600;">${belastungTag1Mo > 0 ? '+ ' : (belastungTag1Mo < 0 ? '− ' : '')}${_eur0(Math.abs(belastungTag1Mo))} €</span></div>
+          <p class="narrative" style="font-size:8pt;margin-top:3mm;">Effektiv = was Dich der Monat nach Miete und Steuervorteil wirklich kostet. Die Mieteinnahme ist die am Kauftag vereinbarte Kaltmiete. Wie sich das über die Jahre entwickelt, siehst Du auf der nächsten Seite.</p>
+        </div>
+      </div>
+      <div class="pdf-c-page-foot"><div>01 · Eckdaten &amp; Plan</div><div class="pdf-c-page-num">Seite 2 von 9</div></div>
+    </div>
+  `;
+
+  // ===== SEITE 3 · CASHFLOW — DIE NÄCHSTEN ZEHN JAHRE (NEU) =====
+  const seiteCashflow = `
+    <div class="pdf-page pdf-c-page">
+      ${ph()}
+      <div class="pdf-c-section-num">02 · Die nächsten zehn Jahre</div>
+      <h2 class="pdf-c-section-title">So entwickelt sich Deine monatliche Belastung.</h2>
+      <p class="pdf-c-lead" style="max-width:58ch">Die Annuität bleibt über die Laufzeit konstant — die Miete steigt, der Tilgungsanteil wächst. Deshalb sinkt Deine monatliche Belastung Jahr für Jahr.</p>
+      <div style="margin:6mm 0 4mm;">${_cfChartSvg(r.cf, crossoverJahr)}</div>
+      <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:12mm;margin-top:4mm;">
+        <div>
+          <div style="font-size:8pt;color:#7A7A72;margin-bottom:1.5mm;">Werte je Monat · Annuität konstant · Steuervorteil und Mietsubvention enthalten</div>
           <table class="pdf-c-p2-belastung-table">
             <thead><tr><th>Jahr</th><th class="r">Einnahmen</th><th class="r">Ausgaben</th><th class="r">Überschuss</th></tr></thead>
             <tbody>${cashflowRows}</tbody>
           </table>
-          ${crossoverJahr
-            ? (crossoverJahr <= 10
-              ? `<p class="narrative" style="margin-top:5mm">Ab Jahr ${crossoverJahr} dreht die Belastung ins Plus — die Wohnung beginnt, einen monatlichen Überschuss zu liefern, während die Annuität konstant bleibt.</p>`
-              : `<p class="narrative" style="margin-top:5mm">Innerhalb der hier dargestellten 10 Jahre bleibt die Belastung im negativen Bereich — der Crossover folgt voraussichtlich erst um Jahr ${crossoverJahr}. Der Vermögenseffekt in den ersten 10 Jahren entsteht aus Tilgung und Wertsteigerung.</p>`)
-            : '<p class="narrative" style="margin-top:5mm">Über die 10 Jahre bleibt die Belastung im negativen Bereich — der Vermögenseffekt entsteht über die Tilgung und Wertsteigerung.</p>'}
+        </div>
+        <div>
+          <p class="narrative">Die Annuität von ${fmtMo(r.annuityMo)} bleibt konstant. Miete und Tilgungsanteil wachsen — deshalb sinkt Deine Belastung Jahr für Jahr.</p>
+          ${belastungTag1Mo >= 0
+            ? `<p class="narrative" style="margin-top:3mm;">Die Wohnung trägt sich ab Tag 1 selbst — der Überschuss wächst über die Jahre weiter.</p>`
+            : (crossoverJahr && crossoverJahr <= 10
+              ? `<p class="narrative" style="margin-top:3mm;">Ab <strong>Jahr ${crossoverJahr}</strong> dreht die Belastung ins Plus (im Chart markiert) — ab dann liefert die Wohnung jeden Monat einen Überschuss.</p>`
+              : `<p class="narrative" style="margin-top:3mm;">Über die 10 Jahre bleibt eine kleine Eigenleistung — Dein Vermögen entsteht hier vor allem über Tilgung und Wertsteigerung (nächste Seite).</p>`)}
         </div>
       </div>
-      <div class="pdf-c-page-foot"><div>01 · Eckdaten &amp; Plan</div><div class="pdf-c-page-num">Seite 2 von 8</div></div>
+      <div class="pdf-c-page-foot"><div>02 · Die nächsten zehn Jahre</div><div class="pdf-c-page-num">Seite 3 von 9</div></div>
     </div>
   `;
 
-  // ===== SEITE 3 · AUSSICHT =====
+  // ===== SEITE 4 · AUSSICHT (Vermögenszuwachs) =====
   const vermoegenRows = r.vermoegen.slice(1, 11).map(v => {
     const netto = Math.round(v.vermoegenNetto || 0);
     const cls = netto >= 0 ? 'pdf-c-pos' : 'pdf-c-neg';
@@ -448,7 +511,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const seite3 = `
     <div class="pdf-page pdf-c-page">
       ${ph()}
-      <div class="pdf-c-section-num">02 · Vermögenszuwachs</div>
+      <div class="pdf-c-section-num">03 · Vermögenszuwachs</div>
       <h2 class="pdf-c-section-title">In zehn Jahren: <span class="pdf-c-accent" style="font-weight:300">${fmt(r.vermoegenNetto10)}</span> Nettovermögen.</h2>
       <p class="pdf-c-lead" style="max-width:56ch">${nettoPositivAbStart ? 'Dein Nettovermögen ist bereits zum Start positiv — Marktwert übersteigt den Eigenkapital-Einsatz' : (nettoCrossoverJahr ? 'Aus zunächst negativem Nettovermögen wird ab Jahr ' + nettoCrossoverJahr + ' der Pfad nach oben sichtbar' : 'Der Pfad zum positiven Nettovermögen braucht in diesem Profil mehr als 10 Jahre')} — getragen vom Restschuld-Abbau durch die Annuität und einer moderat gerechneten Wertentwicklung.</p>
       <div style="margin:5mm 0 4mm;">${_vermChartSvg(r.vermoegen)}</div>
@@ -463,7 +526,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           ? `<div class="cell"><div class="label">Interner Zinsfuß</div><div class="v">${(r.irr * 100).toFixed(1).replace('.',',')}<span class="unit">% p.a.</span></div></div>`
           : `<div class="cell"><div class="label">Vermögenszuwachs</div><div class="v">${Math.round(r.vermoegenNetto10 || 0).toLocaleString('de-DE')}<span class="unit">€</span></div></div>`}
       </div>
-      <div class="pdf-c-page-foot"><div>02 · Aussicht</div><div class="pdf-c-page-num">Seite 3 von 8</div></div>
+      <div class="pdf-c-page-foot"><div>03 · Vermögenszuwachs</div><div class="pdf-c-page-num">Seite 4 von 9</div></div>
     </div>
   `;
 
@@ -480,25 +543,25 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
     <div class="pdf-page pdf-c-page">
       ${ph()}
       <div class="pdf-c-p4-center">
-        <div class="pdf-c-section-num">03 · Der Hebel</div>
+        <div class="pdf-c-section-num">04 · Der Hebel</div>
         <h2 class="pdf-c-p4-headline">Ohne Eigenkapital-Einsatz zum Sachwert.</h2>
         <div class="pdf-c-p4-delta"><span class="num">${fmt(r.vermoegenNetto10)}</span><br><span style="font-size:11pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500;display:inline-block;margin-top:4mm">Vermögensaufbau über 10 Jahre</span></div>
         <p class="pdf-c-p4-sub">Bei 110-%-Finanzierung setzt Du kein eigenes Kapital ein. Trotzdem baust Du in zehn Jahren ${fmt(r.vermoegenNetto10)} Nettovermögen auf — getragen von Tilgung und Wertentwicklung. Der Hebel kommt aus dem Sachwert, nicht aus Deinem Sparbuch.</p>
         <p class="pdf-c-p4-sub" style="margin-top:6mm;font-size:10pt;color:#7A7A72;font-style:italic">Ein klassischer Sparbuch-Vergleich entfällt: ohne Eigenkapital-Einsatz wäre auch das Sparbuch-Ergebnis 0 €. Die monatliche Belastung über die Laufzeit ist die einzige Eigenleistung.</p>
       </div>
-      <div class="pdf-c-page-foot"><div>03 · Der Hebel</div><div class="pdf-c-page-num">Seite 4 von 8</div></div>
+      <div class="pdf-c-page-foot"><div>04 · Der Hebel</div><div class="pdf-c-page-num">Seite 5 von 9</div></div>
     </div>
   ` : `
     <div class="pdf-page pdf-c-page">
       ${ph()}
       <div class="pdf-c-p4-center">
-        <div class="pdf-c-section-num">03 · Die Alternative</div>
+        <div class="pdf-c-section-num">04 · Die Alternative</div>
         <h2 class="pdf-c-p4-headline">Wäre Dein Eigenkapital auf einem Sparbuch geblieben.</h2>
-        <div style="margin:7mm 0 5mm;">${_sparChartSvg(r.ekBedarf, sparen10.nurSparen, sparen10.mitImmo)}</div>
+        <div style="width:150mm;max-width:100%;margin:7mm auto 5mm;">${_sparChartSvg(r.ekBedarf, sparen10.nurSparen, sparen10.mitImmo)}</div>
         <div class="pdf-c-p4-delta">${_spDeltaVz}<span class="num">${fmt(r.sparenVsKaufenDelta)}</span><br><span style="font-size:11pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500;display:inline-block;margin-top:4mm">${_spDeltaLabel}</span></div>
         <p class="pdf-c-p4-sub">${fmt(r.ekBedarf)} auf einem Sparbuch zu ${((i.sparZins || 0.025) * 100).toFixed(2).replace('.', ',')} % p.a. wären in zehn Jahren auf rund ${fmt(sparen10.nurSparen)} gewachsen. Dasselbe Eigenkapital, in den Sachwert Immobilie investiert, kommt auf ${fmt(sparen10.mitImmo)}. Die Differenz von ${fmt(r.sparenVsKaufenDelta)} ${_spDeltaPos ? 'ist der reine Sachwert-Vorteil' : 'zeigt, dass dieses Szenario unter Sparbuch-Niveau bleibt — Wertsteigerungs- oder Mietsteigerungs-Annahmen prüfen'}.</p>
       </div>
-      <div class="pdf-c-page-foot"><div>03 · Im Vergleich</div><div class="pdf-c-page-num">Seite 4 von 8</div></div>
+      <div class="pdf-c-page-foot"><div>04 · Im Vergleich</div><div class="pdf-c-page-num">Seite 5 von 9</div></div>
     </div>
   `;
 
@@ -506,7 +569,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const seite5 = `
     <div class="pdf-page pdf-c-page">
       ${ph()}
-      <div class="pdf-c-section-num">04 · Im Detail</div>
+      <div class="pdf-c-section-num">05 · Im Detail</div>
       <h2 class="pdf-c-section-title">Damit Du jede Zahl nachvollziehen kannst.</h2>
       <div class="pdf-c-p5-grid">
         <div class="pdf-c-p5-block" style="grid-column:1/-1">
@@ -549,7 +612,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <!-- QA-Fix 2026-05-23 (Edgar P3): Disclaimer von Seite 5 entfernt — durch B5
            war er 5× länger und Seite 5 (Annahmen + Cashflow-Tabelle) lief in
            overflow:hidden über. Disclaimer jetzt auf Seite 7. -->
-      <div class="pdf-c-page-foot"><div>04 · Im Detail</div><div class="pdf-c-page-num">Seite 5 von 8</div></div>
+      <div class="pdf-c-page-foot"><div>05 · Im Detail</div><div class="pdf-c-page-num">Seite 6 von 9</div></div>
     </div>
   `;
 
@@ -652,7 +715,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const seite6 = `
     <div class="pdf-page pdf-c-page">
       ${ph()}
-      <div class="pdf-c-section-num">05 · Wie es weitergeht</div>
+      <div class="pdf-c-section-num">06 · Wie es weitergeht</div>
       <h2 class="pdf-c-section-title">Sechs Schritte bis zum Notartermin.</h2>
       <p class="pdf-c-lead" style="max-width:60ch">
         Wir beurkunden den Kauf erst dann, wenn drei Voraussetzungen sauber erfüllt sind: Deine Finanzierung steht, die Objektunterlagen passen zu dem, was Du hier siehst, und Du hast die Wohnung besichtigt. Fehlt einer dieser Punkte — kein Notartermin.
@@ -665,7 +728,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <li><span class="pdf-c-weg-num">5</span><div class="pdf-c-weg-body"><strong>Besichtigung vor Ort.</strong>Du siehst die Wohnung mit eigenen Augen — Lage, Substanz, Treppenhaus, Umfeld. Erst wenn das passt, machen wir den letzten Schritt.</div></li>
         <li><span class="pdf-c-weg-num">6</span><div class="pdf-c-weg-body"><strong>Notartermin.</strong>Beurkundung des Kaufvertrags. Wir beurkunden nur, wenn die drei Voraussetzungen Finanzierung, Objektunterlagen und Besichtigung sauber erfüllt sind.</div></li>
       </ol>
-      <div class="pdf-c-page-foot"><div>05 · Wie es weitergeht</div><div class="pdf-c-page-num">Seite 6 von 8</div></div>
+      <div class="pdf-c-page-foot"><div>06 · Wie es weitergeht</div><div class="pdf-c-page-num">Seite 7 von 9</div></div>
     </div>
   `;
 
@@ -676,7 +739,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const seite7 = `
     <div class="pdf-page pdf-c-page">
       ${ph()}
-      <div class="pdf-c-section-num">06 · Nach dem Notartermin</div>
+      <div class="pdf-c-section-num">07 · Nach dem Notartermin</div>
       <h2 class="pdf-c-section-title">Du stehst nicht alleine da.</h2>
       <p class="pdf-c-lead" style="max-width:62ch">
         Mieterhöhungen, Steuerformulare, Übergaben, Handwerker — das übernehmen wir. Du hast einen WhatsApp-Direktdraht zu uns: für die Fragen, die jetzt schon da sind, und für die, die später kommen.
@@ -710,7 +773,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <div style="margin-top:10mm;padding-top:6mm;border-top:.4px solid #B08A4D;font-size:10pt;line-height:1.65;color:#3A3A35;">
         <strong style="color:#1A1A17;font-weight:500;">Maßgeschneidert.</strong> Wir betrachten Dein Investment aus drei Perspektiven — steuerlich, wirtschaftlich, Aufwand. Anfänger müssen keine Komplexität verstehen; Fortgeschrittene bekommen alles in die Hand was sie selbst steuern wollen.
       </div>
-      <div class="pdf-c-page-foot"><div>06 · Nach dem Notartermin</div><div class="pdf-c-page-num">Seite 7 von 8</div></div>
+      <div class="pdf-c-page-foot"><div>07 · Nach dem Notartermin</div><div class="pdf-c-page-num">Seite 8 von 9</div></div>
     </div>
   `;
 
@@ -718,7 +781,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const seite8 = `
     <div class="pdf-page pdf-c-page">
       ${ph()}
-      <div class="pdf-c-section-num">07 · Wer wir sind</div>
+      <div class="pdf-c-section-num">08 · Wer wir sind</div>
       <h2 class="pdf-c-section-title">Brot &amp; Butter.</h2>
       <p class="pdf-c-lead" style="max-width:60ch">Unser Name ist unser Geschäftsmodell. Wir kaufen die großen Brote und veredeln sie mit Butter — bevor wir scheibenweise an Dich weitergeben.</p>
       <div class="pdf-c-bub-grid" style="grid-template-columns:repeat(3,1fr);">
@@ -734,12 +797,12 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <p class="pdf-c-disclaimer" style="font-size:7pt;line-height:1.45;margin-top:6mm;">
         Diese Investitionsrechnung beruht auf den dokumentierten Annahmen. Keine Anlageberatung im Sinne des WpHG. Vermittlung im Rahmen einer Erlaubnis nach § 34c GewO. Verbindlich ist ausschließlich der notarielle Kaufvertrag. Steuerliche Aspekte (insb. AfA-Rechtsgrundlage und ‑Bemessung) sind mit Deinem Steuerberater abzustimmen. Wertsteigerung und Mietsteigerung sind langfristige Modell-Annahmen; tatsächliche Werte können abweichen. „Modellwert J10" ist eine rechnerische Hochrechnung (Kaufpreis × Wertsteigerung) und kein gutachterlicher Verkehrswert i.S.d. § 194 BauGB. Der Sparbuch-Vergleich rechnet Brutto-Renditen (vor Abgeltungssteuer); die Immobilien-Rendite enthält den persönlichen Steuervorteil. Für die Finanzierungs-Vermittlung berechnen wir Dir keine Provision; eventuelle Bank-Vermittlungs-Provisionen fließen in die Kondition ein. Die 80&nbsp;%-Mietanrechnung entspricht dem Standard unserer Partnerbanken; andere Banken können abweichen.
       </p>
-      <div class="pdf-c-page-foot"><div>07 · Brot &amp; Butter</div><div class="pdf-c-page-num">Seite 8 von 8</div></div>
+      <div class="pdf-c-page-foot"><div>08 · Brot &amp; Butter</div><div class="pdf-c-page-num">Seite 9 von 9</div></div>
     </div>
   `;
 
   _doPrint(
-    pdfCStyle + seite1 + seite2 + seite3 + seite4 + seite5 + seite6 + seite7 + seite8,
+    pdfCStyle + seite1 + seite2 + seiteCashflow + seite3 + seite4 + seite5 + seite6 + seite7 + seite8,
     'invest',
     _filenameHint('Investitionsanalyse', kunde, {
       weNr: kalkInputs && kalkInputs._weNr,

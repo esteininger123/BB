@@ -1177,6 +1177,7 @@ function recalc(i) {
     stVorteilJ5Mo: cf[4].stVorteilJahr / 12,
     stVorteilJ10Mo: cf[9].stVorteilJahr / 12,
     mieteJ1Mo: cf1.mieteJahr / 12,
+    mieteTag1Mo: (kaltmieteMo1 + i.stellplatzMiete + subvMo1),   // Tag-1-Ist-Miete (gekappte Kaltmiete + Stellplatz + Subv Monat 1) — für Jahr-0-Anzeigen
     ersteErhoehungMonat,
     ersteErhoehungJahrLabel,
     // Iter 67 (20.05.2026): €/qm-Werte + Bruttorendite für Vertriebler-UI.
@@ -1385,6 +1386,7 @@ function recalcPaket(weInputsArr, personSettings) {
     afaJahr: sum('afaJahr'),
     afaBemessungBetrag: sum('afaBemessungBetrag'),
     mieteJ1Mo: sum('mieteJ1Mo'),
+    mieteTag1Mo: sum('mieteTag1Mo'),
     stVorteilJ1Mo: sum('stVorteilJ1Mo'),
     stVorteilJ5Mo: sum('stVorteilJ5Mo'),
     stVorteilJ10Mo: sum('stVorteilJ10Mo'),
