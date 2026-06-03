@@ -175,9 +175,12 @@
     var frage = (input.value || '').trim();
     if (!frage) return;
     input.value = '';
-    bubble('user', frage);
+    var frageEl = bubble('user', frage);
     var antwort = bubble('bot', '');
     antwort.textContent = '…';
+    var msgsEl = el('bb-chat-msgs');
+    // Frage nach oben holen → man liest von Anfang an mit, während Zipf unten weiterschreibt
+    msgsEl.scrollTop = frageEl.offsetTop - 8;
     streamt = true;
 
     try {
@@ -198,9 +201,11 @@
       while (true) {
         var r = await reader.read();
         if (r.done) break;
+        // nur mitscrollen, wenn der Nutzer ohnehin unten ist — sonst in Ruhe lesen lassen
+        var atBottom = (msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight) < 60;
         voll += dec.decode(r.value, { stream: true });
         antwort.innerHTML = renderMarkdown(voll);
-        el('bb-chat-msgs').scrollTop = el('bb-chat-msgs').scrollHeight;
+        if (atBottom) msgsEl.scrollTop = msgsEl.scrollHeight;
       }
       verlauf.push({ role: 'user', content: frage });
       verlauf.push({ role: 'assistant', content: voll });
