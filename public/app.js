@@ -3933,7 +3933,7 @@ function renderStoryPremium(r) {
           </div>
           <div class="kalk-c-strip-cell">
             <div class="kalk-c-strip-label">Miete kalt</div>
-            <div class="kalk-c-strip-value">${Math.round(r.mieteJ1Mo || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
+            <div class="kalk-c-strip-value">${Math.round(i.kaltmiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
           </div>
         </div>
         <!-- QA-Fix 2026-05-22 (Audit-G G-B2): PDF/Snapshot Quick-Actions direkt im Hero,
