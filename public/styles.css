@@ -4019,7 +4019,9 @@ input[type="range"].spar-zins-range::-moz-range-track {
   display: flex; justify-content: space-between; align-items: center;
   padding: 13px 16px; border-bottom: 1px solid rgba(40,36,30,.10);
 }
-#bb-chat-head span { font-size: 14px; font-weight: 600; color: #B08A4D; letter-spacing: .01em; }
+#bb-chat-head .bb-chat-id { display: flex; flex-direction: column; line-height: 1.25; }
+#bb-chat-head .bb-chat-name { font-size: 14px; font-weight: 600; color: #B08A4D; letter-spacing: .01em; }
+#bb-chat-head .bb-chat-tag { font-size: 11px; font-weight: 400; color: #8a8478; }
 #bb-chat-head button { background: none; border: none; color: #bdb8ac; font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }
 #bb-chat-head button:hover { color: #8a8478; }
 #bb-chat-msgs { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
