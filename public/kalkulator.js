@@ -1054,6 +1054,30 @@ function recalc(i) {
   const cf1 = cf[0];
   const belastungMo = cf1.cfJahr / 12;
 
+  // ===== Jahr-0 / Tag-1 Ist-Snapshot (Review/Edgar 03.06.2026) =====
+  // "Aktuelle Betrachtung" = HEUTIGER Vertragszustand, OHNE projizierte Mietsteigerung.
+  // Problem: kaltmieteForMonth(1) zieht eine fällige Erhöhung (monateSeit hoch -> M1=1) schon
+  // in Monat 1 vor (Sprung 540->621, Staffel 750->773). Für eine Ist-Anzeige falsch — der
+  // Käufer kassiert am Tag 1 die Vertrags-Kaltmiete; die Erhöhungen laufen in der
+  // 10-Jahres-Projektion (cf[1..10]/cfMonate). Diese Tag-0-Felder sind die EINE Quelle für
+  // ALLE Ist-Darstellungen (PDF Seite 2, Online-Magazin, KPI, Rechenblatt) — nicht cfMonate[0].
+  const _subvFaktor0 = (i.subventionFaktor != null && isFinite(i.subventionFaktor)) ? i.subventionFaktor : 1;
+  const _initialSubv0 = (Array.isArray(i.subventionPhasen) && i.subventionPhasen.length > 0)
+    ? ((i.subventionPhasen[0] && i.subventionPhasen[0].mo > 0 && i.subventionPhasen[0].monate > 0) ? i.subventionPhasen[0].mo : 0)
+    : (((i.subventionMonate || 0) > 0) ? (i.subventionMo || 0) : 0);
+  const subvTag0Mo = _initialSubv0 * _subvFaktor0;
+  const kaltmieteTag0Mo = i.kaltmiete || 0;            // Vertrags-Kaltmiete heute (Cap reduziert IST nicht, FS-3x)
+  const stellplatzTag0Mo = i.stellplatzMiete || 0;
+  const mieteTag0Mo = kaltmieteTag0Mo + stellplatzTag0Mo + subvTag0Mo;
+  const _zinsTag0 = darlehen * rateM;                  // Monat-1-Zins (zinsunabhängig von Mietsteigerung)
+  const _mvTag0 = (i.mietverwaltung || 0);
+  const _hausverwTag0 = (i.hausverwaltung == null || !isFinite(i.hausverwaltung)) ? BB_DEFAULTS.hausverwaltungMo : i.hausverwaltung;
+  const _hgTag0 = (i.hausgeld || 0) + _mvTag0 + _hausverwTag0;
+  // Werbungskosten gegen heutige Miete (gleiche Struktur wie cfNachStM, aber Tag-0-Miete)
+  const stVorteilTag0Mo = ((afaJahr / 12) + _zinsTag0 + _mvTag0 + _hausverwTag0 - mieteTag0Mo) * (i.steuersatz || 0);
+  // Belastung Tag 0 = Miete + Steuervorteil − Annuität − (Hausgeld + MV + HV); annuityMo wie in der Anzeige.
+  const belastungTag0Mo = mieteTag0Mo - annuityMo - _hgTag0 + stVorteilTag0Mo;
+
   // Bonität (Iter 11: Quick-Modus vs. Detail-Selbstauskunft)
   // Quick: bonEinnahmen/bonAusgaben/bonVermoegen + steuersatz
   // Detail: i.selbstauskunft → durch computeBonitaetDetailed() in detaillierte Werte transformiert
@@ -1159,6 +1183,8 @@ function recalc(i) {
     vermoegenBrutto10: vermoegen[10].vermoegenBrutto,
     vermoegenNetto10: vermoegen[10].vermoegenNetto,
     belastungMo,
+    // Jahr-0 / Tag-1 Ist-Snapshot — kanonische Quelle für alle Ist-Darstellungen.
+    mieteTag0Mo, kaltmieteTag0Mo, stellplatzTag0Mo, subvTag0Mo, stVorteilTag0Mo, belastungTag0Mo,
     // Mietsubvention-Gesamt = tatsächlicher Liquiditätsabfluss durch Subv-Glättung (Iter 43).
     // NICHT nominal (ph.mo × monate), sondern echte Summe nach Glättung — wenn Bestandsmiete
     // in der Phase steigt, schmilzt die Subv, also wird real weniger gezahlt.
@@ -1387,6 +1413,13 @@ function recalcPaket(weInputsArr, personSettings) {
     afaBemessungBetrag: sum('afaBemessungBetrag'),
     mieteJ1Mo: sum('mieteJ1Mo'),
     mieteTag1Mo: sum('mieteTag1Mo'),
+    // Jahr-0 / Tag-1 Ist-Snapshot (Paket = Summe je WE)
+    mieteTag0Mo: sum('mieteTag0Mo'),
+    kaltmieteTag0Mo: sum('kaltmieteTag0Mo'),
+    stellplatzTag0Mo: sum('stellplatzTag0Mo'),
+    subvTag0Mo: sum('subvTag0Mo'),
+    stVorteilTag0Mo: sum('stVorteilTag0Mo'),
+    belastungTag0Mo: sum('belastungTag0Mo'),
     stVorteilJ1Mo: sum('stVorteilJ1Mo'),
     stVorteilJ5Mo: sum('stVorteilJ5Mo'),
     stVorteilJ10Mo: sum('stVorteilJ10Mo'),

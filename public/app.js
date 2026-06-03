@@ -3197,6 +3197,14 @@ function resetKalk() {
 }
 window.resetKalk = resetKalk;
 
+// Jahr-0 / Tag-1 Ist-Snapshot (Review/Edgar 03.06.2026): Quelle für ALLE Ist-Darstellungen.
+// Die Engine liefert belastungTag0Mo/mieteTag0Mo/stVorteilTag0Mo = heutiger Vertragszustand
+// OHNE projizierte Mietsteigerung. Fallback auf die Jahr-1-Felder nur für alte Snapshots,
+// die vor Einführung der Tag-0-Felder gespeichert wurden.
+function _belTag0(r) { return (r && r.belastungTag0Mo != null) ? r.belastungTag0Mo : ((r && r.belastungMo != null) ? r.belastungMo : 0); }
+function _mieteTag0(r) { return (r && r.mieteTag0Mo != null) ? r.mieteTag0Mo : ((r && r.mieteJ1Mo != null) ? r.mieteJ1Mo : 0); }
+function _stVorteilTag0(r) { return (r && r.stVorteilTag0Mo != null) ? r.stVorteilTag0Mo : ((r && r.stVorteilJ1Mo != null) ? r.stVorteilJ1Mo : 0); }
+
 // Subventionsregler (Team-Feedback 2026-06-01): Trade-off Mietsubvention <-> Kaufpreis.
 // Skaliert die vereinbarte Subvention (Phasen oder manuell) auf den Slider-Wert und
 // reduziert den Kaufpreis 1:1 (nominal) um den weggenommenen Subventionsbetrag.
@@ -3371,8 +3379,8 @@ function recalcAndRender() {
     // FS-2o (Edgar 24.05.2026 23:00, Loom-Bug): bei Überschuss heißt es nicht
     // mehr „Belastung" (irreführend) sondern „Überschuss". Wert bleibt gleich,
     // nur das Label switcht je nach Vorzeichen.
-    kpiCard(r.belastungMo >= 0 ? 'Dein Überschuss / Monat' : 'Deine Belastung / Monat', fmtEurMo(r.belastungMo),
-      'Was Dir monatlich in Jahr 1 aus der Tasche geht oder bleibt. Deine Mieten + Subvention − Annuität − Rücklage − Hausverwaltung − Mietverwaltung + Dein Steuervorteil. Positiv = Cashflow positiv für Dich (= Überschuss).', cls(r.belastungMo)),
+    kpiCard(_belTag0(r) >= 0 ? 'Dein Überschuss / Monat' : 'Deine Belastung / Monat', fmtEurMo(_belTag0(r)),
+      'Was Dir ab Tag 1 monatlich aus der Tasche geht oder bleibt (heutiger Vertragszustand). Deine Mieten + Subvention − Annuität − Rücklage − Hausverwaltung − Mietverwaltung + Dein Steuervorteil. Positiv = Cashflow positiv für Dich (= Überschuss).', cls(_belTag0(r))),
     kpiCard('Deine EK-Rendite (IRR) 10 J.', fmtPct(r.irr),
       'Interner Zinsfuß auf Dein eingesetztes EK über 10 Jahre inkl. Exit-Erlös. Berücksichtigt: Dein eingesetztes EK, Deine jährlichen Cashflows, Dein Verkaufserlös nach §23-EStG-Frist.'),
     // Iter 67 (20.05.2026): „Gesamtvermögen 10 J." raus, stattdessen Bruttorendite.
@@ -3517,14 +3525,11 @@ function renderStories(r) {
   const subvJ1Mo = ((Array.isArray(i.subventionPhasen) && i.subventionPhasen[0] && i.subventionPhasen[0].monate >= 1)
     ? i.subventionPhasen[0].mo
     : (i.subventionMo || 0)) * _sfStory;
+  // Review/Edgar 03.06.2026: Ist-Darstellung durchgängig Tag 0 — Total = Summe der Tag-1-Aufschlüsselung
+  // (kein Jahres-Mittel-Drift mehr). Die Mietsteigerung erscheint in der 10-Jahres-Projektion, nicht hier.
   const tag1Sum = kaltmieteJ1Mo + stellplatzMieteJ1Mo + subvJ1Mo;
-  const j1Mean = r.mieteJ1Mo || 0;
-  const hatDrift = Math.abs(tag1Sum - j1Mean) > 1; // > 1 € Drift → Hinweis zeigen
-  const driftHint = hatDrift
-    ? ` <span class="text-tertiary text-small" title="Tag-1-Summe ${fmtEurMo(tag1Sum)}/Mo. Total = Jahres-Mittel inkl. Subv-Glättung über Phasen-Monate.">(Tag 1)</span>`
-    : '';
   const mieteAufschluesselung = `
-    <tr><td>· davon Deine Kaltmiete Wohnung${driftHint}</td><td class="num pos">+ ${fmtEurMo(kaltmieteJ1Mo)}</td></tr>
+    <tr><td>· davon Deine Kaltmiete Wohnung</td><td class="num pos">+ ${fmtEurMo(kaltmieteJ1Mo)}</td></tr>
     ${stellplatzMieteJ1Mo > 0 ? `<tr><td>· davon Deine Stellplatz-/Garagenmiete</td><td class="num pos">+ ${fmtEurMo(stellplatzMieteJ1Mo)}</td></tr>` : ''}
     ${subvJ1Mo > 0 ? `<tr><td>· davon Deine Mietsubvention${(Array.isArray(i.subventionPhasen) && i.subventionPhasen.length >= 2) ? ' (Phase 1)' : ''}</td><td class="num pos">+ ${fmtEurMo(subvJ1Mo)}</td></tr>` : ''}
   `;
@@ -3533,14 +3538,14 @@ function renderStories(r) {
     <div class="story-grid">
       <table class="story-table">
         <thead><tr><th>Position</th><th class="num">€/Monat</th></tr></thead>
-        <tr><td><strong>Deine Mieteinnahmen gesamt Jahr 1</strong>${hatDrift ? ' <span class="text-tertiary text-small" title="Jahres-Durchschnitt aus 12 Monaten — Subv-Phasen sind über die Vereinbarungs-Monate geglättet">(Ø Jahres-Mittel)</span>' : ''}</td><td class="num pos"><strong>+ ${fmtEurMo(j1Mean)}</strong></td></tr>
+        <tr><td><strong>Deine Mieteinnahmen gesamt</strong></td><td class="num pos"><strong>+ ${fmtEurMo(tag1Sum)}</strong></td></tr>
         ${mieteAufschluesselung}
         <tr><td>Deine Annuität an die Bank</td><td class="num neg">− ${fmtEurMo(r.annuityMo || 0)}</td></tr>
         <tr><td>Rücklage</td><td class="num neg">− ${fmtEurMo(r.hausgeldNurMo || 0)}</td></tr>
         <tr><td>Mietverwaltung (SEV)</td><td class="num neg">− ${fmtEurMo(r.mietverwaltungMo || 0)}</td></tr>
         <tr><td>Hausverwaltung (WEG)</td><td class="num neg">− ${fmtEurMo(r.hausverwaltungMo || 0)}</td></tr>
-        <tr><td>Dein Steuervorteil (AfA + Zinsen + MV + HV)</td><td class="num pos">+ ${fmtEurMo(r.stVorteilJ1Mo || 0)}</td></tr>
-        <tr class="totalrow"><td><strong>Deine effektive Belastung Jahr 1</strong></td><td class="num"><strong>${fmtEurMo(r.belastungMo)}</strong></td></tr>
+        <tr><td>Dein Steuervorteil (AfA + Zinsen + MV + HV)</td><td class="num pos">+ ${fmtEurMo(_stVorteilTag0(r))}</td></tr>
+        <tr class="totalrow"><td><strong>Deine effektive Belastung pro Monat</strong></td><td class="num"><strong>${fmtEurMo(_belTag0(r))}</strong></td></tr>
       </table>
       <div class="story-explain">
         Die <strong>ehrliche monatliche Zahl</strong>, die Du einplanst (oder die Dir bleibt, wenn positiv).
@@ -3883,9 +3888,12 @@ function renderStoryPremium(r) {
   // obwohl Belastung negativ war. Jetzt gegen alle laufenden Kosten.
   const laufendeKostenMo = (r.annuityMo || 0) + (r.hausgeldNurMo || 0)
     + (r.hausverwaltungMo || 0) + (r.mietverwaltungMo || 0);
-  const einnahmenMo = (r.mieteJ1Mo || 0) + (r.stVorteilJ1Mo || 0);
+  // Review/Edgar 03.06.2026: Selbsttragung aus Tag-0-Werten (heutiger Vertragszustand, keine Projektion).
+  const einnahmenMo = _mieteTag0(r) + _stVorteilTag0(r);
+  // Bei negativer Belastung NIE auf 100 % runden — sonst "trägt sich zu 100 % selbst" UND
+  // gleichzeitig eine Eigenleistung = Widerspruch (Edgar-Befund bei break-even/positivem CF).
   const selbsttragungPct = laufendeKostenMo > 0
-    ? Math.min(100, Math.round(einnahmenMo / laufendeKostenMo * 100))
+    ? Math.min(_belTag0(r) >= 0 ? 100 : 99, Math.round(einnahmenMo / laufendeKostenMo * 100))
     : 0;
 
   // QA-Fix 2026-05-22 (Phase-3a K1): KNK-Anzeige zeigt jetzt den echten KNK-Betrag
@@ -4081,13 +4089,13 @@ function renderStoryPremium(r) {
       <div class="kalk-c-section-head">
         <div class="kalk-c-left">
           <div class="kalk-c-section-num">02 · Die nächsten zehn Jahre</div>
-          <h2 class="kalk-c-section-title">Effektive Belastung im ersten Jahr: ${fmtEurMo(r.belastungMo)}.</h2>
+          <h2 class="kalk-c-section-title">${_belTag0(r) >= 0 ? `Dein Überschuss ab Tag 1: +${fmtEurMo(_belTag0(r))}.` : `Effektive Belastung ab Tag 1: ${fmtEurMo(_belTag0(r))}.`}</h2>
         </div>
         <div class="kalk-c-right">
-          ${r.belastungMo >= 0
+          ${_belTag0(r) >= 0
             ? 'Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst. Was bleibt, ist ein monatlicher Überschuss.'
             : (selbsttragungPct >= 95
-              ? `Die Wohnung trägt sich zu rund ${selbsttragungPct} % selbst — die fehlenden ${100 - selbsttragungPct} % leistest Du als monatliche Eigenleistung von ${fmtEurMo(Math.abs(r.belastungMo))}, die mit jedem Jahr kleiner wird.`
+              ? `Die Wohnung trägt sich zu rund ${selbsttragungPct} % selbst — die fehlenden ${100 - selbsttragungPct} % leistest Du als monatliche Eigenleistung von ${fmtEurMo(Math.abs(_belTag0(r)))}, die mit jedem Jahr kleiner wird.`
               : 'Die Wohnung trägt einen Teil der laufenden Kosten selbst. Die verbleibende monatliche Eigenleistung schrumpft Jahr für Jahr durch Mietsteigerung und Tilgung.')}
         </div>
       </div>
@@ -4098,12 +4106,12 @@ function renderStoryPremium(r) {
           <div id="chart-c-belastung-events" class="kalk-c-chart-events"></div>
         </div>
         <div class="kalk-c-col-text">
-          <p class="kalk-c-lead">Eine Annuität von ${fmtEurMo(r.annuityMo)} steht Mieteinnahmen von ${fmtEurMo(r.mieteJ1Mo)} gegenüber. Dein Steuervorteil${(r.mietsubventionGesamt && r.mietsubventionGesamt > 0) ? ' und in den ersten Jahren eine vereinbarte Mietsubvention glätten' : ' glättet'} die Anlaufphase.</p>
-          <p>${r.belastungMo >= 0
-            ? `Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst — Miete und Steuervorteil decken alle laufenden Kosten und liefern einen monatlichen Überschuss von ${fmtEurMo(r.belastungMo)}.`
+          <p class="kalk-c-lead">Eine Annuität von ${fmtEurMo(r.annuityMo)} steht Mieteinnahmen von ${fmtEurMo(_mieteTag0(r))} gegenüber. Dein Steuervorteil${(r.mietsubventionGesamt && r.mietsubventionGesamt > 0) ? ' und in den ersten Jahren eine vereinbarte Mietsubvention glätten' : ' glättet'} die Anlaufphase.</p>
+          <p>${_belTag0(r) >= 0
+            ? `Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst — Miete und Steuervorteil decken alle laufenden Kosten und liefern einen monatlichen Überschuss von ${fmtEurMo(_belTag0(r))}.`
             : `Die Wohnung trägt sich zu rund ${selbsttragungPct} % selbst — Miete plus Steuervorteil decken den Großteil der laufenden Kosten (Annuität + Rücklage + Verwaltung). Den Rest leistest Du als monatliche Eigenleistung.`}</p>
-          ${r.belastungMo < 0 ? `<p>${crossoverSatz}: Die Wohnung beginnt, einen monatlichen Überschuss zu liefern, während Deine Annuität konstant bleibt.</p>` : ''}
-          <div class="kalk-c-meta-line">Annuität ${fmtEurMo(r.annuityMo)} · Steuervorteil ${fmtEurMo(r.stVorteilJ1Mo)}</div>
+          ${_belTag0(r) < 0 ? `<p>${crossoverSatz}: Die Wohnung beginnt, einen monatlichen Überschuss zu liefern, während Deine Annuität konstant bleibt.</p>` : ''}
+          <div class="kalk-c-meta-line">Annuität ${fmtEurMo(r.annuityMo)} · Steuervorteil ${fmtEurMo(_stVorteilTag0(r))}</div>
         </div>
       </div>
     </section>
@@ -4667,7 +4675,7 @@ function renderStoryPremium(r) {
 // Sprüngen (enges Punkte-Paar am echten Monat) — statt der eckigen 120-Punkte-Treppe.
 // Ereignis-Marker: Mieterhöhung, Subventions-Höhe zum Start, Subventions-Stufen, -Ende.
 // x = Monat (0..120), lineare Achse. Kein Engine-Eingriff.
-function _belastungSeries(mo) {
+function _belastungSeries(mo, belTag0) {
   const vals = mo.map(c => Math.round(c.cfNachStM));
   const subv = mo.map(c => c.subvM || 0);
   const miete = mo.map(c => c.kaltmieteM || 0);
@@ -4676,7 +4684,12 @@ function _belastungSeries(mo) {
   const STEP = 8;        // €/Mo: Schwelle für Mieterhöhungs-/Subv-Stufen-Marker (Mini-Rauschen aus)
 
   // Stützpunkte: glatte Kurve, scharfer Knick nur an großen Sprüngen
-  const points = [{ x: 0, y: vals[0] }]; // J0 = heutiger Start
+  // J0 = heutiger Start = Tag-0-Belastung (Vertragszustand, OHNE projizierte Erhöhung). Fallback
+  // auf Monat-1-cfNachStM, falls kein Tag-0-Wert übergeben wurde (alte Aufrufer/Snapshots).
+  const startY = (belTag0 != null && isFinite(belTag0)) ? Math.round(belTag0) : vals[0];
+  const points = [{ x: 0, y: startY }];
+  // sichtbarer Übergang Tag 0 -> Monat 1, falls eine fällige Mietsteigerung in Monat 1 vorgezogen wird
+  if (Math.abs(vals[0] - startY) >= 1) points.push({ x: 1, y: vals[0] });
   const pushP = (x, y) => { if (points[points.length - 1].x !== x) points.push({ x, y }); };
   for (let i = 1; i < n; i++) {
     if (Math.abs(vals[i] - vals[i - 1]) >= JUMP) {
@@ -4728,12 +4741,12 @@ function _drawCMagazinCharts(r) {
     const mo = (r.cfMonate && r.cfMonate.length) ? r.cfMonate : null;
     let belPoints, belEvents = [];
     if (mo) {
-      const series = _belastungSeries(mo);
+      const series = _belastungSeries(mo, _belTag0(r));
       belPoints = series.points;
       belEvents = series.events;
     } else {
       // Fallback (alte Snapshots ohne cfMonate): Jahres-Aggregat auf Monats-x (J0..J10)
-      belPoints = [{ x: 0, y: Math.round(r.cf[0].cfJahr / 12) }]
+      belPoints = [{ x: 0, y: Math.round(_belTag0(r)) }]
         .concat(r.cf.slice(0, 10).map((c, j) => ({ x: (j + 1) * 12, y: Math.round(c.cfJahr / 12) })));
     }
     const evMiete = '#B08A4D', evSubv = '#9A3E33';

@@ -67,7 +67,7 @@
 
     const monatlich = [
       ['Annuität', eurMo(r.annuityMo), 'Darlehen × (Zins + Tilgung) / 12'],
-      ['Belastung gesamt', eurMo(r.belastungMo), 'Annuität + Hausgeld eff.'],
+      ['Belastung gesamt', eurMo(r.belastungTag0Mo != null ? r.belastungTag0Mo : r.belastungMo), 'Miete + Steuervorteil − Annuität − Hausgeld eff. (Tag 1, heutiger Vertragszustand)'],
       ['Hausgeld effektiv', eurMo(r.hausgeldEffMo), 'Hausgeld + Mietverwaltung + Hausverwaltung'],
       ['Mietsubvention (Summe)', eur(r.mietsubventionGesamt), 'B&B-Glättung über Subv-Phasen'],
       ['Steuervorteil Jahr 1', eurMo(r.stVorteilJ1Mo), 'steuerl. Verlust × Steuersatz / 12'],

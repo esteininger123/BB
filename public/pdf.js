@@ -149,19 +149,18 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const nettoPositivAbStart = nettoCrossoverIdx === 0;
   const v10 = r.vermoegen[10] || {};
   const sparen10 = r.sparen[10] || {};
-  const _mieteTag1Mo = (r.mieteTag1Mo != null) ? r.mieteTag1Mo : (i.kaltmiete || 0);
-  // Review-Fix: echter Monat-1-Steuervorteil (cfMonate[0].stVorteilM) statt Jahres-Durchschnitt
-  // (stVorteilJ1Mo). So rechnet der ganze Seite-2-Block konsistent auf Tag 1 / Monat 1. Fallback
-  // auf das Jahres-Mittel, falls cfMonate (z.B. Alt-Snapshot) nicht vorliegt.
-  const _stVorteilTag1Mo = (Array.isArray(r.cfMonate) && r.cfMonate[0] && isFinite(r.cfMonate[0].stVorteilM))
-    ? r.cfMonate[0].stVorteilM : (r.stVorteilJ1Mo || 0);
+  // Jahr-0 / Tag-1 Ist-Snapshot aus der Engine: heutiger Vertragszustand OHNE projizierte
+  // Mietsteigerung. Wichtig: NICHT cfMonate[0] verwenden — das zieht eine fällige Erhöhung
+  // schon in Monat 1 vor (z.B. Staffel 750->773, Sprung 540->621). Fallback für Alt-Snapshots.
+  const _mieteTag1Mo = (r.mieteTag0Mo != null) ? r.mieteTag0Mo : ((r.mieteTag1Mo != null) ? r.mieteTag1Mo : (i.kaltmiete || 0));
+  const _stVorteilTag1Mo = (r.stVorteilTag0Mo != null) ? r.stVorteilTag0Mo : (r.stVorteilJ1Mo || 0);
   // Iter 91.2: Selbsttragung gegen ALLE laufenden Kosten (Annuität + HG + HV + MV),
   // gecappt auf 100 % — vorher konnte > 100 % zeigen obwohl Belastung negativ war.
   const laufendeKostenMo = (r.annuityMo || 0) + (r.hausgeldNurMo || 0)
     + (r.hausverwaltungMo || 0) + (r.mietverwaltungMo || 0);
   const einnahmenMo = (_mieteTag1Mo || 0) + (_stVorteilTag1Mo || 0);
   const selbsttragungPct = laufendeKostenMo > 0
-    ? Math.min(100, Math.round(einnahmenMo / laufendeKostenMo * 100))
+    ? Math.min(einnahmenMo >= laufendeKostenMo ? 100 : 99, Math.round(einnahmenMo / laufendeKostenMo * 100))
     : 0;
   // Review-Fix (Rundung): Belastung aus den GERUNDETEN Anzeige-Zeilen bilden, damit die vier
   // sichtbaren Monats-Zeilen auf Seite 2 exakt auf den Belastungs-Saldo aufgehen (kein ±1-€-Drift).
