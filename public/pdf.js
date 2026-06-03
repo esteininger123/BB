@@ -150,16 +150,26 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const v10 = r.vermoegen[10] || {};
   const sparen10 = r.sparen[10] || {};
   const _mieteTag1Mo = (r.mieteTag1Mo != null) ? r.mieteTag1Mo : (i.kaltmiete || 0);
+  // Review-Fix: echter Monat-1-Steuervorteil (cfMonate[0].stVorteilM) statt Jahres-Durchschnitt
+  // (stVorteilJ1Mo). So rechnet der ganze Seite-2-Block konsistent auf Tag 1 / Monat 1. Fallback
+  // auf das Jahres-Mittel, falls cfMonate (z.B. Alt-Snapshot) nicht vorliegt.
+  const _stVorteilTag1Mo = (Array.isArray(r.cfMonate) && r.cfMonate[0] && isFinite(r.cfMonate[0].stVorteilM))
+    ? r.cfMonate[0].stVorteilM : (r.stVorteilJ1Mo || 0);
   // Iter 91.2: Selbsttragung gegen ALLE laufenden Kosten (Annuität + HG + HV + MV),
   // gecappt auf 100 % — vorher konnte > 100 % zeigen obwohl Belastung negativ war.
   const laufendeKostenMo = (r.annuityMo || 0) + (r.hausgeldNurMo || 0)
     + (r.hausverwaltungMo || 0) + (r.mietverwaltungMo || 0);
-  const einnahmenMo = (_mieteTag1Mo || 0) + (r.stVorteilJ1Mo || 0);
+  const einnahmenMo = (_mieteTag1Mo || 0) + (_stVorteilTag1Mo || 0);
   const selbsttragungPct = laufendeKostenMo > 0
     ? Math.min(100, Math.round(einnahmenMo / laufendeKostenMo * 100))
     : 0;
-  // Tag-0-Belastung = Summe der 4 angezeigten Monats-Zeilen (Edgar: Jahr 0 auf Seite 2).
-  const belastungTag1Mo = einnahmenMo - laufendeKostenMo;
+  // Review-Fix (Rundung): Belastung aus den GERUNDETEN Anzeige-Zeilen bilden, damit die vier
+  // sichtbaren Monats-Zeilen auf Seite 2 exakt auf den Belastungs-Saldo aufgehen (kein ±1-€-Drift).
+  const _mieteTag1Disp = Math.round(_mieteTag1Mo || 0);
+  const _stVorteilTag1Disp = Math.round(_stVorteilTag1Mo || 0);
+  const _annuTag1Disp = Math.round(r.annuityMo || 0);
+  const _rueckVerwTag1Disp = Math.round((r.hausgeldNurMo || 0) + (r.hausverwaltungMo || 0) + (r.mietverwaltungMo || 0));
+  const belastungTag1Mo = _mieteTag1Disp + _stVorteilTag1Disp - _annuTag1Disp - _rueckVerwTag1Disp;
   const marktQm = parseFloat(i.marktwertProQm) || 0;
   const kpQm = r.kaufpreisProQm || 0;
 
@@ -396,7 +406,9 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const cashflowRows = r.cf.slice(0, 10).map(c => {
     const ein = Math.round((c.mieteJahr + c.stVorteilJahr) / 12);
     const aus = Math.round((c.annuJahr + c.hgJahr) / 12);
-    const ueb = Math.round(c.cfJahr / 12);
+    // Review-Fix: Überschuss aus den gerundeten Spalten ableiten — sonst kann
+    // Einnahmen − Ausgaben um ±1 € vom separat gerundeten cfJahr/12 abweichen.
+    const ueb = ein - aus;
     const cls = ueb >= 0 ? 'pdf-c-pos' : 'pdf-c-neg';
     return `<tr><td>${c.y}</td><td class="r">${ein.toLocaleString('de-DE')} €</td><td class="r">${aus.toLocaleString('de-DE')} €</td><td class="r ${cls}">${ueb > 0 ? '+' : ''}${ueb.toLocaleString('de-DE')} €</td></tr>`;
   }).join('');
@@ -444,7 +456,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <div class="pdf-c-obj-row"><span class="k">Adresse</span><span class="v">${esc(projekt || i._weLage || '—')}</span></div>
           ${i._weNr ? `<div class="pdf-c-obj-row"><span class="k">Wohneinheit</span><span class="v">${esc(i._weNr)}</span></div>` : ''}
           <div class="pdf-c-obj-row"><span class="k">Wohnfläche</span><span class="v">${(i.qm || 0).toLocaleString('de-DE')}<span class="unit">qm</span></span></div>
-          <div class="pdf-c-obj-row"><span class="k">Kaltmiete (Tag 1)</span><span class="v">${_eur0(i.kaltmiete)}<span class="unit">€/Mo</span></span></div>
+          <div class="pdf-c-obj-row"><span class="k">Kaltmiete lt. Vertrag</span><span class="v">${_eur0(i.kaltmiete)}<span class="unit">€/Mo</span></span></div>
           ${i._objektvorstellungLink ? `<div class="pdf-c-obj-row is-link"><span class="k">Objektvorstellung</span><span class="v"><a href="${esc(i._objektvorstellungLink)}" target="_blank" rel="noopener">Objekt online ansehen ↗</a></span></div>` : ''}
 
           <h4>Kaufpreis</h4>
@@ -461,15 +473,15 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         </div>
         <div class="pdf-c-p2-right">
           <h4 style="font-size:8.5pt;letter-spacing:.14em;text-transform:uppercase;color:#7A7A72;margin:0 0 2mm;">So rechnet sich der Monat (Tag 1)</h4>
-          <div class="pdf-c-obj-row"><span class="k">Mieteinnahme (Tag 1)</span><span class="v pdf-c-pos">+ ${_eur0(_mieteTag1Mo)} €</span></div>
-          <div class="pdf-c-obj-row"><span class="k">Steuervorteil</span><span class="v pdf-c-pos">+ ${_eur0(r.stVorteilJ1Mo)} €</span></div>
-          <div class="pdf-c-obj-row"><span class="k">Annuität (Zins + Tilgung)</span><span class="v pdf-c-neg">− ${_eur0(r.annuityMo)} €</span></div>
-          <div class="pdf-c-obj-row"><span class="k">Rücklage + Verwaltung</span><span class="v pdf-c-neg">− ${_eur0((r.hausgeldNurMo||0) + (r.hausverwaltungMo||0) + (r.mietverwaltungMo||0))} €</span></div>
+          <div class="pdf-c-obj-row"><span class="k">Mieteinnahme (Tag 1)</span><span class="v pdf-c-pos">+ ${_eur0(_mieteTag1Disp)} €</span></div>
+          <div class="pdf-c-obj-row"><span class="k">Steuervorteil</span><span class="v pdf-c-pos">+ ${_eur0(_stVorteilTag1Disp)} €</span></div>
+          <div class="pdf-c-obj-row"><span class="k">Annuität (Zins + Tilgung)</span><span class="v pdf-c-neg">− ${_eur0(_annuTag1Disp)} €</span></div>
+          <div class="pdf-c-obj-row"><span class="k">Rücklage + Verwaltung</span><span class="v pdf-c-neg">− ${_eur0(_rueckVerwTag1Disp)} €</span></div>
           <div class="pdf-c-obj-row" style="border-top:1.2px solid #1A1A17;"><span class="k" style="font-weight:600;color:#1A1A17;">Effektive Belastung / Mo</span><span class="v ${belastungTag1Mo >= 0 ? 'pdf-c-pos' : 'pdf-c-neg'}" style="font-weight:600;">${belastungTag1Mo > 0 ? '+ ' : (belastungTag1Mo < 0 ? '− ' : '')}${_eur0(Math.abs(belastungTag1Mo))} €</span></div>
-          <p class="narrative" style="font-size:8pt;margin-top:3mm;">Effektiv = was Dich der Monat nach Miete und Steuervorteil wirklich kostet. Die Mieteinnahme ist die am Kauftag vereinbarte Kaltmiete. Wie sich das über die Jahre entwickelt, siehst Du auf der nächsten Seite.</p>
+          <p class="narrative" style="font-size:8pt;margin-top:3mm;">Effektiv = was Dich der Monat nach Miete und Steuervorteil wirklich kostet. Die Mieteinnahme umfasst die Kaltmiete und — falls vereinbart — Stellplatzmiete und Mietsubvention im Startmonat. Diese Seite zeigt den Startmonat (Monat 1); wie sich die Belastung über die Jahre entwickelt, siehst Du auf der nächsten Seite.</p>
         </div>
       </div>
-      <div class="pdf-c-page-foot"><div>01 · Eckdaten &amp; Plan</div><div class="pdf-c-page-num">Seite 2 von 9</div></div>
+      <div class="pdf-c-page-foot"><div>01 · Das Objekt &amp; Der Plan</div><div class="pdf-c-page-num">Seite 2 von 9</div></div>
     </div>
   `;
 
@@ -483,7 +495,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <div style="margin:6mm 0 4mm;">${_cfChartSvg(r.cf, crossoverJahr)}</div>
       <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:12mm;margin-top:4mm;">
         <div>
-          <div style="font-size:8pt;color:#7A7A72;margin-bottom:1.5mm;">Werte je Monat · Annuität konstant · Steuervorteil und Mietsubvention enthalten</div>
+          <div style="font-size:8pt;color:#7A7A72;margin-bottom:1.5mm;">Werte je Monat im Jahresdurchschnitt · Annuität konstant · Steuervorteil und Mietsubvention enthalten</div>
           <table class="pdf-c-p2-belastung-table">
             <thead><tr><th>Jahr</th><th class="r">Einnahmen</th><th class="r">Ausgaben</th><th class="r">Überschuss</th></tr></thead>
             <tbody>${cashflowRows}</tbody>
@@ -561,7 +573,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
         <div class="pdf-c-p4-delta">${_spDeltaVz}<span class="num">${fmt(r.sparenVsKaufenDelta)}</span><br><span style="font-size:11pt;letter-spacing:.18em;text-transform:uppercase;color:#7A7A72;font-weight:500;display:inline-block;margin-top:4mm">${_spDeltaLabel}</span></div>
         <p class="pdf-c-p4-sub">${fmt(r.ekBedarf)} auf einem Sparbuch zu ${((i.sparZins || 0.025) * 100).toFixed(2).replace('.', ',')} % p.a. wären in zehn Jahren auf rund ${fmt(sparen10.nurSparen)} gewachsen. Dasselbe Eigenkapital, in den Sachwert Immobilie investiert, kommt auf ${fmt(sparen10.mitImmo)}. Die Differenz von ${fmt(r.sparenVsKaufenDelta)} ${_spDeltaPos ? 'ist der reine Sachwert-Vorteil' : 'zeigt, dass dieses Szenario unter Sparbuch-Niveau bleibt — Wertsteigerungs- oder Mietsteigerungs-Annahmen prüfen'}.</p>
       </div>
-      <div class="pdf-c-page-foot"><div>04 · Im Vergleich</div><div class="pdf-c-page-num">Seite 5 von 9</div></div>
+      <div class="pdf-c-page-foot"><div>04 · Die Alternative</div><div class="pdf-c-page-num">Seite 5 von 9</div></div>
     </div>
   `;
 
@@ -797,7 +809,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <p class="pdf-c-disclaimer" style="font-size:7pt;line-height:1.45;margin-top:6mm;">
         Diese Investitionsrechnung beruht auf den dokumentierten Annahmen. Keine Anlageberatung im Sinne des WpHG. Vermittlung im Rahmen einer Erlaubnis nach § 34c GewO. Verbindlich ist ausschließlich der notarielle Kaufvertrag. Steuerliche Aspekte (insb. AfA-Rechtsgrundlage und ‑Bemessung) sind mit Deinem Steuerberater abzustimmen. Wertsteigerung und Mietsteigerung sind langfristige Modell-Annahmen; tatsächliche Werte können abweichen. „Modellwert J10" ist eine rechnerische Hochrechnung (Kaufpreis × Wertsteigerung) und kein gutachterlicher Verkehrswert i.S.d. § 194 BauGB. Der Sparbuch-Vergleich rechnet Brutto-Renditen (vor Abgeltungssteuer); die Immobilien-Rendite enthält den persönlichen Steuervorteil. Für die Finanzierungs-Vermittlung berechnen wir Dir keine Provision; eventuelle Bank-Vermittlungs-Provisionen fließen in die Kondition ein. Die 80&nbsp;%-Mietanrechnung entspricht dem Standard unserer Partnerbanken; andere Banken können abweichen.
       </p>
-      <div class="pdf-c-page-foot"><div>08 · Brot &amp; Butter</div><div class="pdf-c-page-num">Seite 9 von 9</div></div>
+      <div class="pdf-c-page-foot"><div>08 · Wer wir sind</div><div class="pdf-c-page-num">Seite 9 von 9</div></div>
     </div>
   `;
 

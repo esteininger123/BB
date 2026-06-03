@@ -21,7 +21,12 @@ module.exports = async (req, res) => {
   const body = await readBody(req);
   const frage = (body && typeof body.frage === 'string') ? body.frage.slice(0, 4000) : '';
   if (!frage.trim()) return res.status(400).json({ error: 'Keine Frage übergeben.' });
-  const verlauf = Array.isArray(body.verlauf) ? body.verlauf : [];
+  // Verlauf vom Client normalisieren: nur gültige Rollen, String-Content, begrenzt auf die
+  // letzten 10 Einträge und je 4000 Zeichen — bevor irgendwas an die Anthropic-API geht.
+  const verlauf = (Array.isArray(body.verlauf) ? body.verlauf : [])
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .slice(-10)
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
   const kontext = (body && typeof body.kontext === 'object') ? body.kontext : null;
 
   const { system, messages } = buildAssistentRequest({ brief: WISSEN, kontext, verlauf, frage });
@@ -50,6 +55,7 @@ module.exports = async (req, res) => {
   const reader = upstream.body.getReader();
   const decoder = new TextDecoder();
   let buf = '';
+  let abgebrochen = false;
   try {
     while (true) {
       const { value, done } = await reader.read();
@@ -71,7 +77,10 @@ module.exports = async (req, res) => {
       }
     }
   } catch (e) {
-    // Stream brach ab — sauber beenden, Client hat Teiltext.
+    abgebrochen = true; // Upstream-Stream brach mitten in der 200-Antwort ab — Client hat nur Teiltext.
   }
+  // Abbruch-Sentinel ␞ (U+241E) anhängen: der Client erkennt daran, dass die Antwort
+  // unvollständig ist, zeigt einen Hinweis und nimmt sie NICHT in den Gesprächsverlauf auf.
+  if (abgebrochen) { try { res.write('␞'); } catch (e) {} }
   res.end();
 };

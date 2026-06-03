@@ -12,6 +12,16 @@
 //   - Wesseling WE8 (42%-Profil)
 //   - Wesseling WE8 (KNK mitfinanziert, 4,8% Zins)
 //
+// IRR-Re-Baseline 03.06.2026: Die IRR-Erwartungswerte wurden 24.05. festgezurrt,
+// einen Tag BEVOR Commit be11ae1d (FS-3a, 25.05. 01:03) den Exit-Wert der IRR-Reihe
+// korrigierte (irrSeries-Endglied = cf[9]+verkaufserloes statt zu niedrigem Altwert;
+// vorher: Einzel-IRR systematisch zu niedrig, inkonsistent mit Paket-IRR/vermoegenNetto10).
+// Die alten IRR-Werte (12,80 / 6,33 / 23,79 / 16,50 %) waren damit arithmetisch
+// inkonsistent mit den — im selben Test geprüften und unverändert grünen — Cashflows:
+// der NPV der Reihe ist bei der neuen IRR exakt 0, bei der alten deutlich > 0.
+// Neu festgezogen auf die NPV-verifizierten Engine-Werte. Die Live-App zeigte schon
+// seit FS-3a die korrekten (höheren) IRRs — nur dieser Test hing hinterher.
+//
 // Run: node --test tests/kalk.snapshot.test.js
 // Run alle: npm test
 
@@ -62,7 +72,7 @@ test('Wesseling WE8, Standard-Profil 30%', () => {
   near(r.cf[9].cfJahr, 759.97, 'cf Jahr 10');
   nearEur(r.vermoegenBrutto10, 53256, 'vermoegenBrutto10');
   nearEur(r.vermoegenNetto10, 41426, 'vermoegenNetto10');
-  near(r.irr * 100, 12.80, 'irr (%)');
+  near(r.irr * 100, 14.26, 'irr (%) — NPV-verifiziert nach FS-3a-Exit-Fix');
 });
 
 test('Bruchsal WE1, Standard-Profil 30%', () => {
@@ -75,7 +85,7 @@ test('Bruchsal WE1, Standard-Profil 30%', () => {
   near(r.cf[0].cfJahr, -6293.88, 'cf Jahr 1 (deutlich negativ — kleine Miete)');
   nearEur(r.vermoegenBrutto10, 69340, 'vermoegenBrutto10');
   nearEur(r.vermoegenNetto10, 50650, 'vermoegenNetto10');
-  near(r.irr * 100, 6.33, 'irr (%)');
+  near(r.irr * 100, 8.26, 'irr (%) — NPV-verifiziert nach FS-3a-Exit-Fix');
 });
 
 test('Wesseling WE12 (mit Subvention), Standard-Profil 30%', () => {
@@ -89,7 +99,7 @@ test('Wesseling WE12 (mit Subvention), Standard-Profil 30%', () => {
   // Hinweis Iter-91.5: mietsubventionGesamt-Logik mit Marktmiete-Cap.
   nearEur(r.vermoegenBrutto10, 126992, 'vermoegenBrutto10 (mit Marktwert + Wertsteigerung)');
   nearEur(r.vermoegenNetto10, 116842, 'vermoegenNetto10');
-  near(r.irr * 100, 23.79, 'irr (%) — Top-IRR durch Marktwert-Aufschlag');
+  near(r.irr * 100, 24.84, 'irr (%) — Top-IRR durch Marktwert-Aufschlag (NPV-verifiziert, FS-3a)');
 });
 
 test('Wesseling WE8 — Profil 42% (Spitzensteuer)', () => {
@@ -97,7 +107,7 @@ test('Wesseling WE8 — Profil 42% (Spitzensteuer)', () => {
   near(r.kpGesamt, 169000, 'kpGesamt');
   near(r.belastungMo, 17.92, 'belastungMo (jetzt positiv — höherer Steuervorteil)');
   near(r.cf[0].cfJahr, 215.02, 'cf Jahr 1 (positiv)');
-  near(r.irr * 100, 16.50, 'irr (%)');
+  near(r.irr * 100, 17.84, 'irr (%) — NPV-verifiziert nach FS-3a-Exit-Fix');
 });
 
 test('Wesseling WE8 — KNK mitfinanziert, 4,8% Zins', () => {
@@ -151,10 +161,15 @@ test('Sensitivitäts-Matrix: 5×4-Raster, Wesseling WE8', () => {
   // Basis-Zelle (0Mo Leerstand, 0% Zins-Delta) muss zur normalen recalc passen.
   const baseCell = m.cells[0][1];
   near(baseCell.cfJ1, -665.12, 'Basis-Zelle CF Jahr 1 = normal recalc');
-  // Worst-Cell (3Mo, +2%) muss deutlich schlechter sein.
+  // Worst-Cell (3Mo Leerstand, +2% Zins) muss deutlich schlechter sein.
+  // Re-Baseline 03.06.2026: Nach dem FS-3a-Exit-Fix liegt die Basis-IRR bei ~14%; die
+  // Worst-Cell bricht auf ~1,7% ein — durch Hebel + Wertsteigerung am Exit knapp positiv,
+  // nicht mehr negativ (die alte „< 0"-Annahme stimmte schon vor FS-3a nicht). Geprüft wird
+  // jetzt: weit unter Basis (< 40 %) statt eines fixen Vorzeichens.
   const worstCell = m.cells[3][4];
   assert.ok(worstCell.cfJ1 < -4000, 'Worst-Cell soll CF < -4000€ haben');
-  assert.ok(worstCell.irr !== null && worstCell.irr < 0, 'Worst-Cell soll negative IRR haben');
+  assert.ok(worstCell.irr !== null && worstCell.irr < baseCell.irr * 0.4,
+    `Worst-Cell-IRR soll weit unter Basis liegen (war ${worstCell.irr}, Basis ${baseCell.irr})`);
 });
 
 test('Stress-Szenario: Wesseling WE8, Worst-Default', () => {

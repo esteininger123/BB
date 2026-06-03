@@ -63,8 +63,12 @@
       }
       if (line.trim() === '') { i++; continue; }
       // Absatz
-      var para = [];
+      var startI = i, para = [];
       while (i < lines.length && lines[i].trim() !== '' && !isBlockStart(lines[i])) { para.push(inlineMd(lines[i])); i++; }
+      // Schutz gegen Nicht-Fortschritt: hat die Schleife keine Zeile konsumiert (z.B. eine Pipe-Zeile,
+      // die isBlockStart als Block wertet, aber mangels Trennzeile kein Tabellenkopf ist), die Zeile
+      // trotzdem als Text ausgeben und i zwingend erhöhen — sonst Endlosschleife → Browser friert ein.
+      if (i === startI) { out.push('<p>' + inlineMd(lines[i]) + '</p>'); i++; continue; }
       out.push('<p>' + para.join('<br>') + '</p>');
     }
     return out.join('');
@@ -115,7 +119,10 @@
     var s = window.state || {};
     var k = s.kunde || null;
     var res = s.kalkResult || null;
-    try { if (s.kalk && window.Kalk && window.Kalk.recalc) res = window.Kalk.recalc(s.kalk); } catch (e) {}
+    // recalc nur im echten Kunden-Kontext (Kunde offen + Kalk vorhanden). Sonst die bereits
+    // gerenderte state.kalkResult nehmen. Verhindert, dass auf Dashboard/WE-Liste/Admin eine
+    // Default-Kalkulation als "echte Zahlen" an Zipf gehängt wird — und spart die Berechnung dort.
+    try { if (s.view === 'kunde' && s.kalk && window.Kalk && window.Kalk.recalc) { var fresh = window.Kalk.recalc(s.kalk); if (fresh) res = fresh; } } catch (e) {}
     return {
       view: s.view || null,
       tab: s.tab || null,
@@ -204,11 +211,19 @@
         // nur mitscrollen, wenn der Nutzer ohnehin unten ist — sonst in Ruhe lesen lassen
         var atBottom = (msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight) < 60;
         voll += dec.decode(r.value, { stream: true });
-        antwort.innerHTML = renderMarkdown(voll);
+        antwort.innerHTML = renderMarkdown(voll.replace(/␞/g, ''));
         if (atBottom) msgsEl.scrollTop = msgsEl.scrollHeight;
       }
-      verlauf.push({ role: 'user', content: frage });
-      verlauf.push({ role: 'assistant', content: voll });
+      // Server hängt bei abgebrochenem Upstream-Stream ␞ (U+241E) an. Dann ist die Antwort
+      // unvollständig: Hinweis zeigen und NICHT in den Verlauf aufnehmen (sonst verfälschter Kontext).
+      var abgebrochen = voll.indexOf('␞') !== -1;
+      voll = voll.replace(/␞/g, '');
+      antwort.innerHTML = renderMarkdown(voll) +
+        (abgebrochen ? '<div style="opacity:.6;font-size:12px;margin-top:6px;">… Antwort wurde unterbrochen. Frag gern nochmal.</div>' : '');
+      if (!abgebrochen && voll.trim()) {
+        verlauf.push({ role: 'user', content: frage });
+        verlauf.push({ role: 'assistant', content: voll });
+      }
     } catch (e2) {
       antwort.textContent = 'Verbindung unterbrochen — bitte nochmal.';
     }
