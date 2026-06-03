@@ -16,25 +16,55 @@
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/`([^`]+)`/g, '<code>$1</code>');
   }
+  function splitRow(line) {
+    return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(function (c) { return c.trim(); });
+  }
+  function isBlockStart(line) {
+    return /^\s*#{1,4}\s+/.test(line) || /^\s*([-*_])\1{2,}\s*$/.test(line) ||
+           /^\s*\d+\.\s+/.test(line) || /^\s*[-*]\s+/.test(line) ||
+           /^\s*>\s?/.test(line) || /^\s*\|.*\|\s*$/.test(line);
+  }
   function renderMarkdown(text) {
     var lines = String(text).replace(/\r/g, '').split('\n');
     var out = [], i = 0, m;
     while (i < lines.length) {
-      if ((m = lines[i].match(/^\s*\d+\.\s+(.*)$/))) {
+      var line = lines[i];
+      // Trennlinie
+      if (/^\s*([-*_])\1{2,}\s*$/.test(line)) { out.push('<hr>'); i++; continue; }
+      // Überschrift
+      if ((m = line.match(/^\s*#{1,4}\s+(.*)$/))) { out.push('<div class="bb-md-h">' + inlineMd(m[1]) + '</div>'); i++; continue; }
+      // Tabelle (Kopf-Zeile + Trenn-Zeile |---|)
+      if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /-/.test(lines[i + 1]) && /^\s*\|?[\s:|-]+\|?\s*$/.test(lines[i + 1])) {
+        var header = splitRow(line); i += 2;
+        var body = '';
+        while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+          body += '<tr>' + splitRow(lines[i]).map(function (c) { return '<td>' + inlineMd(c) + '</td>'; }).join('') + '</tr>'; i++;
+        }
+        out.push('<table class="bb-md-tbl"><thead><tr>' + header.map(function (c) { return '<th>' + inlineMd(c) + '</th>'; }).join('') + '</tr></thead><tbody>' + body + '</tbody></table>');
+        continue;
+      }
+      // Zitat
+      if (/^\s*>\s?/.test(line)) {
+        var q = [];
+        while (i < lines.length && /^\s*>\s?/.test(lines[i])) { q.push(inlineMd(lines[i].replace(/^\s*>\s?/, ''))); i++; }
+        out.push('<blockquote>' + q.join('<br>') + '</blockquote>'); continue;
+      }
+      // nummerierte Liste
+      if ((m = line.match(/^\s*\d+\.\s+(.*)$/))) {
         var oli = [];
         while (i < lines.length && (m = lines[i].match(/^\s*\d+\.\s+(.*)$/))) { oli.push('<li>' + inlineMd(m[1]) + '</li>'); i++; }
         out.push('<ol>' + oli.join('') + '</ol>'); continue;
       }
-      if ((m = lines[i].match(/^\s*[-*]\s+(.*)$/))) {
+      // Aufzählung
+      if ((m = line.match(/^\s*[-*]\s+(.*)$/))) {
         var uli = [];
         while (i < lines.length && (m = lines[i].match(/^\s*[-*]\s+(.*)$/))) { uli.push('<li>' + inlineMd(m[1]) + '</li>'); i++; }
         out.push('<ul>' + uli.join('') + '</ul>'); continue;
       }
-      if (lines[i].trim() === '') { i++; continue; }
+      if (line.trim() === '') { i++; continue; }
+      // Absatz
       var para = [];
-      while (i < lines.length && lines[i].trim() !== '' && !/^\s*\d+\.\s+/.test(lines[i]) && !/^\s*[-*]\s+/.test(lines[i])) {
-        para.push(inlineMd(lines[i])); i++;
-      }
+      while (i < lines.length && lines[i].trim() !== '' && !isBlockStart(lines[i])) { para.push(inlineMd(lines[i])); i++; }
       out.push('<p>' + para.join('<br>') + '</p>');
     }
     return out.join('');
