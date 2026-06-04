@@ -75,12 +75,14 @@ module.exports = async (req, res) => {
     }
   }
 
-  // Leer-Flag (Edgar 04.06.2026): Aktive Kalk-Stammdaten, deren WE inzwischen LEER ist
-  // (Mietvertrag nicht mehr aktiv → Vermietung/Stellplatz fallen aus der Kalkulation),
-  // werden gemeldet. Erst-Lauf = nur Liste (report-only). Mit ?flagLeer=1 wird der Status
-  // zusätzlich auf Entwurf gesetzt + Notiz geschrieben — Re-Flag ausgeschlossen, weil die
-  // Zeile danach nicht mehr 'Aktiv' ist und somit nicht mehr in `aktive` landet.
-  const flagLeerSchreiben = !!(req.query && (req.query.flagLeer === '1' || req.query.flagLeer === 1));
+  // Prüf-Flag (Edgar 04.06.2026): Aktive Kalk-Stammdaten, bei denen sich der Vermietungs-Stand
+  // grob ändert, werden gemeldet — zwei Auslöser:
+  //   (a) WE ist inzwischen LEER (Mietvertrag nicht mehr aktiv) → Vermietung/Stellplatz weg.
+  //   (b) Mieter kündigt zu bekanntem künftigem Datum (Vertragsende gesetzt) → Neuvermietung steht
+  //       an, aber die Kalkulation rechnet noch mit der alten Vermietung.
+  // Erst-Lauf = nur Liste (report-only). Mit ?flagPruefen=1 wird der Status zusätzlich auf 'Entwurf'
+  // gesetzt + Notiz — Re-Flag ausgeschlossen, weil die Zeile danach nicht mehr 'Aktiv' ist.
+  const flagSchreiben = !!(req.query && (req.query.flagPruefen === '1' || req.query.flagPruefen === 1));
 
   try {
     // Iter-4: nur aktive Stammdaten neu berechnen (Vermarktungs-Liste).
@@ -107,7 +109,7 @@ module.exports = async (req, res) => {
     ]);
 
     const ergebnisse = [];
-    const leerFlags = []; // aktive Stammdaten, deren WE inzwischen leer ist
+    const pruefFlags = []; // aktive Stammdaten mit grober Vermietungs-Änderung (leer ODER bekannte Kündigung)
 
     // Sequenziell durchgehen (parallel würde Airtable-Rate-Limit reißen).
     for (const stammRec of aktive) {
@@ -164,13 +166,23 @@ module.exports = async (req, res) => {
         // Write-back (fire-and-forget, intern in maybeWriteBackAutoSubv)
         maybeWriteBackAutoSubv(kalkApi, subv);
 
-        // Leer-Flag: aktive Stammdaten-Zeile, aber WE ist jetzt leer (Mietvertrag nicht mehr aktiv).
-        if (statusFinal === 'leer') {
-          const flagEintrag = { kalkId: kalkApi.id, weId: weIdRaw, bezeichnung: kalkApi.bezeichnung, geflaggt: false };
-          if (flagLeerSchreiben) {
+        // Prüf-Flag: aktive Zeile, aber Vermietungs-Stand ändert sich grob (leer ODER bekannte Kündigung).
+        const istLeer = statusFinal === 'leer';
+        const istKuendigung = !!vertragInfo.kuendigungBekannt;
+        if (istLeer || istKuendigung) {
+          const flagEintrag = {
+            kalkId: kalkApi.id, weId: weIdRaw, bezeichnung: kalkApi.bezeichnung,
+            grund: istLeer ? 'leer' : 'kuendigung',
+            kuendigungZum: vertragInfo.kuendigungZum || null,
+            geflaggt: false,
+          };
+          if (flagSchreiben) {
             try {
               const prevNotiz = (stammRec.fields || {})[KALK_STAMMDATEN_FIELDS.NOTIZEN] || '';
-              const marker = `[Auto ${new Date().toISOString().slice(0, 10)}] Auf Entwurf gesetzt: Vermietung/Stellplatz entfallen (Mietvertrag nicht mehr aktiv) — bitte prüfen.`;
+              const heute = new Date().toISOString().slice(0, 10);
+              const marker = istLeer
+                ? `[Auto ${heute}] Auf Entwurf gesetzt: Vermietung/Stellplatz entfallen (Mietvertrag nicht mehr aktiv) — bitte prüfen.`
+                : `[Auto ${heute}] Auf Entwurf gesetzt: Mieter kündigt zum ${vertragInfo.kuendigungZum} — Neuvermietung prüfen, Zahlen aktualisieren.`;
               await airtable('update', TABLES.KALK_STAMMDATEN, {
                 recordId: kalkApi.id,
                 fields: {
@@ -183,7 +195,7 @@ module.exports = async (req, res) => {
               flagEintrag.flagFehler = e.message;
             }
           }
-          leerFlags.push(flagEintrag);
+          pruefFlags.push(flagEintrag);
         }
 
         ergebnisse.push({
@@ -221,11 +233,11 @@ module.exports = async (req, res) => {
       erfolg,
       fehler,
       veraendert,
-      // Leer-Flag-Report: WEs, die auf 'Aktiv' stehen, aber leer sind (Mietvertrag nicht mehr aktiv).
-      leerFlagsAnzahl: leerFlags.length,
-      leerFlagGeschrieben: flagLeerSchreiben, // true = Status wurde auf Entwurf gesetzt; false = nur gemeldet
-      leerFlags,
-      hinweis: 'Write-back ist fire-and-forget — die Airtable-Updates können bis zu 1-2 Sek nach dieser Response abgeschlossen sein. Leer-Flag: ohne ?flagLeer=1 nur Report, mit ?flagLeer=1 wird Status auf Entwurf gesetzt.',
+      // Prüf-Flag-Report: WEs auf 'Aktiv', deren Vermietungs-Stand sich grob ändert (leer ODER Kündigung bekannt).
+      pruefFlagsAnzahl: pruefFlags.length,
+      pruefFlagGeschrieben: flagSchreiben, // true = Status wurde auf Entwurf gesetzt; false = nur gemeldet
+      pruefFlags,
+      hinweis: 'Write-back ist fire-and-forget. Prüf-Flag: ohne ?flagPruefen=1 nur Report, mit ?flagPruefen=1 wird Status auf Entwurf gesetzt (Auslöser: WE leer ODER bekannte Kündigung/Vertragsende).',
       ergebnisse,
     });
   } catch (e) {

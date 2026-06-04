@@ -120,6 +120,7 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
         MIETVERTRAG_FIELDS.VERTRAGSBEGINN,
         MIETVERTRAG_FIELDS.GUELTIG_AB,
         MIETVERTRAG_FIELDS.VERTRAGSART,
+        MIETVERTRAG_FIELDS.VERTRAGSENDE,
       ],
     }, 5000);
 
@@ -131,6 +132,7 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
     let aktuelleKaltmieteDatum = null; // YYYY-MM-DD — zugehöriges Datum
     let vertragVorhanden = false;
     let neuStpIds = []; // Stellplatz-IDs aus "NEU: Vermieteter Stellplatz" der NICHT-archivierten Verträge
+    let kuendigungZum = null; // frühestes künftiges Vertragsende eines aktiven Vertrags (= Mieter zieht aus, bekannt)
     const zukunftsvertraege = []; // [{ datum, kaltmiete, quelle }] mit Datum > heute
     const useProRata = Array.isArray(weStpIds);
     const heuteISO = new Date().toISOString().slice(0, 10);
@@ -162,9 +164,13 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
       const istArchiviert = typeof statusName === 'string' && /archiv/i.test(statusName);
 
       vertragVorhanden = true;
-      // NEU 04.06.2026: Stellplätze des aktiven (nicht archivierten) Vertrags sammeln.
+      // NEU 04.06.2026: Stellplätze des aktiven (nicht archivierten) Vertrags sammeln + bekannte Kündigung erfassen.
       if (!istArchiviert) {
         neuStpIds = neuStpIds.concat(linkIds(f[MIETVERTRAG_FIELDS.NEU_VERMIETETER_STELLPLATZ]));
+        const vertragsende = f[MIETVERTRAG_FIELDS.VERTRAGSENDE] || null; // YYYY-MM-DD
+        if (vertragsende && vertragsende >= heuteISO && (!kuendigungZum || vertragsende < kuendigungZum)) {
+          kuendigungZum = vertragsende; // Mieter zieht zu bekanntem künftigen Datum aus -> Neuvermietung steht an
+        }
       }
       const stpl = f[MIETVERTRAG_FIELDS.STELLPLATZ_LINK];
       const stplMiete = num(f[MIETVERTRAG_FIELDS.STELLPLATZMIETE]) || 0;
@@ -280,6 +286,8 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
     return {
       stellplatzMietsumme: stplMietsumme,
       neuStellplatzIds: neuStpIds,
+      kuendigungBekannt: !!kuendigungZum,
+      kuendigungZum,
       stellplatzMietsummeNominal: stplMietsummeNominal,
       stellplatzMieteProRata: useProRata && stplMietsummeNominal !== stplMietsumme,
       stellplatzMieteJuengsterCount: jungsteStplMieteByPlatz.size,
@@ -300,6 +308,8 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
     return {
       stellplatzMietsumme: 0,
       neuStellplatzIds: [],
+      kuendigungBekannt: false,
+      kuendigungZum: null,
       stellplatzMietsummeNominal: 0,
       stellplatzMieteProRata: false,
       vertraegeMitStellplatz: 0,
@@ -1039,6 +1049,9 @@ module.exports = async (req, res) => {
         // zukünftigem GUELTIG_AB an).
         geplanteErhoehung:      vertragInfo.geplanteErhoehung || null,
         aktuelleKaltmiete:      vertragInfo.aktuelleKaltmiete || null,
+        // Bekannte Kündigung: Mieter zieht zu einem bekannten künftigen Datum aus -> Neuvermietung steht an.
+        kuendigungBekannt:      !!vertragInfo.kuendigungBekannt,
+        kuendigungZum:          vertragInfo.kuendigungZum || null,
       };
 
       // Subvention auto + Markt-Schnitt direkt vom Backend liefern
