@@ -5,6 +5,7 @@
 const { verifySession } = require('../_lib/auth');
 const { airtable, listAll } = require('../_lib/airtable');
 const { methodNotAllowed, sendError } = require('../_lib/http');
+const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
 const {
   TABLES,
   WE_FIELDS,
@@ -75,6 +76,7 @@ module.exports = async (req, res) => {
       listAll(TABLES.MIETVERTRAG, {
         fields: [
           MIETVERTRAG_FIELDS.WE_LINK, MIETVERTRAG_FIELDS.STELLPLATZ_LINK,
+          MIETVERTRAG_FIELDS.NEU_VERMIETETER_STELLPLATZ,
           MIETVERTRAG_FIELDS.STELLPLATZMIETE, MIETVERTRAG_FIELDS.VERTRAGSBEGINN,
           MIETVERTRAG_FIELDS.GUELTIG_AB, MIETVERTRAG_FIELDS.STATUS_LOOKUP,
         ],
@@ -94,8 +96,17 @@ module.exports = async (req, res) => {
       });
     });
     const stplByWe = {};
+    const stplById = {}; // alle Stellplatz-Datensätze nach ID (Quelle der Wahrheit für KP + Miete)
     stplRecs.forEach(r => {
-      const link = (r.fields && r.fields[STELLPLATZ_FIELDS.WE_LINK]) || [];
+      const f = r.fields || {};
+      const typObj = f[STELLPLATZ_FIELDS.TYP];
+      stplById[r.id] = {
+        titel: f[STELLPLATZ_FIELDS.TITEL] || '',
+        typ: (typObj && typeof typObj === 'object') ? typObj.name : (typObj || ''),
+        kaufpreis: num(f[STELLPLATZ_FIELDS.KAUFPREIS]) || 0,
+        mieteMo: num(f[STELLPLATZ_FIELDS.MIETKOSTEN]) || 0,
+      };
+      const link = f[STELLPLATZ_FIELDS.WE_LINK] || [];
       if (!Array.isArray(link)) return;
       link.forEach(x => {
         const id = (x && typeof x === 'object' && x.id) ? x.id : x;
@@ -144,26 +155,31 @@ module.exports = async (req, res) => {
       const stamm = byStatus.Aktiv[0] || byStatus.Entwurf[0] || byStatus.Archiviert[0] || null;
       const sf = stamm ? (stamm.fields || {}) : {};
 
-      // Stellplatz
+      // Stellplatz (NEU 04.06.2026): Verknüpfung primär über aktiven Mietvertrag, Werte aus dem
+      // Stellplatz-Datensatz, leer => raus. Gemeinsamer Helfer mit [weId].js.
       const stpl = stplByWe[weRec.id] || [];
       const weStpIds = stpl.map(r => r.id);
-      const stpKp    = stpl.reduce((s, r) => s + (num((r.fields || {})[STELLPLATZ_FIELDS.KAUFPREIS]) || 0), 0);
-      const stpMiete = stpl.reduce((s, r) => s + (num((r.fields || {})[STELLPLATZ_FIELDS.MIETKOSTEN]) || 0), 0);
 
-      // Mietvertrag (Iter 44: Stellplatzmiete pro-rata zur Stellplatz-WE-Verknüpfung)
+      // Mietverträge: NEU-Stellplätze (nicht archiviert) sammeln + alte Pro-rata-Pauschale als Miet-Fallback.
       const vertraege = vertragsByWe[weRec.id] || [];
       let vertragVorhanden = false;
       let stpVertragMiete = 0;
       let jungsteMietsteig = null;
       let jungsterVertragsbeginn = null;
+      let neuStpIds = [];
       vertraege.forEach(r => {
         const f = r.fields || {};
         vertragVorhanden = true;
+        const sl = f[MIETVERTRAG_FIELDS.STATUS_LOOKUP];
+        const slName = Array.isArray(sl) ? ((sl[0] && sl[0].name) || sl[0]) : ((sl && sl.name) || sl);
+        const istArchiviert = typeof slName === 'string' && /archiv/i.test(slName);
+        if (!istArchiviert) {
+          neuStpIds = neuStpIds.concat(linkIds(f[MIETVERTRAG_FIELDS.NEU_VERMIETETER_STELLPLATZ]));
+        }
         const stplLink = f[MIETVERTRAG_FIELDS.STELLPLATZ_LINK];
         const stplMiete = num(f[MIETVERTRAG_FIELDS.STELLPLATZMIETE]) || 0;
         if (stplLink && stplMiete > 0) {
-          const stplArr = Array.isArray(stplLink) ? stplLink : [];
-          const vertragStpIds = stplArr.map(x => (x && typeof x === 'object' && x.id) ? x.id : x);
+          const vertragStpIds = linkIds(stplLink);
           let effektiveMiete = stplMiete;
           if (vertragStpIds.length > 0) {
             const gueltigeAnzahl = vertragStpIds.filter(id => weStpIds.includes(id)).length;
@@ -176,8 +192,25 @@ module.exports = async (req, res) => {
         if (gueltig && (!jungsteMietsteig || gueltig > jungsteMietsteig)) jungsteMietsteig = gueltig;
         if (beginn && (!jungsterVertragsbeginn || beginn > jungsterVertragsbeginn)) jungsterVertragsbeginn = beginn;
       });
-      // Iter 46: Stellplatz-Tabelle hat Vorrang vor Mietvertrag, wenn gepflegt
-      const stpMieteEffektiv = stpMiete > 0 ? stpMiete : stpVertragMiete;
+
+      // Vermietungs-Status zuerst (Lookup-Vorrang, sonst Vertrag-vorhanden-Heuristik) — steuert leer=raus.
+      const lookupStatus = resolveVermietungsstatusFromLookup(sf[KALK_STAMMDATEN_FIELDS.WE_VERMIETUNGSSTATUS]);
+      let statusFinal, statusQuelle;
+      if (lookupStatus) {
+        statusFinal = lookupStatus;
+        statusQuelle = 'we-lookup';
+      } else {
+        statusFinal = vertragVorhanden ? 'vermietet' : 'leer';
+        statusQuelle = vertragVorhanden ? 'fallback-mietvertrag' : 'fallback-keine-daten';
+      }
+
+      const stpAgg = aggregateStellplaetze({
+        vermietet: statusFinal === 'vermietet',
+        neuStellplatzIds: neuStpIds,
+        altStellplatzIds: weStpIds,
+        stpById,
+        vertragMieteFallback: stpVertragMiete,
+      });
 
       const stammLetzte = sf[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG] || null;
       const letzteMietsteigerung = stammLetzte || jungsteMietsteig || jungsterVertragsbeginn || null;
@@ -187,32 +220,21 @@ module.exports = async (req, res) => {
       return {
         we,
         stellplaetze: {
-          anzahl: stpl.length,
-          kaufpreisSumme: stpKp,
-          mieteMoSumme: stpMieteEffektiv,
-          mieteMoQuelle: stpVertragMiete > 0 ? 'mietvertrag' : (stpMiete > 0 ? 'stellplatz-alt' : 'keine'),
+          anzahl: stpAgg.anzahl,
+          garageCount: stpAgg.garageCount,
+          flaecheCount: stpAgg.flaecheCount,
+          kaufpreisSumme: stpAgg.kaufpreisSumme,
+          mieteMoSumme: stpAgg.mieteMoSumme,
+          mieteMoQuelle: stpAgg.mieteMoQuelle,
+          details: stpAgg.details,
         },
-        vermietung: (() => {
-          // Audit-Fix Iter 49 (19.05.2026): Lookup-Vorrang analog [weId].js (Iter 41.17).
-          // Heuristik-Fallback nur noch über `vertragVorhanden` — `kaltmiete > 0` als Indiz
-          // ist unzuverlässig, weil leerstehende WEs den alten Bestandsmieten-Wert behalten.
-          const lookupStatus = resolveVermietungsstatusFromLookup(sf[KALK_STAMMDATEN_FIELDS.WE_VERMIETUNGSSTATUS]);
-          let statusFinal, statusQuelle;
-          if (lookupStatus) {
-            statusFinal = lookupStatus;
-            statusQuelle = 'we-lookup';
-          } else {
-            statusFinal = vertragVorhanden ? 'vermietet' : 'leer';
-            statusQuelle = vertragVorhanden ? 'fallback-mietvertrag' : 'fallback-keine-daten';
-          }
-          return {
-            status: statusFinal,
-            statusQuelle,
-            vertragVorhanden,
-            letzteMietsteigerung: statusFinal === 'leer' ? null : letzteMietsteigerung,
-            letzteMietsteigerungQuelle: statusFinal === 'leer' ? 'leerstand-keine' : letzteMietsteigerungQuelle,
-          };
-        })(),
+        vermietung: {
+          status: statusFinal,
+          statusQuelle,
+          vertragVorhanden,
+          letzteMietsteigerung: statusFinal === 'leer' ? null : letzteMietsteigerung,
+          letzteMietsteigerungQuelle: statusFinal === 'leer' ? 'leerstand-keine' : letzteMietsteigerungQuelle,
+        },
         stammdaten: stamm ? {
           id: stamm.id,
           status: unwrap(sf[KALK_STAMMDATEN_FIELDS.STATUS]) || null,

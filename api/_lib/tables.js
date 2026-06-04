@@ -149,9 +149,12 @@ const MIETVERTRAG_FIELDS = {
   TITEL:           'fldiP1aT7hgMYMEoc',   // "Neuvertrag - 540 € kalt, ab 1.1.24 (#226)"
   WE_LINK:         'fldaGWDfYOiFxLoiy',   // Link Wohneinheit
   MIETER_LINK:     'fldJwZXEVGFvrvz4D',   // Link Mieter
-  STELLPLATZ_LINK: 'fldUl2EXwP4gHBPJP',   // Link Stellplatz
+  STELLPLATZ_LINK: 'fldUl2EXwP4gHBPJP',   // ALT: Lookup über WE_LINK (zieht die Stellplätze der WE)
+  // NEU 04.06.2026 — echter Direktlink Vertrag->Stellplatz (multipleRecordLinks zur STELLPLATZ-Tabelle).
+  // Löst STELLPLATZ_LINK (WE-Lookup) schrittweise ab: Stellplatz folgt künftig dem Mietvertrag.
+  NEU_VERMIETETER_STELLPLATZ: 'fldNgvrI6WrZxf1fJ',
   KALTMIETE:       'fldx838HHHMRvD5fT',   // €
-  STELLPLATZMIETE: 'fldcGEefFtNEFbatS',   // € (bestätigt von Edgar 15.05.2026)
+  STELLPLATZMIETE: 'fldcGEefFtNEFbatS',   // ALT: manuelle Vertrags-Stellplatzmiete (Fallback)
   VERTRAGSART:     'fld41qYdKxjyIdDlO',
   STATUS_LOOKUP:   'fld02ScVlHI1f4AZr',   // Lookup via WE: Aktiv / Archiviert
   VERTRAGSBEGINN:  'fldDdFKwsytwadjqG',   // Originaldatum Vertrag (bei Neuvertrag)

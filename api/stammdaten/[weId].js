@@ -17,6 +17,7 @@
 const { verifySession, requireSafeOrigin } = require('../_lib/auth');
 const { airtable, listAll } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
+const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
 const {
   TABLES,
   WE_FIELDS,
@@ -24,6 +25,7 @@ const {
   MIETVERTRAG_FIELDS,
   KALK_STAMMDATEN_FIELDS,
   KALK_STATUS_AKTIV,
+  KALK_STATUS_ENTWURF,
   KALK_STATUS_ARCHIV,
 } = require('../_lib/tables');
 
@@ -69,21 +71,24 @@ async function loadStellplaetzeForWE(weId) {
       });
     });
 
-    return matched.map(r => {
+    // byId = ALLE Stellplatz-Datensätze (Quelle der Wahrheit für KP + Miete — auch solche, die nur
+    // über einen Mietvertrag, aber nicht über die WE verknüpft sind). weLinked = nur die WE-verknüpften.
+    const byId = {};
+    recs.forEach(r => {
       const f = r.fields || {};
       const typObj = f[STELLPLATZ_FIELDS.TYP];
-      const typ = typObj && typeof typObj === 'object' ? typObj.name : typObj || '';
-      return {
-        id: r.id,
+      byId[r.id] = {
         titel: f[STELLPLATZ_FIELDS.TITEL] || '',
-        typ,
+        typ: (typObj && typeof typObj === 'object') ? typObj.name : (typObj || ''),
         kaufpreis: num(f[STELLPLATZ_FIELDS.KAUFPREIS]) || 0,
         mieteMo: num(f[STELLPLATZ_FIELDS.MIETKOSTEN]) || 0, // alte Spalte, falls befüllt
       };
     });
+    const weLinked = matched.map(r => Object.assign({ id: r.id }, byId[r.id]));
+    return { weLinked, byId };
   } catch (e) {
     console.error('loadStellplaetzeForWE failed:', e.message);
-    return [];
+    return { weLinked: [], byId: {} };
   }
 }
 
@@ -108,6 +113,7 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
       fields: [
         MIETVERTRAG_FIELDS.WE_LINK,
         MIETVERTRAG_FIELDS.STELLPLATZ_LINK,
+        MIETVERTRAG_FIELDS.NEU_VERMIETETER_STELLPLATZ,
         MIETVERTRAG_FIELDS.KALTMIETE,
         MIETVERTRAG_FIELDS.STELLPLATZMIETE,
         MIETVERTRAG_FIELDS.STATUS_LOOKUP,
@@ -124,6 +130,7 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
     let aktuelleKaltmiete = null; // €/Mo — aus Vertrag mit jüngstem Datum ≤ heute
     let aktuelleKaltmieteDatum = null; // YYYY-MM-DD — zugehöriges Datum
     let vertragVorhanden = false;
+    let neuStpIds = []; // Stellplatz-IDs aus "NEU: Vermieteter Stellplatz" der NICHT-archivierten Verträge
     const zukunftsvertraege = []; // [{ datum, kaltmiete, quelle }] mit Datum > heute
     const useProRata = Array.isArray(weStpIds);
     const heuteISO = new Date().toISOString().slice(0, 10);
@@ -155,6 +162,10 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
       const istArchiviert = typeof statusName === 'string' && /archiv/i.test(statusName);
 
       vertragVorhanden = true;
+      // NEU 04.06.2026: Stellplätze des aktiven (nicht archivierten) Vertrags sammeln.
+      if (!istArchiviert) {
+        neuStpIds = neuStpIds.concat(linkIds(f[MIETVERTRAG_FIELDS.NEU_VERMIETETER_STELLPLATZ]));
+      }
       const stpl = f[MIETVERTRAG_FIELDS.STELLPLATZ_LINK];
       const stplMiete = num(f[MIETVERTRAG_FIELDS.STELLPLATZMIETE]) || 0;
       const gueltigRaw = f[MIETVERTRAG_FIELDS.GUELTIG_AB] || null;
@@ -268,6 +279,7 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
     const letzteEchte = jungsteMietsteigerung || (beginnPlausibel ? jungsterVertragsbeginn : null);
     return {
       stellplatzMietsumme: stplMietsumme,
+      neuStellplatzIds: neuStpIds,
       stellplatzMietsummeNominal: stplMietsummeNominal,
       stellplatzMieteProRata: useProRata && stplMietsummeNominal !== stplMietsumme,
       stellplatzMieteJuengsterCount: jungsteStplMieteByPlatz.size,
@@ -287,6 +299,7 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
     console.error('loadMietvertragInfoForWE failed:', e.message);
     return {
       stellplatzMietsumme: 0,
+      neuStellplatzIds: [],
       stellplatzMietsummeNominal: 0,
       stellplatzMieteProRata: false,
       vertraegeMitStellplatz: 0,
@@ -947,31 +960,17 @@ module.exports = async (req, res) => {
       // --- 2) Stellplätze zuerst (für Pro-rata-Mietberechnung), dann Mietvertrag + Kalk parallel ---
       // Iter 44: Stellplatz-IDs werden an loadMietvertragInfoForWE übergeben, damit
       // die Stellplatzmiete proportional zur aktuellen WE-Verknüpfung berechnet wird.
-      const stellplaetze = await loadStellplaetzeForWE(weId);
-      const weStpIds = stellplaetze.map(s => s.id);
+      const stellplaetzeData = await loadStellplaetzeForWE(weId);
+      const weStpIds = stellplaetzeData.weLinked.map(s => s.id);
       const [vertragInfo, kalkRec] = await Promise.all([
         loadMietvertragInfoForWE(weId, weStpIds),
         loadKalkStammdatenForWE(weId),
       ]);
 
-      // Stellplatz-Aggregat: Kaufpreis-Summe + Miete
-      // Iter 46: Stellplatz-Tabelle hat Vorrang vor Mietvertrag-Pauschale, sobald sie
-      // gepflegt ist (mind. 1 Stellplatz mit Miete > 0). Damit kann Vivien pro Stellplatz
-      // pflegen, und beim Entfernen eines Stellplatzes aus der WE sinkt die Summe
-      // automatisch. Wess 5: 1 Garage à 50 € statt 100 € Vertragspauschale.
-      const stpKaufpreisSumme = stellplaetze.reduce((s, x) => s + (x.kaufpreis || 0), 0);
-      const stpAlteMieteSumme = stellplaetze.reduce((s, x) => s + (x.mieteMo || 0), 0);
-      const stpMieteEffektiv = stpAlteMieteSumme > 0
-        ? stpAlteMieteSumme
-        : vertragInfo.stellplatzMietsumme;
-
-      // --- Vermietungs-Status bestimmen (Iter 41.17, 18.05.2026) ---
-      // Single Source of Truth: Lookup „Miet-status (ist)" aus WE-Tabelle, gespiegelt
-      // in Kalk-Stammdaten. Edgar 18.05.: vorher leitete die App aus „Vertrag + Kaltmiete>0"
-      // ab — bei leerstehenden Einheiten mit Excel-Altmiete > 0 war das falsch.
-      // Reihenfolge:
-      //  1) Lookup-Wert (autoritativ, wenn vorhanden)
-      //  2) Heuristik „Vertrag vorhanden ODER Kaltmiete>0" (Fallback)
+      // --- Vermietungs-Status ZUERST (Iter 41.17) — steuert leer=raus für die Stellplätze ---
+      // Single Source of Truth: Lookup „Miet-status (ist)" aus WE-Tabelle, gespiegelt in
+      // Kalk-Stammdaten. Sonst Heuristik „Vertrag vorhanden" (kaltmiete>0 ist unzuverlässig
+      // bei Leerstand — Audit-Fix Iter 49: nur ein echter Mietvertrag gilt als Vermietungs-Beweis).
       const kalkApi = kalkStammRecordToApi(kalkRec);
       const statusVomLookup = resolveVermietungsstatusFromLookup(kalkApi && kalkApi.weVermietungsstatusRaw);
       let statusFinal, statusQuelle;
@@ -979,12 +978,22 @@ module.exports = async (req, res) => {
         statusFinal = statusVomLookup;
         statusQuelle = 'we-lookup';
       } else {
-        // Audit-Fix Iter 49 (19.05.2026): Heuristik konservativer — `we.kaltmiete > 0`
-        // ist UNZUVERLÄSSIG (leerstehende WEs behalten die alte Bestandsmiete im Feld).
-        // Nur ein echter Mietvertragsdatensatz gilt als Vermietungs-Beweis.
         statusFinal = vertragInfo.vertragVorhanden ? 'vermietet' : 'leer';
         statusQuelle = vertragInfo.vertragVorhanden ? 'fallback-mietvertrag' : 'fallback-keine-daten';
       }
+
+      // Stellplatz-Aggregat (NEU 04.06.2026): Verknüpfung primär über den aktiven Mietvertrag
+      // (vertragInfo.neuStellplatzIds), Fallback alte WE-Verknüpfung; Werte (Kaufpreis + Miete)
+      // aus dem Stellplatz-Datensatz; leer => raus. Gemeinsamer Helfer mit stammdaten/index.js.
+      const stpAgg = aggregateStellplaetze({
+        vermietet: statusFinal === 'vermietet',
+        neuStellplatzIds: vertragInfo.neuStellplatzIds || [],
+        altStellplatzIds: weStpIds,
+        stpById: stellplaetzeData.byId,
+        vertragMieteFallback: vertragInfo.stellplatzMietsumme,
+      });
+      const stpKaufpreisSumme = stpAgg.kaufpreisSumme;
+      const stpMieteEffektiv = stpAgg.mieteMoSumme;
 
       // Letzte Mietsteigerung — Quelle-Klärung (Edgar-Doc Bug 6+7+8):
       // - status='vermietet' → erst Kalk-Stammdaten (Edgar manuell gepflegt),
@@ -1015,9 +1024,9 @@ module.exports = async (req, res) => {
         letzteMietsteigerungQuelle = 'unbekannt';
       }
 
-      // Stellplatz-Typ-Aufteilung (Garage vs. Fläche/Stellplatz)
-      const garageCount  = stellplaetze.filter(s => /garage/i.test(s.typ)).length;
-      const flaecheCount = stellplaetze.length - garageCount;
+      // Stellplatz-Typ-Aufteilung kommt jetzt aus dem Aggregat-Helfer
+      const garageCount  = stpAgg.garageCount;
+      const flaecheCount = stpAgg.flaecheCount;
 
       const vermietungObj = {
         status:                 statusFinal,
@@ -1049,13 +1058,13 @@ module.exports = async (req, res) => {
       return res.status(200).json({
         we,
         stellplaetze: {
-          anzahl:        stellplaetze.length,
+          anzahl:        stpAgg.anzahl,
           garageCount,
           flaecheCount,
           kaufpreisSumme: stpKaufpreisSumme,
           mieteMoSumme:   stpMieteEffektiv,
-          mieteMoQuelle:  vertragInfo.stellplatzMietsumme > 0 ? 'mietvertrag' : (stpAlteMieteSumme > 0 ? 'stellplatz-alt' : 'keine'),
-          details:        stellplaetze,
+          mieteMoQuelle:  stpAgg.mieteMoQuelle,
+          details:        stpAgg.details,
         },
         vermietung: vermietungObj,
         kalkStammdaten: kalkApi,

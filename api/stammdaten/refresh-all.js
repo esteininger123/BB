@@ -22,6 +22,7 @@ const {
   STELLPLATZ_FIELDS,
   KALK_STAMMDATEN_FIELDS,
   KALK_STATUS_AKTIV,
+  KALK_STATUS_ENTWURF,
 } = require('../_lib/tables');
 
 // Helper-Imports aus dem [weId]-Endpoint (Iter-4-exports).
@@ -74,6 +75,13 @@ module.exports = async (req, res) => {
     }
   }
 
+  // Leer-Flag (Edgar 04.06.2026): Aktive Kalk-Stammdaten, deren WE inzwischen LEER ist
+  // (Mietvertrag nicht mehr aktiv → Vermietung/Stellplatz fallen aus der Kalkulation),
+  // werden gemeldet. Erst-Lauf = nur Liste (report-only). Mit ?flagLeer=1 wird der Status
+  // zusätzlich auf Entwurf gesetzt + Notiz geschrieben — Re-Flag ausgeschlossen, weil die
+  // Zeile danach nicht mehr 'Aktiv' ist und somit nicht mehr in `aktive` landet.
+  const flagLeerSchreiben = !!(req.query && (req.query.flagLeer === '1' || req.query.flagLeer === 1));
+
   try {
     // Iter-4: nur aktive Stammdaten neu berechnen (Vermarktungs-Liste).
     const stammRecs = await listAll(TABLES.KALK_STAMMDATEN, {
@@ -99,6 +107,7 @@ module.exports = async (req, res) => {
     ]);
 
     const ergebnisse = [];
+    const leerFlags = []; // aktive Stammdaten, deren WE inzwischen leer ist
 
     // Sequenziell durchgehen (parallel würde Airtable-Rate-Limit reißen).
     for (const stammRec of aktive) {
@@ -155,6 +164,28 @@ module.exports = async (req, res) => {
         // Write-back (fire-and-forget, intern in maybeWriteBackAutoSubv)
         maybeWriteBackAutoSubv(kalkApi, subv);
 
+        // Leer-Flag: aktive Stammdaten-Zeile, aber WE ist jetzt leer (Mietvertrag nicht mehr aktiv).
+        if (statusFinal === 'leer') {
+          const flagEintrag = { kalkId: kalkApi.id, weId: weIdRaw, bezeichnung: kalkApi.bezeichnung, geflaggt: false };
+          if (flagLeerSchreiben) {
+            try {
+              const prevNotiz = (stammRec.fields || {})[KALK_STAMMDATEN_FIELDS.NOTIZEN] || '';
+              const marker = `[Auto ${new Date().toISOString().slice(0, 10)}] Auf Entwurf gesetzt: Vermietung/Stellplatz entfallen (Mietvertrag nicht mehr aktiv) — bitte prüfen.`;
+              await airtable('update', TABLES.KALK_STAMMDATEN, {
+                recordId: kalkApi.id,
+                fields: {
+                  [KALK_STAMMDATEN_FIELDS.STATUS]: KALK_STATUS_ENTWURF,
+                  [KALK_STAMMDATEN_FIELDS.NOTIZEN]: prevNotiz ? (marker + '\n' + prevNotiz) : marker,
+                },
+              });
+              flagEintrag.geflaggt = true;
+            } catch (e) {
+              flagEintrag.flagFehler = e.message;
+            }
+          }
+          leerFlags.push(flagEintrag);
+        }
+
         ergebnisse.push({
           kalkId: kalkApi.id,
           weId: weIdRaw,
@@ -190,7 +221,11 @@ module.exports = async (req, res) => {
       erfolg,
       fehler,
       veraendert,
-      hinweis: 'Write-back ist fire-and-forget — die Airtable-Updates können bis zu 1-2 Sek nach dieser Response abgeschlossen sein.',
+      // Leer-Flag-Report: WEs, die auf 'Aktiv' stehen, aber leer sind (Mietvertrag nicht mehr aktiv).
+      leerFlagsAnzahl: leerFlags.length,
+      leerFlagGeschrieben: flagLeerSchreiben, // true = Status wurde auf Entwurf gesetzt; false = nur gemeldet
+      leerFlags,
+      hinweis: 'Write-back ist fire-and-forget — die Airtable-Updates können bis zu 1-2 Sek nach dieser Response abgeschlossen sein. Leer-Flag: ohne ?flagLeer=1 nur Report, mit ?flagLeer=1 wird Status auf Entwurf gesetzt.',
       ergebnisse,
     });
   } catch (e) {
