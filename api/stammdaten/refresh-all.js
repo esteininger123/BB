@@ -101,7 +101,9 @@ module.exports = async (req, res) => {
     }
 
     // Pro aktivem Stammdaten-Record: WE + Stellplätze + Mietverträge laden + Subv-Berechnung + Write-back.
-    // Wir laden die nötigen Bulk-Daten einmal (Stellplätze, Mietverträge), filtern dann clientseitig pro WE.
+    // Stellplätze laden wir EINMAL bulk (Promise.all unten) und filtern clientseitig pro WE. Mietverträge
+    // dagegen werden PRO WE neu geladen — loadMietvertragInfoForWE() macht je Aufruf ein eigenes
+    // listAll(MIETVERTRAG) (N+1, bewusst in Kauf genommen bei ~14 aktiven WEs; vercel.json maxDuration=60s).
     const [stplRecs] = await Promise.all([
       listAll(TABLES.STELLPLATZ, {
         fields: [STELLPLATZ_FIELDS.WE_LINK, STELLPLATZ_FIELDS.KAUFPREIS, STELLPLATZ_FIELDS.MIETKOSTEN, STELLPLATZ_FIELDS.TYP],

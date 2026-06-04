@@ -163,10 +163,12 @@ module.exports = async (req, res) => {
       // Mietverträge: NEU-Stellplätze (nicht archiviert) sammeln + alte Pro-rata-Pauschale als Miet-Fallback.
       const vertraege = vertragsByWe[weRec.id] || [];
       let vertragVorhanden = false;
-      let stpVertragMiete = 0;
       let jungsteMietsteig = null;
       let jungsterVertragsbeginn = null;
       let neuStpIds = [];
+      // Iter-4 WE4-Fix (identisch zu [weId].js): pro Stellplatz gewinnt der JÜNGSTE nicht-archivierte
+      // Vertrag — sonst zählt eine Garage, die in Erst- + Erhöhungsvertrag steht, doppelt.
+      const jungsteStplMieteByPlatz = new Map();
       vertraege.forEach(r => {
         const f = r.fields || {};
         vertragVorhanden = true;
@@ -178,20 +180,26 @@ module.exports = async (req, res) => {
         }
         const stplLink = f[MIETVERTRAG_FIELDS.STELLPLATZ_LINK];
         const stplMiete = num(f[MIETVERTRAG_FIELDS.STELLPLATZMIETE]) || 0;
-        if (stplLink && stplMiete > 0) {
+        if (stplLink && stplMiete > 0 && !istArchiviert) {
           const vertragStpIds = linkIds(stplLink);
-          let effektiveMiete = stplMiete;
-          if (vertragStpIds.length > 0) {
-            const gueltigeAnzahl = vertragStpIds.filter(id => weStpIds.includes(id)).length;
-            effektiveMiete = stplMiete * (gueltigeAnzahl / vertragStpIds.length);
+          const relevanteStpIds = vertragStpIds.length > 0
+            ? vertragStpIds.filter(id => weStpIds.includes(id))
+            : vertragStpIds;
+          if (relevanteStpIds.length > 0) {
+            const proStpMiete = stplMiete / vertragStpIds.length;
+            const datumFuerStpl = f[MIETVERTRAG_FIELDS.GUELTIG_AB] || f[MIETVERTRAG_FIELDS.VERTRAGSBEGINN] || '0000-00-00';
+            relevanteStpIds.forEach(stpId => {
+              const cur = jungsteStplMieteByPlatz.get(stpId);
+              if (!cur || datumFuerStpl > cur.datum) jungsteStplMieteByPlatz.set(stpId, { miete: proStpMiete, datum: datumFuerStpl });
+            });
           }
-          stpVertragMiete += effektiveMiete;
         }
         const gueltig = f[MIETVERTRAG_FIELDS.GUELTIG_AB];
         const beginn = f[MIETVERTRAG_FIELDS.VERTRAGSBEGINN];
         if (gueltig && (!jungsteMietsteig || gueltig > jungsteMietsteig)) jungsteMietsteig = gueltig;
         if (beginn && (!jungsterVertragsbeginn || beginn > jungsterVertragsbeginn)) jungsterVertragsbeginn = beginn;
       });
+      const stpVertragMiete = Array.from(jungsteStplMieteByPlatz.values()).reduce((s, x) => s + x.miete, 0);
 
       // Vermietungs-Status zuerst (Lookup-Vorrang, sonst Vertrag-vorhanden-Heuristik) — steuert leer=raus.
       const lookupStatus = resolveVermietungsstatusFromLookup(sf[KALK_STAMMDATEN_FIELDS.WE_VERMIETUNGSSTATUS]);
