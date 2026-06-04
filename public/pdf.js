@@ -482,9 +482,10 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <div class="pdf-c-obj-row"><span class="k">Mieteinnahme (Tag 1)</span><span class="v pdf-c-pos">+ ${_eur0(_mieteTag1Disp)} €</span></div>
           <div class="pdf-c-obj-row"><span class="k">Steuervorteil</span><span class="v pdf-c-pos">+ ${_eur0(_stVorteilTag1Disp)} €</span></div>
           <div class="pdf-c-obj-row"><span class="k">Annuität (Zins + Tilgung)</span><span class="v pdf-c-neg">− ${_eur0(_annuTag1Disp)} €</span></div>
-          <div class="pdf-c-obj-row"><span class="k">Rücklage + Verwaltung</span><span class="v pdf-c-neg">− ${_eur0(_rueckVerwTag1Disp)} €</span></div>
+          <div class="pdf-c-obj-row"><span class="k">Rücklage<sup style="font-size:5pt;">*</sup> + Verwaltung</span><span class="v pdf-c-neg">− ${_eur0(_rueckVerwTag1Disp)} €</span></div>
           <div class="pdf-c-obj-row" style="border-top:1.2px solid #1A1A17;"><span class="k" style="font-weight:600;color:#1A1A17;">Effektive Belastung / Mo</span><span class="v ${belastungTag1Mo >= 0 ? 'pdf-c-pos' : 'pdf-c-neg'}" style="font-weight:600;">${belastungTag1Mo > 0 ? '+ ' : (belastungTag1Mo < 0 ? '− ' : '')}${_eur0(Math.abs(belastungTag1Mo))} €</span></div>
           <p class="narrative" style="font-size:8pt;margin-top:3mm;">Effektiv = was Dich der Monat nach Miete und Steuervorteil wirklich kostet. Die Mieteinnahme umfasst die Kaltmiete und — falls vereinbart — Stellplatzmiete und Mietsubvention im Startmonat. Diese Seite zeigt den Startmonat (Monat 1); wie sich die Belastung über die Jahre entwickelt, siehst Du auf der nächsten Seite.</p>
+          <p style="font-size:6.5pt;line-height:1.5;color:#9A9A92;margin-top:2.5mm;">* Die Instandhaltungsrücklage ist als laufende Kosten berücksichtigt, steuerlich aber neutral gerechnet — absetzbar wird sie erst, wenn die Eigentümergemeinschaft sie für konkrete Erhaltungsmaßnahmen verwendet (Zeitpunkt und Höhe lassen sich heute nicht seriös beziffern). Diesen künftigen, meist kleinen Vorteil rechnen wir bewusst nicht ein; die reale Rendite kann dadurch nur geringfügig höher, nicht niedriger ausfallen.</p>
         </div>
       </div>
       <div class="pdf-c-page-foot"><div>01 · Das Objekt &amp; Der Plan</div><div class="pdf-c-page-num">Seite 2 von 9</div></div>

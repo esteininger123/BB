@@ -3551,11 +3551,12 @@ function renderStories(r) {
         <tr><td><strong>Deine Mieteinnahmen gesamt</strong></td><td class="num pos"><strong>+ ${fmtEurMo(tag1Sum)}</strong></td></tr>
         ${mieteAufschluesselung}
         <tr><td>Deine Annuität an die Bank</td><td class="num neg">− ${fmtEurMo(r.annuityMo || 0)}</td></tr>
-        <tr><td>Rücklage</td><td class="num neg">− ${fmtEurMo(r.hausgeldNurMo || 0)}</td></tr>
+        <tr><td>Rücklage<sup>*</sup></td><td class="num neg">− ${fmtEurMo(r.hausgeldNurMo || 0)}</td></tr>
         <tr><td>Mietverwaltung (SEV)</td><td class="num neg">− ${fmtEurMo(r.mietverwaltungMo || 0)}</td></tr>
         <tr><td>Hausverwaltung (WEG)</td><td class="num neg">− ${fmtEurMo(r.hausverwaltungMo || 0)}</td></tr>
         <tr><td>Dein Steuervorteil (AfA + Zinsen + MV + HV)</td><td class="num pos">+ ${fmtEurMo(_stVorteilTag0(r))}</td></tr>
         <tr class="totalrow"><td><strong>Deine effektive Belastung pro Monat</strong></td><td class="num"><strong>${fmtEurMo(_belTag0Disp(r))}</strong></td></tr>
+        <tr><td colspan="2" style="border:none;padding-top:10px;font-size:11px;line-height:1.5;color:#8A8A82;font-weight:400;">* Die Rücklage ist als Kosten berücksichtigt, steuerlich aber neutral gerechnet — absetzbar wird sie erst, wenn die Eigentümergemeinschaft sie für konkrete Maßnahmen verwendet (Zeitpunkt heute nicht vorhersagbar). Diesen künftigen, meist kleinen Vorteil rechnen wir bewusst nicht ein; die Rendite kann dadurch nur geringfügig höher, nicht niedriger ausfallen.</td></tr>
       </table>
       <div class="story-explain">
         Die <strong>ehrliche monatliche Zahl</strong>, die Du einplanst (oder die Dir bleibt, wenn positiv).
