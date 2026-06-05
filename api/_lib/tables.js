@@ -128,6 +128,13 @@ const WE_FIELDS = {
 };
 
 const WE_STATUS_VERMARKTUNG = 'Vermarktung / Im Verkauf';
+// Status, bei denen eine WE in der Verkaufs-/Rechen-Liste SICHTBAR ist (Edgar 05.06.2026):
+// aktiv vermarktet + reserviert + Notartermin läuft. Ab 'Beurkundet' (und danach) raus = faktisch verkauft.
+const WE_STATUS_SICHTBAR = ['Vermarktung / Im Verkauf', 'Reserviert', 'Notartermin'];
+// Baut die filterByFormula-OR-Klausel über das Status-Feld (Feld-NAME 'Status').
+function weStatusSichtbarFormula() {
+  return 'OR(' + WE_STATUS_SICHTBAR.map((s) => `{Status}='${s}'`).join(', ') + ')';
+}
 const MAKLER_BUB = 'B&B Immo GmbH';
 // Iter 41.9 — Vertriebs-Filter aus Henry-Feedback. Wenn die WE im Eigenvertrieb (KAV)
 // verkauft wird, weist Henry/Schenki den Makler-Record "Team B&B" zu. Der Filter ist
@@ -253,6 +260,8 @@ module.exports = {
   MIETER_FIELDS,
   KALK_STAMMDATEN_FIELDS,
   WE_STATUS_VERMARKTUNG,
+  WE_STATUS_SICHTBAR,
+  weStatusSichtbarFormula,
   MAKLER_BUB,
   TEAM_BB_LABEL,
   KALK_STATUS_AKTIV,

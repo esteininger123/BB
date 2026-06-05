@@ -1972,7 +1972,10 @@ function renderTabKalkulator() {
   const weLabel = (w) => {
     const titel = w.lage || w.lageText || w.id;
     const kp = (w.kp || 0) > 0 ? ' — ' + Math.round(w.kp).toLocaleString('de-DE') + ' €' : '';
-    return titel + kp;
+    // 05.06.2026: reservierte / im Notartermin befindliche WEs klar im Label markieren.
+    const st = w.status === 'Reserviert' ? '  ·  ⚠ RESERVIERT'
+             : w.status === 'Notartermin' ? '  ·  ⚠ NOTARTERMIN' : '';
+    return titel + kp + st;
   };
   // WEs nach Projekt gruppieren + innerhalb des Projekts nach WE-Nummer sortieren.
   const wesByProjekt = {};
@@ -1999,6 +2002,7 @@ function renderTabKalkulator() {
   }
   if (!aktivesProjekt && projektNames.length === 1) aktivesProjekt = projektNames[0];
   const wesImProjekt = aktivesProjekt && wesByProjekt[aktivesProjekt] ? wesByProjekt[aktivesProjekt] : [];
+  const _selWe = i._weId ? wes.find(x => x.id === i._weId) : null; // für Reserviert/Notartermin-Pill
 
   el.innerHTML = `
     <div class="card kalk-input-minimal we-picker">
@@ -2043,6 +2047,11 @@ function renderTabKalkulator() {
             </select>
             ${i._weId ? `
               <div class="we-meta-row text-small text-tertiary">
+                ${_selWe && _selWe.status === 'Reserviert' ? `
+                  <span class="we-status-pill reserviert">⚠ RESERVIERT — Verkauf in Reservierung</span>
+                ` : _selWe && _selWe.status === 'Notartermin' ? `
+                  <span class="we-status-pill notartermin">⚠ NOTARTERMIN — Verkauf läuft</span>
+                ` : ''}
                 ${i._vermietungsStatus === 'vermietet' ? `
                   <span class="we-status-pill vermietet">● vermietet</span>
                 ` : i._vermietungsStatus === 'leer' ? `
@@ -8014,8 +8023,8 @@ async function renderWeListe() {
     <div class="main">
       <div class="we-liste-head" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;margin-bottom:18px;">
         <div>
-          <h1 class="page-title" style="margin:0 0 6px;">Aktive Wohneinheiten</h1>
-          <div class="text-tertiary text-small">Live-Liste aller in Vermarktung — pro Projekt sortiert. Klick auf eine WE öffnet die Kalkulation.</div>
+          <h1 class="page-title" style="margin:0 0 6px;">Wohneinheiten im Verkauf</h1>
+          <div class="text-tertiary text-small">Live-Liste: Vermarktung + reservierte + Notartermin-Einheiten (reservierte/Notartermin sind markiert) — pro Projekt sortiert. Klick auf eine WE öffnet die Kalkulation.</div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
           <label class="text-tertiary text-small" for="we-liste-profil" style="white-space:nowrap;">Kennzahlen für Profil</label>
@@ -8137,6 +8146,12 @@ function _renderWeListeContent() {
   // QA-Sprint 2026-05-23 (Edgar-Doc Bug-1): €/qm + qm im WE-Liste anzeigen.
   const fmtQm = (v) => (v == null || !isFinite(v) || v <= 0) ? '–' : v.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' qm';
   const fmtEurPerQm = (kp, qm) => (qm > 0 && kp > 0) ? Math.round(kp / qm).toLocaleString('de-DE') + ' €/qm' : '';
+  // 05.06.2026: Verkaufs-Status-Badge (reserviert / Notartermin) neben dem WE-Namen.
+  const weSalesBadge = (s) => s === 'Reserviert'
+    ? ' <span class="we-status-pill reserviert" style="margin-left:6px;font-size:10px;">⚠ RESERVIERT</span>'
+    : s === 'Notartermin'
+    ? ' <span class="we-status-pill notartermin" style="margin-left:6px;font-size:10px;">⚠ NOTARTERMIN</span>'
+    : '';
 
   // Pro Zeile: Engine durchrechnen
   function _berechne(row) {
@@ -8365,7 +8380,7 @@ function _renderWeListeContent() {
         return `
           <tr class="we-liste-row" onclick="window._weListeOpenWe('${esc(we.id || '')}')" style="opacity:0.55;">
             ${checkboxCell}
-            <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}${we.qm > 0 ? ' · ' + fmtQm(we.qm) : ''}</div></td>
+            <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${weSalesBadge(we.status)}${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}${we.qm > 0 ? ' · ' + fmtQm(we.qm) : ''}</div></td>
             <td>${modusBadge}</td>
             <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
             <td colspan="9" style="text-align:center;color:var(--negative);font-style:italic;font-size:13px;">⚠ ${esc(calc.reason || 'unkalkulierbar')}</td>
@@ -8375,7 +8390,7 @@ function _renderWeListeContent() {
       return `
         <tr class="we-liste-row" onclick="window._weListeOpenWe('${esc(we.id || '')}')">
           ${checkboxCell}
-          <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}${we.qm > 0 ? ' · ' + fmtQm(we.qm) : ''}</div></td>
+          <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${weSalesBadge(we.status)}${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}${we.qm > 0 ? ' · ' + fmtQm(we.qm) : ''}</div></td>
           <td>${modusBadge}</td>
           <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
           <td class="num">${(() => {

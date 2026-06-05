@@ -1858,6 +1858,9 @@ input[type="range"].spar-zins-range::-moz-range-track {
 .we-status-pill.leer      { background: var(--negative-bg);          color: var(--negative); }
 .we-status-pill.hint      { background: var(--badge-mittelphase-bg); color: var(--badge-mittelphase-fg); }
 .we-status-pill.neutral   { background: var(--bg-cream);             color: var(--text-secondary); }
+/* 05.06.2026: Verkaufs-Status — bewusst auffällig (Reserviert amber, Notartermin orange), mit Rand. */
+.we-status-pill.reserviert  { background: #FCEFC7; color: #7A5A00; border: 1px solid #E6C766; }
+.we-status-pill.notartermin { background: #FBE3CE; color: #8A4B16; border: 1px solid #E0A66E; }
 
 /* Iter 53: dezenter Inline-Link für Objektvorstellung — Akzentfarbe, klein, unterstrichen */
 .we-meta-link {

@@ -12,7 +12,7 @@ const {
   STELLPLATZ_FIELDS,
   MIETVERTRAG_FIELDS,
   KALK_STAMMDATEN_FIELDS,
-  WE_STATUS_VERMARKTUNG,
+  weStatusSichtbarFormula,
   MAKLER_BUB,
 } = require('../_lib/tables');
 
@@ -54,13 +54,14 @@ module.exports = async (req, res) => {
 
   try {
     // 1) Alle WEs in Vermarktung (B&B Immo) parallel laden
-    const formula = `AND({Status}='${WE_STATUS_VERMARKTUNG}', FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0)`;
+    const formula = `AND(${weStatusSichtbarFormula()}, FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0)`;
     const [weRecs, stammRecs, stplRecs, vertraegeRecs] = await Promise.all([
       listAll(TABLES.WOHNEINHEIT, {
         filterByFormula: formula,
         fields: [
           WE_FIELDS.LAGE_BEZ, WE_FIELDS.WE_NR, WE_FIELDS.LAGE_TEXT,
           WE_FIELDS.KAUFPREIS, WE_FIELDS.QM, WE_FIELDS.KALTMIETE, WE_FIELDS.QM_PREIS,
+          WE_FIELDS.STATUS,
         ],
         pageSize: 100,
       }, 2000),
@@ -143,6 +144,7 @@ module.exports = async (req, res) => {
         qm:        num(wf[WE_FIELDS.QM]) || 0,
         kaltmiete: num(wf[WE_FIELDS.KALTMIETE]) || 0,
         qmPreis:   num(wf[WE_FIELDS.QM_PREIS]) || 0,
+        status:    unwrap(wf[WE_FIELDS.STATUS]) || null, // 05.06.2026 — Reserviert/Notartermin-Markierung
       };
 
       // Stammdaten — Priorität: Aktiv > Entwurf > Archiviert

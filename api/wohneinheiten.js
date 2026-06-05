@@ -8,7 +8,7 @@ const { methodNotAllowed, sendError } = require('./_lib/http');
 const {
   TABLES, WE_FIELDS, PROJEKT_FIELDS, PROJEKT_HEAD_FIELDS,
   KALK_STAMMDATEN_FIELDS, KALK_STATUS_AKTIV,
-  WE_STATUS_VERMARKTUNG, MAKLER_BUB
+  weStatusSichtbarFormula, MAKLER_BUB
 } = require('./_lib/tables');
 const { weRecordToApi } = require('./_lib/mappers');
 
@@ -230,10 +230,10 @@ module.exports = async (req, res) => {
     const weIdArr = Array.from(aktiveWeIds);
     let formula;
     if (showAll) {
-      formula = `AND({Status}='${WE_STATUS_VERMARKTUNG}', FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0, ${objektFormula})`;
+      formula = `AND(${weStatusSichtbarFormula()}, FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0, ${objektFormula})`;
     } else {
       const weIdFormula = 'OR(' + weIdArr.map(id => `RECORD_ID()='${id}'`).join(', ') + ')';
-      formula = `AND({Status}='${WE_STATUS_VERMARKTUNG}', FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0, ${objektFormula}, ${weIdFormula})`;
+      formula = `AND(${weStatusSichtbarFormula()}, FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0, ${objektFormula}, ${weIdFormula})`;
     }
 
     const fields = [
@@ -246,6 +246,7 @@ module.exports = async (req, res) => {
       WE_FIELDS.QM_PREIS,
       WE_FIELDS.PROJEKT,
       WE_FIELDS.OBJEKTVORSTELLUNG, // Iter 51 — Link für Vertriebler
+      WE_FIELDS.STATUS,            // 05.06.2026 — für Reserviert/Notartermin-Markierung im Frontend
     ];
 
     const records = await listAll(TABLES.WOHNEINHEIT, {
@@ -266,6 +267,9 @@ module.exports = async (req, res) => {
     const out = records.map(r => {
       const mapped = weRecordToApi(r, projektMap);
       mapped.inStammdatenAktiv = aktiveWeIds.has(r.id);
+      // WE-Status mitliefern (singleSelect → {name} oder String) für die Reserviert/Notartermin-Markierung.
+      const st = r.fields && r.fields[WE_FIELDS.STATUS];
+      mapped.status = (st && typeof st === 'object') ? st.name : (st || null);
       return mapped;
     });
     return res.status(200).json(out);
