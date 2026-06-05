@@ -357,48 +357,58 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   // Print-sichere SVG-Grafiken (kein Canvas) — Edgar 2026-06-03.
   function _vermChartSvg(vArr) {
     if (!Array.isArray(vArr) || vArr.length < 2) return '';
-    const n = vArr.length, mw = vArr.map(v => v.wert || 0), rs = vArr.map(v => v.restschuld || 0);
-    const max = (Math.max.apply(null, mw) * 1.06) || 1;
-    const W = 480, H = 210, padL = 4, padR = 4, padT = 16, padB = 22;
-    const x = i => (padL + i * (W - padL - padR) / (n - 1)).toFixed(1);
-    const y = v => (padT + (1 - v / max) * (H - padT - padB)).toFixed(1);
-    const ptsM = mw.map((v, i) => x(i) + ',' + y(v)).join(' ');
-    const ptsR = rs.map((v, i) => x(i) + ',' + y(v)).join(' ');
-    const area = ptsM + ' ' + rs.map((v, i) => x(n - 1 - i) + ',' + y(rs[n - 1 - i])).join(' ');
-    let grid = '';
-    [0, max / 2, max].forEach(g => { const yy = y(g); grid += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#E8E6DD" stroke-width="0.4"/><text x="${W - padR}" y="${(+yy - 3)}" text-anchor="end" font-size="9" fill="#9a958b">${Math.round(g / 1000)} T€</text>`; });
-    let labels = ''; [0, 2, 4, 6, 8, 10].forEach(i => { if (i < n) labels += `<text x="${x(i)}" y="${H - 5}" text-anchor="middle" font-size="10" fill="#7A7A72">J${i}</text>`; });
+    const n = Math.min(vArr.length, 11);
+    const mw = vArr.slice(0, n).map(v => v.wert || 0), rs = vArr.slice(0, n).map(v => v.restschuld || 0);
+    const W = 600, H = 250, padL = 46, padR = 72, padT = 24, padB = 26;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const max = (Math.max.apply(null, mw) * 1.08) || 1;
+    const X = i => (padL + i * plotW / (n - 1));
+    const Y = v => (padT + (1 - v / max) * plotH);
+    let grid = '', yl = '';
+    [0, max / 4, max / 2, max * 3 / 4, max].forEach(g => {
+      const yy = Y(g).toFixed(1);
+      grid += `<line x1="${padL}" y1="${yy}" x2="${(W - padR).toFixed(1)}" y2="${yy}" stroke="#ECEAE1" stroke-width="0.5"/>`;
+      yl += `<text x="${(padL - 7).toFixed(1)}" y="${(+yy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#9a958b">${Math.round(g / 1000)} T€</text>`;
+    });
+    const ptsM = mw.map((v, i) => X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join(' ');
+    const ptsR = rs.map((v, i) => X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join(' ');
+    const area = ptsM + ' ' + rs.map((v, i) => X(n - 1 - i).toFixed(1) + ',' + Y(rs[n - 1 - i]).toFixed(1)).join(' ');
+    let xl = '';
+    [0, 2, 4, 6, 8, 10].forEach(i => { if (i < n) xl += `<text x="${X(i).toFixed(1)}" y="${(H - 9).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="#7A7A72">J${i}</text>`; });
     const midI = Math.floor(n / 2);
     return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;font-family:'Inter',Helvetica,Arial,sans-serif;">`
-      + grid
-      + `<polygon points="${area}" fill="#2D6E47" opacity="0.12"/>`
-      + `<text x="${x(midI)}" y="${(+y((mw[midI] + rs[midI]) / 2))}" text-anchor="middle" font-size="11" font-weight="500" fill="#2D6E47">Nettovermögen</text>`
+      + grid + yl
+      + `<polygon points="${area}" fill="#2D6E47" opacity="0.10"/>`
       + `<polyline points="${ptsM}" fill="none" stroke="#2D6E47" stroke-width="2"/>`
-      + `<polyline points="${ptsR}" fill="none" stroke="#7A7A72" stroke-width="1.2" stroke-dasharray="3 2"/>`
-      + `<circle cx="${x(n - 1)}" cy="${y(mw[n - 1])}" r="3" fill="#2D6E47"/>`
-      + `<circle cx="${x(n - 1)}" cy="${y(rs[n - 1])}" r="3" fill="#7A7A72"/>`
-      + labels
-      + `<text x="${x(n - 1)}" y="${(+y(mw[n - 1]) - 6)}" text-anchor="end" font-size="11.5" font-weight="600" fill="#2D6E47">Marktwert</text>`
-      + `<text x="${x(n - 1)}" y="${(+y(rs[n - 1]) + 13)}" text-anchor="end" font-size="11.5" font-weight="600" fill="#7A7A72">Restschuld</text>`
+      + `<polyline points="${ptsR}" fill="none" stroke="#7A7A72" stroke-width="1.3" stroke-dasharray="3 2"/>`
+      + `<circle cx="${X(n - 1).toFixed(1)}" cy="${Y(mw[n - 1]).toFixed(1)}" r="2.8" fill="#2D6E47"/>`
+      + `<circle cx="${X(n - 1).toFixed(1)}" cy="${Y(rs[n - 1]).toFixed(1)}" r="2.8" fill="#7A7A72"/>`
+      + `<text x="${X(midI).toFixed(1)}" y="${Y((mw[midI] + rs[midI]) / 2).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="500" fill="#2D6E47">Nettovermögen</text>`
+      + `<text x="${(W - padR + 5).toFixed(1)}" y="${(Y(mw[n - 1]) + 1).toFixed(1)}" text-anchor="start" font-size="9.5" font-weight="600" fill="#2D6E47">Marktwert</text>`
+      + `<text x="${(W - padR + 5).toFixed(1)}" y="${(Y(rs[n - 1]) + 1).toFixed(1)}" text-anchor="start" font-size="9.5" font-weight="600" fill="#7A7A72">Restschuld</text>`
+      + xl
       + `</svg>`;
   }
   function _sparChartSvg(ek, sparEnd, immoEnd) {
-    const max = (Math.max(sparEnd, immoEnd) * 1.16) || 1;
-    const W = 440, H = 250, padB = 42, padT = 24, bw = 130, x1 = 45, x2 = 245;
+    const max = (Math.max(sparEnd, immoEnd) * 1.18) || 1;
+    const W = 480, H = 264, padB = 46, padT = 46, bw = 140, x1 = 60, x2 = 280;
+    const baseY = H - padB;
     const hh = v => (v / max) * (H - padT - padB);
     const bar = (xx, label, total, col, sub) => {
-      const ekH = hh(ek), grH = hh(Math.max(0, total - ek)), yEk = H - padB - ekH, yGr = yEk - grH;
-      return `<rect x="${xx}" y="${yEk.toFixed(1)}" width="${bw}" height="${ekH.toFixed(1)}" fill="#7A7A72" opacity="0.26"/>`
+      const ekH = hh(ek), grH = hh(Math.max(0, total - ek)), yEk = baseY - ekH, yGr = yEk - grH;
+      return `<rect x="${xx}" y="${yEk.toFixed(1)}" width="${bw}" height="${ekH.toFixed(1)}" fill="#7A7A72" opacity="0.22"/>`
         + `<rect x="${xx}" y="${yGr.toFixed(1)}" width="${bw}" height="${grH.toFixed(1)}" fill="${col}"/>`
-        + `<text x="${xx + bw / 2}" y="${(yGr - 8).toFixed(1)}" text-anchor="middle" font-size="20" font-weight="500" fill="#1A1A17">${_eur0(total)} €</text>`
-        + `<text x="${xx + bw / 2}" y="${H - padB + 17}" text-anchor="middle" font-size="12" font-weight="600" fill="#1A1A17">${label}</text>`
-        + `<text x="${xx + bw / 2}" y="${H - padB + 31}" text-anchor="middle" font-size="9" fill="#9a958b">${sub}</text>`;
+        + `<text x="${xx + bw / 2}" y="${(yGr - 9).toFixed(1)}" text-anchor="middle" font-size="21" font-weight="500" fill="#1A1A17">${_eur0(total)} €</text>`
+        + `<text x="${xx + bw / 2}" y="${(baseY + 20).toFixed(1)}" text-anchor="middle" font-size="12.5" font-weight="600" fill="#1A1A17">${label}</text>`
+        + `<text x="${xx + bw / 2}" y="${(baseY + 35).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="#9a958b">${sub}</text>`;
     };
-    const ekY = (H - padB - hh(ek)).toFixed(1);
+    const ekY = (baseY - hh(ek)).toFixed(1);
     return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;font-family:'Inter',Helvetica,Arial,sans-serif;">`
-      + `<line x1="0" y1="${(H - padB).toFixed(1)}" x2="${W}" y2="${(H - padB).toFixed(1)}" stroke="rgba(40,36,30,.25)" stroke-width="0.6"/>`
-      + `<line x1="0" y1="${ekY}" x2="${W}" y2="${ekY}" stroke="rgba(40,36,30,.18)" stroke-width="0.5" stroke-dasharray="3 2"/>`
-      + `<text x="2" y="${(+ekY - 3).toFixed(1)}" font-size="9" fill="#9a958b">Eigenkapital-Einsatz ${_eur0(ek)} €</text>`
+      // Legende oben links — erklärt die EK-Referenzlinie, überlappt keine Balken
+      + `<line x1="4" y1="13" x2="24" y2="13" stroke="#9a958b" stroke-width="1" stroke-dasharray="3 2"/>`
+      + `<text x="29" y="16.5" font-size="9.5" fill="#7A7A72">Eigenkapital-Einsatz: ${_eur0(ek)} €</text>`
+      + `<line x1="0" y1="${baseY.toFixed(1)}" x2="${W}" y2="${baseY.toFixed(1)}" stroke="rgba(40,36,30,.30)" stroke-width="0.7"/>`
+      + `<line x1="0" y1="${ekY}" x2="${W}" y2="${ekY}" stroke="rgba(40,36,30,.20)" stroke-width="0.6" stroke-dasharray="3 2"/>`
       + bar(x1, 'Sparbuch', sparEnd, '#7A7A72', '2,50 % p.a.')
       + bar(x2, 'Immobilie', immoEnd, '#2D6E47', 'Sachwert · 10 Jahre')
       + `</svg>`;
@@ -415,39 +425,91 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   }).join('');
   // Cashflow-Verlaufs-Chart (monatliche Belastung/Überschuss J1–J10, Null-Linie, Crossover) — print-sicher.
   function _cfChartSvg(cfArr, crossJ, dayZeroLoad) {
-    if (!Array.isArray(cfArr) || !cfArr.length) return '';
-    const m = cfArr.slice(0, 10).map(c => Math.round(c.cfJahr / 12));
-    // Review-Fix (Generalprobe): J0/"Heute" verankert am Tag-0-Vertragszustand (belastungTag0Mo),
-    // nicht am Jahr-1-Durchschnitt — sonst weicht der Chart-Start sichtbar vom "Effektive Belastung"-
-    // Wert auf Seite 2 ab, wenn eine fällige Erhöhung in Monat 1 vorgezogen wird. J1–J10 unverändert.
-    // Explizite null/isFinite-Prüfung (belastungTag0Mo kann legitim 0 sein).
-    const j0 = (dayZeroLoad != null && isFinite(dayZeroLoad)) ? Math.round(dayZeroLoad) : m[0];
-    const vals = [j0].concat(m);
-    const n = vals.length;
-    const W = 440, H = 230, padL = 4, padR = 4, padT = 18, padB = 20;
-    const lo = Math.min(0, Math.min.apply(null, vals)), hi = Math.max(0, Math.max.apply(null, vals));
-    const span = (hi - lo) * 0.14 || 1, max = hi + span, min = lo - span;
-    const x = i => (padL + i * (W - padL - padR) / (n - 1)).toFixed(1);
-    const y = v => (padT + (1 - (v - min) / (max - min)) * (H - padT - padB)).toFixed(1);
-    const pts = vals.map((v, i) => x(i) + ',' + y(v)).join(' ');
-    const y0 = y(0);
-    const area = pts + ' ' + x(n - 1) + ',' + y0 + ' ' + x(0) + ',' + y0;
-    let xl = ''; [0, 2, 4, 6, 8, 10].forEach(i => { xl += `<text x="${x(i)}" y="${H - 5}" text-anchor="middle" font-size="9" fill="#7A7A72">J${i}</text>`; });
+    // Monats-granular aus der Engine (cfMonate, 120 Werte) — weiche Kurve mit echten
+    // Sprüngen, identisch zur On-Screen-Darstellung. Fallback auf Jahres-cf wenn nötig.
+    const mon = Array.isArray(r.cfMonate) ? r.cfMonate.slice(0, 120) : [];
+    if (!mon.length) return '';
+    const j0 = (dayZeroLoad != null && isFinite(dayZeroLoad)) ? Math.round(dayZeroLoad) : Math.round(mon[0].cfNachStM);
+    const series = [{ m: 0, v: j0 }].concat(mon.map(c => ({ m: c.m, v: c.cfNachStM })));
+    const W = 600, H = 300, padL = 50, padR = 54, padT = 58, padB = 28;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const vs = series.map(s => s.v);
+    let lo = Math.min(0, Math.min.apply(null, vs)), hi = Math.max(0, Math.max.apply(null, vs));
+    const pv = Math.max(12, (hi - lo) * 0.12); lo -= pv; hi += pv;
+    const steps = [10, 20, 25, 50, 100, 150, 200, 250, 500, 1000];
+    const step = steps.find(s => s >= (hi - lo) / 5) || 1000;
+    lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+    const X = m => (padL + (m / 120) * plotW);
+    const Y = v => (padT + (1 - (v - lo) / (hi - lo)) * plotH);
+    // Gridlines + Y-Achsen-Labels (€/Mo), Nulllinie betont
+    let grid = '', yl = '';
+    for (let g = lo; g <= hi + 0.001; g += step) {
+      const yy = Y(g).toFixed(1), zero = Math.abs(g) < 0.001;
+      grid += `<line x1="${padL}" y1="${yy}" x2="${(W - padR).toFixed(1)}" y2="${yy}" stroke="${zero ? '#1A1A17' : '#ECEAE1'}" stroke-width="${zero ? 1 : 0.5}"/>`;
+      yl += `<text x="${padL - 7}" y="${(+yy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#9a958b">${g > 0 ? '+' : ''}${Math.round(g)} €</text>`;
+    }
+    const y0 = Y(0).toFixed(1);
+    const linePts = series.map(s => X(s.m).toFixed(1) + ',' + Y(s.v).toFixed(1)).join(' ');
+    const area = `${padL.toFixed(1)},${y0} ` + linePts + ` ${(W - padR).toFixed(1)},${y0}`;
+    // Jahres-Punkte (J0..J10), farbig nach Vorzeichen
+    let dots = '';
+    for (let yr = 0; yr <= 10; yr++) {
+      const mm = yr * 12, sv = (mm === 0) ? j0 : (mon[mm - 1] ? mon[mm - 1].cfNachStM : j0);
+      dots += `<circle cx="${X(mm).toFixed(1)}" cy="${Y(sv).toFixed(1)}" r="2.6" fill="${sv >= 0 ? '#2D6E47' : '#9A3E33'}"/>`;
+    }
+    // X-Achsen-Labels
+    let xl = '';
+    [0, 2, 4, 6, 8, 10].forEach(yr => { xl += `<text x="${X(yr * 12).toFixed(1)}" y="${(H - 10).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="#7A7A72">J${yr}</text>`; });
+    // Event-Marker: Subvention (Start/Ende) + Mieterhöhungen — aus den Monatsdaten
+    const ev = [];
+    if (mon[0].subvM > 0.5) ev.push({ m: 1, col: '#9A3E33', txt: `Subvention ${Math.round(mon[0].subvM)} €/Mo` });
+    let lastSub = 0; mon.forEach(c => { if (c.subvM > 0.5) lastSub = c.m; });
+    if (lastSub > 0 && lastSub < 119) ev.push({ m: lastSub + 1, col: '#9A3E33', txt: 'Subvention endet' });
+    const jumps = [];
+    for (let idx = 1; idx < mon.length; idx++) {
+      const d = mon[idx].kaltmieteM - mon[idx - 1].kaltmieteM;
+      if (d >= 5) jumps.push({ m: mon[idx].m, d: Math.round(d) });
+    }
+    // Staffel (viele gleiche jährliche Stufen) -> ein konsolidierter Marker statt Marker-Spam.
+    if (jumps.length > 4) {
+      ev.push({ m: jumps[0].m, col: '#8E6E3D', txt: `Mieterhöhung +${jumps[0].d} €/Mo · jährlich` });
+    } else {
+      jumps.forEach(j => ev.push({ m: j.m, col: '#8E6E3D', txt: `Mieterhöhung +${j.d} €/Mo` }));
+    }
+    ev.sort((a, b) => a.m - b.m);
+    let evSvg = '';
+    const rows = []; // belegte x-Bereiche je Reihe -> echte Kollisionsvermeidung
+    ev.forEach((e) => {
+      const ex = X(e.m), tw = e.txt.length * 4.95 + 12;
+      let lx = ex - tw / 2;
+      if (lx + tw > W - padR) lx = (W - padR) - tw; // rechts im Plot halten
+      if (lx < padL) lx = padL;                     // links nicht in die Y-Achse laufen
+      let row = 0;
+      while (row < 2) { // bis zu 3 Reihen (0,1,2)
+        const occ = rows[row] || [];
+        if (!occ.some(rg => !(lx + tw + 4 < rg[0] || lx > rg[1] + 4))) break;
+        row++;
+      }
+      (rows[row] = rows[row] || []).push([lx, lx + tw]);
+      const labelY = 7 + row * 16;
+      evSvg += `<line x1="${ex.toFixed(1)}" y1="${(labelY + 13.5).toFixed(1)}" x2="${ex.toFixed(1)}" y2="${y0}" stroke="${e.col}" stroke-width="0.7" stroke-dasharray="2 2" opacity="0.45"/>`
+        + `<rect x="${lx.toFixed(1)}" y="${labelY.toFixed(1)}" width="${tw.toFixed(1)}" height="13.5" rx="2.5" fill="#FBFAF7" stroke="${e.col}" stroke-width="0.7"/>`
+        + `<text x="${(lx + tw / 2).toFixed(1)}" y="${(labelY + 9.4).toFixed(1)}" text-anchor="middle" font-size="8" font-weight="500" fill="${e.col}">${e.txt}</text>`;
+    });
+    // Crossover (erster dauerhafter Überschuss): Punkt + dezentes Label an der Nulllinie
     let cross = '';
     if (crossJ && crossJ >= 1 && crossJ <= 10) {
-      const cx = x(crossJ);
-      cross = `<line x1="${cx}" y1="${y0}" x2="${cx}" y2="${y(vals[crossJ])}" stroke="#2D6E47" stroke-width="1" stroke-dasharray="3 3" opacity="0.55"/>`
-        + `<circle cx="${cx}" cy="${y(vals[crossJ])}" r="4" fill="#2D6E47" stroke="#FBFAF7" stroke-width="1.5"/>`
-        + `<text x="${cx}" y="${(+y(vals[crossJ]) - 8)}" text-anchor="middle" font-size="9" font-weight="600" fill="#2D6E47">Jahr ${crossJ}: erster Überschuss</text>`;
+      const cm = crossJ * 12, cv = mon[cm - 1] ? mon[cm - 1].cfNachStM : 0, cxp = X(cm);
+      let clx = cxp; const ctw = ('ab J' + crossJ + ' im Plus').length * 4.6;
+      let canchor = 'middle'; if (cxp - ctw / 2 < padL) { clx = cxp + 5; canchor = 'start'; } else if (cxp + ctw / 2 > W - padR) { clx = cxp - 5; canchor = 'end'; }
+      cross = `<circle cx="${cxp.toFixed(1)}" cy="${Y(cv).toFixed(1)}" r="3.6" fill="#2D6E47" stroke="#FBFAF7" stroke-width="1.4"/>`
+        + `<text x="${clx.toFixed(1)}" y="${(+y0 + 13).toFixed(1)}" text-anchor="${canchor}" font-size="8.5" font-weight="600" fill="#2D6E47">ab J${crossJ} im Plus</text>`;
     }
-    const endV = vals[n - 1], endCol = endV >= 0 ? '#2D6E47' : '#9A3E33';
     return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;font-family:'Inter',Helvetica,Arial,sans-serif;">`
-      + `<polygon points="${area}" fill="rgba(176,138,77,.08)"/>`
-      + `<line x1="${padL}" y1="${y0}" x2="${W - padR}" y2="${y0}" stroke="#1A1A17" stroke-width="1" opacity="0.55"/>`
-      + `<text x="${padL}" y="${(+y0 - 3)}" font-size="9" fill="#9a958b">0 €</text>`
-      + `<polyline points="${pts}" fill="none" stroke="#B08A4D" stroke-width="1.8" stroke-linejoin="round"/>`
-      + xl + cross
-      + `<text x="${x(n - 1)}" y="${(+y(endV) - 6)}" text-anchor="end" font-size="9" font-weight="600" fill="${endCol}">J10 ${endV > 0 ? '+' : ''}${endV} €/Mo</text>`
+      + grid + yl
+      + `<polygon points="${area}" fill="rgba(176,138,77,.10)"/>`
+      + `<polyline points="${linePts}" fill="none" stroke="#B08A4D" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
+      + dots + evSvg + cross + xl
       + `</svg>`;
   }
   const seite2 = `
@@ -499,7 +561,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <div class="pdf-c-section-num">02 · Die nächsten zehn Jahre</div>
       <h2 class="pdf-c-section-title">So entwickelt sich Deine monatliche Belastung.</h2>
       <p class="pdf-c-lead" style="max-width:58ch">Die Annuität bleibt über die Laufzeit konstant — die Miete steigt, der Tilgungsanteil wächst. Deshalb sinkt Deine monatliche Belastung Jahr für Jahr.</p>
-      <div style="margin:6mm 0 4mm;">${_cfChartSvg(r.cf, crossoverJahr, belastungTag1Mo)}</div>
+      <div style="margin:5mm 0 3mm;">${_cfChartSvg(r.cf, crossoverJahr, belastungTag1Mo)}<div style="font-size:7.5pt;color:#9a958b;margin-top:0.5mm;text-align:center;">Cashflow nach Steuern, je Monat · Annuität konstant · Steuervorteil und Mietsubvention enthalten</div></div>
       <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:12mm;margin-top:4mm;">
         <div>
           <div style="font-size:8pt;color:#7A7A72;margin-bottom:1.5mm;">Werte je Monat im Jahresdurchschnitt · Annuität konstant · Steuervorteil und Mietsubvention enthalten</div>
