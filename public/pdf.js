@@ -378,13 +378,13 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
     const midI = Math.floor(n / 2);
     return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;font-family:'Inter',Helvetica,Arial,sans-serif;">`
       + grid + yl
-      + `<polygon points="${area}" fill="#2D6E47" opacity="0.10"/>`
-      + `<polyline points="${ptsM}" fill="none" stroke="#2D6E47" stroke-width="2"/>`
+      + `<polygon points="${area}" fill="#B08A4D" opacity="0.13"/>`
+      + `<polyline points="${ptsM}" fill="none" stroke="#8E6E3D" stroke-width="2"/>`
       + `<polyline points="${ptsR}" fill="none" stroke="#7A7A72" stroke-width="1.3" stroke-dasharray="3 2"/>`
-      + `<circle cx="${X(n - 1).toFixed(1)}" cy="${Y(mw[n - 1]).toFixed(1)}" r="2.8" fill="#2D6E47"/>`
+      + `<circle cx="${X(n - 1).toFixed(1)}" cy="${Y(mw[n - 1]).toFixed(1)}" r="2.8" fill="#8E6E3D"/>`
       + `<circle cx="${X(n - 1).toFixed(1)}" cy="${Y(rs[n - 1]).toFixed(1)}" r="2.8" fill="#7A7A72"/>`
-      + `<text x="${X(midI).toFixed(1)}" y="${Y((mw[midI] + rs[midI]) / 2).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="500" fill="#2D6E47">Nettovermögen</text>`
-      + `<text x="${(W - padR + 5).toFixed(1)}" y="${(Y(mw[n - 1]) + 1).toFixed(1)}" text-anchor="start" font-size="9.5" font-weight="600" fill="#2D6E47">Marktwert</text>`
+      + `<text x="${X(midI).toFixed(1)}" y="${Y((mw[midI] + rs[midI]) / 2).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="500" fill="#8E6E3D">Nettovermögen</text>`
+      + `<text x="${(W - padR + 5).toFixed(1)}" y="${(Y(mw[n - 1]) + 1).toFixed(1)}" text-anchor="start" font-size="9.5" font-weight="600" fill="#8E6E3D">Marktwert</text>`
       + `<text x="${(W - padR + 5).toFixed(1)}" y="${(Y(rs[n - 1]) + 1).toFixed(1)}" text-anchor="start" font-size="9.5" font-weight="600" fill="#7A7A72">Restschuld</text>`
       + xl
       + `</svg>`;
@@ -410,7 +410,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       + `<line x1="0" y1="${baseY.toFixed(1)}" x2="${W}" y2="${baseY.toFixed(1)}" stroke="rgba(40,36,30,.30)" stroke-width="0.7"/>`
       + `<line x1="0" y1="${ekY}" x2="${W}" y2="${ekY}" stroke="rgba(40,36,30,.20)" stroke-width="0.6" stroke-dasharray="3 2"/>`
       + bar(x1, 'Sparbuch', sparEnd, '#7A7A72', '2,50 % p.a.')
-      + bar(x2, 'Immobilie', immoEnd, '#2D6E47', 'Sachwert · 10 Jahre')
+      + bar(x2, 'Immobilie', immoEnd, '#B08A4D', 'Sachwert · 10 Jahre')
       + `</svg>`;
   }
   // Cashflow Jahr für Jahr (Einnahmen / Ausgaben / Überschuss pro Monat) — reconcilet mit cfJahr/12.
@@ -508,7 +508,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
     return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;font-family:'Inter',Helvetica,Arial,sans-serif;">`
       + grid + yl
       + `<polygon points="${area}" fill="rgba(176,138,77,.10)"/>`
-      + `<polyline points="${linePts}" fill="none" stroke="#B08A4D" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
+      + `<polyline points="${linePts}" fill="none" stroke="#8E6E3D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>`
       + dots + evSvg + cross + xl
       + `</svg>`;
   }
