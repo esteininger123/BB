@@ -218,7 +218,7 @@ module.exports = async (req, res) => {
         vermietet: statusFinal === 'vermietet',
         neuStellplatzIds: neuStpIds,
         altStellplatzIds: weStpIds,
-        stpById,
+        stpById: stplById,
         vertragMieteFallback: stpVertragMiete,
       });
 
