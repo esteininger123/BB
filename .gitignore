@@ -11,3 +11,6 @@ node_modules/
 *.bak
 public/test.txt
 zzz_test_*.txt
+
+# Design-Audit Artefakte (Screenshots, lokal)
+_audit/

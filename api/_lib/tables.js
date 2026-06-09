@@ -166,8 +166,7 @@ const MIETVERTRAG_FIELDS = {
   STATUS_LOOKUP:   'fld02ScVlHI1f4AZr',   // Lookup via WE: Aktiv / Archiviert
   VERTRAGSBEGINN:  'fldDdFKwsytwadjqG',   // Originaldatum Vertrag (bei Neuvertrag)
   GUELTIG_AB:      'fldLkBwWJj8fAZAHJ',   // 'Anpassung gültig ab' (bei Erhöhung/Staffel) — Datum der letzten Mietsteigerung
-  VERTRAGSENDE:    'fldZjDwH7aXw5Bwjv',   // Datum — Mietverhältnis endet (bei bekannter Kündigung in der Zukunft gesetzt)
-  ANGEKUENDIGT_AM: 'fldvbGG5fju4ctJcj',   // Datum — wann die Kündigung eingegangen ist
+  VERTRAGSENDE:    'fldZjDwH7aXw5Bwjv',   // Datum — Mietverhältnis endet; NUR dieses Feld eintragen wenn Mieter kündigt (App liest nur VERTRAGSENDE)
 };
 
 // --- Mieter-Tabelle ---
