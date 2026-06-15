@@ -41,10 +41,10 @@ module.exports = async (req, res) => {
       return res.status(401).json({ error: 'Link ungültig oder abgelaufen' });
     }
 
-    // Objektunterlagen: bevorzugt der beim Übergeben kopierte Unterordner (objektFolderId),
-    // sonst Fallback auf den zentralen Verkaufsunterlagen-Ordner (Tokens vor der Kopier-Umstellung).
-    const objektFolderId = payload.objektFolderId
-      || (payload.weId ? await resolveVerkaufsunterlagenFolder(payload.weId) : '');
+    // Objektunterlagen = zentral (immer aktuell, via WE aufgelöst) + WE-spezifischer
+    // Unterordner im Kunden-Ordner (manuelle Ergänzungen). Verlinkung statt Kopie.
+    const centralFolderId = payload.weId ? await resolveVerkaufsunterlagenFolder(payload.weId) : '';
+    const weSpezFolderId = payload.weSpezifischFolderId || '';
 
     if (req.method === 'GET') {
       let kundeName = '';
@@ -55,7 +55,9 @@ module.exports = async (req, res) => {
         } catch { /* Titel optional */ }
       }
       const uploads = (await listFiles(payload.folderId).catch(() => [])).map(slim);
-      const objektunterlagen = objektFolderId ? (await listFiles(objektFolderId).catch(() => [])).map(slim) : [];
+      const objCentral = centralFolderId ? (await listFiles(centralFolderId).catch(() => [])).map(slim) : [];
+      const objSpez = weSpezFolderId ? (await listFiles(weSpezFolderId).catch(() => [])).map(slim) : [];
+      const objektunterlagen = [...objCentral, ...objSpez];
       return res.status(200).json({ kundeName, checkliste: CHECKLISTE, uploads, objektunterlagen });
     }
 

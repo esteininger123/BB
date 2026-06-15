@@ -117,6 +117,29 @@ async function copyFile(fileId, name, parentId) {
   });
 }
 
+// Legt eine Verknüpfung (Shortcut) auf einen Ziel-Ordner/-Datei an — immer aktuell,
+// keine Kopie. Idempotent: existiert schon ein Shortcut gleichen Namens, kein Duplikat.
+async function ensureShortcut(name, targetId, parentId) {
+  const token = await getAccessToken();
+  try {
+    const q = `name='${escQ(name)}' and '${escQ(parentId)}' in parents and mimeType='application/vnd.google-apps.shortcut' and trashed=false`;
+    const found = await driveFetch(
+      `/files?q=${encodeURIComponent(q)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives`,
+      {}, token
+    );
+    if (found.files && found.files.length) return found.files[0];
+  } catch (e) { /* Suche best effort */ }
+  return driveFetch(`/files?fields=id,name&supportsAllDrives=true`, {
+    method: 'POST',
+    body: JSON.stringify({
+      name,
+      mimeType: 'application/vnd.google-apps.shortcut',
+      parents: [parentId],
+      shortcutDetails: { targetId },
+    }),
+  }, token);
+}
+
 // Lädt eine Datei (Buffer) in einen Ordner hoch. Rückgabe: { id, name, webViewLink }.
 async function uploadFile(folderId, name, mimeType, buffer, appProperties) {
   const token = await getAccessToken();
@@ -150,4 +173,4 @@ async function uploadFile(folderId, name, mimeType, buffer, appProperties) {
   return res.json();
 }
 
-module.exports = { getAccessToken, driveFetch, ensureFolder, folderIdFromUrl, listFiles, uploadFile, copyFile };
+module.exports = { getAccessToken, driveFetch, ensureFolder, folderIdFromUrl, listFiles, uploadFile, copyFile, ensureShortcut };

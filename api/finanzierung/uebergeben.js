@@ -123,28 +123,28 @@ module.exports = async (req, res) => {
     try {
       const rootId = process.env.DRIVE_ROOT_FOLDER_ID;
       if (rootId) {
-        const { ensureFolder, listFiles, copyFile } = require('../_lib/drive');
+        const { ensureFolder, ensureShortcut } = require('../_lib/drive');
         const { resolveVerkaufsunterlagenFolder } = require('../_lib/objektunterlagen');
         const folderName = (kundeName || 'Kunde') + ' — ' + String(created.id).slice(-6);
         const folder = await ensureFolder(folderName, rootId);
         driveLink = (folder && folder.webViewLink) || '';
         const folderId = (folder && folder.id) || '';
 
-        // Unterordner "Objektunterlagen" + zentrale Unterlagen reinkopieren (best effort).
-        // Macht den Kunden-Ordner vollständig (ein Bank-Link genügt) und gibt einen Ort
-        // für manuelle WE-spezifische Ergänzungen.
-        let objektFolderId = '';
+        // Verlinkung statt Kopie (Edgar 2026-06-15): Shortcut auf den zentralen
+        // Objektunterlagen-Ordner (immer aktuell) + Unterordner für WE-spezifische
+        // manuelle Ergänzungen. Beides wird im Portal eingeblendet.
+        let weSpezifischFolderId = '';
         if (folderId) {
           try {
-            const sub = await ensureFolder('Objektunterlagen', folderId);
-            objektFolderId = (sub && sub.id) || '';
             const centralId = await resolveVerkaufsunterlagenFolder(weRecId);
-            if (objektFolderId && centralId) {
-              const centralFiles = await listFiles(centralId).catch(() => []);
-              await Promise.allSettled(centralFiles.map((f) => copyFile(f.id, f.name, objektFolderId)));
+            if (centralId) {
+              try { await ensureShortcut('Objektunterlagen (Objekt)', centralId, folderId); }
+              catch (e) { console.error('[uebergeben] Objekt-Shortcut fehlgeschlagen:', e && e.message); }
             }
+            const sub = await ensureFolder('Wohnungsspezifische Unterlagen', folderId);
+            weSpezifischFolderId = (sub && sub.id) || '';
           } catch (e) {
-            console.error('[uebergeben] Objektunterlagen-Kopie fehlgeschlagen (nicht kritisch):', e && e.message);
+            console.error('[uebergeben] Objektunterlagen-Verlinkung fehlgeschlagen (nicht kritisch):', e && e.message);
           }
         }
 
@@ -154,7 +154,7 @@ module.exports = async (req, res) => {
         if (folderId) {
           try {
             const { signUploadToken } = require('../_lib/upload-token');
-            const token = signUploadToken({ fallId: created.id, folderId, objektFolderId, weId: weRecId || '' });
+            const token = signUploadToken({ fallId: created.id, folderId, weId: weRecId || '', weSpezifischFolderId });
             const host = (req.headers && (req.headers['x-forwarded-host'] || req.headers.host)) || '';
             if (host) {
               uploadLink = `https://${host}/portal?t=${token}`;
