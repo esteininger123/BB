@@ -1,6 +1,6 @@
 // Field-Mappings: Airtable-Record → API-Object und API-Body → Airtable-Fields.
 
-const { KUNDEN_FIELDS, SNAPSHOT_FIELDS, VERTRIEBLER_FIELDS, WE_FIELDS } = require('./tables');
+const { KUNDEN_FIELDS, SNAPSHOT_FIELDS, VERTRIEBLER_FIELDS, WE_FIELDS, FINANZIERUNGSFALL_FIELDS, FINANZIERUNGSFALL_STATUS_START } = require('./tables');
 
 // --- Kunden ---
 
@@ -194,6 +194,57 @@ function snapshotBodyToFields(body, opts = {}) {
   return out;
 }
 
+// --- Endkunden-Finanzierungsfall (2026-06-15) ---
+// body: { kundeId, weId, snapshotId, kundeName, weBezeichnung, standVom,
+//   snapshot:{kaufpreis,wohnflaeche,kaltmiete,zins,tilgung,ekBedarf,knkMitfinanziert},
+//   finanzierungsform:'100'|'107'|'andere', finanzierungsformAndere,
+//   maxEigenkapital, hausbankVorhanden, hausbankName, hausbankBerater,
+//   finanzberaterVorhanden, finanzberaterKontakt, wasWichtig, notarterminZiel }
+function finanzierungsfallBodyToFields(body) {
+  const F = FINANZIERUNGSFALL_FIELDS;
+  const out = {};
+  const num = (v) => (v == null || v === '' || isNaN(Number(v))) ? null : Number(v);
+  const setIf = (field, val) => { if (val != null) out[field] = val; };
+
+  if (body.kundeId)    out[F.KUNDE]       = [body.kundeId];
+  if (body.weId)       out[F.WOHNEINHEIT] = [body.weId];
+  if (body.snapshotId) out[F.SNAPSHOT]    = [body.snapshotId];
+
+  // Titel = "Kundenname — WE-Bezeichnung"
+  const titel = [body.kundeName, body.weBezeichnung].map(s => (s || '').trim()).filter(Boolean).join(' — ');
+  if (titel) out[F.TITEL] = titel;
+
+  if (body.standVom) out[F.STAND_VOM] = body.standVom;
+
+  const s = (body.snapshot && typeof body.snapshot === 'object') ? body.snapshot : {};
+  setIf(F.KAUFPREIS,   num(s.kaufpreis));
+  setIf(F.EK_BEDARF,   num(s.ekBedarf));
+  setIf(F.ZINS,        num(s.zins));
+  setIf(F.TILGUNG,     num(s.tilgung));
+  setIf(F.WOHNFLAECHE, num(s.wohnflaeche));
+  setIf(F.KALTMIETE,   num(s.kaltmiete));
+
+  // Finanzierungsform → Checkboxen 100/107 + Freitext "andere"
+  const form = String(body.finanzierungsform || '');
+  out[F.P100] = form === '100';
+  out[F.P107] = form === '107';
+  out[F.FINANZIERUNGSFORM_ANDERE] = (form === 'andere') ? (body.finanzierungsformAndere || '') : '';
+
+  setIf(F.MAX_EK, num(body.maxEigenkapital));
+  out[F.HAUSBANK_VORHANDEN]      = !!body.hausbankVorhanden;
+  out[F.HAUSBANK_NAME]           = body.hausbankName || '';
+  out[F.HAUSBANK_BERATER]        = body.hausbankBerater || '';
+  out[F.FINANZBERATER_VORHANDEN] = !!body.finanzberaterVorhanden;
+  out[F.FINANZBERATER_KONTAKT]   = body.finanzberaterKontakt || '';
+  out[F.WAS_WICHTIG]             = body.wasWichtig || '';
+  if (body.notarterminZiel) out[F.NOTARTERMIN_ZIEL] = body.notarterminZiel;
+
+  out[F.STATUS]    = FINANZIERUNGSFALL_STATUS_START;
+  out[F.SA_STATUS] = 'fehlt';
+
+  return out;
+}
+
 // --- Wohneinheiten ---
 
 function weRecordToApi(rec, projektNameById = {}) {
@@ -255,6 +306,7 @@ module.exports = {
   kundeBodyToFields,
   snapshotRecordToApi,
   snapshotBodyToFields,
+  finanzierungsfallBodyToFields,
   weRecordToApi,
   parseJsonField,
   stringifyJson
