@@ -726,7 +726,22 @@ function recalc(i) {
       monateSeit = Math.max(0, Math.round((now - lastDate) / (1000 * 60 * 60 * 24 * 30.44)));
     }
   }
-  const M1 = Math.max(1, 36 - monateSeit);
+  let M1 = Math.max(1, 36 - monateSeit);
+  // 2026-06-15 (Edgar, WE2 Heidelberger Str. 21): Mietsteigerung mit der Backend-
+  // Subventions-Story synchronisieren. deriveSubvention (api/stammdaten/[weId].js)
+  // berechnet die Phasen unter der Annahme, dass der Mieter erst NACH Phase 1 erhöht
+  // wird (bei fehlendem Datum: p1Monate = volle 36 Mo). Ohne gepflegtes Datum fiel
+  // monateSeit hier auf den 36-Fallback (vermietet/leer ohne Datum, siehe app.js) →
+  // M1 = 1 → die Mietermiete sprang sofort gegen den Marktmiete-Cap und fraß die
+  // geglättete Subvention auf: Card zeigte "Gesamt 0 €", obwohl Story + Erläuterung
+  // 70 €/Mo · 36 Mo auswiesen. Solange echte Backend-Subventionsphasen aktiv sind UND
+  // kein echtes Mietsteigerungs-Datum gepflegt ist, darf die erste Steigerung frühestens
+  // am Ende von Phase 1 greifen — konsistent zur Story, Subvention fließt voll.
+  // Bei gepflegtem Datum bleibt M1 unangetastet (echtes Datum hat Vorrang).
+  if (!i.letzteMietsteigerung && Array.isArray(i.subventionPhasen) && i.subventionPhasen.length > 0) {
+    const phase1Monate = (i.subventionPhasen[0] && i.subventionPhasen[0].monate) || 0;
+    if (phase1Monate > 0) M1 = Math.max(M1, phase1Monate);
+  }
   // Staffel = Neuvermietung (Edgar 03.06.2026): Die Staffel-Uhr startet mit dem NEUEN Mietvertrag,
   // nicht mit dem alten "Monate seit Erhöhung"-Feld (das beschreibt einen Bestandsmieter und ist bei
   // leeren/neu vermieteten Einheiten irreführend). Erste Stufe nach 12 vollen Monaten (Monat 13,
