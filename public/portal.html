@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unterlagen-Portal · B&B Immo</title>
+<style>
+  :root{
+    --cream:#FBFAF7; --ink:#1f1d1a; --muted:#6b6660; --line:#e7e2da;
+    --bronze:#B08A4D; --bronze-d:#977339; --green:#2D6E47; --card:#ffffff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:var(--cream);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:680px;margin:0 auto;padding:20px 16px 60px}
+  header{display:flex;align-items:center;gap:12px;padding:8px 0 20px;border-bottom:1px solid var(--line);margin-bottom:22px}
+  .logo{font-weight:800;letter-spacing:.5px;color:var(--bronze);font-size:20px}
+  .logo small{display:block;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase}
+  h1{font-size:21px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 24px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
+  .card h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .card h2 .ic{font-size:18px}
+  ul.list{list-style:none;margin:0;padding:0}
+  ul.list li{padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;display:flex;align-items:center;gap:10px}
+  ul.list li:last-child{border-bottom:none}
+  .check li::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--bronze);flex:0 0 auto}
+  .file a{color:var(--green);text-decoration:none;font-weight:600;word-break:break-word}
+  .file a:hover{text-decoration:underline}
+  .file .ic{flex:0 0 auto}
+  .empty{color:var(--muted);font-size:13px;font-style:italic;padding:6px 0}
+  .drop{border:2px dashed var(--bronze);border-radius:12px;padding:26px 16px;text-align:center;
+    background:#fff;cursor:pointer;transition:background .15s,border-color .15s}
+  .drop.over{background:#faf4ea;border-color:var(--bronze-d)}
+  .drop .big{font-size:15px;font-weight:700;margin-bottom:4px}
+  .drop .small{font-size:12.5px;color:var(--muted)}
+  .btn{display:inline-block;margin-top:12px;background:var(--bronze);color:#fff;border:none;border-radius:8px;
+    padding:11px 18px;font-size:14px;font-weight:700;cursor:pointer}
+  .btn:hover{background:var(--bronze-d)}
+  #status{font-size:13px;color:var(--muted);margin-top:10px;min-height:18px}
+  .ok{color:var(--green);font-weight:600}
+  .err{color:#9A3E33;font-weight:600}
+  .center{text-align:center;padding:50px 0;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">B&amp;B<small>Immo</small></div>
+  </header>
+  <div id="content"><div class="center">Lädt…</div></div>
+</div>
+
+<script>
+const token = new URLSearchParams(location.search).get('t') || '';
+const apiBase = '/api/finanzierung/portal/' + encodeURIComponent(token);
+const MAX_MB = 3;
+const $ = (sel) => document.querySelector(sel);
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+async function load(){
+  if(!token){ render(null,'Kein Zugangs-Token im Link.'); return; }
+  try{
+    const r = await fetch(apiBase, {headers:{'accept':'application/json'}});
+    if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('HTTP '+r.status)); }
+    render(await r.json());
+  }catch(e){ render(null, e.message); }
+}
+
+function fileItem(f){
+  return `<li class="file"><span class="ic">📄</span><a href="${esc(f.webViewLink||'#')}" target="_blank" rel="noopener">${esc(f.name)}</a></li>`;
+}
+
+function render(data, errMsg){
+  const c = $('#content');
+  if(errMsg){
+    c.innerHTML = `<div class="card"><h2><span class="ic">⚠️</span> Link nicht gültig</h2>
+      <p class="empty">${esc(errMsg)}</p>
+      <p style="font-size:13px;color:var(--muted)">Bitte fordere bei deinem Ansprechpartner einen neuen Link an.</p></div>`;
+    return;
+  }
+  const name = (data.kundeName||'').split(' — ')[0] || '';
+  const objekt = (data.objektunterlagen||[]);
+  const uploads = (data.uploads||[]);
+  const check = (data.checkliste||[]);
+  c.innerHTML = `
+    <h1>Willkommen${name ? ', '+esc(name) : ''}</h1>
+    <p class="sub">Hier kannst du deine Unterlagen für die Finanzierung hochladen und die Objektunterlagen einsehen.</p>
+
+    <div class="card">
+      <h2><span class="ic">📂</span> Objektunterlagen</h2>
+      ${objekt.length ? `<ul class="list">${objekt.map(fileItem).join('')}</ul>`
+        : `<div class="empty">Aktuell sind keine Objektunterlagen hinterlegt.</div>`}
+    </div>
+
+    <div class="card">
+      <h2><span class="ic">⬆️</span> Unterlagen hochladen</h2>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 12px">Bitte lade folgende Unterlagen hoch (pro Datei max. ${MAX_MB} MB):</p>
+      <ul class="list check" style="margin-bottom:16px">${check.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
+      <div class="drop" id="drop">
+        <div class="big">Dateien hierher ziehen oder tippen</div>
+        <div class="small">PDF, Foto oder Scan — auch mehrere auf einmal</div>
+        <button class="btn" type="button" id="pick">Dateien auswählen</button>
+      </div>
+      <input type="file" id="file" multiple style="display:none">
+      <div id="status"></div>
+    </div>
+
+    <div class="card">
+      <h2><span class="ic">✅</span> Meine hochgeladenen Dokumente</h2>
+      <ul class="list" id="uploads">
+        ${uploads.length ? uploads.map(fileItem).join('') : `<div class="empty">Noch nichts hochgeladen.</div>`}
+      </ul>
+    </div>`;
+  wireUpload();
+}
+
+function wireUpload(){
+  const drop = $('#drop'), input = $('#file');
+  if(!drop) return;
+  $('#pick').onclick = (e)=>{ e.stopPropagation(); input.click(); };
+  drop.onclick = ()=> input.click();
+  input.onchange = ()=>{ if(input.files.length) uploadFiles([...input.files]); input.value=''; };
+  ['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+  drop.addEventListener('drop', e=>{ if(e.dataTransfer.files.length) uploadFiles([...e.dataTransfer.files]); });
+}
+
+function fileToBase64(file){
+  return new Promise((res,rej)=>{ const r=new FileReader();
+    r.onload=()=>{ const s=String(r.result); res(s.slice(s.indexOf(',')+1)); };
+    r.onerror=rej; r.readAsDataURL(file); });
+}
+
+async function uploadFiles(files){
+  const st = $('#status');
+  let okCount=0;
+  for(const file of files){
+    if(file.size > MAX_MB*1024*1024){ st.innerHTML=`<span class="err">"${esc(file.name)}" ist zu groß (max. ${MAX_MB} MB).</span>`; continue; }
+    st.innerHTML = `Lade hoch: ${esc(file.name)} …`;
+    try{
+      const dataBase64 = await fileToBase64(file);
+      const r = await fetch(apiBase, {method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({name:file.name,mimeType:file.type,dataBase64})});
+      if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('HTTP '+r.status)); }
+      okCount++;
+    }catch(e){ st.innerHTML=`<span class="err">Fehler bei "${esc(file.name)}": ${esc(e.message)}</span>`; }
+  }
+  if(okCount) st.innerHTML = `<span class="ok">${okCount} Datei(en) hochgeladen.</span>`;
+  await load();
+}
+
+load();
+</script>
+</body>
+</html>

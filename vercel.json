@@ -27,6 +27,12 @@
     "api/kunden/[id].js": {
       "maxDuration": 30
     },
+    "api/finanzierung/uebergeben.js": {
+      "maxDuration": 30
+    },
+    "api/finanzierung/portal/[token].js": {
+      "maxDuration": 30
+    },
     "api/stammdaten/refresh-all.js": {
       "memory": 1024,
       "maxDuration": 60

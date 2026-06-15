@@ -33,6 +33,9 @@ const PROJEKT_FIELDS = {
   // Projekt-Link auf der Objekt-Tabelle → übergeordnetes Projekt (z.B. Wesseling = 1 Projekt,
   // umfasst die zwei Objekte WES_RHEIN 290 und 292).
   PROJEKT_LINK: 'fldHYvgI49VDw3xKg',
+  // 2026-06-15 — Link auf zentralen Drive-Ordner mit Verkaufsunterlagen (Baustein U,
+  // wird im Kunden-Portal read-only eingeblendet).
+  VERKAUFSUNTERLAGEN: 'fldKFHZROEU4sASDy',
 };
 
 // Felder der Projekt-Head-Tabelle (tblisPG7YixRpd9cD)
@@ -139,6 +142,7 @@ const FINANZIERUNGSFALL_FIELDS = {
   NOTARTERMIN_ZIEL:        'fldagIUGINXpFrP0M', // date
   SA_STATUS:               'fld2ycS7SZZB9W9XJ', // singleSelect: fehlt / liegt vor
   KUNDEN_DRIVE:            'fldVLOKeXrgkJLWaD', // url — Link zum Drive-Ordner des Kunden (Baustein D)
+  UPLOAD_LINK:             'fldBra4iUkp25viju', // url — Token-Link fürs Kunden-Upload-Portal (Baustein U)
 };
 
 const FINANZIERUNGSFALL_STATUS_START = 'Unterlagen noch anfordern';

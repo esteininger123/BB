@@ -5,6 +5,7 @@
 //   GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REFRESH_TOKEN
 //   DRIVE_ROOT_FOLDER_ID  — Eltern-Ordner für die Kunden-Finanzierungs-Ordner
 
+const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
@@ -86,4 +87,55 @@ async function ensureFolder(name, parentId) {
   }, token);
 }
 
-module.exports = { getAccessToken, driveFetch, ensureFolder };
+// Extrahiert die Drive-Ordner-ID aus einer Drive-URL (…/folders/<id> oder ?id=<id>).
+function folderIdFromUrl(url) {
+  if (!url) return '';
+  const m = String(url).match(/\/folders\/([a-zA-Z0-9_-]+)/) || String(url).match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : '';
+}
+
+// Listet die Dateien (keine Ordner) in einem Ordner.
+// Rückgabe: [{ id, name, mimeType, size, modifiedTime, webViewLink }]
+async function listFiles(folderId) {
+  if (!folderId) return [];
+  const token = await getAccessToken();
+  const q = `'${escQ(folderId)}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`;
+  const out = await driveFetch(
+    `/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType,size,modifiedTime,webViewLink)&orderBy=name&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&pageSize=200`,
+    {}, token
+  );
+  return out.files || [];
+}
+
+// Lädt eine Datei (Buffer) in einen Ordner hoch. Rückgabe: { id, name, webViewLink }.
+async function uploadFile(folderId, name, mimeType, buffer) {
+  const token = await getAccessToken();
+  const boundary = 'bbk-' + crypto.randomBytes(8).toString('hex');
+  const metadata = JSON.stringify({ name, parents: [folderId] });
+  const pre = Buffer.from(
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` +
+    `--${boundary}\r\nContent-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`, 'utf8');
+  const post = Buffer.from(`\r\n--${boundary}--`, 'utf8');
+  const body = Buffer.concat([pre, buffer, post]);
+  const res = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    }
+  );
+  if (!res.ok) {
+    let b; try { b = await res.json(); } catch { b = await res.text(); }
+    const msg = (b && b.error && b.error.message) || (typeof b === 'string' ? b : JSON.stringify(b));
+    const err = new Error(`Drive upload ${res.status}: ${msg}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+module.exports = { getAccessToken, driveFetch, ensureFolder, folderIdFromUrl, listFiles, uploadFile };

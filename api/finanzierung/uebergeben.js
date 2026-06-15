@@ -119,6 +119,7 @@ module.exports = async (req, res) => {
     // Drive-Fehler darf die Übergabe nicht abbrechen — der Fall bleibt bestehen,
     // der Ordner kann notfalls manuell/erneut angelegt werden.
     let driveLink = '';
+    let uploadLink = '';
     try {
       const rootId = process.env.DRIVE_ROOT_FOLDER_ID;
       if (rootId) {
@@ -126,15 +127,29 @@ module.exports = async (req, res) => {
         const folderName = (kundeName || 'Kunde') + ' — ' + String(created.id).slice(-6);
         const folder = await ensureFolder(folderName, rootId);
         driveLink = (folder && folder.webViewLink) || '';
-        if (driveLink) {
-          await airtable('update', TABLES.FINANZIERUNGSFALL, {
-            recordId: created.id,
-            fields: { [FINANZIERUNGSFALL_FIELDS.KUNDEN_DRIVE]: driveLink },
-          });
+        const folderId = (folder && folder.id) || '';
+        const updateFields = {};
+        if (driveLink) updateFields[FINANZIERUNGSFALL_FIELDS.KUNDEN_DRIVE] = driveLink;
+        // Upload-Portal-Token + Link (Baustein U): bindet den Token an Fall + Ordner.
+        if (folderId) {
+          try {
+            const { signUploadToken } = require('../_lib/upload-token');
+            const token = signUploadToken({ fallId: created.id, folderId, weId: weRecId || '' });
+            const host = (req.headers && (req.headers['x-forwarded-host'] || req.headers.host)) || '';
+            if (host) {
+              uploadLink = `https://${host}/portal?t=${token}`;
+              updateFields[FINANZIERUNGSFALL_FIELDS.UPLOAD_LINK] = uploadLink;
+            }
+          } catch (e) {
+            console.error('[uebergeben] Upload-Link fehlgeschlagen (nicht kritisch):', e && e.message);
+          }
+        }
+        if (Object.keys(updateFields).length) {
+          await airtable('update', TABLES.FINANZIERUNGSFALL, { recordId: created.id, fields: updateFields });
         }
       }
     } catch (e) {
-      console.error('[uebergeben] Drive-Ordner fehlgeschlagen (nicht kritisch):', e && e.message);
+      console.error('[uebergeben] Drive-Ordner/Upload-Link fehlgeschlagen (nicht kritisch):', e && e.message);
     }
 
     // Kunden-Phase auf "Bank-Einreichung" + Letzte-Aktivität touchen (nicht kritisch)
@@ -148,7 +163,7 @@ module.exports = async (req, res) => {
       });
     } catch { /* nicht kritisch */ }
 
-    return res.status(201).json({ ok: true, id: created.id, driveLink });
+    return res.status(201).json({ ok: true, id: created.id, driveLink, uploadLink });
   } catch (e) {
     return sendError(res, e);
   }

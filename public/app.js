@@ -1265,7 +1265,7 @@ async function uebergebeAnFinanzierung() {
   const data = await openFinanzierungUebergabeModal(snaps);
   if (!data) return;
   try {
-    await api.post('/api/finanzierung/uebergeben', {
+    const res = await api.post('/api/finanzierung/uebergeben', {
       kundeId: state.kundeId,
       snapshotId: data.snapshotId,
       finanzierungsform: data.finanzierungsform,
@@ -1290,12 +1290,42 @@ async function uebergebeAnFinanzierung() {
       await _appendActivityToNotizen('An Finanzierung übergeben' + (weBez ? ' — ' + weBez : '') + ' (' + formLabel + ')');
     } catch (e) { /* Historie nicht kritisch */ }
     toast('An Finanzierung übergeben — Fall angelegt', 'success');
+    if (res && res.uploadLink) showUploadLinkModal(res.uploadLink);
     if (typeof renderKunde === 'function') renderKunde();
   } catch (e) {
     toast('Fehler: ' + e.message, 'error');
   }
 }
 window.uebergebeAnFinanzierung = uebergebeAnFinanzierung;
+
+// Zeigt nach der Übergabe den Upload-Link für den Kunden (zum Kopieren/Weiterschicken).
+function showUploadLinkModal(link) {
+  _reservEnsureStyles();
+  const m = document.createElement('div');
+  m.className = 'reserv-modal-overlay';
+  m.innerHTML =
+    '<div class="reserv-modal" style="max-width:480px">' +
+      '<h2>Übergeben ✓</h2>' +
+      '<div class="reserv-modal-body">' +
+        '<p style="margin:0 0 10px;font-size:0.92em;color:#444">Schick dem Kunden diesen Link — darüber lädt er seine Unterlagen hoch und sieht die Objektunterlagen:</p>' +
+        '<input type="text" id="ul-link" readonly style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #d4d0ca;border-radius:6px;font-size:0.82em;background:#fff" value="' + esc(link) + '">' +
+      '</div>' +
+      '<div class="reserv-modal-actions">' +
+        '<button class="reserv-cancel" id="ul-close">Schließen</button>' +
+        '<button class="reserv-confirm" id="ul-copy">Link kopieren</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.querySelector('#ul-close').onclick = close;
+  m.onclick = (e) => { if (e.target === m) close(); };
+  m.querySelector('#ul-copy').onclick = async () => {
+    const inp = m.querySelector('#ul-link');
+    inp.select();
+    try { await navigator.clipboard.writeText(link); } catch (e) { try { document.execCommand('copy'); } catch (_) {} }
+    m.querySelector('#ul-copy').textContent = 'Kopiert ✓';
+  };
+}
 
 // ===== MODUL: views/kunde (renderKunde + Tab-Routing + renderTabUebersicht) =====
 /* ============================== KUNDE-DETAIL ============================== */
