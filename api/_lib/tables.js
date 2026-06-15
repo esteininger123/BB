@@ -132,9 +132,10 @@ const FINANZIERUNGSFALL_FIELDS = {
   HAUSBANK_VORHANDEN:      'fldnQkq5FgLW8zPiM', // checkbox
   HAUSBANK_NAME:           'fld72OcOOx8Bx53Di', // singleLineText
   HAUSBANK_BERATER:        'fldiW2J8rHWJ8iRlC', // singleLineText
-  FINANZBERATER_VORHANDEN: 'fldIy78JoGuBcBT9Q', // checkbox
-  FINANZBERATER_KONTAKT:   'fldHWua7QpAMKvHfh', // singleLineText
+  FINANZBERATER_VORHANDEN: 'fldIy78JoGuBcBT9Q', // checkbox "Eigener Finanzierer"
+  FINANZBERATER_KONTAKT:   'fldHWua7QpAMKvHfh', // singleLineText "Finanzierer — Kontakt"
   WAS_WICHTIG:             'fldqLLnYssritKMTk', // multilineText
+  NOTIZ_VERTRIEB:          'fldt9rwaYVDcm0k8z', // multilineText — Notiz vom Vertrieb an Finanzierung
   NOTARTERMIN_ZIEL:        'fldagIUGINXpFrP0M', // date
   SA_STATUS:               'fld2ycS7SZZB9W9XJ', // singleSelect: fehlt / liegt vor
 };

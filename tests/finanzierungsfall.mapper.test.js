@@ -20,6 +20,7 @@ const baseBody = {
   finanzberaterVorhanden: false,
   finanzberaterKontakt: '',
   wasWichtig: 'Niedrige monatliche Rate',
+  notizVertrieb: 'Kunde braucht schnelle Zusage wegen Notartermin',
   notarterminZiel: '2026-07-30',
 };
 
@@ -61,6 +62,7 @@ test('mapper: Formularfelder + Status + Titel', () => {
   assert.strictEqual(f[F.HAUSBANK_BERATER], 'Frau Klein');
   assert.strictEqual(f[F.FINANZBERATER_VORHANDEN], false);
   assert.strictEqual(f[F.WAS_WICHTIG], 'Niedrige monatliche Rate');
+  assert.strictEqual(f[F.NOTIZ_VERTRIEB], 'Kunde braucht schnelle Zusage wegen Notartermin');
   assert.strictEqual(f[F.NOTARTERMIN_ZIEL], '2026-07-30');
   assert.strictEqual(f[F.STATUS], FINANZIERUNGSFALL_STATUS_START);
   assert.strictEqual(f[F.SA_STATUS], 'fehlt');

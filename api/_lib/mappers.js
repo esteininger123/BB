@@ -237,6 +237,7 @@ function finanzierungsfallBodyToFields(body) {
   out[F.FINANZBERATER_VORHANDEN] = !!body.finanzberaterVorhanden;
   out[F.FINANZBERATER_KONTAKT]   = body.finanzberaterKontakt || '';
   out[F.WAS_WICHTIG]             = body.wasWichtig || '';
+  out[F.NOTIZ_VERTRIEB]          = body.notizVertrieb || '';
   if (body.notarterminZiel) out[F.NOTARTERMIN_ZIEL] = body.notarterminZiel;
 
   out[F.STATUS]    = FINANZIERUNGSFALL_STATUS_START;

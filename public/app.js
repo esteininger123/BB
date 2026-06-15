@@ -1138,13 +1138,16 @@ function openFinanzierungUebergabeModal(snapshots) {
     const m = document.createElement('div');
     m.className = 'reserv-modal-overlay';
     const snapOptions = snaps.map((s, i) => {
-      const label = [s.weBezeichnung || s.bezeichnung || 'Kalkulation',
-        (s.created || '').slice(0, 10)].filter(Boolean).join(' · ');
+      const name = (s.bezeichnung || '').trim();
+      const we = (s.weBezeichnung || '').trim();
+      const datum = (s.created || '').slice(0, 10);
+      const label = [name || we || 'Kalkulation', (name && we) ? we : '', datum].filter(Boolean).join(' · ');
       return `<option value="${esc(s.id)}"${i === 0 ? ' selected' : ''}>${esc(label)}</option>`;
     }).join('');
     m.innerHTML =
       '<div class="reserv-modal fin-modal">' +
         '<h2>An Finanzierung übergeben</h2>' +
+        '<div class="fin-hinweis">Vor der Übergabe: Kalkulation als <b>Snapshot</b> gespeichert und <b>unterschriebene Selbstauskunft</b> liegt vor. Die Finanzierung kann erst mit unterschriebener Selbstauskunft einreichen.</div>' +
         '<div class="reserv-modal-body">' +
           (snaps.length
             ? '<label class="fin-field fin-full"><span class="fin-label">Maßgebliche Kalkulation <span class="nk-req">*</span></span>' +
@@ -1160,15 +1163,21 @@ function openFinanzierungUebergabeModal(snapshots) {
           '<label class="fin-field"><span class="fin-label">Notartermin-Ziel</span>' +
             '<input type="date" id="fin-notar" /></label>' +
           '<label class="fin-field fin-check fin-full"><input type="checkbox" id="fin-hb" /> <span>Hausbank vorhanden</span></label>' +
-          '<label class="fin-field"><span class="fin-label">Hausbank — Name</span>' +
-            '<input type="text" id="fin-hb-name" placeholder="optional" /></label>' +
-          '<label class="fin-field"><span class="fin-label">Hausbank — Berater</span>' +
-            '<input type="text" id="fin-hb-berater" placeholder="optional" /></label>' +
-          '<label class="fin-field fin-check fin-full"><input type="checkbox" id="fin-fb" /> <span>Eigener Finanzberater</span></label>' +
-          '<label class="fin-field fin-full"><span class="fin-label">Finanzberater — Kontakt</span>' +
-            '<input type="text" id="fin-fb-kontakt" placeholder="optional" /></label>' +
+          '<div id="fin-hb-details" class="fin-details fin-full" hidden>' +
+            '<label class="fin-field fin-full"><span class="fin-label">Hausbank — Name</span>' +
+              '<input type="text" id="fin-hb-name" placeholder="Name der Bank" /></label>' +
+            '<label class="fin-field fin-full"><span class="fin-label">Hausbank — Berater</span>' +
+              '<input type="text" id="fin-hb-berater" placeholder="Ansprechpartner bei der Bank" /></label>' +
+          '</div>' +
+          '<label class="fin-field fin-check fin-full"><input type="checkbox" id="fin-fb" /> <span>Eigener Finanzierer vorhanden</span></label>' +
+          '<div id="fin-fb-details" class="fin-details fin-full" hidden>' +
+            '<label class="fin-field fin-full"><span class="fin-label">Finanzierer — Kontakt</span>' +
+              '<input type="text" id="fin-fb-kontakt" placeholder="Name / Kontakt des Finanzierers" /></label>' +
+          '</div>' +
           '<label class="fin-field fin-full"><span class="fin-label">Was ist dem Kunden wichtig?</span>' +
             '<textarea id="fin-wichtig" rows="2" placeholder="z.B. niedrige Rate, schnelle Zusage, Sondertilgung"></textarea></label>' +
+          '<label class="fin-field fin-full"><span class="fin-label">Notiz an die Finanzierung</span>' +
+            '<textarea id="fin-notiz" rows="2" placeholder="Was die Finanzierung sonst wissen sollte"></textarea></label>' +
         '</div>' +
         '<div class="reserv-modal-actions">' +
           '<button class="reserv-cancel" id="fin-cancel">Abbrechen</button>' +
@@ -1177,21 +1186,32 @@ function openFinanzierungUebergabeModal(snapshots) {
       '</div>';
     const $ = (id) => m.querySelector('#' + id);
     const close = (val) => { m.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+    // Progressive Disclosure: Detail-Felder erst bei aktivierter Checkbox einblenden.
+    const bindToggle = (cbId, detId) => {
+      const cb = $(cbId), det = $(detId);
+      const apply = () => { det.hidden = !cb.checked; };
+      cb.addEventListener('change', apply);
+      apply();
+    };
+    bindToggle('fin-hb', 'fin-hb-details');
+    bindToggle('fin-fb', 'fin-fb-details');
     const onSave = () => {
       const snapshotId = snaps.length ? $('fin-snapshot').value : '';
       if (!snapshotId) return;
+      const hb = $('fin-hb').checked, fb = $('fin-fb').checked;
       close({
         snapshotId,
         finanzierungsform: $('fin-form').value,
         finanzierungsformAndere: $('fin-form-andere').value.trim(),
         maxEigenkapital: $('fin-maxek').value ? Number($('fin-maxek').value) : null,
         notarterminZiel: $('fin-notar').value || '',
-        hausbankVorhanden: $('fin-hb').checked,
-        hausbankName: $('fin-hb-name').value.trim(),
-        hausbankBerater: $('fin-hb-berater').value.trim(),
-        finanzberaterVorhanden: $('fin-fb').checked,
-        finanzberaterKontakt: $('fin-fb-kontakt').value.trim(),
+        hausbankVorhanden: hb,
+        hausbankName: hb ? $('fin-hb-name').value.trim() : '',
+        hausbankBerater: hb ? $('fin-hb-berater').value.trim() : '',
+        finanzberaterVorhanden: fb,
+        finanzberaterKontakt: fb ? $('fin-fb-kontakt').value.trim() : '',
         wasWichtig: $('fin-wichtig').value.trim(),
+        notizVertrieb: $('fin-notiz').value.trim(),
       });
     };
     $('fin-cancel').onclick = () => close(null);
@@ -1209,10 +1229,13 @@ function _finUebergabeEnsureStyles() {
   s.id = 'fin-modal-styles';
   s.textContent = `
     .fin-modal { max-width: 520px; }
+    .fin-hinweis { margin: 0 0 14px; padding: 10px 12px; background: #fff7e6; border-left: 3px solid #d9a441; border-radius: 4px; font-size: 0.85em; color: #6b5524; line-height: 1.4; }
     .reserv-modal.fin-modal .reserv-modal-body { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
     .fin-field { display: flex; flex-direction: column; gap: 4px; }
     .fin-field.fin-full { grid-column: 1 / -1; }
     .fin-field.fin-check { flex-direction: row; align-items: center; gap: 8px; }
+    .fin-details { display: grid; gap: 10px 14px; padding: 4px 0 4px 24px; }
+    .fin-details[hidden] { display: none; }
     .fin-label { font-size: 0.85em; color: #6b6b6b; }
     .fin-modal select, .fin-modal input, .fin-modal textarea {
       width: 100%; box-sizing: border-box;
@@ -1244,6 +1267,7 @@ async function uebergebeAnFinanzierung() {
       finanzberaterVorhanden: data.finanzberaterVorhanden,
       finanzberaterKontakt: data.finanzberaterKontakt,
       wasWichtig: data.wasWichtig,
+      notizVertrieb: data.notizVertrieb,
     });
     toast('An Finanzierung übergeben — Fall angelegt', 'success');
     if (typeof renderKunde === 'function') renderKunde();

@@ -93,6 +93,7 @@ module.exports = async (req, res) => {
       finanzierungsformAndere: body.finanzierungsformAndere || '',
       maxEigenkapital:        body.maxEigenkapital,
       wasWichtig:             body.wasWichtig || '',
+      notizVertrieb:          body.notizVertrieb || '',
       notarterminZiel:        body.notarterminZiel || '',
     });
 
