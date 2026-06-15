@@ -20,80 +20,87 @@
   body::before{content:"";position:fixed;inset:0;z-index:-2;background:radial-gradient(120% 70% at 50% -10%, #fff 0%, var(--cream) 42%, #F3EEE3 100%)}
   body::after{content:"";position:fixed;inset:0;z-index:-1;opacity:.5;pointer-events:none;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E")}
-  .wrap{max-width:720px;margin:0 auto;padding:26px 18px 90px}
-  header{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+  .wrap{max-width:680px;margin:0 auto;padding:26px 18px 90px}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:26px}
   header img{width:42px;height:42px;border-radius:11px;box-shadow:0 3px 10px rgba(142,110,61,.28)}
   .brand b{font-weight:700;font-size:16px;display:block;line-height:1.1}
   .brand span{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
 
   .hero{margin-bottom:22px;animation:rise .6s cubic-bezier(.2,.7,.2,1) both}
   .eyebrow{font-size:12px;letter-spacing:2.5px;text-transform:uppercase;color:var(--bronze-d);font-weight:600;margin-bottom:10px}
-  h1{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(30px,7vw,42px);line-height:1.05;margin:0 0 12px;letter-spacing:-.5px}
+  h1{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(30px,7vw,40px);line-height:1.05;margin:0 0 12px;letter-spacing:-.5px}
   h1 em{font-style:italic;color:var(--bronze-d)}
-  .lede{font-size:16px;color:#4a4843;max-width:48ch;margin:0}
+  .lede{font-size:15.5px;color:#4a4843;max-width:46ch;margin:0}
 
-  .why{background:linear-gradient(135deg,#fff,#FBF7EF);border:1px solid var(--line);border-radius:16px;padding:18px 18px 16px;margin:22px 0 28px;box-shadow:0 2px 10px rgba(26,26,23,.04);animation:rise .6s .08s cubic-bezier(.2,.7,.2,1) both}
-  .why h3{font-family:'Fraunces',serif;font-weight:600;font-size:16.5px;margin:0 0 10px}
-  .chain{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px}
-  .chain .step{background:var(--green-bg);color:var(--green-d);font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:20px;white-space:nowrap}
-  .chain .arr{color:var(--bronze);font-weight:700}
-  .why p{margin:0;font-size:13.5px;color:#3c4a41} .why b{color:var(--green-d)}
+  .why{background:linear-gradient(135deg,#fff,#FBF7EF);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin:20px 0 26px;box-shadow:0 2px 10px rgba(26,26,23,.04);animation:rise .6s .08s cubic-bezier(.2,.7,.2,1) both}
+  .why h3{font-family:'Fraunces',serif;font-weight:600;font-size:16px;margin:0 0 10px}
+  .chain{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+  .chain .step{background:var(--green-bg);color:var(--green-d);font-size:11px;font-weight:700;padding:5px 10px;border-radius:20px;white-space:nowrap}
+  .chain .arr{color:var(--bronze);font-weight:700;font-size:12px}
+  .why p{margin:0;font-size:13px;color:#3c4a41} .why b{color:var(--green-d)}
 
-  .track{display:flex;align-items:center;gap:14px;margin-bottom:24px;animation:rise .6s .14s cubic-bezier(.2,.7,.2,1) both}
-  .ring{flex:0 0 auto;width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--green) calc(var(--p,0)*1%), #ECE6DC 0)}
-  .ring i{width:44px;height:44px;border-radius:50%;background:var(--cream);display:grid;place-items:center;font-weight:700;font-size:13px;color:var(--green-d);font-style:normal}
+  .track{display:flex;align-items:center;gap:14px;margin-bottom:8px;animation:rise .6s .14s cubic-bezier(.2,.7,.2,1) both}
+  .ring{flex:0 0 auto;width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--green) calc(var(--p,0)*1%), #ECE6DC 0)}
+  .ring i{width:43px;height:43px;border-radius:50%;background:var(--cream);display:grid;place-items:center;font-weight:700;font-size:12.5px;color:var(--green-d);font-style:normal}
   .track .t b{font-family:'Fraunces',serif;font-weight:600;font-size:17px;display:block}
   .track .t span{font-size:13px;color:var(--muted)}
 
-  .sect-label{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:600;margin:8px 0 14px}
+  .sect-label{font-size:11.5px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:600;margin:24px 0 12px;display:flex;align-items:baseline;gap:8px}
+  .sect-label .hint{letter-spacing:0;text-transform:none;font-weight:500;font-size:11.5px;color:var(--bronze-d)}
 
-  .doc{background:var(--paper);border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-bottom:16px;box-shadow:0 1px 3px rgba(26,26,23,.05);transition:box-shadow .2s,border-color .2s,transform .2s;animation:rise .55s both;animation-delay:calc(var(--i,0)*.06s + .18s)}
-  .doc:hover{box-shadow:0 8px 26px rgba(26,26,23,.07);transform:translateY(-1px)}
-  .doc.done{border-color:var(--green-line);background:linear-gradient(180deg,#F6FBF7,#fff)}
-  .doc-body{display:flex;gap:16px;padding:18px}
-  .thumb{flex:0 0 auto;width:96px}
-  .thumb svg{width:96px;height:auto;display:block;border-radius:9px;filter:drop-shadow(0 4px 9px rgba(142,110,61,.16))}
-  .doc-main{flex:1;min-width:0}
+  /* kompakte Karte */
+  .doc{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:15px 16px;margin-bottom:11px;
+    box-shadow:0 1px 3px rgba(26,26,23,.05);transition:box-shadow .2s,border-color .2s;animation:rise .5s both;animation-delay:calc(var(--i,0)*.05s + .16s)}
+  .doc.done{border-color:var(--green-line);background:linear-gradient(180deg,#F7FBF8,#fff)}
+  .doc.opt{border-style:dashed;background:#fff}
   .doc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-  .doc-title{font-family:'Fraunces',serif;font-weight:600;font-size:17.5px;line-height:1.2}
-  .badge{flex:0 0 auto;font-size:11px;font-weight:700;padding:4px 10px;border-radius:30px;white-space:nowrap}
+  .doc-title{font-family:'Fraunces',serif;font-weight:600;font-size:16.5px;line-height:1.2}
+  .badge{flex:0 0 auto;font-size:10.5px;font-weight:700;padding:4px 9px;border-radius:30px;white-space:nowrap}
   .badge.open{background:var(--sand);color:var(--bronze-d)} .badge.done{background:var(--green-bg);color:var(--green-d)} .badge.rec{background:#efe7d6;color:#8E6E3D}
-  .was{font-size:13.5px;color:#4a4843;margin:5px 0 0} .was b{color:var(--bronze-d)}
-  .woher{margin:9px 0 0;display:flex;gap:8px;align-items:flex-start;background:var(--sand);border-radius:10px;padding:9px 11px}
-  .woher .ic{flex:0 0 auto;font-size:14px;margin-top:1px}
-  .woher .tx{font-size:12.5px;color:#5c5340} .woher .tx b{color:var(--bronze-d)}
-  .files{margin:11px 0 0;display:flex;flex-direction:column;gap:5px}
-  .files .f{font-size:12.5px;color:var(--green-d);display:flex;align-items:center;gap:7px;background:var(--green-bg);padding:6px 10px;border-radius:8px;word-break:break-word}
+  .was{font-size:13px;color:#5a5852;margin:4px 0 0} .was b{color:var(--bronze-d)}
+  .files{margin:10px 0 0;display:flex;flex-direction:column;gap:5px}
+  .files .f{font-size:12px;color:var(--green-d);display:flex;align-items:center;gap:7px;background:var(--green-bg);padding:6px 10px;border-radius:8px;word-break:break-word}
   .acts{margin-top:12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-  .add{appearance:none;border:none;cursor:pointer;font-family:inherit;font-weight:700;font-size:14px;color:#fff;background:var(--bronze);padding:11px 18px;border-radius:11px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 3px 10px rgba(176,138,77,.28);transition:background .15s,transform .1s}
+  .add{appearance:none;border:none;cursor:pointer;font-family:inherit;font-weight:700;font-size:13.5px;color:#fff;background:var(--bronze);padding:10px 17px;border-radius:10px;box-shadow:0 3px 9px rgba(176,138,77,.26);transition:background .15s,transform .1s}
   .add:hover{background:var(--bronze-d)} .add:active{transform:scale(.98)}
   .doc.done .add{background:#fff;color:var(--green-d);border:1.5px solid var(--green-line);box-shadow:none}
-  .cam-link{font-size:12.5px;color:var(--muted);text-decoration:none;border-bottom:1px dashed #cfc8ba} .cam-link:hover{color:var(--bronze-d)}
+  .cam-link{font-size:12px;color:var(--muted);text-decoration:none;border-bottom:1px dashed #cfc8ba} .cam-link:hover{color:var(--bronze-d)}
 
-  .more{background:var(--paper);border:1px dashed var(--bronze-l);border-radius:18px;padding:18px;margin:6px 0 16px;animation:rise .55s .5s both}
-  .more h2{font-family:'Fraunces',serif;font-weight:600;font-size:17px;margin:0 0 4px}
-  .more p{font-size:13px;color:var(--muted);margin:0 0 14px}
+  /* ausklappbare Hilfe */
+  details.help{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+  details.help summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--bronze-d);user-select:none}
+  details.help summary::-webkit-details-marker{display:none}
+  details.help summary .chev{transition:transform .2s;font-size:11px} details.help[open] summary .chev{transform:rotate(180deg)}
+  .help-in{display:flex;gap:14px;align-items:flex-start;margin-top:12px}
+  .help-in .ex{flex:0 0 auto}
+  .help-in .ex svg{width:128px;height:auto;display:block;border-radius:10px;filter:drop-shadow(0 5px 12px rgba(142,110,61,.18))}
+  .help-in .ex .cap{font-size:10.5px;color:var(--muted);text-align:center;margin-top:5px}
+  .woher{font-size:12.5px;color:#5c5340;line-height:1.5} .woher b{color:var(--bronze-d)}
+  @media (max-width:480px){ .help-in{flex-direction:column;align-items:center} .help-in .ex svg{width:150px} .woher{text-align:left} }
+
+  .more{background:var(--paper);border:1px dashed var(--bronze-l);border-radius:16px;padding:16px;margin:6px 0 14px;animation:rise .5s .4s both}
+  .more h2{font-family:'Fraunces',serif;font-weight:600;font-size:16px;margin:0 0 4px}
+  .more p{font-size:12.5px;color:var(--muted);margin:0 0 13px}
   .more-row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
   select,.more input[type=text]{font-family:inherit;font-size:14px;padding:11px 12px;border:1px solid #d9d3c7;border-radius:10px;background:#fff;color:var(--ink);min-width:0}
-  #wt-select{flex:1;min-width:170px} #wt-beschr{flex:1;min-width:150px;display:none}
+  #wt-select{flex:1;min-width:165px} #wt-beschr{flex:1;min-width:150px;display:none}
   .more .add{background:var(--green)} .more .add:hover{background:var(--green-d)}
-  .more-list{margin-top:14px;display:flex;flex-direction:column;gap:6px}
-  .more-list .f{font-size:12.5px;color:var(--green-d);display:flex;align-items:center;gap:7px;background:var(--green-bg);padding:7px 11px;border-radius:8px;word-break:break-word}
+  .more-list{margin-top:13px;display:flex;flex-direction:column;gap:6px}
+  .more-list .f{font-size:12px;color:var(--green-d);display:flex;align-items:center;gap:7px;background:var(--green-bg);padding:7px 11px;border-radius:8px;word-break:break-word}
 
-  .objekt{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:22px;animation:rise .55s .56s both}
-  .objekt h2{font-family:'Fraunces',serif;font-weight:600;font-size:18px;margin:0 0 12px;display:flex;align-items:center;gap:9px}
+  .objekt{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:20px;animation:rise .5s .46s both}
+  .objekt h2{font-family:'Fraunces',serif;font-weight:600;font-size:17px;margin:0 0 10px;display:flex;align-items:center;gap:9px}
   .olist{list-style:none;margin:0;padding:0}
-  .olist li{padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px;display:flex;align-items:center;gap:9px}
+  .olist li{padding:9px 0;border-bottom:1px solid var(--line);font-size:13px;display:flex;align-items:center;gap:9px}
   .olist li:last-child{border:none}
   .olist a{color:var(--green-d);font-weight:600;text-decoration:none;word-break:break-word}
-  .empty{color:var(--muted);font-size:13px;font-style:italic;padding:4px 0}
-  footer{text-align:center;margin-top:32px;font-size:12px;color:var(--muted)}
+  .empty{color:var(--muted);font-size:12.5px;font-style:italic;padding:4px 0}
+  footer{text-align:center;margin-top:30px;font-size:11.5px;color:var(--muted)}
 
   #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:12px 18px;border-radius:11px;font-size:13.5px;font-weight:500;opacity:0;transition:.25s;pointer-events:none;max-width:90%;box-shadow:0 10px 30px rgba(0,0,0,.25);z-index:70}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)} #toast.err{background:#9A3E33}
   .center{text-align:center;padding:70px 0;color:var(--muted);font-family:'Fraunces',serif;font-size:18px}
-  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-  @media (max-width:520px){ .thumb{width:84px} .thumb svg{width:84px} .doc-body{gap:13px;padding:16px} }
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body>
@@ -112,7 +119,6 @@ const $=(s,r)=>(r||document).querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let DATA=null, TYPEN=[];
 
-/* Ruhige, klare Beispiel-Illustrationen — ein Highlight, gut lesbar auch klein. */
 const SVG={
   gehalt:`<svg viewBox='0 0 120 150' xmlns='http://www.w3.org/2000/svg'><rect x='4' y='4' width='112' height='142' rx='10' fill='#fff' stroke='#E8E6DD'/><rect x='4' y='4' width='112' height='30' rx='10' fill='#F4EFE4'/><rect x='4' y='22' width='112' height='12' fill='#F4EFE4'/><text x='15' y='24' font-family='Hanken Grotesk' font-size='11' font-weight='700' fill='#8E6E3D'>Gehalt</text><g fill='#E6E0D4'><rect x='15' y='47' width='58' height='5' rx='2.5'/><rect x='15' y='59' width='78' height='5' rx='2.5'/><rect x='15' y='71' width='48' height='5' rx='2.5'/></g><rect x='10' y='90' width='100' height='44' rx='9' fill='#E4EFE7' stroke='#bcdcc8'/><text x='21' y='108' font-family='Hanken Grotesk' font-size='9' font-weight='600' fill='#235838'>Netto</text><text x='21' y='126' font-family='Fraunces' font-size='18' font-weight='600' fill='#2D6E47'>2.840 €</text></svg>`,
   steuer:`<svg viewBox='0 0 120 150' xmlns='http://www.w3.org/2000/svg'><rect x='4' y='4' width='112' height='142' rx='10' fill='#fff' stroke='#E8E6DD'/><circle cx='98' cy='26' r='14' fill='none' stroke='#C9A572' stroke-width='1.5'/><text x='98' y='29' text-anchor='middle' font-family='Hanken Grotesk' font-size='8' font-weight='700' fill='#8E6E3D'>FA</text><text x='15' y='24' font-family='Hanken Grotesk' font-size='7.5' fill='#a0937a'>Finanzamt</text><text x='15' y='46' font-family='Fraunces' font-size='13' font-weight='600' fill='#1A1A17'>Steuer-</text><text x='15' y='61' font-family='Fraunces' font-size='13' font-weight='600' fill='#1A1A17'>bescheid</text><g fill='#E6E0D4'><rect x='15' y='80' width='90' height='5' rx='2.5'/><rect x='15' y='93' width='70' height='5' rx='2.5'/><rect x='15' y='106' width='84' height='5' rx='2.5'/><rect x='15' y='119' width='56' height='5' rx='2.5'/></g></svg>`,
@@ -120,10 +126,10 @@ const SVG={
   ek:`<svg viewBox='0 0 120 150' xmlns='http://www.w3.org/2000/svg'><rect x='4' y='4' width='112' height='142' rx='10' fill='#fff' stroke='#E8E6DD'/><rect x='4' y='4' width='112' height='30' rx='10' fill='#2D6E47'/><rect x='4' y='22' width='112' height='12' fill='#2D6E47'/><text x='15' y='24' font-family='Hanken Grotesk' font-size='11' font-weight='700' fill='#fff'>Konto</text><g fill='#E6E0D4'><rect x='15' y='47' width='68' height='5' rx='2.5'/><rect x='15' y='59' width='52' height='5' rx='2.5'/><rect x='15' y='71' width='62' height='5' rx='2.5'/></g><rect x='10' y='90' width='100' height='44' rx='9' fill='#E4EFE7' stroke='#bcdcc8'/><text x='21' y='108' font-family='Hanken Grotesk' font-size='9' font-weight='600' fill='#235838'>Kontostand</text><text x='21' y='126' font-family='Fraunces' font-size='16' font-weight='600' fill='#2D6E47'>48.500 €</text></svg>`,
 };
 const META={
-  gehalt:{ was:'Deine letzten drei Monatsabrechnungen. Daraus sieht die Bank dein regelmäßiges Einkommen.', woher:'Bekommst du von deinem Arbeitgeber — meist monatlich per Post oder im Lohn-/Mitarbeiterportal (z.B. Datev, SAP, Personio) als PDF.' },
-  steuer:{ was:'Den verlangen die meisten Banken — <b>falls du einen hast</b>, lad ihn gleich mit hoch (alle Seiten). Kein Muss.', woher:'Kam per Post nach deiner letzten Steuererklärung. Digital findest du ihn im <b>ELSTER-Portal</b> unter „Posteingang".' },
-  ausweis:{ was:'Vorder- und Rückseite deines Personalausweises, damit wir dich eindeutig zuordnen können.', woher:'Hast du dabei — einfach beide Seiten mit dem Handy abfotografieren, gutes Licht, alle Ecken sichtbar.' },
-  ek:{ was:'Ein Nachweis über dein Eigenkapital, z. B. ein aktueller Konto- oder Depotauszug mit Saldo.', woher:'Findest du in deinem <b>Online-Banking</b> (Giro, Tagesgeld, Depot) — als PDF oder einfach ein Screenshot des Saldos.' },
+  gehalt:{ kurz:'Die letzten 3 Monatsabrechnungen — zeigt dein regelmäßiges Einkommen.', cap:'So sieht eine aus', woher:'Bekommst du von deinem Arbeitgeber — meist monatlich per Post oder im Lohn-/Mitarbeiterportal (z.B. Datev, SAP, Personio) als PDF.' },
+  steuer:{ kurz:'Den verlangen die meisten Banken — <b>falls du einen hast</b>, lad ihn mit hoch (alle Seiten).', cap:'So sieht er aus', woher:'Kam per Post nach deiner letzten Steuererklärung. Digital im <b>ELSTER-Portal</b> unter „Posteingang".' },
+  ausweis:{ kurz:'Vorder- und Rückseite — damit wir dich eindeutig zuordnen können.', cap:'Vorder- & Rückseite', woher:'Hast du dabei — beide Seiten mit dem Handy abfotografieren, gutes Licht, alle Ecken sichtbar.' },
+  ek:{ kurz:'Nachweis deines Eigenkapitals — z. B. ein Konto- oder Depotauszug mit Saldo.', cap:'So sieht er aus', woher:'Aus deinem <b>Online-Banking</b> (Giro, Tagesgeld, Depot) — als PDF oder einfach ein Screenshot des Saldos.' },
 };
 
 function toast(msg,err){const t=$('#toast');t.textContent=msg;t.className=(err?'err ':'')+'show';clearTimeout(toast._t);toast._t=setTimeout(()=>t.className=t.className.replace('show','').trim(),err?5000:2600);}
@@ -137,35 +143,37 @@ async function load(){
 }
 function renderErr(msg){$('#content').innerHTML=`<div class="objekt"><h2>⚠️ Link nicht gültig</h2><p class="empty">${esc(msg)}</p><p style="font-size:13px;color:var(--muted)">Bitte fordere bei deinem Ansprechpartner einen neuen Link an.</p></div>`;}
 
+function card(c,byP,i,opt){
+  const files=byP[c.key]||[],isDone=files.length>0,m=META[c.key]||{};
+  const badge=isDone?'<span class="badge done">erledigt ✓</span>':(opt?'<span class="badge rec">empfohlen</span>':'<span class="badge open">offen</span>');
+  const fl=files.map(f=>`<div class="f">✓ ${esc((f.name||'').replace(/^.*? — /,''))}</div>`).join('');
+  return `<article class="doc ${isDone?'done':''} ${opt&&!isDone?'opt':''}" style="--i:${i}">
+    <div class="doc-head"><div class="doc-title">${esc(c.label)}</div>${badge}</div>
+    <p class="was">${m.kurz||''}</p>
+    ${fl?`<div class="files">${fl}</div>`:''}
+    <div class="acts">
+      <button class="add" onclick="pick('${c.key}',false)">${isDone?'Weitere hinzufügen':'Hochladen'}</button>
+      <a class="cam-link" href="#" onclick="pick('${c.key}',true);return false">oder mit Kamera</a>
+    </div>
+    <details class="help">
+      <summary>Beispiel ansehen &amp; wo ich es finde <span class="chev">▾</span></summary>
+      <div class="help-in">
+        <div class="ex">${SVG[c.key]||''}<div class="cap">${esc(m.cap||'Beispiel')}</div></div>
+        <div class="woher"><b>💡 Wo finde ich das?</b><br>${m.woher||''}</div>
+      </div>
+    </details>
+  </article>`;
+}
+
 function render(){
   const d=DATA,check=d.checkliste||[],uploads=d.uploads||[],objekt=d.objektunterlagen||[];
   const name=(d.kundeName||'').split(' — ')[0]||'';
   const vorname=name?esc(name.split(' ')[0]||name):'';
   const byP={};uploads.forEach(u=>(byP[u.punkt||'_']=byP[u.punkt||'_']||[]).push(u));
-  const pflicht=check.filter(c=>!c.empfohlen);
+  const pflicht=check.filter(c=>!c.empfohlen), empf=check.filter(c=>c.empfohlen);
   const done=pflicht.filter(c=>(byP[c.key]||[]).length).length;
   const pct=pflicht.length?Math.round(done/pflicht.length*100):0;
   const weitere=byP['weitere']||[];
-
-  const cards=check.map((c,i)=>{
-    const files=byP[c.key]||[],isDone=files.length>0,m=META[c.key]||{};
-    const badge=isDone?'<span class="badge done">erledigt ✓</span>':(c.empfohlen?'<span class="badge rec">empfohlen</span>':'<span class="badge open">offen</span>');
-    const fl=files.map(f=>`<div class="f">✓ ${esc((f.name||'').replace(/^.*? — /,''))}</div>`).join('');
-    return `<article class="doc ${isDone?'done':''}" style="--i:${i}">
-      <div class="doc-body">
-        <div class="thumb">${SVG[c.key]||''}</div>
-        <div class="doc-main">
-          <div class="doc-head"><div class="doc-title">${esc(c.label)}</div>${badge}</div>
-          <p class="was">${m.was||''}</p>
-          ${m.woher?`<div class="woher"><span class="ic">💡</span><span class="tx"><b>Wo finde ich das?</b> ${m.woher}</span></div>`:''}
-          ${fl?`<div class="files">${fl}</div>`:''}
-          <div class="acts">
-            <button class="add" onclick="pick('${c.key}',false)">${isDone?'Weitere hinzufügen':'Hochladen'}</button>
-            <a class="cam-link" href="#" onclick="pick('${c.key}',true);return false">oder mit Kamera</a>
-          </div>
-        </div>
-      </div></article>`;
-  }).join('');
 
   const opts=TYPEN.map(t=>`<option value="${esc(t.key)}">${esc(t.label)}</option>`).join('');
   const wl=weitere.map(f=>`<div class="f">✓ ${esc(f.typ||(f.name||'').replace(/ — .*$/,''))} · ${esc((f.name||'').replace(/^.*? — /,''))}</div>`).join('');
@@ -174,26 +182,29 @@ function render(){
     <div class="hero">
       <div class="eyebrow">Dein Unterlagen-Portal</div>
       <h1>Hallo${vorname?', <em>'+vorname+'</em>':''}.</h1>
-      <p class="lede">Hier reichst du deine Unterlagen für die Finanzierung ein — entspannt, Schritt für Schritt, bequem vom Handy. Wir führen dich durch.</p>
+      <p class="lede">Reich hier deine Unterlagen für die Finanzierung ein — entspannt, Schritt für Schritt, bequem vom Handy.</p>
     </div>
 
     <div class="why">
       <h3>Warum sich das für dich lohnt</h3>
-      <div class="chain"><span class="step">vollständig &amp; früh</span><span class="arr">→</span><span class="step">mehr Banken anfragbar</span><span class="arr">→</span><span class="step">mehr Auswahl</span><span class="arr">→</span><span class="step">bessere Konditionen</span></div>
-      <p>Je <b>vollständiger und früher</b> deine Unterlagen vorliegen, desto mehr Banken können wir gleichzeitig für dich anfragen. Ein <b>größerer Banken-Pool</b> bedeutet mehr Angebote — und aus mehr Auswahl holen wir die <b>besten Konditionen</b> für dich heraus.</p>
+      <div class="chain"><span class="step">vollständig &amp; früh</span><span class="arr">→</span><span class="step">mehr Banken</span><span class="arr">→</span><span class="step">mehr Auswahl</span><span class="arr">→</span><span class="step">bessere Konditionen</span></div>
+      <p>Je <b>vollständiger und früher</b> deine Unterlagen vorliegen, desto mehr Banken können wir gleichzeitig anfragen. Ein <b>größerer Pool</b> heißt mehr Auswahl — und damit <b>bessere Konditionen</b> für dich.</p>
     </div>
 
     <div class="track">
       <div class="ring" style="--p:${pct}"><i>${done}/${pflicht.length}</i></div>
-      <div class="t"><b>${done===pflicht.length&&pflicht.length?'Pflicht-Unterlagen komplett — danke!':'Deine Pflicht-Unterlagen'}</b><span>${done} von ${pflicht.length} erledigt${done<pflicht.length?' · jeder Schritt zählt':''}</span></div>
+      <div class="t"><b>${done===pflicht.length&&pflicht.length?'Pflicht komplett — danke!':'Deine Pflicht-Unterlagen'}</b><span>${done} von ${pflicht.length} erledigt${done<pflicht.length?' · jeder Schritt zählt':''}</span></div>
     </div>
 
-    <div class="sect-label">Bitte hochladen</div>
-    ${cards}
+    <div class="sect-label">Bitte hochladen <span class="hint">· das braucht jede Bank</span></div>
+    ${pflicht.map((c,i)=>card(c,byP,i,false)).join('')}
 
+    ${empf.length?`<div class="sect-label">Empfohlen <span class="hint">· falls vorhanden, beschleunigt deine Zusage</span></div>
+    ${empf.map((c,i)=>card(c,byP,i+pflicht.length,true)).join('')}`:''}
+
+    <div class="sect-label">Weitere Nachweise <span class="hint">· optional</span></div>
     <div class="more">
-      <h2>Weitere Nachweise</h2>
-      <p>Hast du noch andere Unterlagen, die zu deiner Finanzierung passen? Wähle die Art aus und lade sie hoch — so viele du möchtest. Optional, aber hilfreich.</p>
+      <p>Hast du noch andere Unterlagen, die zu deiner Finanzierung passen? Wähle die Art und lade hoch — so viele du möchtest.</p>
       <div class="more-row">
         <select id="wt-select" onchange="onTyp()"><option value="">Art des Nachweises wählen …</option>${opts}</select>
         <input type="text" id="wt-beschr" placeholder="Kurz beschreiben …">
@@ -204,7 +215,7 @@ function render(){
 
     <div class="objekt">
       <h2>📂 Objektunterlagen</h2>
-      <p style="font-size:13px;color:var(--muted);margin:-4px 0 12px">Unterlagen zu deiner Immobilie — zum Ansehen und Herunterladen.</p>
+      <p style="font-size:12.5px;color:var(--muted);margin:-2px 0 11px">Unterlagen zu deiner Immobilie — zum Ansehen und Herunterladen.</p>
       ${objekt.length?`<ul class="olist">${objekt.map(f=>`<li>📄 <a href="${esc(f.webViewLink||'#')}" target="_blank" rel="noopener">${esc(f.name)}</a></li>`).join('')}</ul>`:`<div class="empty">Hier erscheinen in Kürze die Unterlagen zu deiner Immobilie.</div>`}
     </div>`;
 }
