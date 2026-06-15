@@ -210,6 +210,11 @@ function isSafeOrigin(req) {
       const host = u.host;
       if (host === 'bb-brown-pi.vercel.app') return true;
       if (/^bb-brown-pi-[a-z0-9-]+\.vercel\.app$/i.test(host)) return true;
+      // 2026-06-15: Vercel-Projekt-Slug ist „bb" unter dem eigenen Account-Scope
+      // „esteininger123s-projects". Preview-/Branch-URLs (bb-git-<branch>-…,
+      // bb-<hash>-…) eng auf genau diesen Scope begrenzt erlauben — kein
+      // *.vercel.app-Wildcard, daher kein CSRF-Bypass durch fremde Deployments.
+      if (/^bb-[a-z0-9-]+-esteininger123s-projects\.vercel\.app$/i.test(host)) return true;
     }
     return false;
   } catch {
