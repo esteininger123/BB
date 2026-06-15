@@ -16,7 +16,7 @@ const { resolveVerkaufsunterlagenFolder } = require('../../_lib/objektunterlagen
 // Selbstauskunft ist NICHT dabei — die kommt von B&B (PandaDoc), nicht vom Kunden.
 const CHECKLISTE = [
   { key: 'gehalt',  label: 'Gehaltsabrechnungen (letzte 3 Monate)', file: 'Gehaltsabrechnung' },
-  { key: 'steuer',  label: 'Letzter Einkommensteuerbescheid', file: 'Steuerbescheid' },
+  { key: 'steuer',  label: 'Letzter Einkommensteuerbescheid', file: 'Steuerbescheid', empfohlen: true },
   { key: 'ausweis', label: 'Personalausweis (Vorder- & Rückseite)', file: 'Personalausweis' },
   { key: 'ek',      label: 'Eigenkapitalnachweis (Kontoauszug / Depot)', file: 'Eigenkapitalnachweis' },
 ];
@@ -37,7 +37,7 @@ const WEITERE_TYPEN = [
   { key: 'schenkung',      label: 'Schenkungs- / Eigenkapital-Nachweis' },
   { key: 'sonstiges',      label: 'Sonstiges (mit eigener Beschreibung)' },
 ];
-const PFLICHT = CHECKLISTE.map((c) => c.key);
+const PFLICHT = CHECKLISTE.filter((c) => !c.empfohlen).map((c) => c.key);
 const byKey = (k) => CHECKLISTE.find((c) => c.key === k);
 
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024; // ~4 MB (Vercel-Body-Limit ~4,5 MB)
