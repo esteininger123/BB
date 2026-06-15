@@ -138,6 +138,7 @@ const FINANZIERUNGSFALL_FIELDS = {
   NOTIZ_VERTRIEB:          'fldt9rwaYVDcm0k8z', // multilineText — Notiz vom Vertrieb an Finanzierung
   NOTARTERMIN_ZIEL:        'fldagIUGINXpFrP0M', // date
   SA_STATUS:               'fld2ycS7SZZB9W9XJ', // singleSelect: fehlt / liegt vor
+  KUNDEN_DRIVE:            'fldVLOKeXrgkJLWaD', // url — Link zum Drive-Ordner des Kunden (Baustein D)
 };
 
 const FINANZIERUNGSFALL_STATUS_START = 'Unterlagen noch anfordern';

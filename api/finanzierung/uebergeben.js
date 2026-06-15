@@ -9,7 +9,7 @@
 const { verifySession, requireSafeOrigin } = require('../_lib/auth');
 const { airtable } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
-const { TABLES, SNAPSHOT_FIELDS, KUNDEN_FIELDS } = require('../_lib/tables');
+const { TABLES, SNAPSHOT_FIELDS, KUNDEN_FIELDS, FINANZIERUNGSFALL_FIELDS } = require('../_lib/tables');
 const { finanzierungsfallBodyToFields } = require('../_lib/mappers');
 
 // Owner-Check (gleiche Logik wie snapshots.js): Admin darf alles, sonst muss
@@ -99,6 +99,28 @@ module.exports = async (req, res) => {
 
     const created = await airtable('create', TABLES.FINANZIERUNGSFALL, { fields });
 
+    // Drive-Ordner anlegen + Link in den Fall schreiben. NICHT kritisch: ein
+    // Drive-Fehler darf die Übergabe nicht abbrechen — der Fall bleibt bestehen,
+    // der Ordner kann notfalls manuell/erneut angelegt werden.
+    let driveLink = '';
+    try {
+      const rootId = process.env.DRIVE_ROOT_FOLDER_ID;
+      if (rootId) {
+        const { ensureFolder } = require('../_lib/drive');
+        const folderName = (kundeName || 'Kunde') + ' — ' + String(created.id).slice(-6);
+        const folder = await ensureFolder(folderName, rootId);
+        driveLink = (folder && folder.webViewLink) || '';
+        if (driveLink) {
+          await airtable('update', TABLES.FINANZIERUNGSFALL, {
+            recordId: created.id,
+            fields: { [FINANZIERUNGSFALL_FIELDS.KUNDEN_DRIVE]: driveLink },
+          });
+        }
+      }
+    } catch (e) {
+      console.error('[uebergeben] Drive-Ordner fehlgeschlagen (nicht kritisch):', e && e.message);
+    }
+
     // Kunden-Phase auf "Bank-Einreichung" + Letzte-Aktivität touchen (nicht kritisch)
     try {
       await airtable('update', TABLES.KUNDEN, {
@@ -110,7 +132,7 @@ module.exports = async (req, res) => {
       });
     } catch { /* nicht kritisch */ }
 
-    return res.status(201).json({ ok: true, id: created.id });
+    return res.status(201).json({ ok: true, id: created.id, driveLink });
   } catch (e) {
     return sendError(res, e);
   }
