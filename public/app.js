@@ -1251,6 +1251,17 @@ function _finUebergabeEnsureStyles() {
 // schickt das Ergebnis an die API, legt den Finanzierungsfall an.
 async function uebergebeAnFinanzierung() {
   const snaps = state.snapshots || [];
+  // Warnung, wenn der Kunde schon einen Finanzierungsfall hat — bewusste Bestätigung.
+  try {
+    const check = await api.get('/api/finanzierung/uebergeben?kundeId=' + encodeURIComponent(state.kundeId));
+    if (check && check.count > 0) {
+      const msg = check.count === 1
+        ? 'Für diesen Kunden existiert bereits ein Finanzierungsfall.'
+        : `Für diesen Kunden existieren bereits ${check.count} Finanzierungsfälle.`;
+      if (!confirm(msg + '\n\nWirklich einen WEITEREN anlegen?')) return;
+    }
+  } catch (e) { /* Check nicht kritisch — im Zweifel Übergabe zulassen */ }
+
   const data = await openFinanzierungUebergabeModal(snaps);
   if (!data) return;
   try {
@@ -1269,6 +1280,15 @@ async function uebergebeAnFinanzierung() {
       wasWichtig: data.wasWichtig,
       notizVertrieb: data.notizVertrieb,
     });
+    // Aktivitäts-Eintrag in die Historie des Kunden (nicht kritisch).
+    try {
+      const snap = snaps.find(s => s.id === data.snapshotId);
+      const weBez = (snap && (snap.weBezeichnung || snap.bezeichnung)) || '';
+      const formLabel = data.finanzierungsform === 'andere'
+        ? (data.finanzierungsformAndere || 'andere')
+        : (data.finanzierungsform + '%');
+      await _appendActivityToNotizen('An Finanzierung übergeben' + (weBez ? ' — ' + weBez : '') + ' (' + formLabel + ')');
+    } catch (e) { /* Historie nicht kritisch */ }
     toast('An Finanzierung übergeben — Fall angelegt', 'success');
     if (typeof renderKunde === 'function') renderKunde();
   } catch (e) {

@@ -7,7 +7,7 @@
 //     wasWichtig, notarterminZiel }
 
 const { verifySession, requireSafeOrigin } = require('../_lib/auth');
-const { airtable } = require('../_lib/airtable');
+const { airtable, listAll } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { TABLES, SNAPSHOT_FIELDS, KUNDEN_FIELDS, FINANZIERUNGSFALL_FIELDS } = require('../_lib/tables');
 const { finanzierungsfallBodyToFields } = require('../_lib/mappers');
@@ -36,7 +36,23 @@ module.exports = async (req, res) => {
   if (!session) return res.status(401).json({ error: 'Nicht eingeloggt' });
 
   try {
-    if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+    // GET — zählt existierende Finanzierungsfälle des Kunden (für den Warn-Dialog
+    // im Frontend, bevor ein weiterer Fall angelegt wird).
+    if (req.method === 'GET') {
+      const kundeId = req.query && req.query.kundeId;
+      if (!kundeId) return res.status(400).json({ error: 'kundeId fehlt' });
+      const allowedGet = await canAccessKunde(session, kundeId);
+      if (!allowedGet) return res.status(403).json({ error: 'Kein Zugriff auf diesen Kunden' });
+      const all = await listAll(TABLES.FINANZIERUNGSFALL, { fields: [FINANZIERUNGSFALL_FIELDS.KUNDE] }, 2000);
+      const count = all.filter(r => {
+        const link = (r.fields && r.fields[FINANZIERUNGSFALL_FIELDS.KUNDE]) || [];
+        const ids = Array.isArray(link) ? link.map(x => (x && typeof x === 'object') ? x.id : x) : [];
+        return ids.includes(kundeId);
+      }).length;
+      return res.status(200).json({ count });
+    }
+
+    if (req.method !== 'POST') return methodNotAllowed(res, ['GET', 'POST']);
 
     const body = await readBody(req);
     if (!body.kundeId)    return res.status(400).json({ error: 'kundeId fehlt' });
