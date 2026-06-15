@@ -1926,15 +1926,19 @@ function renderTabUebersicht() {
       </div>`;
   })();
 
-  // Finanzierungs-Übergabe (2026-06-15, Baustein A) — Button im Übersicht-Tab.
+  // Finanzierungs-Übergabe (2026-06-15) — bewusst hervorgehobene Aktions-Karte.
   const finUebergabeCard = `
-    <div class="card mt-16">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-        <div>
-          <div class="card-title" style="margin:0;border-bottom:none;padding-bottom:0;">Finanzierung</div>
-          <span class="text-tertiary text-small">Reservierten Kunden mit Kalkulation + Infos an die Finanzierung übergeben.</span>
+    <div class="card mt-16" style="border:1.5px solid #B08A4D;background:#fbf6ec;box-shadow:0 1px 4px rgba(176,138,77,.12);">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+        <div style="min-width:210px;">
+          <div style="font-weight:800;font-size:15.5px;display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+            <span style="font-size:19px;">🏦</span> An Finanzierung übergeben
+          </div>
+          <span class="text-tertiary text-small">Übergibt Kalkulation &amp; Kunden-Infos und erzeugt den Unterlagen-Upload-Link für den Kunden.</span>
         </div>
-        <button type="button" class="secondary" onclick="uebergebeAnFinanzierung()" style="white-space:nowrap;">→ An Finanzierung übergeben</button>
+        <button type="button" onclick="uebergebeAnFinanzierung()" title="An die Finanzierung übergeben"
+          style="background:#2D6E47;color:#fff;border:none;border-radius:9px;padding:14px 24px;font-size:15px;font-weight:800;cursor:pointer;white-space:nowrap;box-shadow:0 2px 7px rgba(45,110,71,.28);"
+          onmouseover="this.style.background='#245a3a'" onmouseout="this.style.background='#2D6E47'">→ Übergeben</button>
       </div>
     </div>`;
 
