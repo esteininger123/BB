@@ -57,26 +57,27 @@
   .doc-title{font-family:'Fraunces',serif;font-weight:600;font-size:16.5px;line-height:1.2}
   .badge{flex:0 0 auto;font-size:10.5px;font-weight:700;padding:4px 9px;border-radius:30px;white-space:nowrap}
   .badge.open{background:var(--sand);color:var(--bronze-d)} .badge.done{background:var(--green-bg);color:var(--green-d)} .badge.rec{background:#efe7d6;color:#8E6E3D}
-  .was{font-size:13px;color:#5a5852;margin:4px 0 0} .was b{color:var(--bronze-d)}
-  .files{margin:10px 0 0;display:flex;flex-direction:column;gap:5px}
+  .was{font-size:13px;color:#5a5852;margin:5px 0 0} .was b{color:var(--bronze-d)}
+  .doc-main{display:flex;gap:13px;align-items:flex-start}
+  .thumb{flex:0 0 auto;width:88px}
+  .thumb svg{width:88px;height:auto;display:block;border-radius:9px;filter:drop-shadow(0 4px 11px rgba(142,110,61,.17))}
+  .thumb .cap{font-size:9px;letter-spacing:.6px;text-transform:uppercase;color:#a99f8c;text-align:center;margin-top:5px}
+  .doc-body{flex:1;min-width:0}
+  .files{margin:11px 0 0;display:flex;flex-direction:column;gap:5px}
   .files .f{font-size:12px;color:var(--green-d);display:flex;align-items:center;gap:7px;background:var(--green-bg);padding:6px 10px;border-radius:8px;word-break:break-word}
-  .acts{margin-top:12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .acts{margin-top:11px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
   .add{appearance:none;border:none;cursor:pointer;font-family:inherit;font-weight:700;font-size:13.5px;color:#fff;background:var(--bronze);padding:10px 17px;border-radius:10px;box-shadow:0 3px 9px rgba(176,138,77,.26);transition:background .15s,transform .1s}
   .add:hover{background:var(--bronze-d)} .add:active{transform:scale(.98)}
   .doc.done .add{background:#fff;color:var(--green-d);border:1.5px solid var(--green-line);box-shadow:none}
   .cam-link{font-size:12px;color:var(--muted);text-decoration:none;border-bottom:1px dashed #cfc8ba} .cam-link:hover{color:var(--bronze-d)}
 
-  /* ausklappbare Hilfe */
-  details.help{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+  /* ausklappbare Hilfe — nur Text, das Beispielbild steht schon oben */
+  details.help{margin-top:11px;border-top:1px solid var(--line);padding-top:9px}
   details.help summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--bronze-d);user-select:none}
   details.help summary::-webkit-details-marker{display:none}
   details.help summary .chev{transition:transform .2s;font-size:11px} details.help[open] summary .chev{transform:rotate(180deg)}
-  .help-in{display:flex;gap:14px;align-items:flex-start;margin-top:12px}
-  .help-in .ex{flex:0 0 auto}
-  .help-in .ex svg{width:128px;height:auto;display:block;border-radius:10px;filter:drop-shadow(0 5px 12px rgba(142,110,61,.18))}
-  .help-in .ex .cap{font-size:10.5px;color:var(--muted);text-align:center;margin-top:5px}
-  .woher{font-size:12.5px;color:#5c5340;line-height:1.5} .woher b{color:var(--bronze-d)}
-  @media (max-width:480px){ .help-in{flex-direction:column;align-items:center} .help-in .ex svg{width:150px} .woher{text-align:left} }
+  .woher{font-size:12.5px;color:#5c5340;line-height:1.5;margin-top:9px} .woher b{color:var(--bronze-d)}
+  @media (max-width:430px){ .thumb{width:76px} .thumb svg{width:76px} }
 
   .more{background:var(--paper);border:1px dashed var(--bronze-l);border-radius:16px;padding:16px;margin:6px 0 14px;animation:rise .5s .4s both}
   .more h2{font-family:'Fraunces',serif;font-weight:600;font-size:16px;margin:0 0 4px}
@@ -126,10 +127,10 @@ const SVG={
   ek:`<svg viewBox='0 0 120 150' xmlns='http://www.w3.org/2000/svg'><rect x='4' y='4' width='112' height='142' rx='10' fill='#fff' stroke='#E8E6DD'/><rect x='4' y='4' width='112' height='30' rx='10' fill='#2D6E47'/><rect x='4' y='22' width='112' height='12' fill='#2D6E47'/><text x='15' y='24' font-family='Hanken Grotesk' font-size='11' font-weight='700' fill='#fff'>Konto</text><g fill='#E6E0D4'><rect x='15' y='47' width='68' height='5' rx='2.5'/><rect x='15' y='59' width='52' height='5' rx='2.5'/><rect x='15' y='71' width='62' height='5' rx='2.5'/></g><rect x='10' y='90' width='100' height='44' rx='9' fill='#E4EFE7' stroke='#bcdcc8'/><text x='21' y='108' font-family='Hanken Grotesk' font-size='9' font-weight='600' fill='#235838'>Kontostand</text><text x='21' y='126' font-family='Fraunces' font-size='16' font-weight='600' fill='#2D6E47'>48.500 €</text></svg>`,
 };
 const META={
-  gehalt:{ kurz:'Die letzten 3 Monatsabrechnungen — zeigt dein regelmäßiges Einkommen.', cap:'So sieht eine aus', woher:'Bekommst du von deinem Arbeitgeber — meist monatlich per Post oder im Lohn-/Mitarbeiterportal (z.B. Datev, SAP, Personio) als PDF.' },
-  steuer:{ kurz:'Den verlangen die meisten Banken — <b>falls du einen hast</b>, lad ihn mit hoch (alle Seiten).', cap:'So sieht er aus', woher:'Kam per Post nach deiner letzten Steuererklärung. Digital im <b>ELSTER-Portal</b> unter „Posteingang".' },
-  ausweis:{ kurz:'Vorder- und Rückseite — damit wir dich eindeutig zuordnen können.', cap:'Vorder- & Rückseite', woher:'Hast du dabei — beide Seiten mit dem Handy abfotografieren, gutes Licht, alle Ecken sichtbar.' },
-  ek:{ kurz:'Nachweis deines Eigenkapitals — z. B. ein Konto- oder Depotauszug mit Saldo.', cap:'So sieht er aus', woher:'Aus deinem <b>Online-Banking</b> (Giro, Tagesgeld, Depot) — als PDF oder einfach ein Screenshot des Saldos.' },
+  gehalt:{ kurz:'Deine letzten 3 Monatsabrechnungen.', woher:'Bekommst du von deinem Arbeitgeber — meist monatlich per Post oder im Lohn-/Mitarbeiterportal (z.B. Datev, SAP, Personio) als PDF.' },
+  steuer:{ kurz:'Falls du einen hast — gern mit dazu.', woher:'Kam per Post nach deiner letzten Steuererklärung. Digital findest du ihn im <b>ELSTER-Portal</b> unter „Posteingang" (alle Seiten).' },
+  ausweis:{ kurz:'Vorder- &amp; Rückseite.', woher:'Hast du dabei — beide Seiten mit dem Handy abfotografieren: gutes Licht, alle vier Ecken sichtbar.' },
+  ek:{ kurz:'Konto- oder Depotauszug mit Saldo.', woher:'Aus deinem <b>Online-Banking</b> (Giro, Tagesgeld, Depot) — als PDF oder einfach ein Screenshot, auf dem der Saldo steht.' },
 };
 
 function toast(msg,err){const t=$('#toast');t.textContent=msg;t.className=(err?'err ':'')+'show';clearTimeout(toast._t);toast._t=setTimeout(()=>t.className=t.className.replace('show','').trim(),err?5000:2600);}
@@ -148,20 +149,19 @@ function card(c,byP,i,opt){
   const badge=isDone?'<span class="badge done">erledigt ✓</span>':(opt?'<span class="badge rec">empfohlen</span>':'<span class="badge open">offen</span>');
   const fl=files.map(f=>`<div class="f">✓ ${esc((f.name||'').replace(/^.*? — /,''))}</div>`).join('');
   return `<article class="doc ${isDone?'done':''} ${opt&&!isDone?'opt':''}" style="--i:${i}">
-    <div class="doc-head"><div class="doc-title">${esc(c.label)}</div>${badge}</div>
-    <p class="was">${m.kurz||''}</p>
-    ${fl?`<div class="files">${fl}</div>`:''}
-    <div class="acts">
-      <button class="add" onclick="pick('${c.key}',false)">${isDone?'Weitere hinzufügen':'Hochladen'}</button>
-      <a class="cam-link" href="#" onclick="pick('${c.key}',true);return false">oder mit Kamera</a>
-    </div>
-    <details class="help">
-      <summary>Beispiel ansehen &amp; wo ich es finde <span class="chev">▾</span></summary>
-      <div class="help-in">
-        <div class="ex">${SVG[c.key]||''}<div class="cap">${esc(m.cap||'Beispiel')}</div></div>
-        <div class="woher"><b>💡 Wo finde ich das?</b><br>${m.woher||''}</div>
+    <div class="doc-main">
+      <div class="thumb">${SVG[c.key]||''}<div class="cap">Beispiel</div></div>
+      <div class="doc-body">
+        <div class="doc-head"><div class="doc-title">${esc(c.label)}</div>${badge}</div>
+        <p class="was">${m.kurz||''}</p>
+        <div class="acts">
+          <button class="add" onclick="pick('${c.key}',false)">${isDone?'Weitere hinzufügen':'Hochladen'}</button>
+          <a class="cam-link" href="#" onclick="pick('${c.key}',true);return false">oder mit Kamera</a>
+        </div>
       </div>
-    </details>
+    </div>
+    ${fl?`<div class="files">${fl}</div>`:''}
+    ${m.woher?`<details class="help"><summary>Wo finde ich das? <span class="chev">▾</span></summary><div class="woher">${m.woher}</div></details>`:''}
   </article>`;
 }
 
