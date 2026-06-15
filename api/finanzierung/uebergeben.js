@@ -123,18 +123,38 @@ module.exports = async (req, res) => {
     try {
       const rootId = process.env.DRIVE_ROOT_FOLDER_ID;
       if (rootId) {
-        const { ensureFolder } = require('../_lib/drive');
+        const { ensureFolder, listFiles, copyFile } = require('../_lib/drive');
+        const { resolveVerkaufsunterlagenFolder } = require('../_lib/objektunterlagen');
         const folderName = (kundeName || 'Kunde') + ' — ' + String(created.id).slice(-6);
         const folder = await ensureFolder(folderName, rootId);
         driveLink = (folder && folder.webViewLink) || '';
         const folderId = (folder && folder.id) || '';
+
+        // Unterordner "Objektunterlagen" + zentrale Unterlagen reinkopieren (best effort).
+        // Macht den Kunden-Ordner vollständig (ein Bank-Link genügt) und gibt einen Ort
+        // für manuelle WE-spezifische Ergänzungen.
+        let objektFolderId = '';
+        if (folderId) {
+          try {
+            const sub = await ensureFolder('Objektunterlagen', folderId);
+            objektFolderId = (sub && sub.id) || '';
+            const centralId = await resolveVerkaufsunterlagenFolder(weRecId);
+            if (objektFolderId && centralId) {
+              const centralFiles = await listFiles(centralId).catch(() => []);
+              await Promise.allSettled(centralFiles.map((f) => copyFile(f.id, f.name, objektFolderId)));
+            }
+          } catch (e) {
+            console.error('[uebergeben] Objektunterlagen-Kopie fehlgeschlagen (nicht kritisch):', e && e.message);
+          }
+        }
+
         const updateFields = {};
         if (driveLink) updateFields[FINANZIERUNGSFALL_FIELDS.KUNDEN_DRIVE] = driveLink;
         // Upload-Portal-Token + Link (Baustein U): bindet den Token an Fall + Ordner.
         if (folderId) {
           try {
             const { signUploadToken } = require('../_lib/upload-token');
-            const token = signUploadToken({ fallId: created.id, folderId, weId: weRecId || '' });
+            const token = signUploadToken({ fallId: created.id, folderId, objektFolderId, weId: weRecId || '' });
             const host = (req.headers && (req.headers['x-forwarded-host'] || req.headers.host)) || '';
             if (host) {
               uploadLink = `https://${host}/portal?t=${token}`;

@@ -94,24 +94,36 @@ function folderIdFromUrl(url) {
   return m ? m[1] : '';
 }
 
-// Listet die Dateien (keine Ordner) in einem Ordner.
-// Rückgabe: [{ id, name, mimeType, size, modifiedTime, webViewLink }]
+// Listet die Dateien (keine Ordner) in einem Ordner — natürlich sortiert (1,2,…10).
+// Rückgabe: [{ id, name, mimeType, size, modifiedTime, webViewLink, appProperties }]
 async function listFiles(folderId) {
   if (!folderId) return [];
   const token = await getAccessToken();
   const q = `'${escQ(folderId)}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`;
   const out = await driveFetch(
-    `/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType,size,modifiedTime,webViewLink)&orderBy=name&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&pageSize=200`,
+    `/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType,size,modifiedTime,webViewLink,appProperties)&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&pageSize=200`,
     {}, token
   );
-  return out.files || [];
+  const files = out.files || [];
+  files.sort((a, b) => String(a.name).localeCompare(String(b.name), 'de', { numeric: true, sensitivity: 'base' }));
+  return files;
+}
+
+// Kopiert eine Datei in einen Ziel-Ordner (für Objektunterlagen → Kunden-Unterordner).
+async function copyFile(fileId, name, parentId) {
+  return driveFetch(`/files/${encodeURIComponent(fileId)}/copy?fields=id,name&supportsAllDrives=true`, {
+    method: 'POST',
+    body: JSON.stringify({ name, parents: [parentId] }),
+  });
 }
 
 // Lädt eine Datei (Buffer) in einen Ordner hoch. Rückgabe: { id, name, webViewLink }.
-async function uploadFile(folderId, name, mimeType, buffer) {
+async function uploadFile(folderId, name, mimeType, buffer, appProperties) {
   const token = await getAccessToken();
   const boundary = 'bbk-' + crypto.randomBytes(8).toString('hex');
-  const metadata = JSON.stringify({ name, parents: [folderId] });
+  const meta = { name, parents: [folderId] };
+  if (appProperties && typeof appProperties === 'object') meta.appProperties = appProperties;
+  const metadata = JSON.stringify(meta);
   const pre = Buffer.from(
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` +
     `--${boundary}\r\nContent-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`, 'utf8');
@@ -138,4 +150,4 @@ async function uploadFile(folderId, name, mimeType, buffer) {
   return res.json();
 }
 
-module.exports = { getAccessToken, driveFetch, ensureFolder, folderIdFromUrl, listFiles, uploadFile };
+module.exports = { getAccessToken, driveFetch, ensureFolder, folderIdFromUrl, listFiles, uploadFile, copyFile };
