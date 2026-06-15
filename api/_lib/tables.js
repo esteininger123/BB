@@ -21,6 +21,8 @@ const TABLES = {
   MIETER:       'tblGu9FjDuwh2uLdP',
   // Kalkulations-Stammdaten (Single Source of Truth für Web-App, siehe SOP-E).
   KALK_STAMMDATEN: 'tblz5KNtzkLSLHHFo',
+  // Endkunden-Finanzierungsfall (Finanzierungs-Handover, 2026-06-15).
+  FINANZIERUNGSFALL: 'tblM4e4tDae2o9mQz',
 };
 
 // Felder der Objekt-Tabelle, die wir lesen
@@ -107,6 +109,37 @@ const SNAPSHOT_FIELDS = {
   IRR:              'fldNnqRN4lWSeQvri',
   BRUTTORENDITE:    'fldCq3Q9j6zqcUQay'
 };
+
+// --- Endkunden-Finanzierungsfall (2026-06-15, Finanzierungs-Handover Baustein A) ---
+// Bestehende Felder (von der Finanzierung angelegt) + neue Felder (2026-06-15).
+const FINANZIERUNGSFALL_FIELDS = {
+  TITEL:                   'fldBCoC1l9IukRTj8', // Primary singleLineText
+  KUNDE:                   'fldE6949ttL6XNSqX', // Link → Kunden/Interessenten
+  WOHNEINHEIT:             'fldBAGky2mCKEJBmb', // Link → Wohneinheit
+  STATUS:                  'fldgEgmxmVEMhFOdz', // singleSelect (Finanzierungs-Workflow)
+  P100:                    'fldwBkuOlUEhqmi1I', // checkbox 100%
+  P107:                    'fldJKQwW8w5S7lNzk', // checkbox 107%
+  SNAPSHOT:                'fldioti4H2wFCdTEM', // Link → Kalk-Snapshots
+  STAND_VOM:               'fldwOgpH4LWnJvtIY', // date — Snapshot-Datum
+  KAUFPREIS:               'fldhZ8f9eGsYcjk6F', // currency
+  EK_BEDARF:               'fldlH0LeLg1D0b4hh', // currency — gerechneter EK-Bedarf
+  ZINS:                    'fld9Jgn4T9OMx2iyw', // number %
+  TILGUNG:                 'fldGX0fBB5vgitGX9', // number %
+  WOHNFLAECHE:             'fld70qEIePZihNOVv', // number
+  KALTMIETE:               'fldMIQXs27cZOCUl8', // currency
+  FINANZIERUNGSFORM_ANDERE:'fldG4zgMyTtPwyS2L', // singleLineText (falls nicht 100/107)
+  MAX_EK:                  'fldqOvrlcs6ktQ1Id', // currency — EK-Wunsch-Obergrenze
+  HAUSBANK_VORHANDEN:      'fldnQkq5FgLW8zPiM', // checkbox
+  HAUSBANK_NAME:           'fld72OcOOx8Bx53Di', // singleLineText
+  HAUSBANK_BERATER:        'fldiW2J8rHWJ8iRlC', // singleLineText
+  FINANZBERATER_VORHANDEN: 'fldIy78JoGuBcBT9Q', // checkbox
+  FINANZBERATER_KONTAKT:   'fldHWua7QpAMKvHfh', // singleLineText
+  WAS_WICHTIG:             'fldqLLnYssritKMTk', // multilineText
+  NOTARTERMIN_ZIEL:        'fldagIUGINXpFrP0M', // date
+  SA_STATUS:               'fld2ycS7SZZB9W9XJ', // singleSelect: fehlt / liegt vor
+};
+
+const FINANZIERUNGSFALL_STATUS_START = 'Unterlagen noch anfordern';
 
 const WE_FIELDS = {
   LAGE_BEZ:    'fldhlG1CH22gG3Ta6',
@@ -266,4 +299,6 @@ module.exports = {
   KALK_STATUS_AKTIV,
   KALK_STATUS_ENTWURF,
   KALK_STATUS_ARCHIV,
+  FINANZIERUNGSFALL_FIELDS,
+  FINANZIERUNGSFALL_STATUS_START,
 };
