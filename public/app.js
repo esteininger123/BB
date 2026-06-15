@@ -1127,6 +1127,132 @@ function syncSaToStammdaten() {
 }
 window.go = go;
 
+// Übergabe-an-Finanzierung-Modal (2026-06-15, Baustein A).
+// Args: snapshots = Array {id, bezeichnung, weBezeichnung, created, kalkJson}.
+// Gibt das Formular-Objekt zurück (inkl. gewählter snapshotId) oder null bei Abbruch.
+function openFinanzierungUebergabeModal(snapshots) {
+  _reservEnsureStyles();
+  _finUebergabeEnsureStyles();
+  const snaps = Array.isArray(snapshots) ? snapshots.slice() : [];
+  return new Promise((resolve) => {
+    const m = document.createElement('div');
+    m.className = 'reserv-modal-overlay';
+    const snapOptions = snaps.map((s, i) => {
+      const label = [s.weBezeichnung || s.bezeichnung || 'Kalkulation',
+        (s.created || '').slice(0, 10)].filter(Boolean).join(' · ');
+      return `<option value="${esc(s.id)}"${i === 0 ? ' selected' : ''}>${esc(label)}</option>`;
+    }).join('');
+    m.innerHTML =
+      '<div class="reserv-modal fin-modal">' +
+        '<h2>An Finanzierung übergeben</h2>' +
+        '<div class="reserv-modal-body">' +
+          (snaps.length
+            ? '<label class="fin-field fin-full"><span class="fin-label">Maßgebliche Kalkulation <span class="nk-req">*</span></span>' +
+                '<select id="fin-snapshot">' + snapOptions + '</select></label>'
+            : '<div class="nk-error">Kein Snapshot vorhanden — bitte zuerst eine Kalkulation speichern.</div>') +
+          '<label class="fin-field"><span class="fin-label">Finanzierungsform</span>' +
+            '<select id="fin-form"><option value="107">107 % (inkl. Nebenkosten)</option>' +
+            '<option value="100">100 %</option><option value="andere">andere</option></select></label>' +
+          '<label class="fin-field"><span class="fin-label">— falls andere</span>' +
+            '<input type="text" id="fin-form-andere" placeholder="z.B. KfW-Kombi" /></label>' +
+          '<label class="fin-field"><span class="fin-label">Max. Eigenkapital (€)</span>' +
+            '<input type="number" id="fin-maxek" min="0" step="1000" placeholder="optional" /></label>' +
+          '<label class="fin-field"><span class="fin-label">Notartermin-Ziel</span>' +
+            '<input type="date" id="fin-notar" /></label>' +
+          '<label class="fin-field fin-check fin-full"><input type="checkbox" id="fin-hb" /> <span>Hausbank vorhanden</span></label>' +
+          '<label class="fin-field"><span class="fin-label">Hausbank — Name</span>' +
+            '<input type="text" id="fin-hb-name" placeholder="optional" /></label>' +
+          '<label class="fin-field"><span class="fin-label">Hausbank — Berater</span>' +
+            '<input type="text" id="fin-hb-berater" placeholder="optional" /></label>' +
+          '<label class="fin-field fin-check fin-full"><input type="checkbox" id="fin-fb" /> <span>Eigener Finanzberater</span></label>' +
+          '<label class="fin-field fin-full"><span class="fin-label">Finanzberater — Kontakt</span>' +
+            '<input type="text" id="fin-fb-kontakt" placeholder="optional" /></label>' +
+          '<label class="fin-field fin-full"><span class="fin-label">Was ist dem Kunden wichtig?</span>' +
+            '<textarea id="fin-wichtig" rows="2" placeholder="z.B. niedrige Rate, schnelle Zusage, Sondertilgung"></textarea></label>' +
+        '</div>' +
+        '<div class="reserv-modal-actions">' +
+          '<button class="reserv-cancel" id="fin-cancel">Abbrechen</button>' +
+          '<button class="reserv-confirm" id="fin-save"' + (snaps.length ? '' : ' disabled') + '>Übergeben</button>' +
+        '</div>' +
+      '</div>';
+    const $ = (id) => m.querySelector('#' + id);
+    const close = (val) => { m.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+    const onSave = () => {
+      const snapshotId = snaps.length ? $('fin-snapshot').value : '';
+      if (!snapshotId) return;
+      close({
+        snapshotId,
+        finanzierungsform: $('fin-form').value,
+        finanzierungsformAndere: $('fin-form-andere').value.trim(),
+        maxEigenkapital: $('fin-maxek').value ? Number($('fin-maxek').value) : null,
+        notarterminZiel: $('fin-notar').value || '',
+        hausbankVorhanden: $('fin-hb').checked,
+        hausbankName: $('fin-hb-name').value.trim(),
+        hausbankBerater: $('fin-hb-berater').value.trim(),
+        finanzberaterVorhanden: $('fin-fb').checked,
+        finanzberaterKontakt: $('fin-fb-kontakt').value.trim(),
+        wasWichtig: $('fin-wichtig').value.trim(),
+      });
+    };
+    $('fin-cancel').onclick = () => close(null);
+    if (snaps.length) $('fin-save').onclick = onSave;
+    m.onclick = (e) => { if (e.target === m) close(null); };
+    const onKey = (e) => { if (e.key === 'Escape') close(null); };
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(m);
+  });
+}
+
+function _finUebergabeEnsureStyles() {
+  if (document.getElementById('fin-modal-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'fin-modal-styles';
+  s.textContent = `
+    .fin-modal { max-width: 520px; }
+    .reserv-modal.fin-modal .reserv-modal-body { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+    .fin-field { display: flex; flex-direction: column; gap: 4px; }
+    .fin-field.fin-full { grid-column: 1 / -1; }
+    .fin-field.fin-check { flex-direction: row; align-items: center; gap: 8px; }
+    .fin-label { font-size: 0.85em; color: #6b6b6b; }
+    .fin-modal select, .fin-modal input, .fin-modal textarea {
+      width: 100%; box-sizing: border-box;
+      padding: 9px 11px; border: 1px solid #d4d0ca; border-radius: 6px;
+      background: #fff; font-family: inherit; font-size: 0.95em;
+    }
+    .fin-field.fin-check input { width: auto; }
+  `;
+  document.head.appendChild(s);
+}
+
+// Button-Handler: öffnet das Übergabe-Modal mit den Snapshots des aktuellen Kunden,
+// schickt das Ergebnis an die API, legt den Finanzierungsfall an.
+async function uebergebeAnFinanzierung() {
+  const snaps = state.snapshots || [];
+  const data = await openFinanzierungUebergabeModal(snaps);
+  if (!data) return;
+  try {
+    await api.post('/api/finanzierung/uebergeben', {
+      kundeId: state.kundeId,
+      snapshotId: data.snapshotId,
+      finanzierungsform: data.finanzierungsform,
+      finanzierungsformAndere: data.finanzierungsformAndere,
+      maxEigenkapital: data.maxEigenkapital,
+      notarterminZiel: data.notarterminZiel,
+      hausbankVorhanden: data.hausbankVorhanden,
+      hausbankName: data.hausbankName,
+      hausbankBerater: data.hausbankBerater,
+      finanzberaterVorhanden: data.finanzberaterVorhanden,
+      finanzberaterKontakt: data.finanzberaterKontakt,
+      wasWichtig: data.wasWichtig,
+    });
+    toast('An Finanzierung übergeben — Fall angelegt', 'success');
+    if (typeof renderKunde === 'function') renderKunde();
+  } catch (e) {
+    toast('Fehler: ' + e.message, 'error');
+  }
+}
+window.uebergebeAnFinanzierung = uebergebeAnFinanzierung;
+
 // ===== MODUL: views/kunde (renderKunde + Tab-Routing + renderTabUebersicht) =====
 /* ============================== KUNDE-DETAIL ============================== */
 
@@ -1726,7 +1852,19 @@ function renderTabUebersicht() {
       </div>`;
   })();
 
-  el.innerHTML = renderKavCockpit(k) + berateneWECard + aktivitaetenCard + notizenCard + renderWunschProfilCard(k) + stammCard;
+  // Finanzierungs-Übergabe (2026-06-15, Baustein A) — Button im Übersicht-Tab.
+  const finUebergabeCard = `
+    <div class="card mt-16">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div class="card-title" style="margin:0;border-bottom:none;padding-bottom:0;">Finanzierung</div>
+          <span class="text-tertiary text-small">Reservierten Kunden mit Kalkulation + Infos an die Finanzierung übergeben.</span>
+        </div>
+        <button type="button" class="secondary" onclick="uebergebeAnFinanzierung()" style="white-space:nowrap;">→ An Finanzierung übergeben</button>
+      </div>
+    </div>`;
+
+  el.innerHTML = renderKavCockpit(k) + finUebergabeCard + berateneWECard + aktivitaetenCard + notizenCard + renderWunschProfilCard(k) + stammCard;
   // Iter 68 (21.05.2026): Auto-Save für Stammdaten — gleiche Logik wie SA-Auto-Save.
   //   Bei jedem `input` wird state.kunde lokal aktualisiert, debounced 600 ms später
   //   das PUT abgesetzt. saveStammdaten ruft syncStammdatenInSa auf, damit die
