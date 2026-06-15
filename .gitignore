@@ -15,3 +15,5 @@ zzz_test_*.txt
 # Design-Audit Artefakte (Screenshots, lokal)
 _audit/
 scripts/.drive-token.txt
+.playwright-mcp/
+portal-preview*.png
