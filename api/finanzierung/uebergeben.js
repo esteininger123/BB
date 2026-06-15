@@ -1,0 +1,116 @@
+// POST /api/finanzierung/uebergeben — legt aus einem gewählten Snapshot einen
+// Endkunden-Finanzierungsfall an (Baustein A). Body:
+//   { kundeId, snapshotId,
+//     hausbankVorhanden, hausbankName, hausbankBerater,
+//     finanzberaterVorhanden, finanzberaterKontakt,
+//     finanzierungsform, finanzierungsformAndere, maxEigenkapital,
+//     wasWichtig, notarterminZiel }
+
+const { verifySession, requireSafeOrigin } = require('../_lib/auth');
+const { airtable } = require('../_lib/airtable');
+const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
+const { TABLES, SNAPSHOT_FIELDS, KUNDEN_FIELDS } = require('../_lib/tables');
+const { finanzierungsfallBodyToFields } = require('../_lib/mappers');
+
+// Owner-Check (gleiche Logik wie snapshots.js): Admin darf alles, sonst muss
+// der eingeloggte Vertriebler Owner des Kunden sein.
+async function canAccessKunde(session, kundeId) {
+  if (!kundeId) return false;
+  if (session.rolle === 'Admin') return true;
+  try {
+    const rec = await airtable('get', TABLES.KUNDEN, { recordId: kundeId });
+    const ownersRaw = (rec.fields && rec.fields[KUNDEN_FIELDS.OWNER]) || [];
+    if (!Array.isArray(ownersRaw)) return false;
+    const ownerIds = ownersRaw
+      .map(o => (o && typeof o === 'object') ? o.id : (typeof o === 'string' && o.startsWith('rec') ? o : null))
+      .filter(Boolean);
+    return ownerIds.includes(session.vertrieblerId);
+  } catch {
+    return false;
+  }
+}
+
+module.exports = async (req, res) => {
+  if (!requireSafeOrigin(req, res)) return;
+  const session = verifySession(req);
+  if (!session) return res.status(401).json({ error: 'Nicht eingeloggt' });
+
+  try {
+    if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+
+    const body = await readBody(req);
+    if (!body.kundeId)    return res.status(400).json({ error: 'kundeId fehlt' });
+    if (!body.snapshotId) return res.status(400).json({ error: 'snapshotId fehlt' });
+
+    const allowed = await canAccessKunde(session, body.kundeId);
+    if (!allowed) return res.status(403).json({ error: 'Kein Zugriff auf diesen Kunden' });
+
+    // Snapshot-Record laden → Kennzahlen (Klartext-Felder) + WE-Bezug + Kunde-Match
+    let snapRec;
+    try {
+      snapRec = await airtable('get', TABLES.SNAPSHOTS, { recordId: body.snapshotId });
+    } catch {
+      return res.status(404).json({ error: 'Snapshot nicht gefunden' });
+    }
+    const sf = snapRec.fields || {};
+    const snapKundeLink = sf[SNAPSHOT_FIELDS.KUNDE] || [];
+    const snapKundeId = Array.isArray(snapKundeLink) && snapKundeLink.length
+      ? (typeof snapKundeLink[0] === 'object' ? snapKundeLink[0].id : snapKundeLink[0]) : null;
+    if (snapKundeId && snapKundeId !== body.kundeId) {
+      return res.status(400).json({ error: 'Snapshot gehört nicht zu diesem Kunden' });
+    }
+
+    // Kundenname für den Fall-Titel
+    let kundeName = '';
+    try {
+      const kRec = await airtable('get', TABLES.KUNDEN, { recordId: body.kundeId });
+      kundeName = (kRec.fields && kRec.fields[KUNDEN_FIELDS.NAME]) || '';
+    } catch { /* Titel notfalls nur aus WE */ }
+
+    const weRecId = sf[SNAPSHOT_FIELDS.WE_RECID] || '';
+    const fields = finanzierungsfallBodyToFields({
+      kundeId: body.kundeId,
+      weId: weRecId || undefined,
+      snapshotId: body.snapshotId,
+      kundeName,
+      weBezeichnung: sf[SNAPSHOT_FIELDS.WE_BEZ] || '',
+      standVom: (sf[SNAPSHOT_FIELDS.CREATED] || snapRec.createdTime || '').slice(0, 10) || undefined,
+      snapshot: {
+        kaufpreis:        sf[SNAPSHOT_FIELDS.KAUFPREIS],
+        wohnflaeche:      sf[SNAPSHOT_FIELDS.WOHNFLAECHE],
+        kaltmiete:        sf[SNAPSHOT_FIELDS.KALTMIETE],
+        zins:             sf[SNAPSHOT_FIELDS.ZINS],
+        tilgung:          sf[SNAPSHOT_FIELDS.TILGUNG],
+        ekBedarf:         sf[SNAPSHOT_FIELDS.EK_BEDARF],
+        knkMitfinanziert: !!sf[SNAPSHOT_FIELDS.KNK_MITFINANZIERT],
+      },
+      hausbankVorhanden:      !!body.hausbankVorhanden,
+      hausbankName:           body.hausbankName || '',
+      hausbankBerater:        body.hausbankBerater || '',
+      finanzberaterVorhanden: !!body.finanzberaterVorhanden,
+      finanzberaterKontakt:   body.finanzberaterKontakt || '',
+      finanzierungsform:      body.finanzierungsform || '',
+      finanzierungsformAndere: body.finanzierungsformAndere || '',
+      maxEigenkapital:        body.maxEigenkapital,
+      wasWichtig:             body.wasWichtig || '',
+      notarterminZiel:        body.notarterminZiel || '',
+    });
+
+    const created = await airtable('create', TABLES.FINANZIERUNGSFALL, { fields });
+
+    // Kunden-Phase auf "Bank-Einreichung" + Letzte-Aktivität touchen (nicht kritisch)
+    try {
+      await airtable('update', TABLES.KUNDEN, {
+        recordId: body.kundeId,
+        fields: {
+          [KUNDEN_FIELDS.PHASE]: 'Bank-Einreichung',
+          [KUNDEN_FIELDS.LAST_ACTIVITY]: new Date().toISOString(),
+        }
+      });
+    } catch { /* nicht kritisch */ }
+
+    return res.status(201).json({ ok: true, id: created.id });
+  } catch (e) {
+    return sendError(res, e);
+  }
+};
