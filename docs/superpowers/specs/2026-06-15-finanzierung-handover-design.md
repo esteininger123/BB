@@ -222,3 +222,16 @@ Bestehende Choices in `Status Kundenfinanzierung` (`fldgEgmxmVEMhFOdz`):
 - Der Kunde lädt seine Unterlagen über einen Link selbst hoch; sie landen im richtigen Drive-Ordner.
 - Der Kunde sieht über denselben Link die Objektunterlagen und kontrolliert seine eigenen Uploads — ohne Login, ohne öffentlichen Drive-Link.
 - Die Finanzierung arbeitet ausschließlich in der Airtable-Liste, ohne per WhatsApp nachzujagen.
+
+## 12. Umsetzungs-Stand & nächste Schritte (Stand 2026-06-15)
+
+**Live & getestet:**
+- ✅ **Baustein A** — Übergabe-Button + Fall (Kennzahlen, Mini-Formular mit Progressive Disclosure, Vertriebs-Notiz, SA-Hinweis). Zins/Tilgung im Fall als `percent` (Airtable-Feldtyp). Phase springt auf „Bank-Einreichung".
+- ✅ **Baustein D** — Auto-Drive-Ordner beim Übergeben, Link ins Fall-Feld `Kunden-Drive`. Läuft über **OAuth** (`info@bub-immo.de`-Refresh-Token, kein Service-Account — Org blockt SA-Keys). Siehe Memory `bb-drive-oauth-setup`. Drive-Fehler sind nicht-kritisch (Fall entsteht trotzdem).
+- ✅ Verkaufsunterlagen-Links pro Objekt: **hinterlegt** (Feld `Verkaufsunterlagen` `fldKFHZROEU4sASDy` an `tblbBSh0fyPelFLvz`).
+
+**Offene Nachbesserungen an Baustein A (zuerst angehen):**
+1. **Aktivitäts-Historie:** Beim Übergeben einen Eintrag in die Aktivitäten-Historie des Kunden schreiben (z.B. „An Finanzierung übergeben am …"). Mechanik existiert im Frontend (`parseKavTracker`/`addActivityEntry`, Notizen-Feld). Sauberster Weg: Frontend-Handler `uebergebeAnFinanzierung` schreibt nach Erfolg einen Aktivitätseintrag, oder Backend ergänzt die Kunden-Notizen.
+2. **Warn-Dialog bei erneuter Übergabe:** Wenn der Kunde **schon einen Finanzierungsfall** hat, vor dem Modal warnen + bewusste Bestätigung verlangen („Es existiert bereits ein Fall — wirklich einen weiteren anlegen?"). Fall-Existenz prüfen: Kunde ist mit Fall verlinkt (Kunden-Feld `Endkunden-Finanzierungsfall`, Link `fldIZITOXmztZbyed`) — beim Kunden-Laden mitliefern oder per kleinem GET prüfen.
+
+**Nächster großer Baustein: U (Kunden-Portal)** — Voraussetzung (Verkaufsunterlagen-Links) erfüllt, kann starten. Token-Portal: Upload → Kunden-Drive-Ordner, Objektunterlagen read-only einblenden (aus Objekt-`Verkaufsunterlagen` über Kette Fall→WE→Objekt), eigene Uploads anzeigen. Danach **C** (Cleanup der 3 Müll-Felder in der Kunden-Tabelle + Finanzierungs-Interface in Airtable).
