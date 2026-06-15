@@ -12,16 +12,32 @@ const { verifyUploadToken } = require('../../_lib/upload-token');
 const { listFiles, uploadFile } = require('../../_lib/drive');
 const { resolveVerkaufsunterlagenFolder } = require('../../_lib/objektunterlagen');
 
-// key: Zuordnung · label: Anzeige · file: Datei-Präfix · hint: kundengerechte Anleitung
+// Pflicht-Dokumente jeder Angestellten-Finanzierung (key · label · Datei-Präfix).
 // Selbstauskunft ist NICHT dabei — die kommt von B&B (PandaDoc), nicht vom Kunden.
 const CHECKLISTE = [
-  { key: 'gehalt',    label: 'Gehaltsabrechnungen (letzte 3 Monate)', file: 'Gehaltsabrechnung', hint: 'Je ein Foto/Scan pro Monat — ein Screenshot aus dem Online-Banking reicht völlig.' },
-  { key: 'steuer',    label: 'Letzter Steuerbescheid', file: 'Steuerbescheid', hint: 'Alle Seiten abfotografieren oder als PDF hochladen.' },
-  { key: 'ausweis',   label: 'Personalausweis (Vorder- & Rückseite)', file: 'Personalausweis', hint: 'Beide Seiten einzeln, gut lesbar mit dem Handy abfotografieren.' },
-  { key: 'ek',        label: 'Eigenkapitalnachweis', file: 'Eigenkapitalnachweis', hint: 'Ein Screenshot vom Kontostand oder Depotauszug genügt.' },
-  { key: 'sonstiges', label: 'Sonstige Unterlagen', file: 'Sonstiges', hint: 'Alles Weitere, das relevant sein könnte (optional).', optional: true },
+  { key: 'gehalt',  label: 'Gehaltsabrechnungen (letzte 3 Monate)', file: 'Gehaltsabrechnung' },
+  { key: 'steuer',  label: 'Letzter Einkommensteuerbescheid', file: 'Steuerbescheid' },
+  { key: 'ausweis', label: 'Personalausweis (Vorder- & Rückseite)', file: 'Personalausweis' },
+  { key: 'ek',      label: 'Eigenkapitalnachweis (Kontoauszug / Depot)', file: 'Eigenkapitalnachweis' },
 ];
-const PFLICHT = CHECKLISTE.filter((c) => !c.optional).map((c) => c.key);
+// Situative Nachweise (Dropdown im Portal) — was Banken zusätzlich verlangen können
+// und die Nachweise aus der Selbstauskunft. Beliebig erweiterbar, alles optional.
+const WEITERE_TYPEN = [
+  { key: 'arbeitsvertrag', label: 'Arbeitsvertrag' },
+  { key: 'dezember',       label: 'Dezember-Gehaltsabrechnung (bei Bonus/variabel)' },
+  { key: 'kontoauszuege',  label: 'Kontoauszüge Gehaltskonto (letzte Monate)' },
+  { key: 'schufa',         label: 'SCHUFA-Selbstauskunft' },
+  { key: 'mietvertrag',    label: 'Aktueller Mietvertrag (vermietete Immobilie)' },
+  { key: 'mieteinnahmen',  label: 'Nachweis weiterer Mieteinnahmen' },
+  { key: 'darlehen',       label: 'Bestehende Darlehens-/Kreditverträge' },
+  { key: 'rente',          label: 'Renten- oder Pensionsbescheid' },
+  { key: 'bwa',            label: 'BWA / Jahresabschluss (Selbstständige)' },
+  { key: 'versicherung',   label: 'Bauspar- oder Lebensversicherungs-Nachweis' },
+  { key: 'depot',          label: 'Depot- / Wertpapierauszug' },
+  { key: 'schenkung',      label: 'Schenkungs- / Eigenkapital-Nachweis' },
+  { key: 'sonstiges',      label: 'Sonstiges (mit eigener Beschreibung)' },
+];
+const PFLICHT = CHECKLISTE.map((c) => c.key);
 const byKey = (k) => CHECKLISTE.find((c) => c.key === k);
 
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024; // ~4 MB (Vercel-Body-Limit ~4,5 MB)
@@ -31,6 +47,7 @@ const FRUEH_STATI = ['Unterlagen noch anfordern', 'Unterlagen angefordert', 'Unt
 const slim = (f) => ({
   id: f.id, name: f.name, webViewLink: f.webViewLink,
   punkt: (f.appProperties && f.appProperties.punkt) || '',
+  typ: (f.appProperties && f.appProperties.typ) || '',
 });
 
 module.exports = async (req, res) => {
@@ -58,7 +75,7 @@ module.exports = async (req, res) => {
       const objCentral = centralFolderId ? (await listFiles(centralFolderId).catch(() => [])).map(slim) : [];
       const objSpez = weSpezFolderId ? (await listFiles(weSpezFolderId).catch(() => [])).map(slim) : [];
       const objektunterlagen = [...objCentral, ...objSpez];
-      return res.status(200).json({ kundeName, checkliste: CHECKLISTE, uploads, objektunterlagen });
+      return res.status(200).json({ kundeName, checkliste: CHECKLISTE, weitereTypen: WEITERE_TYPEN, uploads, objektunterlagen });
     }
 
     if (req.method === 'POST') {
@@ -68,15 +85,19 @@ module.exports = async (req, res) => {
       const mimeType = (body.mimeType || 'application/octet-stream').toString();
       const dataBase64 = (body.dataBase64 || '').toString();
       const punkt = (body.punkt || '').toString();
+      const bezeichnung = (body.bezeichnung || '').toString().trim().slice(0, 100);
       if (!origName || !dataBase64) return res.status(400).json({ error: 'name und dataBase64 erforderlich' });
       const buffer = Buffer.from(dataBase64, 'base64');
       if (!buffer.length) return res.status(400).json({ error: 'Leere Datei' });
       if (buffer.length > MAX_UPLOAD_BYTES) return res.status(413).json({ error: 'Datei zu groß — max. ~4 MB pro Datei.' });
 
+      // Pflicht-Dokument → fester Präfix; sonst freie Beschreibung (weitere Nachweise).
       const def = byKey(punkt);
       const cleanOrig = origName.replace(/[\\/:*?"<>|\r\n]/g, '_').slice(0, 120);
-      const finalName = ((def ? def.file + ' — ' : '') + cleanOrig).slice(0, 200);
-      const appProps = def ? { punkt: def.key } : undefined;
+      const prefix = def ? def.file : (bezeichnung || 'Weiterer Nachweis');
+      const finalName = (prefix + ' — ' + cleanOrig).slice(0, 200);
+      const appProps = { punkt: def ? def.key : 'weitere' };
+      if (!def && bezeichnung) appProps.typ = bezeichnung;
       const uploaded = await uploadFile(payload.folderId, finalName, mimeType, buffer, appProps);
 
       // Vollständigkeit prüfen → Fall-Status hochsetzen (nur aus frühen Stati, nie zurück).

@@ -3,57 +3,51 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ihre Unterlagen · B&B Immo</title>
+<title>Deine Unterlagen · B&B Immo</title>
 <link rel="icon" type="image/svg+xml" href="/assets/bub-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --cream:#FBFAF7; --paper:#fff; --ink:#1A1A17; --muted:#7A7A72; --line:#E8E6DD;
     --bronze:#B08A4D; --bronze-l:#C9A572; --bronze-d:#8E6E3D;
-    --green:#2D6E47; --green-d:#235838; --green-bg:#E4EFE7; --green-line:#bcdcc8;
-    --sand:#F4EFE4;
+    --green:#2D6E47; --green-d:#235838; --green-bg:#E4EFE7; --green-line:#bcdcc8; --sand:#F4EFE4;
   }
   *{box-sizing:border-box}
-  html{-webkit-text-size-adjust:100%}
   body{margin:0;font-family:'Hanken Grotesk',system-ui,sans-serif;color:var(--ink);line-height:1.55;
     background:var(--cream);-webkit-font-smoothing:antialiased;overflow-x:hidden}
-  /* warmer Hintergrund mit Lichtschein + feiner Körnung */
-  body::before{content:"";position:fixed;inset:0;z-index:-2;
-    background:radial-gradient(120% 70% at 50% -10%, #fff 0%, var(--cream) 42%, #F3EEE3 100%)}
+  body::before{content:"";position:fixed;inset:0;z-index:-2;background:radial-gradient(120% 70% at 50% -10%, #fff 0%, var(--cream) 42%, #F3EEE3 100%)}
   body::after{content:"";position:fixed;inset:0;z-index:-1;opacity:.5;pointer-events:none;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E")}
-  .wrap{max-width:720px;margin:0 auto;padding:26px 18px 80px}
-
-  header{display:flex;align-items:center;gap:12px;margin-bottom:30px}
+  .wrap{max-width:720px;margin:0 auto;padding:26px 18px 90px}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:28px}
   header img{width:42px;height:42px;border-radius:11px;box-shadow:0 3px 10px rgba(142,110,61,.28)}
-  .brand b{font-weight:700;font-size:16px;letter-spacing:.2px;display:block;line-height:1.1}
+  .brand b{font-weight:700;font-size:16px;display:block;line-height:1.1}
   .brand span{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
 
-  .hero{margin-bottom:24px;animation:rise .6s cubic-bezier(.2,.7,.2,1) both}
+  .hero{margin-bottom:22px;animation:rise .6s cubic-bezier(.2,.7,.2,1) both}
   .eyebrow{font-size:12px;letter-spacing:2.5px;text-transform:uppercase;color:var(--bronze-d);font-weight:600;margin-bottom:10px}
   h1{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(30px,7vw,42px);line-height:1.05;margin:0 0 12px;letter-spacing:-.5px}
   h1 em{font-style:italic;color:var(--bronze-d)}
   .lede{font-size:16px;color:#4a4843;max-width:48ch;margin:0}
 
-  .concierge{display:flex;gap:14px;align-items:flex-start;background:linear-gradient(135deg,#fff,#FBF7EF);
-    border:1px solid var(--line);border-left:3px solid var(--green);border-radius:16px;padding:16px 18px;margin:22px 0 26px;
+  .why{background:linear-gradient(135deg,#fff,#FBF7EF);border:1px solid var(--line);border-radius:16px;padding:18px 18px 16px;margin:22px 0 28px;
     box-shadow:0 2px 10px rgba(26,26,23,.04);animation:rise .6s .08s cubic-bezier(.2,.7,.2,1) both}
-  .concierge .ic{flex:0 0 auto;width:38px;height:38px;border-radius:50%;background:var(--green-bg);
-    display:grid;place-items:center;font-size:20px;margin-top:1px}
-  .concierge p{margin:0;font-size:13.5px;color:#3c4a41}
-  .concierge b{color:var(--green-d)}
+  .why h3{font-family:'Fraunces',serif;font-weight:600;font-size:16.5px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+  .chain{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .chain .step{background:var(--green-bg);color:var(--green-d);font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:20px;white-space:nowrap}
+  .chain .arr{color:var(--bronze);font-weight:700}
+  .why p{margin:0;font-size:13.5px;color:#3c4a41}
+  .why b{color:var(--green-d)}
 
-  .track{display:flex;align-items:center;gap:14px;margin-bottom:26px;animation:rise .6s .14s cubic-bezier(.2,.7,.2,1) both}
-  .ring{--p:0;flex:0 0 auto;width:56px;height:56px;border-radius:50%;display:grid;place-items:center;
-    background:conic-gradient(var(--green) calc(var(--p)*1%), #ECE6DC 0);transition:--p .5s}
-  .ring i{width:44px;height:44px;border-radius:50%;background:var(--cream);display:grid;place-items:center;
-    font-weight:700;font-size:13px;color:var(--green-d);font-style:normal}
+  .track{display:flex;align-items:center;gap:14px;margin-bottom:24px;animation:rise .6s .14s cubic-bezier(.2,.7,.2,1) both}
+  .ring{flex:0 0 auto;width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--green) calc(var(--p,0)*1%), #ECE6DC 0)}
+  .ring i{width:44px;height:44px;border-radius:50%;background:var(--cream);display:grid;place-items:center;font-weight:700;font-size:13px;color:var(--green-d);font-style:normal}
   .track .t b{font-family:'Fraunces',serif;font-weight:600;font-size:17px;display:block}
   .track .t span{font-size:13px;color:var(--muted)}
 
-  .sect-label{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:600;margin:6px 0 14px}
+  .sect-label{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:600;margin:8px 0 14px}
 
   .doc{background:var(--paper);border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-bottom:16px;
     box-shadow:0 1px 3px rgba(26,26,23,.05);transition:box-shadow .2s,border-color .2s,transform .2s;
@@ -61,194 +55,212 @@
   .doc:hover{box-shadow:0 8px 26px rgba(26,26,23,.07);transform:translateY(-1px)}
   .doc.done{border-color:var(--green-line);background:linear-gradient(180deg,#F6FBF7,#fff)}
   .doc-body{display:flex;gap:16px;padding:18px}
-  .thumb{flex:0 0 auto;width:88px}
-  .thumb svg{width:88px;height:auto;display:block;border-radius:9px;filter:drop-shadow(0 4px 9px rgba(142,110,61,.16))}
+  .thumb{flex:0 0 auto;width:90px;cursor:pointer;position:relative}
+  .thumb svg{width:90px;height:auto;display:block;border-radius:9px;filter:drop-shadow(0 4px 9px rgba(142,110,61,.16))}
+  .thumb .zoom{position:absolute;right:5px;bottom:5px;width:22px;height:22px;border-radius:50%;background:rgba(26,26,23,.78);color:#fff;display:grid;place-items:center;font-size:12px}
+  .thumb:hover .zoom{background:var(--bronze)}
   .doc-main{flex:1;min-width:0}
   .doc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
   .doc-title{font-family:'Fraunces',serif;font-weight:600;font-size:17.5px;line-height:1.2}
-  .badge{flex:0 0 auto;font-size:11px;font-weight:700;letter-spacing:.3px;padding:4px 10px;border-radius:30px;white-space:nowrap}
-  .badge.open{background:var(--sand);color:var(--bronze-d)}
-  .badge.done{background:var(--green-bg);color:var(--green-d)}
-  .badge.opt{background:#efeee9;color:#8d897f}
+  .badge{flex:0 0 auto;font-size:11px;font-weight:700;padding:4px 10px;border-radius:30px;white-space:nowrap}
+  .badge.open{background:var(--sand);color:var(--bronze-d)} .badge.done{background:var(--green-bg);color:var(--green-d)}
   .was{font-size:13.5px;color:#4a4843;margin:5px 0 0}
-  .tipp{font-size:12.5px;color:var(--muted);margin:7px 0 0;display:flex;gap:6px;align-items:flex-start}
-  .tipp .b{color:var(--bronze-d);font-weight:600}
+  .woher{margin:9px 0 0;display:flex;gap:8px;align-items:flex-start;background:var(--sand);border-radius:10px;padding:9px 11px}
+  .woher .ic{flex:0 0 auto;font-size:14px;margin-top:1px}
+  .woher .tx{font-size:12.5px;color:#5c5340} .woher .tx b{color:var(--bronze-d)}
   .files{margin:11px 0 0;display:flex;flex-direction:column;gap:5px}
-  .files .f{font-size:12.5px;color:var(--green-d);display:flex;align-items:center;gap:7px;background:var(--green-bg);
-    padding:6px 10px;border-radius:8px;word-break:break-word}
-  .acts{margin-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-  .add{appearance:none;border:none;cursor:pointer;font-family:inherit;font-weight:700;font-size:14px;
-    color:#fff;background:var(--bronze);padding:11px 18px;border-radius:11px;display:inline-flex;align-items:center;gap:8px;
-    box-shadow:0 3px 10px rgba(176,138,77,.28);transition:background .15s,transform .1s}
+  .files .f{font-size:12.5px;color:var(--green-d);display:flex;align-items:center;gap:7px;background:var(--green-bg);padding:6px 10px;border-radius:8px;word-break:break-word}
+  .acts{margin-top:12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .add{appearance:none;border:none;cursor:pointer;font-family:inherit;font-weight:700;font-size:14px;color:#fff;background:var(--bronze);
+    padding:11px 18px;border-radius:11px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 3px 10px rgba(176,138,77,.28);transition:background .15s,transform .1s}
   .add:hover{background:var(--bronze-d)} .add:active{transform:scale(.98)}
   .doc.done .add{background:#fff;color:var(--green-d);border:1.5px solid var(--green-line);box-shadow:none}
-  .doc.done .add:hover{background:var(--green-bg)}
-  .cam-link{font-size:12.5px;color:var(--muted);text-decoration:none;border-bottom:1px dashed #cfc8ba;padding-bottom:1px}
+  .cam-link{font-size:12.5px;color:var(--muted);text-decoration:none;border-bottom:1px dashed #cfc8ba}
   .cam-link:hover{color:var(--bronze-d)}
 
-  .objekt{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:24px;
-    animation:rise .55s .4s both}
+  /* weitere Nachweise */
+  .more{background:var(--paper);border:1px dashed var(--bronze-l);border-radius:18px;padding:18px;margin:6px 0 16px;animation:rise .55s .5s both}
+  .more h2{font-family:'Fraunces',serif;font-weight:600;font-size:17px;margin:0 0 4px}
+  .more p{font-size:13px;color:var(--muted);margin:0 0 14px}
+  .more-row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+  select,.more input[type=text]{font-family:inherit;font-size:14px;padding:11px 12px;border:1px solid #d9d3c7;border-radius:10px;background:#fff;color:var(--ink);min-width:0}
+  #wt-select{flex:1;min-width:170px} #wt-beschr{flex:1;min-width:150px;display:none}
+  .more .add{background:var(--green)} .more .add:hover{background:var(--green-d)}
+  .more-list{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+  .more-list .f{font-size:12.5px;color:var(--green-d);display:flex;align-items:center;gap:7px;background:var(--green-bg);padding:7px 11px;border-radius:8px;word-break:break-word}
+
+  .objekt{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:22px;animation:rise .55s .56s both}
   .objekt h2{font-family:'Fraunces',serif;font-weight:600;font-size:18px;margin:0 0 12px;display:flex;align-items:center;gap:9px}
   .olist{list-style:none;margin:0;padding:0}
   .olist li{padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px;display:flex;align-items:center;gap:9px}
   .olist li:last-child{border:none}
   .olist a{color:var(--green-d);font-weight:600;text-decoration:none;word-break:break-word}
-  .olist a:hover{text-decoration:underline}
   .empty{color:var(--muted);font-size:13px;font-style:italic;padding:4px 0}
+  footer{text-align:center;margin-top:32px;font-size:12px;color:var(--muted)}
 
-  footer{text-align:center;margin-top:34px;font-size:12px;color:var(--muted)}
+  /* Lightbox */
+  #lb{position:fixed;inset:0;z-index:60;background:rgba(26,24,20,.72);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;padding:22px}
+  #lb.show{display:flex;animation:fade .2s}
+  .lb-card{background:#fff;border-radius:18px;max-width:420px;width:100%;padding:20px;box-shadow:0 30px 80px rgba(0,0,0,.4);animation:pop .25s cubic-bezier(.2,.8,.2,1)}
+  .lb-card svg{width:100%;height:auto;max-height:54vh;display:block;border-radius:10px}
+  .lb-card h4{font-family:'Fraunces',serif;font-weight:600;font-size:18px;margin:14px 0 6px}
+  .lb-card p{font-size:13.5px;color:#4a4843;margin:0}
+  .lb-close{margin-top:16px;width:100%;border:none;background:var(--ink);color:#fff;font-family:inherit;font-weight:700;font-size:14px;padding:12px;border-radius:11px;cursor:pointer}
 
-  #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;
-    padding:12px 18px;border-radius:11px;font-size:13.5px;font-weight:500;opacity:0;transition:.25s;pointer-events:none;
-    max-width:90%;box-shadow:0 10px 30px rgba(0,0,0,.25);z-index:50}
-  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-  #toast.err{background:var(--negative,#9A3E33)}
+  #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:12px 18px;border-radius:11px;font-size:13.5px;font-weight:500;opacity:0;transition:.25s;pointer-events:none;max-width:90%;box-shadow:0 10px 30px rgba(0,0,0,.25);z-index:70}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)} #toast.err{background:#9A3E33}
   .center{text-align:center;padding:70px 0;color:var(--muted);font-family:'Fraunces',serif;font-size:18px}
   @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-  @media (max-width:520px){ .doc-body{flex-direction:column} .thumb{width:64px} .thumb svg{width:64px} }
+  @keyframes fade{from{opacity:0}to{opacity:1}} @keyframes pop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
+  @media (max-width:520px){ .doc-body{flex-direction:row} .thumb{width:74px} .thumb svg{width:74px} }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <img src="/assets/bub-logo.svg" alt="B&B Immo">
-    <div class="brand"><b>B&amp;B Immo</b><span>Finanzierung</span></div>
-  </header>
+  <header><img src="/assets/bub-logo.svg" alt="B&B Immo"><div class="brand"><b>B&amp;B Immo</b><span>Finanzierung</span></div></header>
   <div id="content"><div class="center">Einen Moment …</div></div>
-  <footer>Ihre Unterlagen werden vertraulich und verschlüsselt übertragen. · B&amp;B Immo GmbH</footer>
+  <footer>Deine Unterlagen werden vertraulich und verschlüsselt übertragen. · B&amp;B Immo GmbH</footer>
 </div>
+<div id="lb"><div class="lb-card"><div id="lb-svg"></div><h4 id="lb-title"></h4><p id="lb-text"></p><button class="lb-close" onclick="closeLb()">Schließen</button></div></div>
 <div id="toast"></div>
 
 <script>
-const token = new URLSearchParams(location.search).get('t') || '';
-const apiBase = '/api/finanzierung/portal/' + encodeURIComponent(token);
-const MAX_MB = 3;
-const $ = (s,r)=>(r||document).querySelector(s);
-const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let DATA = null;
+const token=new URLSearchParams(location.search).get('t')||'';
+const apiBase='/api/finanzierung/portal/'+encodeURIComponent(token);
+const MAX_MB=3;
+const $=(s,r)=>(r||document).querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let DATA=null, TYPEN=[];
 
-/* ── Schematische Beispiel-Illustrationen (zeigen, wie das Dokument aussieht) ── */
-const SVG = {
-  gehalt:`<svg viewBox='0 0 96 120'><rect x='3' y='3' width='90' height='114' rx='8' fill='#fff' stroke='#E8E6DD'/><rect x='3' y='3' width='90' height='26' rx='8' fill='#F4EFE4'/><rect x='3' y='20' width='90' height='9' fill='#F4EFE4'/><text x='12' y='15' font-family="Hanken Grotesk,sans-serif" font-size='7.5' font-weight='700' fill='#8E6E3D'>GEHALTS-</text><text x='12' y='24' font-family="Hanken Grotesk,sans-serif" font-size='7.5' font-weight='700' fill='#8E6E3D'>ABRECHNUNG</text><g fill='#E0DCD2'><rect x='12' y='38' width='40' height='4' rx='2'/><rect x='12' y='47' width='52' height='4' rx='2'/><rect x='12' y='56' width='34' height='4' rx='2'/></g><rect x='12' y='70' width='72' height='22' rx='5' fill='#E4EFE7' stroke='#bcdcc8'/><text x='18' y='80' font-family="Hanken Grotesk,sans-serif" font-size='6' fill='#235838'>Netto-Auszahlung</text><text x='18' y='89' font-family="Fraunces,serif" font-size='9' font-weight='600' fill='#2D6E47'>2.840,00 €</text><g fill='#E0DCD2'><rect x='12' y='100' width='60' height='3.5' rx='2'/><rect x='12' y='108' width='44' height='3.5' rx='2'/></g></svg>`,
-  steuer:`<svg viewBox='0 0 96 120'><rect x='3' y='3' width='90' height='114' rx='8' fill='#fff' stroke='#E8E6DD'/><circle cx='74' cy='22' r='13' fill='none' stroke='#C9A572' stroke-width='1.5'/><text x='74' y='20' text-anchor='middle' font-family="Hanken Grotesk,sans-serif" font-size='4.5' font-weight='700' fill='#8E6E3D'>FINANZ</text><text x='74' y='26' text-anchor='middle' font-family="Hanken Grotesk,sans-serif" font-size='4.5' font-weight='700' fill='#8E6E3D'>AMT</text><text x='12' y='20' font-family="Fraunces,serif" font-size='9' font-weight='600' fill='#1A1A17'>Steuer-</text><text x='12' y='31' font-family="Fraunces,serif" font-size='9' font-weight='600' fill='#1A1A17'>bescheid</text><g fill='#E0DCD2'><rect x='12' y='44' width='70' height='4' rx='2'/><rect x='12' y='53' width='56' height='4' rx='2'/><rect x='12' y='62' width='64' height='4' rx='2'/><rect x='12' y='71' width='40' height='4' rx='2'/></g><rect x='12' y='85' width='72' height='1' fill='#E8E6DD'/><g fill='#E0DCD2'><rect x='12' y='92' width='50' height='3.5' rx='2'/><rect x='12' y='100' width='66' height='3.5' rx='2'/><rect x='12' y='108' width='38' height='3.5' rx='2'/></g></svg>`,
-  ausweis:`<svg viewBox='0 0 96 120'><rect x='6' y='30' width='84' height='54' rx='7' fill='#F4EFE4' stroke='#C9A572'/><text x='12' y='42' font-family="Hanken Grotesk,sans-serif" font-size='5' font-weight='700' fill='#8E6E3D' letter-spacing='.5'>PERSONALAUSWEIS</text><rect x='12' y='48' width='22' height='28' rx='3' fill='#E0DCD2'/><circle cx='23' cy='57' r='5' fill='#cfc8ba'/><path d='M16 73c0-5 14-5 14 0' fill='#cfc8ba'/><g fill='#cfc8ba'><rect x='40' y='50' width='34' height='3' rx='1.5'/><rect x='40' y='57' width='28' height='3' rx='1.5'/><rect x='40' y='64' width='32' height='3' rx='1.5'/><rect x='40' y='71' width='24' height='3' rx='1.5'/></g><rect x='14' y='92' width='68' height='22' rx='5' fill='#fff' stroke='#E8E6DD' stroke-dasharray='3 3'/><text x='48' y='105' text-anchor='middle' font-family="Hanken Grotesk,sans-serif" font-size='5.5' fill='#7A7A72'>+ Rückseite</text></svg>`,
-  ek:`<svg viewBox='0 0 96 120'><rect x='3' y='3' width='90' height='114' rx='8' fill='#fff' stroke='#E8E6DD'/><rect x='3' y='3' width='90' height='22' rx='8' fill='#2D6E47'/><rect x='3' y='17' width='90' height='8' fill='#2D6E47'/><text x='12' y='17' font-family="Hanken Grotesk,sans-serif" font-size='7' font-weight='700' fill='#fff'>Kontoauszug</text><g fill='#E0DCD2'><rect x='12' y='35' width='44' height='3.5' rx='2'/><rect x='12' y='44' width='56' height='3.5' rx='2'/><rect x='12' y='53' width='38' height='3.5' rx='2'/></g><rect x='12' y='66' width='72' height='26' rx='5' fill='#E4EFE7' stroke='#bcdcc8'/><text x='18' y='77' font-family="Hanken Grotesk,sans-serif" font-size='6' fill='#235838'>Kontostand</text><text x='18' y='88' font-family="Fraunces,serif" font-size='11' font-weight='600' fill='#2D6E47'>48.500 €</text><g fill='#E0DCD2'><rect x='12' y='100' width='58' height='3.5' rx='2'/><rect x='12' y='108' width='40' height='3.5' rx='2'/></g></svg>`,
-  sonstiges:`<svg viewBox='0 0 96 120'><rect x='14' y='14' width='66' height='84' rx='7' fill='#F4EFE4' stroke='#E8E6DD'/><rect x='10' y='22' width='66' height='84' rx='7' fill='#fff' stroke='#E8E6DD'/><g fill='#E0DCD2'><rect x='20' y='36' width='44' height='4' rx='2'/><rect x='20' y='47' width='50' height='4' rx='2'/><rect x='20' y='58' width='36' height='4' rx='2'/><rect x='20' y='69' width='46' height='4' rx='2'/><rect x='20' y='80' width='30' height='4' rx='2'/></g><circle cx='70' cy='92' r='15' fill='#B08A4D'/><path d='M70 85v14M63 92h14' stroke='#fff' stroke-width='2.4' stroke-linecap='round'/></svg>`,
+/* Realistischere Beispiel-Illustrationen (klickbar → groß) */
+const SVG={
+  gehalt:`<svg viewBox='0 0 200 264' xmlns='http://www.w3.org/2000/svg'><rect width='200' height='264' rx='10' fill='#fff' stroke='#E8E6DD'/><rect x='0' y='0' width='200' height='42' rx='10' fill='#F4EFE4'/><rect x='0' y='30' width='200' height='12' fill='#F4EFE4'/><text x='16' y='22' font-family='Hanken Grotesk' font-size='12' font-weight='700' fill='#8E6E3D'>GEHALTSABRECHNUNG</text><text x='16' y='35' font-family='Hanken Grotesk' font-size='8' fill='#a0937a'>Mustermann GmbH · April 2026</text><g font-family='Hanken Grotesk' font-size='8.5' fill='#6b6660'><text x='16' y='62'>Bruttogehalt</text><text x='184' y='62' text-anchor='end' fill='#1A1A17'>3.900,00</text><text x='16' y='78'>Lohnsteuer</text><text x='184' y='78' text-anchor='end'>− 612,00</text><text x='16' y='94'>Sozialabgaben</text><text x='184' y='94' text-anchor='end'>− 448,00</text></g><line x1='16' y1='104' x2='184' y2='104' stroke='#E8E6DD'/><rect x='12' y='116' width='176' height='44' rx='8' fill='#E4EFE7' stroke='#bcdcc8'/><text x='22' y='134' font-family='Hanken Grotesk' font-size='9' font-weight='600' fill='#235838'>Netto-Auszahlung</text><text x='22' y='152' font-family='Fraunces' font-size='17' font-weight='600' fill='#2D6E47'>2.840,00 €</text><text x='178' y='150' text-anchor='end' font-family='Hanken Grotesk' font-size='8' fill='#5a8a6e'>← darauf kommt es an</text><g font-family='Hanken Grotesk' font-size='8' fill='#cfc8ba'><text x='16' y='182'>Steuerklasse 1 · Krankenkasse …</text><text x='16' y='198'>IBAN DE…  · Auszahlung 30.04.2026</text></g><g fill='#E8E2D6'><rect x='16' y='214' width='150' height='5' rx='2'/><rect x='16' y='228' width='120' height='5' rx='2'/><rect x='16' y='242' width='90' height='5' rx='2'/></g></svg>`,
+  steuer:`<svg viewBox='0 0 200 264' xmlns='http://www.w3.org/2000/svg'><rect width='200' height='264' rx='10' fill='#fff' stroke='#E8E6DD'/><circle cx='168' cy='34' r='20' fill='none' stroke='#C9A572' stroke-width='1.6'/><text x='168' y='31' text-anchor='middle' font-family='Hanken Grotesk' font-size='6' font-weight='700' fill='#8E6E3D'>FINANZ-</text><text x='168' y='40' text-anchor='middle' font-family='Hanken Grotesk' font-size='6' font-weight='700' fill='#8E6E3D'>AMT</text><text x='16' y='28' font-family='Hanken Grotesk' font-size='8' fill='#a0937a'>Finanzamt Offenburg</text><text x='16' y='50' font-family='Fraunces' font-size='14' font-weight='600' fill='#1A1A17'>Einkommensteuer-</text><text x='16' y='66' font-family='Fraunces' font-size='14' font-weight='600' fill='#1A1A17'>bescheid 2024</text><g font-family='Hanken Grotesk' font-size='8.5' fill='#6b6660'><text x='16' y='92'>zu versteuerndes Einkommen</text><text x='184' y='92' text-anchor='end' fill='#1A1A17'>41.250 €</text><text x='16' y='108'>festgesetzte Einkommensteuer</text><text x='184' y='108' text-anchor='end'>7.890 €</text></g><line x1='16' y1='118' x2='184' y2='118' stroke='#E8E6DD'/><rect x='12' y='128' width='176' height='36' rx='8' fill='#F4EFE4' stroke='#C9A572'/><text x='22' y='150' font-family='Hanken Grotesk' font-size='9' font-weight='700' fill='#8E6E3D'>Bescheid für 2024 über Einkommensteuer</text><g fill='#E8E2D6'><rect x='16' y='184' width='168' height='5' rx='2'/><rect x='16' y='198' width='140' height='5' rx='2'/><rect x='16' y='212' width='160' height='5' rx='2'/><rect x='16' y='226' width='110' height='5' rx='2'/><rect x='16' y='240' width='150' height='5' rx='2'/></g></svg>`,
+  ausweis:`<svg viewBox='0 0 200 264' xmlns='http://www.w3.org/2000/svg'><rect x='14' y='40' width='172' height='108' rx='10' fill='#F2ECDE' stroke='#C9A572'/><text x='26' y='60' font-family='Hanken Grotesk' font-size='7' font-weight='700' fill='#8E6E3D' letter-spacing='.5'>BUNDESREPUBLIK DEUTSCHLAND</text><text x='26' y='72' font-family='Hanken Grotesk' font-size='9' font-weight='700' fill='#3a6ea5'>PERSONALAUSWEIS</text><rect x='26' y='82' width='44' height='56' rx='4' fill='#E0DCD2'/><circle cx='48' cy='100' r='10' fill='#cfc8ba'/><path d='M34 130c0-10 28-10 28 0' fill='#cfc8ba'/><g font-family='Hanken Grotesk' font-size='7' fill='#8a8478'><text x='82' y='90'>Name</text><text x='82' y='100' font-size='9' fill='#1A1A17' font-weight='600'>Mustermann</text><text x='82' y='114'>Vorname</text><text x='82' y='124' font-size='9' fill='#1A1A17' font-weight='600'>Max</text><text x='82' y='138' font-size='6.5' fill='#a0937a'>IDD‹‹MUSTERMANN‹‹MAX‹‹‹‹</text></g><rect x='14' y='162' width='172' height='66' rx='10' fill='#fff' stroke='#E8E6DD' stroke-dasharray='4 4'/><text x='100' y='192' text-anchor='middle' font-family='Hanken Grotesk' font-size='9' font-weight='600' fill='#8E6E3D'>+ Rückseite</text><text x='100' y='208' text-anchor='middle' font-family='Hanken Grotesk' font-size='8' fill='#a0937a'>bitte auch abfotografieren</text></svg>`,
+  ek:`<svg viewBox='0 0 200 264' xmlns='http://www.w3.org/2000/svg'><rect width='200' height='264' rx='10' fill='#fff' stroke='#E8E6DD'/><rect x='0' y='0' width='200' height='40' rx='10' fill='#2D6E47'/><rect x='0' y='28' width='200' height='12' fill='#2D6E47'/><text x='16' y='25' font-family='Hanken Grotesk' font-size='11' font-weight='700' fill='#fff'>Kontoauszug</text><text x='184' y='25' text-anchor='end' font-family='Hanken Grotesk' font-size='8' fill='#cfe3d6'>Sparkasse</text><g font-family='Hanken Grotesk' font-size='8' fill='#6b6660'><text x='16' y='60'>01.04 Gehalt</text><text x='184' y='60' text-anchor='end' fill='#2D6E47'>+ 2.840,00</text><text x='16' y='74'>03.04 Miete</text><text x='184' y='74' text-anchor='end' fill='#9A3E33'>− 980,00</text><text x='16' y='88'>12.04 Übertrag Tagesgeld</text><text x='184' y='88' text-anchor='end' fill='#2D6E47'>+ 5.000,00</text></g><line x1='16' y1='98' x2='184' y2='98' stroke='#E8E6DD'/><rect x='12' y='110' width='176' height='46' rx='8' fill='#E4EFE7' stroke='#bcdcc8'/><text x='22' y='130' font-family='Hanken Grotesk' font-size='9' font-weight='600' fill='#235838'>Kontostand</text><text x='22' y='150' font-family='Fraunces' font-size='18' font-weight='600' fill='#2D6E47'>48.500,00 €</text><text x='178' y='148' text-anchor='end' font-family='Hanken Grotesk' font-size='8' fill='#5a8a6e'>← dein Eigenkapital</text><g fill='#E8E2D6'><rect x='16' y='180' width='150' height='5' rx='2'/><rect x='16' y='196' width='120' height='5' rx='2'/><rect x='16' y='210' width='160' height='5' rx='2'/><rect x='16' y='224' width='100' height='5' rx='2'/></g></svg>`,
 };
-/* Erklärung pro Dokument: WAS gebraucht wird + ein hilfreicher TIPP */
-const META = {
-  gehalt:{ was:'Die letzten drei Monatsabrechnungen Ihres Gehalts. Daraus sieht die Bank Ihr regelmäßiges Einkommen.', tipp:'Im Online-Banking oder Mitarbeiter-Portal als PDF herunterladen — ein sauberer Screenshot reicht auch.' },
-  steuer:{ was:'Ihr aktueller Einkommensteuerbescheid vom Finanzamt — alle Seiten.', tipp:'Liegt meist als Brief vor. Einfach jede Seite flach hinlegen und abfotografieren.' },
-  ausweis:{ was:'Vorder- und Rückseite Ihres Personalausweises, damit wir Sie eindeutig zuordnen können.', tipp:'Auf eine einfarbige Unterlage legen, gutes Licht, beide Seiten getrennt — alle vier Ecken sichtbar.' },
-  ek:{ was:'Ein Nachweis über Ihr Eigenkapital, z. B. ein aktueller Konto- oder Depotauszug mit Saldo.', tipp:'Der sichtbare Kontostand genügt — Buchungsdetails dürfen Sie schwärzen.' },
-  sonstiges:{ was:'Alles Weitere, das für Ihre Finanzierung relevant sein könnte (optional).', tipp:'Im Zweifel lieber mitschicken — wir sortieren das für Sie ein.' },
+const META={
+  gehalt:{ was:'Deine letzten drei Monatsabrechnungen. Daraus sieht die Bank dein regelmäßiges Einkommen.', woher:'Bekommst du von deinem Arbeitgeber — meist monatlich per Post oder im Lohn-/Mitarbeiterportal (z.B. Datev, SAP, Personio) als PDF.', lb:'So sieht eine Gehaltsabrechnung aus. Wichtig ist die <b>Netto-Auszahlung</b> unten — lade die letzten 3 Monate hoch.' },
+  steuer:{ was:'Dein aktueller Einkommensteuerbescheid vom Finanzamt — alle Seiten.', woher:'Kam per Post nach deiner letzten Steuererklärung. Digital findest du ihn im <b>ELSTER-Portal</b> unter „Posteingang".', lb:'So sieht ein Steuerbescheid aus. Oben steht „Bescheid … über Einkommensteuer" — bitte <b>alle Seiten</b> hochladen.' },
+  ausweis:{ was:'Vorder- und Rückseite deines Personalausweises, damit wir dich eindeutig zuordnen können.', woher:'Hast du dabei — einfach beide Seiten mit dem Handy abfotografieren.', lb:'So sieht die Vorderseite aus. Leg den Ausweis flach hin, gutes Licht, <b>beide Seiten</b> einzeln — alle Ecken sichtbar.' },
+  ek:{ was:'Ein Nachweis über dein Eigenkapital, z. B. ein aktueller Konto- oder Depotauszug mit Saldo.', woher:'Findest du in deinem <b>Online-Banking</b> (Giro, Tagesgeld, Depot) — als PDF oder einfach ein Screenshot des Saldos.', lb:'So sieht ein Kontoauszug aus. Entscheidend ist der sichtbare <b>Kontostand</b> — Buchungsdetails darfst du schwärzen.' },
 };
 
-function toast(msg,err){const t=$('#toast');t.textContent=msg;t.className=(err?'err ':'')+'show';
-  clearTimeout(toast._t);toast._t=setTimeout(()=>t.className=t.className.replace('show','').trim(),err?5000:2600);}
+function toast(msg,err){const t=$('#toast');t.textContent=msg;t.className=(err?'err ':'')+'show';clearTimeout(toast._t);toast._t=setTimeout(()=>t.className=t.className.replace('show','').trim(),err?5000:2600);}
+function openLb(key){const m=META[key]||{};$('#lb-svg').innerHTML=SVG[key]||'';$('#lb-title').textContent=({gehalt:'Beispiel: Gehaltsabrechnung',steuer:'Beispiel: Steuerbescheid',ausweis:'Beispiel: Personalausweis',ek:'Beispiel: Kontoauszug'})[key]||'Beispiel';$('#lb-text').innerHTML=m.lb||'';$('#lb').className='show';}
+function closeLb(){$('#lb').className='';}
+window.openLb=openLb;window.closeLb=closeLb;
 
 async function load(){
-  if(!token){ renderErr('In diesem Link fehlt der Zugangscode.'); return; }
-  try{
-    const r=await fetch(apiBase,{headers:{accept:'application/json'}});
+  if(!token){renderErr('In diesem Link fehlt der Zugangscode.');return;}
+  try{const r=await fetch(apiBase,{headers:{accept:'application/json'}});
     if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||('HTTP '+r.status));}
-    DATA=await r.json(); render();
-  }catch(e){ renderErr(e.message); }
+    DATA=await r.json();TYPEN=DATA.weitereTypen||[];render();
+  }catch(e){renderErr(e.message);}
 }
-function renderErr(msg){
-  $('#content').innerHTML=`<div class="objekt"><h2>⚠️ Link nicht gültig</h2>
-    <p class="empty">${esc(msg)}</p>
-    <p style="font-size:13px;color:var(--muted)">Bitte fordern Sie bei Ihrem Ansprechpartner einen neuen Link an.</p></div>`;
-}
+function renderErr(msg){$('#content').innerHTML=`<div class="objekt"><h2>⚠️ Link nicht gültig</h2><p class="empty">${esc(msg)}</p><p style="font-size:13px;color:var(--muted)">Bitte fordere bei deinem Ansprechpartner einen neuen Link an.</p></div>`;}
 
 function render(){
-  const d=DATA, check=d.checkliste||[], uploads=d.uploads||[], objekt=d.objektunterlagen||[];
+  const d=DATA,check=d.checkliste||[],uploads=d.uploads||[],objekt=d.objektunterlagen||[];
   const name=(d.kundeName||'').split(' — ')[0]||'';
-  const byPunkt={}; uploads.forEach(u=>(byPunkt[u.punkt||'_']=byPunkt[u.punkt||'_']||[]).push(u));
-  const pflicht=check.filter(c=>!c.optional);
-  const done=pflicht.filter(c=>(byPunkt[c.key]||[]).length).length;
-  const pct=pflicht.length?Math.round(done/pflicht.length*100):0;
+  const vorname=name?esc(name.split(' ')[0]||name):'';
+  const byP={};uploads.forEach(u=>(byP[u.punkt||'_']=byP[u.punkt||'_']||[]).push(u));
+  const done=check.filter(c=>(byP[c.key]||[]).length).length;
+  const pct=check.length?Math.round(done/check.length*100):0;
+  const weitere=byP['weitere']||[];
 
   const cards=check.map((c,i)=>{
-    const files=byPunkt[c.key]||[], isDone=files.length>0, m=META[c.key]||{};
-    const badge=c.optional?'<span class="badge opt">optional</span>'
-      :(isDone?'<span class="badge done">erledigt ✓</span>':'<span class="badge open">offen</span>');
+    const files=byP[c.key]||[],isDone=files.length>0,m=META[c.key]||{};
     const fl=files.map(f=>`<div class="f">✓ ${esc((f.name||'').replace(/^.*? — /,''))}</div>`).join('');
     return `<article class="doc ${isDone?'done':''}" style="--i:${i}">
       <div class="doc-body">
-        <div class="thumb">${SVG[c.key]||SVG.sonstiges}</div>
+        <div class="thumb" onclick="openLb('${c.key}')" title="Beispiel groß ansehen">${SVG[c.key]||''}<span class="zoom">⤢</span></div>
         <div class="doc-main">
-          <div class="doc-head"><div class="doc-title">${esc(c.label)}</div>${badge}</div>
-          <p class="was">${esc(m.was||c.hint||'')}</p>
-          ${m.tipp?`<p class="tipp"><span class="b">So geht's:</span><span>${esc(m.tipp)}</span></p>`:''}
+          <div class="doc-head"><div class="doc-title">${esc(c.label)}</div>${isDone?'<span class="badge done">erledigt ✓</span>':'<span class="badge open">offen</span>'}</div>
+          <p class="was">${esc(m.was||'')}</p>
+          ${m.woher?`<div class="woher"><span class="ic">💡</span><span class="tx"><b>Wo finde ich das?</b> ${m.woher}</span></div>`:''}
           ${fl?`<div class="files">${fl}</div>`:''}
           <div class="acts">
             <button class="add" onclick="pick('${c.key}',false)">${isDone?'Weitere hinzufügen':'Hochladen'}</button>
             <a class="cam-link" href="#" onclick="pick('${c.key}',true);return false">oder mit Kamera</a>
           </div>
         </div>
-      </div>
-    </article>`;
+      </div></article>`;
   }).join('');
+
+  const opts=TYPEN.map(t=>`<option value="${esc(t.key)}">${esc(t.label)}</option>`).join('');
+  const wl=weitere.map(f=>`<div class="f">✓ ${esc(f.typ||(f.name||'').replace(/ — .*$/,''))} · ${esc((f.name||'').replace(/^.*? — /,''))}</div>`).join('');
 
   $('#content').innerHTML=`
     <div class="hero">
-      <div class="eyebrow">Ihr Unterlagen-Portal</div>
-      <h1>Willkommen${name?', <em>'+esc(name.split(' ')[0]||name)+'</em>':''}.</h1>
-      <p class="lede">Hier reichen Sie Ihre Unterlagen für die Finanzierung ein — entspannt, Schritt für Schritt, ganz bequem vom Handy.</p>
+      <div class="eyebrow">Dein Unterlagen-Portal</div>
+      <h1>Hallo${vorname?', <em>'+vorname+'</em>':''}.</h1>
+      <p class="lede">Hier reichst du deine Unterlagen für die Finanzierung ein — entspannt, Schritt für Schritt, bequem vom Handy. Wir führen dich durch.</p>
     </div>
 
-    <div class="concierge">
-      <div class="ic">✦</div>
-      <p><b>Je früher und vollständiger</b> Ihre Unterlagen bei uns sind, desto bessere Konditionen können wir für Sie holen: Wir fragen dann frühzeitig <b>mehrere Banken</b> parallel an und vergleichen die Angebote für Sie.</p>
+    <div class="why">
+      <h3>✦ Warum sich das für dich lohnt</h3>
+      <div class="chain"><span class="step">vollständig &amp; früh</span><span class="arr">→</span><span class="step">mehr Banken anfragbar</span><span class="arr">→</span><span class="step">mehr Auswahl</span><span class="arr">→</span><span class="step">bessere Konditionen</span></div>
+      <p>Je <b>vollständiger und früher</b> deine Unterlagen vorliegen, desto mehr Banken können wir gleichzeitig für dich anfragen. Ein <b>größerer Banken-Pool</b> bedeutet mehr Angebote — und aus mehr Auswahl holen wir die <b>besten Konditionen</b> für dich heraus.</p>
     </div>
 
     <div class="track">
-      <div class="ring" style="--p:${pct}"><i>${done}/${pflicht.length}</i></div>
-      <div class="t"><b>${done===pflicht.length&&pflicht.length?'Alles eingereicht — danke!':'Ihre Unterlagen'}</b>
-        <span>${done} von ${pflicht.length} erledigt${done<pflicht.length?' · jeder Schritt zählt':''}</span></div>
+      <div class="ring" style="--p:${pct}"><i>${done}/${check.length}</i></div>
+      <div class="t"><b>${done===check.length&&check.length?'Alles eingereicht — danke!':'Deine Pflicht-Unterlagen'}</b><span>${done} von ${check.length} erledigt${done<check.length?' · jeder Schritt zählt':''}</span></div>
     </div>
 
     <div class="sect-label">Bitte hochladen</div>
     ${cards}
 
+    <div class="more">
+      <h2>Weitere Nachweise</h2>
+      <p>Hast du noch andere Unterlagen, die zu deiner Finanzierung passen? Wähle die Art aus und lade sie hoch — so viele du möchtest. Optional, aber hilfreich.</p>
+      <div class="more-row">
+        <select id="wt-select" onchange="onTyp()"><option value="">Art des Nachweises wählen …</option>${opts}</select>
+        <input type="text" id="wt-beschr" placeholder="Kurz beschreiben …">
+        <button class="add" onclick="addWeitere()">Hochladen</button>
+      </div>
+      ${wl?`<div class="more-list">${wl}</div>`:''}
+    </div>
+
     <div class="objekt">
       <h2>📂 Objektunterlagen</h2>
-      <p style="font-size:13px;color:var(--muted);margin:-4px 0 12px">Unterlagen zu Ihrer Immobilie — zum Ansehen und Herunterladen.</p>
-      ${objekt.length
-        ? `<ul class="olist">${objekt.map(f=>`<li>📄 <a href="${esc(f.webViewLink||'#')}" target="_blank" rel="noopener">${esc(f.name)}</a></li>`).join('')}</ul>`
-        : `<div class="empty">Hier erscheinen in Kürze die Unterlagen zu Ihrer Immobilie.</div>`}
+      <p style="font-size:13px;color:var(--muted);margin:-4px 0 12px">Unterlagen zu deiner Immobilie — zum Ansehen und Herunterladen.</p>
+      ${objekt.length?`<ul class="olist">${objekt.map(f=>`<li>📄 <a href="${esc(f.webViewLink||'#')}" target="_blank" rel="noopener">${esc(f.name)}</a></li>`).join('')}</ul>`:`<div class="empty">Hier erscheinen in Kürze die Unterlagen zu deiner Immobilie.</div>`}
     </div>`;
-  requestAnimationFrame(()=>{const r=$('.ring'); if(r) r.style.setProperty('--p',pct);});
 }
 
-function pick(key,camera){
-  const inp=document.createElement('input');
-  inp.type='file'; inp.multiple=true;
-  inp.accept=camera?'image/*':'image/*,application/pdf';
-  if(camera) inp.setAttribute('capture','environment');
-  inp.onchange=()=>{ if(inp.files.length) uploadFiles(key,[...inp.files]); };
-  inp.click();
+function onTyp(){const v=$('#wt-select').value;$('#wt-beschr').style.display=(v==='sonstiges')?'block':'none';}
+function addWeitere(){
+  const sel=$('#wt-select'),key=sel.value;
+  if(!key){toast('Bitte zuerst die Art des Nachweises wählen.',true);return;}
+  const t=TYPEN.find(x=>x.key===key);let bez=t?t.label:'Weiterer Nachweis';
+  if(key==='sonstiges'){const b=$('#wt-beschr').value.trim();if(!b){toast('Bitte beschreibe kurz, was es ist.',true);$('#wt-beschr').focus();return;}bez=b;}
+  const inp=document.createElement('input');inp.type='file';inp.multiple=true;inp.accept='image/*,application/pdf';
+  inp.onchange=()=>{if(inp.files.length)uploadFiles('weitere',[...inp.files],bez);};inp.click();
 }
-function fileToB64(file){return new Promise((res,rej)=>{const r=new FileReader();
-  r.onload=()=>{const s=String(r.result);res(s.slice(s.indexOf(',')+1));};r.onerror=rej;r.readAsDataURL(file);});}
-async function uploadFiles(key,files){
+function pick(key,camera){
+  const inp=document.createElement('input');inp.type='file';inp.multiple=true;
+  inp.accept=camera?'image/*':'image/*,application/pdf';if(camera)inp.setAttribute('capture','environment');
+  inp.onchange=()=>{if(inp.files.length)uploadFiles(key,[...inp.files]);};inp.click();
+}
+function fileToB64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const s=String(r.result);res(s.slice(s.indexOf(',')+1));};r.onerror=rej;r.readAsDataURL(file);});}
+async function uploadFiles(key,files,bez){
   let ok=0;
   for(const file of files){
     if(file.size>MAX_MB*1024*1024){toast(`„${file.name}" ist zu groß (max. ${MAX_MB} MB).`,true);continue;}
     toast('Wird hochgeladen: '+file.name+' …');
-    try{
-      const dataBase64=await fileToB64(file);
-      const r=await fetch(apiBase,{method:'POST',headers:{'content-type':'application/json'},
-        body:JSON.stringify({name:file.name,mimeType:file.type,dataBase64,punkt:key})});
+    try{const dataBase64=await fileToB64(file);
+      const body={name:file.name,mimeType:file.type,dataBase64,punkt:key};if(bez)body.bezeichnung=bez;
+      const r=await fetch(apiBase,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
       if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||('HTTP '+r.status));}
       ok++;
     }catch(e){toast(`Fehler bei „${file.name}": ${e.message}`,true);}
   }
-  if(ok) toast(`${ok} Datei${ok>1?'en':''} sicher hochgeladen ✓`);
+  if(ok)toast(`${ok} Datei${ok>1?'en':''} sicher hochgeladen ✓`);
   await load();
 }
-window.pick=pick;
+window.pick=pick;window.onTyp=onTyp;window.addWeitere=addWeitere;
 load();
 </script>
 </body>
