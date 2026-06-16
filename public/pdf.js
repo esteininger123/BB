@@ -1051,16 +1051,16 @@ function _buildSelbstauskunftBody(kunde, user, opts = {}) {
   // Form-Field-Helper: leer → <input>, gefüllt → Text. Beides ohne sichtbaren Rand.
   function fld(value) {
     const v = (value === null || value === undefined || value === '') ? '' : String(value);
-    if (v === '') return `<input type="text" class="sa-fld" value="">`;
+    if (v === '') return '';  // Edgar 2026-06-17: leere Felder bleiben leer (kein Unterstrich/Input-Strich)
     return `<span class="sa-fld sa-fld-filled">${esc(v)}</span>`;
   }
   function row(label, valA, valM) {
     return `<tr><td class="sa-label">${esc(label)}</td><td>${fld(valA)}</td><td>${gemeinsam ? fld(valM) : ''}</td></tr>`;
   }
   function rowChk(label, opts, valA, valM) {
-    const fmtOpt = (v) => opts.map(o => (o === v
-      ? `<span class="sa-chk on">☑</span> ${esc(o)}`
-      : `<span class="sa-chk">☐</span> ${esc(o)}`)).join('&nbsp;&nbsp;');
+    // Edgar 2026-06-17: nur die getroffene Auswahl zeigen (Klartext), nicht alle Optionen;
+    //   nichts gewählt → leer.
+    const fmtOpt = (v) => (v && opts.includes(v)) ? esc(v) : '';
     return `<tr><td class="sa-label">${esc(label)}</td><td>${fmtOpt(valA)}</td><td>${gemeinsam ? fmtOpt(valM) : ''}</td></tr>`;
   }
   // Baufinanzierungen: 1 Zeile pro Datenfeld, je 2 Spalten (Baufi 1 / Baufi 2).
