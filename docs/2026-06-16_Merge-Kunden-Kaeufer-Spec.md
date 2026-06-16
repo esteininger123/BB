@@ -1,6 +1,8 @@
 # Spec: Merge „Käufer" + „Kunden/Interessenten" → eine „Kunden"-Tabelle
 
-**Stand:** 2026-06-16 · **Status:** Design (zur Freigabe) · **Base:** Objektmanagement `appikHUetNyeonXBX`
+**Stand:** 2026-06-16 · **Status:** ✅ Kern-Merge UMGESETZT & LIVE (2026-06-16) · **Base:** Objektmanagement `appikHUetNyeonXBX`
+
+> **Umsetzung:** 168 Kunden migriert (123 Käufer + 45 Interessenten, 10 Dubletten zusammengeführt), 49 Snapshots + 11 Finanzierungsfälle umgehängt, App auf `main` deployt (Commit `0851cf0`, Production-Alias bestätigt). Offene manuelle Schritte: Airtable-Automation „Verkauf WE add Käufer" (Phase=Bestandskäufer), eingeloggter UI-Smoke-Test, deferred Cleanup (tote Felder + alte K/I-Tabelle nach 1–2 Wochen). Details: `2026-06-16_Merge-Kunden-Kaeufer-Plan.md` Task 14/15.
 
 ---
 
