@@ -1486,7 +1486,7 @@ function _buildSelbstauskunftBody(kunde, user) {
         Zahlungsverpflichtungen in der Vergangenheit immer ordnungsgemäß nachgekommen bin/sind. Ich handle/wir handeln
         im eigenen wirtschaftlichen Interesse und nicht auf fremde Veranlassung (insbesondere nicht als Treuhänder).
       </p>
-      <h2 class="legal-h">II. Datenübermittlung an die SCHUFA und Befreiung vom Bankgeheimnis</h2>
+      <h2 class="legal-h">II. SCHUFA – Datenübermittlung, Vorab-Bonitätsauskunft und Befreiung vom Bankgeheimnis</h2>
       <p class="legal-p">
         Der Vertragspartner (Darlehensgeber/Bank/Sparkasse) übermittelt im Rahmen dieses Vertragsverhältnisses
         erhobene personenbezogene Daten über die Beantragung, die Durchführung und Beendigung dieser
@@ -1504,6 +1504,15 @@ function _buildSelbstauskunftBody(kunde, user) {
         Beurteilung der Kreditwürdigkeit von natürlichen Personen zu geben. Nähere Informationen zur Tätigkeit der
         SCHUFA können dem SCHUFA-Informationsblatt nach Art. 14 DS-GVO entnommen oder online unter
         <em>www.schufa.de/datenschutz</em> eingesehen werden.
+      </p>
+      <p class="legal-p">
+        <strong>Vorab-Bonitätsauskunft.</strong> Ich/wir willige/n ein, dass die <strong>B&amp;B Immo GmbH</strong> sowie
+        der/die zur Finanzierung vorgesehene/n Darlehensgeber bereits vor Abschluss eines Darlehensvertrages eine
+        Bonitätsauskunft (einschließlich Score-Wert) über mich/uns bei der SCHUFA Holding AG einholen, um die
+        Finanzierbarkeit des Vorhabens vorab zu prüfen. Diese Einwilligung ist freiwillig, für die Vermittlung nicht
+        zwingend erforderlich und kann jederzeit mit Wirkung für die Zukunft gegenüber der B&amp;B Immo GmbH widerrufen
+        werden (eine E-Mail genügt); die Rechtmäßigkeit der bis zum Widerruf erfolgten Verarbeitung bleibt unberührt.
+        Rechtsgrundlage ist Artikel 6 Absatz 1 lit. a DS-GVO.
       </p>
       <h2 class="legal-h">III. Datenübermittlung an Creditreform (Freiberufler &amp; Selbständige)</h2>
       <p class="legal-p">
@@ -1552,9 +1561,10 @@ function _buildSelbstauskunftBody(kunde, user) {
         mitteilen.
       </p>
       <p class="legal-p" style="margin-top:5mm;">
-        Mit meiner/unserer Unterschrift stimme/n ich/wir den obigen Versicherungen sowie der Nutzung des
-        automatisierten Grundbuch-Abrufverfahrens (Ziffer V) zu. Die Datenschutzhinweise der Auskunfteien haben
-        wir zur Kenntnis genommen.
+        Mit meiner/unserer Unterschrift stimme/n ich/wir den obigen Versicherungen, der Einholung einer
+        SCHUFA-Bonitätsauskunft durch die B&amp;B Immo GmbH und den Darlehensgeber zur Vorab-Prüfung der
+        Finanzierbarkeit (Ziffer II) sowie der Nutzung des automatisierten Grundbuch-Abrufverfahrens (Ziffer V)
+        zu. Die Datenschutzhinweise der Auskunfteien haben wir/habe ich zur Kenntnis genommen.
       </p>
       <div class="sa-sigblock">
         <div class="sig-col">
@@ -1624,7 +1634,17 @@ const _SA_INLINE_CSS = `
   /* padding der einzelnen Seite reduziert (jetzt aus @page-margin) */
   .pdf-page.sa-page { padding: 0; position: relative; page-break-after: auto; }
   .pdf-page.sa-page.sa-legal { page-break-before: always; }
-  /* Iter 85: page-break-inside: avoid für sa-table ENTFERNT — Persönliche-Verhältnisse-Tabelle ist größer als A4. */
+  /* Iter 85: page-break-inside: avoid für die GANZE sa-table ENTFERNT — Persönliche-
+     Verhältnisse-Tabelle ist größer als A4 (sonst Regression: Tabelle komplett auf Seite 2). */
+  /* FIX (16.06.2026): Umbruch-Schutz auf ZEILEN-Ebene aus styles.css portiert — war im
+     PandaDoc-CSS nie drin. Ohne diese Regeln konnte bei vielen Zeilen/Immobilien eine
+     Tabellenzeile mitten am Seitenumbruch zerschnitten oder ein Immobilien-Block zerrissen
+     werden. NUR tr/thead/td — NICHT die ganze sa-table (Iter-85-Regression). */
+  .sa-table tr { page-break-inside: avoid; break-inside: avoid; }
+  .sa-table thead { page-break-inside: avoid; break-inside: avoid; page-break-after: avoid; break-after: avoid; }
+  .sa-table td, .sa-table th { page-break-inside: avoid; break-inside: avoid; }
+  .sa-immo-table { page-break-inside: avoid; break-inside: avoid; }
+  .sa-immo-table tr { page-break-inside: avoid; break-inside: avoid; }
   .sa-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 7mm; padding-bottom: 4mm; border-bottom: 1.5px solid #B08A4D; }
   .sa-head .sa-logo { height: 10mm !important; width: auto !important; max-width: 55mm; display: block; }
   .sa-head .sa-title-block { text-align: right; line-height: 1.15; }
@@ -1662,7 +1682,13 @@ const _SA_INLINE_CSS = `
   .pdf-footer .pdf-footer-l { text-align: left; }
   .pdf-footer .pdf-footer-c { text-align: center; }
   .pdf-footer .pdf-footer-r { text-align: right; }
-  .sa-page .pdf-footer { display: grid; }
+  /* FIX (16.06.2026): Header nur auf der ERSTEN, Footer nur auf der LETZTEN Sektion —
+     exakt wie der Browser-Print (styles.css). Vorher: Header UND Footer auf jeder der
+     5 Sektionen sichtbar; da die Sektionen kontinuierlich fließen (page-break-after:auto),
+     landeten 4 Header/Footer-Paare MITTEN auf den PandaDoc-Seiten (Edgar-Befund 16.06.). */
+  .sa-page .pdf-footer { display: none; }
+  .sa-page:last-child .pdf-footer { display: grid; }
+  .sa-page:not(:first-child) .sa-head { display: none; }
   .legal-h { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 5mm 0 2mm; color: #1B1B1B; }
   .legal-h .roman { color: #B08A4D; font-weight: 700; margin-right: 2mm; }
   .legal-p { font-size: 9px; line-height: 1.45; text-align: justify; margin: 0 0 3mm; color: #1B1B1B; }
