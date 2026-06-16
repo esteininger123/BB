@@ -55,7 +55,7 @@ const state = {
 // Das war Edgar's „bei anderen Kunden klickbar"-Symptom.
 window.state = state;
 
-const PHASEN = ['Lead','Kalkulation läuft','Reservierung','Selbstauskunft','Bank-Einreichung','Notar-Termin','Beurkundet','Abgebrochen'];
+const PHASEN = ['Lead','Reservierung','Bank-Einreichung','Notar-Termin','Bestandskäufer','Abgebrochen'];
 
 // Audit-Fix Iter 49 (19.05.2026): Airtable-Direktlinks zentralisiert. Wenn die Base
 // umzieht oder eine Tabelle verschoben wird, nur hier anpassen.
@@ -131,6 +131,7 @@ function phaseBadgeClass(phase) {
   if (p.startsWith('bank')) return 'bank';
   if (p.startsWith('notar')) return 'notar';
   if (p.startsWith('beurk')) return 'beurkundet';
+  if (p.startsWith('bestand')) return 'bestandskaeufer';
   if (p.startsWith('abge')) return 'abgebrochen';
   return '';
 }
@@ -7925,7 +7926,7 @@ async function renderAdmin() {
           <div class="kpi-grid">
             <div class="kpi"><div class="label">Gesamt Kunden</div><div class="value">${s.totalKunden || 0}</div></div>
             <div class="kpi"><div class="label">Vertriebler</div><div class="value">${(s.vertriebler || []).length}</div></div>
-            <div class="kpi positive"><div class="label">Beurkundet</div><div class="value">${(s.byPhase && s.byPhase['Beurkundet']) || 0}</div></div>
+            <div class="kpi positive"><div class="label">Käufer</div><div class="value">${(s.byPhase && s.byPhase['Bestandskäufer']) || 0}</div></div>
             <div class="kpi"><div class="label">Aktive WEs im Vertrieb</div><div class="value">${aktivWes.length}<span style="font-size:12px;color:#7A7A72;font-weight:normal;"> &nbsp;+ ${potenzielleWes.length} potenziell</span></div></div>
           </div>`;
       })()}

@@ -3,7 +3,7 @@
 
 const TABLES = {
   VERTRIEBLER: 'tblXG135L28XocpeY',
-  KUNDEN:      'tbld0j0Mo7rre1Vh3',
+  KUNDEN:      'tblHIy1hmbpxspQGW',   // Merge 2026-06-16: war tbld0j0Mo7rre1Vh3 (alte K/I-Tabelle)
   SNAPSHOTS:   'tbliqxbITCdSjK0ua',
   // Wohneinheit-/Objekt-/Projekt-Hierarchie aus Base "Objektmanagement" (appikHUetNyeonXBX):
   //   Projekt → enthält Objekte → enthält Wohneinheiten.
@@ -55,29 +55,31 @@ const VERTRIEBLER_FIELDS = {
 };
 
 const KUNDEN_FIELDS = {
-  NAME:           'fldEyLcNBa1Xe3ISs',
-  VORNAME:        'fldkRrN0cjBc7z4sx',
-  NACHNAME:       'fldjsUvoh3caONyYa',
-  EMAIL:          'fldNXcwpC75MuGGhd',
-  TELEFON:        'fldaOOiGNE2FVAQA9',
-  GEBURTSDATUM:   'fldtdW7rfAXqbIu4q',
-  OWNER:          'fld7gmCGOLVsW5S1W',
-  PHASE:          'fldZIuFV6LcqodhEM',
-  NOTIZEN:        'fldtpjO65JHIbUecZ',
-  QUICK_BON_JSON: 'fldwL7VkWLQwz1at8',
-  SA_JSON:        'fldl94zd1Oeakj6pN',
-  CREATED:        'fld9s7XunLXCfx6pa',
-  LAST_ACTIVITY:  'fldRghZ5CtIBw2rWn',
+  // Merge 2026-06-16: Tabelle ist jetzt die (umbenannte) Käufer-Tabelle "Kunden".
+  // IDs = vorhandene Käufer-Felder (wiederverwendet) bzw. neu angelegte App-Felder
+  // (siehe scripts/field-ids.json). QUICK_BON_JSON entfernt (war 0/54, ungenutzt).
+  NAME:           'fldUW2JYSMP5sOqM6',   // Käufer.Name (Primary)
+  VORNAME:        'fldSVm6uaGZB6AJUQ',
+  NACHNAME:       'fldyih69u1mOhFWFK',
+  EMAIL:          'fldUkBbJTTEfeQB0J',   // Käufer.E-Mail
+  TELEFON:        'fldkiGXTdmbOwodXj',   // Käufer.Telefon
+  GEBURTSDATUM:   'fldGmTef7c5ataAUh',
+  OWNER:          'fldgxCgviKQpXRnn7',
+  PHASE:          'fld1HzZwCgGhKBaMa',
+  NOTIZEN:        'fldXBVR7wFnxxd3d1',   // Käufer.Notizen
+  SA_JSON:        'flduoV06Bzqz3kQlE',
+  CREATED:        'fldYPTEJPsw6p9Y7y',   // Erstellt-am (dateTime)
+  LAST_ACTIVITY:  'fldQhTArUrxPrM64V',
   // Iter 52 — Archivierung (Checkbox). Vertrieb archiviert, Admin löscht.
-  ARCHIVIERT:     'fldHIc3gclVok2ggj',
+  ARCHIVIERT:     'fldyYYWEy0nqodZoB',
   // 28.05.2026 — Persönlicher Steuersatz pro Kunde (Single Source of Truth, percent
   // als Dezimal z.B. 0.42). Synchron über Quick/SA/Kalkulation, persistent über WE-Wechsel.
-  STEUERSATZ:     'fldQpGCMkF8LhgTZm'
+  STEUERSATZ:     'flduCGIGwCXvNO3qQ'
 };
 
 const SNAPSHOT_FIELDS = {
   BEZEICHNUNG:    'fldc9T4R4oowvzYeJ',
-  KUNDE:          'fldk6jkQu6UEIFv6T',
+  KUNDE:          'fldbqv3xkfET0SKfV',   // Merge 2026-06-16: Snapshots."Kunde (neu)" → Kunden (war fldk6jkQu6UEIFv6T → K/I)
   WE_BEZ:         'fldCSEFLQgBmSo9ib',
   WE_RECID:       'fldgmCTYq3iFluCQf',
   ERSTELLT_VON:   'fldOfahUEZJOvSzUy',
@@ -117,7 +119,7 @@ const SNAPSHOT_FIELDS = {
 // Bestehende Felder (von der Finanzierung angelegt) + neue Felder (2026-06-15).
 const FINANZIERUNGSFALL_FIELDS = {
   TITEL:                   'fldBCoC1l9IukRTj8', // Primary singleLineText
-  KUNDE:                   'fldE6949ttL6XNSqX', // Link → Kunden/Interessenten
+  KUNDE:                   'fldMjyyEF2gSvbVct', // Merge 2026-06-16: FF."Kunde (neu)" → Kunden (war fldE6949ttL6XNSqX → K/I)
   WOHNEINHEIT:             'fldBAGky2mCKEJBmb', // Link → Wohneinheit
   STATUS:                  'fldgEgmxmVEMhFOdz', // singleSelect (Finanzierungs-Workflow)
   P100:                    'fldwBkuOlUEhqmi1I', // checkbox 100%

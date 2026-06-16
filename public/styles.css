@@ -512,6 +512,7 @@ label {
 .badge.bank          { background: var(--badge-mittelphase-bg); color: var(--badge-mittelphase-fg); }
 .badge.notar         { background: var(--positive-bg);          color: var(--positive); }
 .badge.beurkundet    { background: var(--positive-bg);          color: var(--positive); }
+.badge.bestandskaeufer { background: var(--positive-bg);        color: var(--positive); }
 .badge.abgebrochen   { background: var(--negative-bg);          color: var(--negative); }
 
 /* ============================== TABS ============================== */
