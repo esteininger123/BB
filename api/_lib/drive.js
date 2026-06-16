@@ -140,6 +140,26 @@ async function ensureShortcut(name, targetId, parentId) {
   }, token);
 }
 
+// Liest die appProperties eines Ordners (genutzt für das Portal-Profil: welche
+// situativen Dokumente der Kunde braucht — über Tage/Geräte stabil gespeichert).
+async function getFolderAppProps(folderId) {
+  if (!folderId) return {};
+  const r = await driveFetch(
+    `/files/${encodeURIComponent(folderId)}?fields=appProperties&supportsAllDrives=true`
+  ).catch(() => ({}));
+  return (r && r.appProperties) || {};
+}
+
+// Schreibt/merged appProperties auf einen Ordner. Drive merged: ein Wert null löscht
+// die Property. Werte müssen Strings sein (max ~124 Bytes je key+value).
+async function setFolderAppProps(folderId, props) {
+  if (!folderId) return {};
+  return driveFetch(
+    `/files/${encodeURIComponent(folderId)}?fields=appProperties&supportsAllDrives=true`,
+    { method: 'PATCH', body: JSON.stringify({ appProperties: props }) }
+  );
+}
+
 // Lädt eine Datei (Buffer) in einen Ordner hoch. Rückgabe: { id, name, webViewLink }.
 async function uploadFile(folderId, name, mimeType, buffer, appProperties) {
   const token = await getAccessToken();
@@ -173,4 +193,4 @@ async function uploadFile(folderId, name, mimeType, buffer, appProperties) {
   return res.json();
 }
 
-module.exports = { getAccessToken, driveFetch, ensureFolder, folderIdFromUrl, listFiles, uploadFile, copyFile, ensureShortcut };
+module.exports = { getAccessToken, driveFetch, ensureFolder, folderIdFromUrl, listFiles, uploadFile, copyFile, ensureShortcut, getFolderAppProps, setFolderAppProps };

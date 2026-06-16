@@ -32,46 +32,60 @@
   h1 em{font-style:italic;color:var(--bronze-d)}
   .lede{font-size:15.5px;color:#4a4843;max-width:46ch;margin:0}
 
-  .why{background:linear-gradient(135deg,#fff,#FBF7EF);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin:20px 0 26px;box-shadow:0 2px 10px rgba(26,26,23,.04);animation:rise .6s .08s cubic-bezier(.2,.7,.2,1) both}
+  .why{background:linear-gradient(135deg,#fff,#FBF7EF);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin:20px 0 22px;box-shadow:0 2px 10px rgba(26,26,23,.04);animation:rise .6s .08s cubic-bezier(.2,.7,.2,1) both}
   .why h3{font-family:'Fraunces',serif;font-weight:600;font-size:16px;margin:0 0 10px}
   .chain{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:9px}
   .chain .step{background:var(--green-bg);color:var(--green-d);font-size:11px;font-weight:700;padding:5px 10px;border-radius:20px;white-space:nowrap}
   .chain .arr{color:var(--bronze);font-weight:700;font-size:12px}
   .why p{margin:0;font-size:13px;color:#3c4a41} .why b{color:var(--green-d)}
 
-  .track{display:flex;align-items:center;gap:14px;margin-bottom:8px;animation:rise .6s .14s cubic-bezier(.2,.7,.2,1) both}
+  /* Profil-Block */
+  .profil{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:17px 18px;margin-bottom:22px;box-shadow:0 1px 4px rgba(26,26,23,.05);animation:rise .6s .12s cubic-bezier(.2,.7,.2,1) both}
+  .profil h3{font-family:'Fraunces',serif;font-weight:600;font-size:17px;margin:0 0 2px;display:flex;align-items:center;gap:8px}
+  .profil .psub{font-size:12.5px;color:var(--muted);margin:0 0 6px}
+  .qrow{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .qrow:last-child{border-bottom:none}
+  .qrow .q{font-size:14px;font-weight:600;display:block}
+  .qrow .sub{display:block;font-size:11.5px;color:var(--muted);font-weight:400;margin-top:2px;max-width:38ch}
+  .sw{flex:0 0 auto;width:46px;height:27px;border-radius:20px;background:#DDD6C8;position:relative;cursor:pointer;transition:background .2s;border:none;padding:0}
+  .sw[aria-checked=true]{background:var(--green)}
+  .sw::after{content:"";position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.22)}
+  .sw[aria-checked=true]::after{transform:translateX(19px)}
+  .qextra{padding:0 0 12px;margin-top:-2px}
+  .qextra label{font-size:12.5px;color:#5a5852;display:flex;align-items:center;gap:9px}
+  .qextra input{font-family:inherit;font-size:14px;padding:9px 11px;border:1px solid #d9d3c7;border-radius:9px;background:#fff;color:var(--ink)}
+  .qextra input[type=text]{width:100%} .qnum{width:84px;text-align:center}
+
+  .track{display:flex;align-items:center;gap:14px;margin-bottom:8px;animation:rise .6s .16s cubic-bezier(.2,.7,.2,1) both}
   .ring{flex:0 0 auto;width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--green) calc(var(--p,0)*1%), #ECE6DC 0)}
   .ring i{width:43px;height:43px;border-radius:50%;background:var(--cream);display:grid;place-items:center;font-weight:700;font-size:12.5px;color:var(--green-d);font-style:normal}
   .track .t b{font-family:'Fraunces',serif;font-weight:600;font-size:17px;display:block}
   .track .t span{font-size:13px;color:var(--muted)}
 
-  .sect-label{font-size:11.5px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:600;margin:24px 0 12px;display:flex;align-items:baseline;gap:8px}
+  .sect-label{font-size:11.5px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:600;margin:24px 0 12px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
   .sect-label .hint{letter-spacing:0;text-transform:none;font-weight:500;font-size:11.5px;color:var(--bronze-d)}
 
-  /* kompakte Karte */
-  .doc{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:15px 16px;margin-bottom:11px;
-    box-shadow:0 1px 3px rgba(26,26,23,.05);transition:box-shadow .2s,border-color .2s;animation:rise .5s both;animation-delay:calc(var(--i,0)*.05s + .16s)}
+  /* kompakte Dokument-Karte */
+  .doc{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:15px 16px;margin-bottom:11px;box-shadow:0 1px 3px rgba(26,26,23,.05);animation:rise .5s both;animation-delay:calc(var(--i,0)*.04s + .18s)}
   .doc.done{border-color:var(--green-line);background:linear-gradient(180deg,#F7FBF8,#fff)}
-  .doc.opt{border-style:dashed;background:#fff}
-  .doc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-  .doc-title{font-family:'Fraunces',serif;font-weight:600;font-size:16.5px;line-height:1.2}
-  .badge{flex:0 0 auto;font-size:10.5px;font-weight:700;padding:4px 9px;border-radius:30px;white-space:nowrap}
-  .badge.open{background:var(--sand);color:var(--bronze-d)} .badge.done{background:var(--green-bg);color:var(--green-d)} .badge.rec{background:#efe7d6;color:#8E6E3D}
-  .was{font-size:13px;color:#5a5852;margin:5px 0 0} .was b{color:var(--bronze-d)}
   .doc-main{display:flex;gap:13px;align-items:flex-start}
   .thumb{flex:0 0 auto;width:88px}
   .thumb svg{width:88px;height:auto;display:block;border-radius:9px;filter:drop-shadow(0 4px 11px rgba(142,110,61,.17))}
   .thumb .cap{font-size:9px;letter-spacing:.6px;text-transform:uppercase;color:#a99f8c;text-align:center;margin-top:5px}
   .doc-body{flex:1;min-width:0}
-  .files{margin:11px 0 0;display:flex;flex-direction:column;gap:5px}
-  .files .f{font-size:12px;color:var(--green-d);display:flex;align-items:center;gap:7px;background:var(--green-bg);padding:6px 10px;border-radius:8px;word-break:break-word}
+  .doc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .doc-title{font-family:'Fraunces',serif;font-weight:600;font-size:15.5px;line-height:1.2}
+  .badge{flex:0 0 auto;font-size:10.5px;font-weight:700;padding:4px 9px;border-radius:30px;white-space:nowrap}
+  .badge.open{background:var(--sand);color:var(--bronze-d)} .badge.done{background:var(--green-bg);color:var(--green-d)}
+  .was{font-size:13px;color:#5a5852;margin:5px 0 0}
   .acts{margin-top:11px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
   .add{appearance:none;border:none;cursor:pointer;font-family:inherit;font-weight:700;font-size:13.5px;color:#fff;background:var(--bronze);padding:10px 17px;border-radius:10px;box-shadow:0 3px 9px rgba(176,138,77,.26);transition:background .15s,transform .1s}
   .add:hover{background:var(--bronze-d)} .add:active{transform:scale(.98)}
   .doc.done .add{background:#fff;color:var(--green-d);border:1.5px solid var(--green-line);box-shadow:none}
   .cam-link{font-size:12px;color:var(--muted);text-decoration:none;border-bottom:1px dashed #cfc8ba} .cam-link:hover{color:var(--bronze-d)}
+  .files{margin:11px 0 0;display:flex;flex-direction:column;gap:5px}
+  .files .f{font-size:12px;color:var(--green-d);display:flex;align-items:center;gap:7px;background:var(--green-bg);padding:6px 10px;border-radius:8px;word-break:break-word}
 
-  /* ausklappbare Hilfe — nur Text, das Beispielbild steht schon oben */
   details.help{margin-top:11px;border-top:1px solid var(--line);padding-top:9px}
   details.help summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--bronze-d);user-select:none}
   details.help summary::-webkit-details-marker{display:none}
@@ -79,7 +93,7 @@
   .woher{font-size:12.5px;color:#5c5340;line-height:1.5;margin-top:9px} .woher b{color:var(--bronze-d)}
   @media (max-width:430px){ .thumb{width:76px} .thumb svg{width:76px} }
 
-  .more{background:var(--paper);border:1px dashed var(--bronze-l);border-radius:16px;padding:16px;margin:6px 0 14px;animation:rise .5s .4s both}
+  .more{background:var(--paper);border:1px dashed var(--bronze-l);border-radius:16px;padding:16px;margin:6px 0 14px}
   .more h2{font-family:'Fraunces',serif;font-weight:600;font-size:16px;margin:0 0 4px}
   .more p{font-size:12.5px;color:var(--muted);margin:0 0 13px}
   .more-row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
@@ -89,7 +103,7 @@
   .more-list{margin-top:13px;display:flex;flex-direction:column;gap:6px}
   .more-list .f{font-size:12px;color:var(--green-d);display:flex;align-items:center;gap:7px;background:var(--green-bg);padding:7px 11px;border-radius:8px;word-break:break-word}
 
-  .objekt{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:20px;animation:rise .5s .46s both}
+  .objekt{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:20px}
   .objekt h2{font-family:'Fraunces',serif;font-weight:600;font-size:17px;margin:0 0 10px;display:flex;align-items:center;gap:9px}
   .olist{list-style:none;margin:0;padding:0}
   .olist li{padding:9px 0;border-bottom:1px solid var(--line);font-size:13px;display:flex;align-items:center;gap:9px}
@@ -118,19 +132,51 @@ const apiBase='/api/finanzierung/portal/'+encodeURIComponent(token);
 const MAX_MB=3;
 const $=(s,r)=>(r||document).querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let DATA=null, TYPEN=[];
+let DATA=null, DOKS=[], PKERN=[], TYPEN=[], byPP={}, CI=0;
+let PROFIL={miete:true,pkv:false,kredite:false,bestand:false,bestandN:0,mit:false,mitName:''};
 
-const SVG={
-  gehalt:`<svg viewBox='0 0 120 150' xmlns='http://www.w3.org/2000/svg'><rect x='4' y='4' width='112' height='142' rx='10' fill='#fff' stroke='#E8E6DD'/><rect x='4' y='4' width='112' height='30' rx='10' fill='#F4EFE4'/><rect x='4' y='22' width='112' height='12' fill='#F4EFE4'/><text x='15' y='24' font-family='Hanken Grotesk' font-size='11' font-weight='700' fill='#8E6E3D'>Gehalt</text><g fill='#E6E0D4'><rect x='15' y='47' width='58' height='5' rx='2.5'/><rect x='15' y='59' width='78' height='5' rx='2.5'/><rect x='15' y='71' width='48' height='5' rx='2.5'/></g><rect x='10' y='90' width='100' height='44' rx='9' fill='#E4EFE7' stroke='#bcdcc8'/><text x='21' y='108' font-family='Hanken Grotesk' font-size='9' font-weight='600' fill='#235838'>Netto</text><text x='21' y='126' font-family='Fraunces' font-size='18' font-weight='600' fill='#2D6E47'>2.840 €</text></svg>`,
-  steuer:`<svg viewBox='0 0 120 150' xmlns='http://www.w3.org/2000/svg'><rect x='4' y='4' width='112' height='142' rx='10' fill='#fff' stroke='#E8E6DD'/><circle cx='98' cy='26' r='14' fill='none' stroke='#C9A572' stroke-width='1.5'/><text x='98' y='29' text-anchor='middle' font-family='Hanken Grotesk' font-size='8' font-weight='700' fill='#8E6E3D'>FA</text><text x='15' y='24' font-family='Hanken Grotesk' font-size='7.5' fill='#a0937a'>Finanzamt</text><text x='15' y='46' font-family='Fraunces' font-size='13' font-weight='600' fill='#1A1A17'>Steuer-</text><text x='15' y='61' font-family='Fraunces' font-size='13' font-weight='600' fill='#1A1A17'>bescheid</text><g fill='#E6E0D4'><rect x='15' y='80' width='90' height='5' rx='2.5'/><rect x='15' y='93' width='70' height='5' rx='2.5'/><rect x='15' y='106' width='84' height='5' rx='2.5'/><rect x='15' y='119' width='56' height='5' rx='2.5'/></g></svg>`,
-  ausweis:`<svg viewBox='0 0 120 150' xmlns='http://www.w3.org/2000/svg'><rect x='8' y='26' width='104' height='66' rx='9' fill='#F2ECDE' stroke='#C9A572'/><text x='17' y='41' font-family='Hanken Grotesk' font-size='6.5' font-weight='700' fill='#8E6E3D' letter-spacing='.3'>PERSONALAUSWEIS</text><rect x='17' y='47' width='28' height='37' rx='3' fill='#E0DCD2'/><circle cx='31' cy='60' r='6.5' fill='#cfc8ba'/><path d='M22 78c0-7 18-7 18 0' fill='#cfc8ba'/><g fill='#cfc8ba'><rect x='51' y='52' width='44' height='4' rx='2'/><rect x='51' y='62' width='36' height='4' rx='2'/><rect x='51' y='72' width='40' height='4' rx='2'/></g><rect x='8' y='100' width='104' height='42' rx='9' fill='#fff' stroke='#E8E6DD' stroke-dasharray='4 4'/><text x='60' y='125' text-anchor='middle' font-family='Hanken Grotesk' font-size='8.5' font-weight='600' fill='#8E6E3D'>+ Rückseite</text></svg>`,
-  ek:`<svg viewBox='0 0 120 150' xmlns='http://www.w3.org/2000/svg'><rect x='4' y='4' width='112' height='142' rx='10' fill='#fff' stroke='#E8E6DD'/><rect x='4' y='4' width='112' height='30' rx='10' fill='#2D6E47'/><rect x='4' y='22' width='112' height='12' fill='#2D6E47'/><text x='15' y='24' font-family='Hanken Grotesk' font-size='11' font-weight='700' fill='#fff'>Konto</text><g fill='#E6E0D4'><rect x='15' y='47' width='68' height='5' rx='2.5'/><rect x='15' y='59' width='52' height='5' rx='2.5'/><rect x='15' y='71' width='62' height='5' rx='2.5'/></g><rect x='10' y='90' width='100' height='44' rx='9' fill='#E4EFE7' stroke='#bcdcc8'/><text x='21' y='108' font-family='Hanken Grotesk' font-size='9' font-weight='600' fill='#235838'>Kontostand</text><text x='21' y='126' font-family='Fraunces' font-size='16' font-weight='600' fill='#2D6E47'>48.500 €</text></svg>`,
+/* ---- Beispiel-Illustrationen: ein konsistentes Dokument-Motiv, ein Highlight wo sinnvoll ---- */
+function svgDoc(c){
+  const fg=c.headFg||'#8E6E3D', bg=c.headBg||'#F4EFE4';
+  const line=(y,w)=>`<rect x='15' y='${y}' width='${w}' height='5' rx='2.5'/>`;
+  let body;
+  if(c.hi){
+    body=`<g fill='#E6E0D4'>${line(47,58)}${line(59,78)}${line(71,48)}</g><rect x='10' y='90' width='100' height='44' rx='9' fill='#E4EFE7' stroke='#bcdcc8'/><text x='21' y='108' font-family='Hanken Grotesk' font-size='9' font-weight='600' fill='#235838'>${c.hi.lab}</text><text x='21' y='126' font-family='Fraunces' font-size='${c.hi.val.length>7?14:17}' font-weight='600' fill='#2D6E47'>${c.hi.val}</text>`;
+  }else{
+    const ws=[80,58,88,50,72,46];let g='',y=47;for(let i=0;i<(c.lines||4);i++){g+=line(y,ws[i%ws.length]);y+=14;}
+    body=`<g fill='#E6E0D4'>${g}</g>`;
+  }
+  return `<svg viewBox='0 0 120 150' xmlns='http://www.w3.org/2000/svg'><rect x='4' y='4' width='112' height='142' rx='10' fill='#fff' stroke='#E8E6DD'/><rect x='4' y='4' width='112' height='30' rx='10' fill='${bg}'/><rect x='4' y='22' width='112' height='12' fill='${bg}'/><text x='15' y='24' font-family='Hanken Grotesk' font-size='10.5' font-weight='700' fill='${fg}'>${c.head}</text>${body}</svg>`;
+}
+const AUSWEIS_SVG=`<svg viewBox='0 0 120 150' xmlns='http://www.w3.org/2000/svg'><rect x='8' y='30' width='104' height='66' rx='9' fill='#F2ECDE' stroke='#C9A572'/><text x='17' y='45' font-family='Hanken Grotesk' font-size='6.5' font-weight='700' fill='#8E6E3D' letter-spacing='.3'>PERSONALAUSWEIS</text><rect x='17' y='51' width='28' height='37' rx='3' fill='#E0DCD2'/><circle cx='31' cy='64' r='6.5' fill='#cfc8ba'/><path d='M22 82c0-7 18-7 18 0' fill='#cfc8ba'/><g fill='#cfc8ba'><rect x='51' y='56' width='44' height='4' rx='2'/><rect x='51' y='66' width='36' height='4' rx='2'/><rect x='51' y='76' width='40' height='4' rx='2'/></g><rect x='8' y='104' width='104' height='38' rx='9' fill='#fff' stroke='#E8E6DD' stroke-dasharray='4 4'/><text x='60' y='127' text-anchor='middle' font-family='Hanken Grotesk' font-size='8.5' font-weight='600' fill='#8E6E3D'>+ Rückseite</text></svg>`;
+const DOCART={
+  gehalt:{head:'Gehalt',headBg:'#F4EFE4',hi:{lab:'Netto',val:'2.840 €'}},
+  lohnsteuer:{head:'Lohnsteuer',headBg:'#EDE3CF',lines:5},
+  kontoauszug:{head:'Kontoauszug',headBg:'#E7EEF3',headFg:'#3B6B86',lines:5},
+  eigenkapital:{head:'Konto',headBg:'#2D6E47',headFg:'#fff',hi:{lab:'Kontostand',val:'48.500 €'}},
+  mietvertrag_eigen:{head:'Mietvertrag',headBg:'#EEE7D9',lines:5},
+  pkv:{head:'PKV',headBg:'#F0E6E4',headFg:'#9A5B4F',lines:4},
+  privatkredit:{head:'Kreditvertrag',headBg:'#EDE6DA',lines:5},
+  darlehensvertrag:{head:'Darlehen',headBg:'#EDE6DA',lines:5},
+  restschuld:{head:'Restschuld',headBg:'#E7EEF3',headFg:'#3B6B86',lines:4},
+  eigentum:{head:'Grundbuch',headBg:'#E7EDE6',headFg:'#2D6E47',lines:4},
+  mietvertrag_verm:{head:'Mietvertrag',headBg:'#EEE7D9',lines:5},
 };
+function SVGof(key){ return key==='ausweis'?AUSWEIS_SVG:(DOCART[key]?svgDoc(DOCART[key]):svgDoc({head:'Dokument',lines:4})); }
+
 const META={
-  gehalt:{ kurz:'Deine letzten 3 Monatsabrechnungen.', woher:'Bekommst du von deinem Arbeitgeber — meist monatlich per Post oder im Lohn-/Mitarbeiterportal (z.B. Datev, SAP, Personio) als PDF.' },
-  steuer:{ kurz:'Falls du einen hast — gern mit dazu.', woher:'Kam per Post nach deiner letzten Steuererklärung. Digital findest du ihn im <b>ELSTER-Portal</b> unter „Posteingang" (alle Seiten).' },
-  ausweis:{ kurz:'Vorder- &amp; Rückseite.', woher:'Hast du dabei — beide Seiten mit dem Handy abfotografieren: gutes Licht, alle vier Ecken sichtbar.' },
-  ek:{ kurz:'Konto- oder Depotauszug mit Saldo.', woher:'Aus deinem <b>Online-Banking</b> (Giro, Tagesgeld, Depot) — als PDF oder einfach ein Screenshot, auf dem der Saldo steht.' },
+  ausweis:{kurz:'Vorder- &amp; Rückseite.', woher:'Hast du dabei — beide Seiten mit dem Handy abfotografieren: gutes Licht, alle vier Ecken sichtbar.'},
+  gehalt:{kurz:'Deine letzten 3 Monatsabrechnungen.', woher:'Vom Arbeitgeber — meist monatlich per Post oder im Lohn-/Mitarbeiterportal (z.B. Datev, SAP, Personio) als PDF.'},
+  lohnsteuer:{kurz:'Jahresbescheinigung oder Dezember-Abrechnung des Vorjahres.', woher:'Bekommst du einmal im Jahr vom Arbeitgeber (oft zusammen mit der Dezember-Abrechnung) — per Post oder im Lohnportal.'},
+  kontoauszug:{kurz:'Auszüge deines Gehaltskontos, letzte 3 Monate.', woher:'Aus deinem <b>Online-Banking</b> als PDF — die letzten 3 Monatsauszüge des Kontos, auf dem dein Gehalt eingeht.'},
+  mietvertrag_eigen:{kurz:'Der Mietvertrag deiner aktuellen Wohnung.', woher:'Dein Wohnungs-Mietvertrag. Wohnst du mietfrei oder im Eigentum? Dann schalte oben „zur Miete" aus — dann entfällt das.'},
+  pkv:{kurz:'Letzte Beitrags- oder Zahlungsmitteilung.', woher:'Von deiner privaten Krankenversicherung — die letzte Beitragsrechnung oder Zahlungsmitteilung.'},
+  eigenkapital:{kurz:'Konto- oder Depotauszug mit Saldo.', woher:'Aus deinem <b>Online-Banking</b> (Giro, Tagesgeld, Depot) — als PDF oder ein Screenshot, auf dem der Saldo steht.'},
+  privatkredit:{kurz:'Vertrag laufender Kredite oder Leasing.', woher:'Der Vertrag (oder die letzte Saldenmitteilung) deiner laufenden Kredite, Finanzierungen oder Leasingverträge.'},
+  darlehensvertrag:{kurz:'Darlehensvertrag deiner Bestandsimmobilie.', woher:'Der Kreditvertrag, mit dem du deine bestehende Immobilie finanziert hast.'},
+  restschuld:{kurz:'Aktuelle Restschuld / Jahreskontoauszug.', woher:'Letzter Jahreskontoauszug deines Immobiliendarlehens — daraus liest die Bank die aktuelle Restschuld.'},
+  eigentum:{kurz:'Grundbuchauszug oder Kaufvertrag.', woher:'Nachweis, dass dir die Immobilie gehört — aktueller Grundbuchauszug oder der notarielle Kaufvertrag.'},
+  mietvertrag_verm:{kurz:'Mietvertrag der vermieteten Immobilie.', woher:'Der aktuelle Mietvertrag deiner vermieteten Immobilie — zeigt der Bank die Mieteinnahmen.'},
 };
 
 function toast(msg,err){const t=$('#toast');t.textContent=msg;t.className=(err?'err ':'')+'show';clearTimeout(toast._t);toast._t=setTimeout(()=>t.className=t.className.replace('show','').trim(),err?5000:2600);}
@@ -139,24 +185,34 @@ async function load(){
   if(!token){renderErr('In diesem Link fehlt der Zugangscode.');return;}
   try{const r=await fetch(apiBase,{headers:{accept:'application/json'}});
     if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||('HTTP '+r.status));}
-    DATA=await r.json();TYPEN=DATA.weitereTypen||[];render();
+    DATA=await r.json();DOKS=DATA.dokumente||[];PKERN=DATA.personKern||[];TYPEN=DATA.weitereTypen||[];
+    PROFIL=Object.assign({miete:true,pkv:false,kredite:false,bestand:false,bestandN:0,mit:false,mitName:''},DATA.profil||{});
+    render();
   }catch(e){renderErr(e.message);}
 }
 function renderErr(msg){$('#content').innerHTML=`<div class="objekt"><h2>⚠️ Link nicht gültig</h2><p class="empty">${esc(msg)}</p><p style="font-size:13px;color:var(--muted)">Bitte fordere bei deinem Ansprechpartner einen neuen Link an.</p></div>`;}
 
-function card(c,byP,i,opt){
-  const files=byP[c.key]||[],isDone=files.length>0,m=META[c.key]||{};
-  const badge=isDone?'<span class="badge done">erledigt ✓</span>':(opt?'<span class="badge rec">empfohlen</span>':'<span class="badge open">offen</span>');
+const dokByKey=k=>DOKS.find(x=>x.key===k)||{key:k,label:k};
+function reqItems(){
+  const items=[];
+  DOKS.forEach(d=>{ if(d.kern||(d.when&&PROFIL[d.when])) items.push({key:d.key,person:'haupt'}); });
+  if(PROFIL.mit) PKERN.forEach(k=>items.push({key:k,person:'mit'}));
+  return items;
+}
+
+function card(d,person){
+  const key=d.key, files=byPP[key+'|'+person]||[], isDone=files.length>0, m=META[key]||{};
+  const badge=isDone?'<span class="badge done">erledigt ✓</span>':'<span class="badge open">offen</span>';
   const fl=files.map(f=>`<div class="f">✓ ${esc((f.name||'').replace(/^.*? — /,''))}</div>`).join('');
-  return `<article class="doc ${isDone?'done':''} ${opt&&!isDone?'opt':''}" style="--i:${i}">
+  return `<article class="doc ${isDone?'done':''}" style="--i:${CI++}">
     <div class="doc-main">
-      <div class="thumb">${SVG[c.key]||''}<div class="cap">Beispiel</div></div>
+      <div class="thumb">${SVGof(key)}<div class="cap">Beispiel</div></div>
       <div class="doc-body">
-        <div class="doc-head"><div class="doc-title">${esc(c.label)}</div>${badge}</div>
+        <div class="doc-head"><div class="doc-title">${esc(d.label)}</div>${badge}</div>
         <p class="was">${m.kurz||''}</p>
         <div class="acts">
-          <button class="add" onclick="pick('${c.key}',false)">${isDone?'Weitere hinzufügen':'Hochladen'}</button>
-          <a class="cam-link" href="#" onclick="pick('${c.key}',true);return false">oder mit Kamera</a>
+          <button class="add" onclick="pick('${key}','${person}',false)">${isDone?'Weitere hinzufügen':'Hochladen'}</button>
+          <a class="cam-link" href="#" onclick="pick('${key}','${person}',true);return false">oder mit Kamera</a>
         </div>
       </div>
     </div>
@@ -165,16 +221,22 @@ function card(c,byP,i,opt){
   </article>`;
 }
 
-function render(){
-  const d=DATA,check=d.checkliste||[],uploads=d.uploads||[],objekt=d.objektunterlagen||[];
-  const name=(d.kundeName||'').split(' — ')[0]||'';
-  const vorname=name?esc(name.split(' ')[0]||name):'';
-  const byP={};uploads.forEach(u=>(byP[u.punkt||'_']=byP[u.punkt||'_']||[]).push(u));
-  const pflicht=check.filter(c=>!c.empfohlen), empf=check.filter(c=>c.empfohlen);
-  const done=pflicht.filter(c=>(byP[c.key]||[]).length).length;
-  const pct=pflicht.length?Math.round(done/pflicht.length*100):0;
-  const weitere=byP['weitere']||[];
+function qrow(key,frage,sub){
+  return `<div class="qrow"><div><span class="q">${frage}</span><span class="sub">${sub}</span></div>
+    <button class="sw" role="switch" aria-checked="${PROFIL[key]?'true':'false'}" onclick="tog('${key}')" aria-label="${frage}"></button></div>`;
+}
 
+function render(){
+  const d=DATA, uploads=d.uploads||[], objekt=d.objektunterlagen||[];
+  const name=(d.kundeName||'').split(' — ')[0]||''; const vorname=name?esc(name.split(' ')[0]||name):'';
+  byPP={}; uploads.forEach(u=>{const k=(u.punkt||'_')+'|'+(u.person||'haupt');(byPP[k]=byPP[k]||[]).push(u);});
+  const req=reqItems(); const done=req.filter(it=>(byPP[it.key+'|'+it.person]||[]).length).length;
+  const pct=req.length?Math.round(done/req.length*100):0;
+  CI=0;
+
+  const hauptDocs=DOKS.filter(x=>x.gruppe!=='bestand'&&(x.kern||(x.when&&PROFIL[x.when])));
+  const bestandDocs=DOKS.filter(x=>x.gruppe==='bestand');
+  const weitere=byPP['weitere|haupt']||[];
   const opts=TYPEN.map(t=>`<option value="${esc(t.key)}">${esc(t.label)}</option>`).join('');
   const wl=weitere.map(f=>`<div class="f">✓ ${esc(f.typ||(f.name||'').replace(/ — .*$/,''))} · ${esc((f.name||'').replace(/^.*? — /,''))}</div>`).join('');
 
@@ -188,19 +250,34 @@ function render(){
     <div class="why">
       <h3>Warum sich das für dich lohnt</h3>
       <div class="chain"><span class="step">vollständig &amp; früh</span><span class="arr">→</span><span class="step">mehr Banken</span><span class="arr">→</span><span class="step">mehr Auswahl</span><span class="arr">→</span><span class="step">bessere Konditionen</span></div>
-      <p>Je <b>vollständiger und früher</b> deine Unterlagen vorliegen, desto mehr Banken können wir gleichzeitig anfragen. Ein <b>größerer Pool</b> heißt mehr Auswahl — und damit <b>bessere Konditionen</b> für dich.</p>
+      <p>Je <b>vollständiger und früher</b> deine Unterlagen vorliegen, desto mehr Banken können wir gleichzeitig anfragen — mehr Auswahl, <b>bessere Konditionen</b> für dich.</p>
+    </div>
+
+    <div class="profil">
+      <h3>🧭 Kurz zu deiner Situation</h3>
+      <p class="psub">Beantworte das einmal — dann zeigen wir dir genau die Unterlagen, die du brauchst. Nicht mehr.</p>
+      ${qrow('miete','Wohnst du zur Miete?','Dann brauchen wir deinen Mietvertrag. Bei Eigentum/mietfrei: aus.')}
+      ${qrow('pkv','Bist du privat krankenversichert?','Dann kommt ein Versicherungs-Nachweis dazu.')}
+      ${qrow('kredite','Laufende Kredite oder Leasing?','Auto, Ratenkredit, Leasing — dann der Kreditvertrag.')}
+      ${qrow('bestand','Besitzt du bereits Immobilien?','Dann ein paar Unterlagen zu deinem Bestand.')}
+      ${PROFIL.bestand?`<div class="qextra"><label>Wie viele?<input class="qnum" type="number" min="1" max="20" value="${PROFIL.bestandN||1}" oninput="PROFIL.bestandN=parseInt(this.value,10)||1" onchange="saveProfil()"></label></div>`:''}
+      ${qrow('mit','Ist ein Mitantragsteller dabei?','z. B. dein:e Partner:in — braucht eigene persönliche Unterlagen.')}
+      ${PROFIL.mit?`<div class="qextra"><input type="text" placeholder="Name des Mitantragstellers" value="${esc(PROFIL.mitName)}" oninput="PROFIL.mitName=this.value" onchange="saveProfil();render()"></div>`:''}
     </div>
 
     <div class="track">
-      <div class="ring" style="--p:${pct}"><i>${done}/${pflicht.length}</i></div>
-      <div class="t"><b>${done===pflicht.length&&pflicht.length?'Pflicht komplett — danke!':'Deine Pflicht-Unterlagen'}</b><span>${done} von ${pflicht.length} erledigt${done<pflicht.length?' · jeder Schritt zählt':''}</span></div>
+      <div class="ring" style="--p:${pct}"><i>${done}/${req.length}</i></div>
+      <div class="t"><b>${done===req.length&&req.length?'Alles beisammen — danke!':'Deine Unterlagen'}</b><span>${done} von ${req.length} erledigt${done<req.length?' · jeder Schritt zählt':''}</span></div>
     </div>
 
-    <div class="sect-label">Bitte hochladen <span class="hint">· das braucht jede Bank</span></div>
-    ${pflicht.map((c,i)=>card(c,byP,i,false)).join('')}
+    <div class="sect-label">Deine Unterlagen <span class="hint">· das braucht jede Bank</span></div>
+    ${hauptDocs.map(x=>card(x,'haupt')).join('')}
 
-    ${empf.length?`<div class="sect-label">Empfohlen <span class="hint">· falls vorhanden, beschleunigt deine Zusage</span></div>
-    ${empf.map((c,i)=>card(c,byP,i+pflicht.length,true)).join('')}`:''}
+    ${PROFIL.bestand?`<div class="sect-label">Deine Bestandsimmobilie${(PROFIL.bestandN||1)>1?'n':''} <span class="hint">· ${(PROFIL.bestandN||1)>1?'gern je Objekt — du kannst mehrere Dateien hochladen':'zu deiner bestehenden Immobilie'}</span></div>
+    ${bestandDocs.map(x=>card(x,'haupt')).join('')}`:''}
+
+    ${PROFIL.mit?`<div class="sect-label">Mitantragsteller${PROFIL.mitName?' · '+esc(PROFIL.mitName):''} <span class="hint">· dieselben persönlichen Unterlagen</span></div>
+    ${PKERN.map(k=>card(dokByKey(k),'mit')).join('')}`:''}
 
     <div class="sect-label">Weitere Nachweise <span class="hint">· optional</span></div>
     <div class="more">
@@ -220,6 +297,12 @@ function render(){
     </div>`;
 }
 
+function tog(key){ PROFIL[key]=!PROFIL[key]; saveProfil(); render(); }
+async function saveProfil(){
+  try{ await fetch(apiBase,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'profil',profil:PROFIL})}); }
+  catch(e){ /* nicht kritisch — lokal bleibt es erhalten */ }
+}
+
 function onTyp(){const v=$('#wt-select').value;$('#wt-beschr').style.display=(v==='sonstiges')?'block':'none';}
 function addWeitere(){
   const sel=$('#wt-select'),key=sel.value;
@@ -227,21 +310,21 @@ function addWeitere(){
   const t=TYPEN.find(x=>x.key===key);let bez=t?t.label:'Weiterer Nachweis';
   if(key==='sonstiges'){const b=$('#wt-beschr').value.trim();if(!b){toast('Bitte beschreibe kurz, was es ist.',true);$('#wt-beschr').focus();return;}bez=b;}
   const inp=document.createElement('input');inp.type='file';inp.multiple=true;inp.accept='image/*,application/pdf';
-  inp.onchange=()=>{if(inp.files.length)uploadFiles('weitere',[...inp.files],bez);};inp.click();
+  inp.onchange=()=>{if(inp.files.length)uploadFiles('weitere','haupt',[...inp.files],bez);};inp.click();
 }
-function pick(key,camera){
+function pick(key,person,camera){
   const inp=document.createElement('input');inp.type='file';inp.multiple=true;
   inp.accept=camera?'image/*':'image/*,application/pdf';if(camera)inp.setAttribute('capture','environment');
-  inp.onchange=()=>{if(inp.files.length)uploadFiles(key,[...inp.files]);};inp.click();
+  inp.onchange=()=>{if(inp.files.length)uploadFiles(key,person,[...inp.files]);};inp.click();
 }
 function fileToB64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const s=String(r.result);res(s.slice(s.indexOf(',')+1));};r.onerror=rej;r.readAsDataURL(file);});}
-async function uploadFiles(key,files,bez){
+async function uploadFiles(key,person,files,bez){
   let ok=0;
   for(const file of files){
     if(file.size>MAX_MB*1024*1024){toast(`„${file.name}" ist zu groß (max. ${MAX_MB} MB).`,true);continue;}
     toast('Wird hochgeladen: '+file.name+' …');
     try{const dataBase64=await fileToB64(file);
-      const body={name:file.name,mimeType:file.type,dataBase64,punkt:key};if(bez)body.bezeichnung=bez;
+      const body={name:file.name,mimeType:file.type,dataBase64,punkt:key,person:person||'haupt'};if(bez)body.bezeichnung=bez;
       const r=await fetch(apiBase,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
       if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||('HTTP '+r.status));}
       ok++;
@@ -250,7 +333,7 @@ async function uploadFiles(key,files,bez){
   if(ok)toast(`${ok} Datei${ok>1?'en':''} sicher hochgeladen ✓`);
   await load();
 }
-window.pick=pick;window.onTyp=onTyp;window.addWeitere=addWeitere;
+window.pick=pick;window.onTyp=onTyp;window.addWeitere=addWeitere;window.tog=tog;window.saveProfil=saveProfil;
 load();
 </script>
 </body>
