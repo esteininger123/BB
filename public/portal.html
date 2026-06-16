@@ -55,6 +55,11 @@
   .qextra label{font-size:12.5px;color:#5a5852;display:flex;align-items:center;gap:9px}
   .qextra input{font-family:inherit;font-size:14px;padding:9px 11px;border:1px solid #d9d3c7;border-radius:9px;background:#fff;color:var(--ink)}
   .qextra input[type=text]{width:100%} .qnum{width:84px;text-align:center}
+  .seg{display:flex;gap:7px;flex-wrap:wrap}
+  .seg button{flex:1;min-width:92px;font-family:inherit;font-size:13px;font-weight:600;padding:9px 8px;border:1px solid #d9d3c7;border-radius:10px;background:#fff;color:#5a5852;cursor:pointer;transition:.15s}
+  .seg button.on{background:var(--green);color:#fff;border-color:var(--green);box-shadow:0 2px 7px rgba(45,110,71,.25)}
+  .snote{font-size:12.5px;color:#5c5340;line-height:1.5;background:#FBF7EF;border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin:-4px 0 13px}
+  .snote b{color:var(--bronze-d)}
 
   .track{display:flex;align-items:center;gap:14px;margin-bottom:8px;animation:rise .6s .16s cubic-bezier(.2,.7,.2,1) both}
   .ring{flex:0 0 auto;width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--green) calc(var(--p,0)*1%), #ECE6DC 0)}
@@ -133,7 +138,7 @@ const MAX_MB=3;
 const $=(s,r)=>(r||document).querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let DATA=null, DOKS=[], PKERN=[], TYPEN=[], byPP={}, CI=0;
-let PROFIL={miete:true,pkv:false,kredite:false,bestand:false,bestandN:0,mit:false,mitName:''};
+let PROFIL={miete:true,pkv:false,kredite:false,bestand:false,bestandArt:'eigen',bestandN:0,mit:false,mitName:''};
 
 /* ---- Beispiel-Illustrationen: ein konsistentes Dokument-Motiv, ein Highlight wo sinnvoll ---- */
 function svgDoc(c){
@@ -186,16 +191,18 @@ async function load(){
   try{const r=await fetch(apiBase,{headers:{accept:'application/json'}});
     if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||('HTTP '+r.status));}
     DATA=await r.json();DOKS=DATA.dokumente||[];PKERN=DATA.personKern||[];TYPEN=DATA.weitereTypen||[];
-    PROFIL=Object.assign({miete:true,pkv:false,kredite:false,bestand:false,bestandN:0,mit:false,mitName:''},DATA.profil||{});
+    PROFIL=Object.assign({miete:true,pkv:false,kredite:false,bestand:false,bestandArt:'eigen',bestandN:0,mit:false,mitName:''},DATA.profil||{});
     render();
   }catch(e){renderErr(e.message);}
 }
 function renderErr(msg){$('#content').innerHTML=`<div class="objekt"><h2>⚠️ Link nicht gültig</h2><p class="empty">${esc(msg)}</p><p style="font-size:13px;color:var(--muted)">Bitte fordere bei deinem Ansprechpartner einen neuen Link an.</p></div>`;}
 
 const dokByKey=k=>DOKS.find(x=>x.key===k)||{key:k,label:k};
+// 'vermietet' ist abgeleitet aus Bestand + Nutzungsart; alle anderen Keys sind direkte Schalter.
+function isOn(key){ return key==='vermietet' ? (!!PROFIL.bestand&&(PROFIL.bestandArt==='vermietet'||PROFIL.bestandArt==='beides')) : !!PROFIL[key]; }
 function reqItems(){
   const items=[];
-  DOKS.forEach(d=>{ if(d.kern||(d.when&&PROFIL[d.when])) items.push({key:d.key,person:'haupt'}); });
+  DOKS.forEach(d=>{ if(d.kern||(d.when&&isOn(d.when))) items.push({key:d.key,person:'haupt'}); });
   if(PROFIL.mit) PKERN.forEach(k=>items.push({key:k,person:'mit'}));
   return items;
 }
@@ -234,8 +241,13 @@ function render(){
   const pct=req.length?Math.round(done/req.length*100):0;
   CI=0;
 
-  const hauptDocs=DOKS.filter(x=>x.gruppe!=='bestand'&&(x.kern||(x.when&&PROFIL[x.when])));
-  const bestandDocs=DOKS.filter(x=>x.gruppe==='bestand');
+  const hauptDocs=DOKS.filter(x=>x.gruppe!=='bestand'&&(x.kern||(x.when&&isOn(x.when))));
+  const bestandDocs=DOKS.filter(x=>x.gruppe==='bestand'&&(x.kern||(x.when&&isOn(x.when))));
+  const bestandHint = PROFIL.bestandArt==='vermietet'
+    ? 'Bei einer vermieteten Immobilie kommt der <b>Mietvertrag</b> dazu — er belegt deine Mieteinnahmen. Dazu Darlehensvertrag, Restschuld und Eigentumsnachweis.'
+    : PROFIL.bestandArt==='beides'
+    ? 'Pro Objekt: Darlehensvertrag, Restschuld und Eigentumsnachweis. Für die <b>vermieteten</b> zusätzlich den <b>Mietvertrag</b> (belegt die Mieteinnahmen).'
+    : 'Für dein <b>selbstgenutztes Eigenheim</b>: Darlehensvertrag, Restschuld-Nachweis und Eigentumsnachweis. Einen Mietvertrag brauchst du hier nicht.';
   const weitere=byPP['weitere|haupt']||[];
   const opts=TYPEN.map(t=>`<option value="${esc(t.key)}">${esc(t.label)}</option>`).join('');
   const wl=weitere.map(f=>`<div class="f">✓ ${esc(f.typ||(f.name||'').replace(/ — .*$/,''))} · ${esc((f.name||'').replace(/^.*? — /,''))}</div>`).join('');
@@ -259,8 +271,15 @@ function render(){
       ${qrow('miete','Wohnst du zur Miete?','Dann brauchen wir deinen Mietvertrag. Bei Eigentum/mietfrei: aus.')}
       ${qrow('pkv','Bist du privat krankenversichert?','Dann kommt ein Versicherungs-Nachweis dazu.')}
       ${qrow('kredite','Laufende Kredite oder Leasing?','Auto, Ratenkredit, Leasing — dann der Kreditvertrag.')}
-      ${qrow('bestand','Besitzt du bereits Immobilien?','Dann ein paar Unterlagen zu deinem Bestand.')}
-      ${PROFIL.bestand?`<div class="qextra"><label>Wie viele?<input class="qnum" type="number" min="1" max="20" value="${PROFIL.bestandN||1}" oninput="PROFIL.bestandN=parseInt(this.value,10)||1" onchange="saveProfil()"></label></div>`:''}
+      ${qrow('bestand','Besitzt du bereits Immobilien?','Eigenheim oder vermietet? Sag uns kurz, was zutrifft.')}
+      ${PROFIL.bestand?`<div class="qextra">
+        <div class="seg">
+          <button class="${PROFIL.bestandArt==='eigen'?'on':''}" onclick="setArt('eigen')">🏡 Eigenheim</button>
+          <button class="${PROFIL.bestandArt==='vermietet'?'on':''}" onclick="setArt('vermietet')">🔑 Vermietet</button>
+          <button class="${PROFIL.bestandArt==='beides'?'on':''}" onclick="setArt('beides')">Beides</button>
+        </div>
+        <label style="margin-top:11px">Wie viele insgesamt?<input class="qnum" type="number" min="1" max="20" value="${PROFIL.bestandN||1}" oninput="PROFIL.bestandN=parseInt(this.value,10)||1" onchange="saveProfil()"></label>
+      </div>`:''}
       ${qrow('mit','Ist ein Mitantragsteller dabei?','z. B. dein:e Partner:in — braucht eigene persönliche Unterlagen.')}
       ${PROFIL.mit?`<div class="qextra"><input type="text" placeholder="Name des Mitantragstellers" value="${esc(PROFIL.mitName)}" oninput="PROFIL.mitName=this.value" onchange="saveProfil();render()"></div>`:''}
     </div>
@@ -273,7 +292,8 @@ function render(){
     <div class="sect-label">Deine Unterlagen <span class="hint">· das braucht jede Bank</span></div>
     ${hauptDocs.map(x=>card(x,'haupt')).join('')}
 
-    ${PROFIL.bestand?`<div class="sect-label">Deine Bestandsimmobilie${(PROFIL.bestandN||1)>1?'n':''} <span class="hint">· ${(PROFIL.bestandN||1)>1?'gern je Objekt — du kannst mehrere Dateien hochladen':'zu deiner bestehenden Immobilie'}</span></div>
+    ${PROFIL.bestand?`<div class="sect-label">Deine Bestandsimmobilie${(PROFIL.bestandN||1)>1?'n':''} <span class="hint">· ${(PROFIL.bestandN||1)>1?'mehrere Objekte? Lad je Dokument einfach mehrere Dateien hoch':'zu deiner bestehenden Immobilie'}</span></div>
+    <p class="snote">${bestandHint}</p>
     ${bestandDocs.map(x=>card(x,'haupt')).join('')}`:''}
 
     ${PROFIL.mit?`<div class="sect-label">Mitantragsteller${PROFIL.mitName?' · '+esc(PROFIL.mitName):''} <span class="hint">· dieselben persönlichen Unterlagen</span></div>
@@ -298,6 +318,7 @@ function render(){
 }
 
 function tog(key){ PROFIL[key]=!PROFIL[key]; saveProfil(); render(); }
+function setArt(a){ PROFIL.bestandArt=a; saveProfil(); render(); }
 async function saveProfil(){
   try{ await fetch(apiBase,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'profil',profil:PROFIL})}); }
   catch(e){ /* nicht kritisch — lokal bleibt es erhalten */ }
@@ -333,7 +354,7 @@ async function uploadFiles(key,person,files,bez){
   if(ok)toast(`${ok} Datei${ok>1?'en':''} sicher hochgeladen ✓`);
   await load();
 }
-window.pick=pick;window.onTyp=onTyp;window.addWeitere=addWeitere;window.tog=tog;window.saveProfil=saveProfil;
+window.pick=pick;window.onTyp=onTyp;window.addWeitere=addWeitere;window.tog=tog;window.setArt=setArt;window.saveProfil=saveProfil;
 load();
 </script>
 </body>

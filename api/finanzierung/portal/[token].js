@@ -36,7 +36,7 @@ const DOKUMENTE = [
   { key: 'darlehensvertrag', gruppe: 'bestand', when: 'bestand', label: 'Darlehensvertrag', file: 'Darlehensvertrag' },
   { key: 'restschuld',  gruppe: 'bestand', when: 'bestand', label: 'Restschuld-Nachweis / letzter Jahreskontoauszug', file: 'Restschuld' },
   { key: 'eigentum',    gruppe: 'bestand', when: 'bestand', label: 'Eigentumsnachweis (Grundbuchauszug / Kaufvertrag)', file: 'Eigentumsnachweis' },
-  { key: 'mietvertrag_verm', gruppe: 'bestand', when: 'bestand', label: 'Mietvertrag (wenn vermietet)', file: 'Mietvertrag (vermietet)' },
+  { key: 'mietvertrag_verm', gruppe: 'bestand', when: 'vermietet', label: 'Mietvertrag der vermieteten Immobilie', file: 'Mietvertrag (vermietet)' },
 ];
 const byKey = (k) => DOKUMENTE.find((d) => d.key === k);
 // Persönliche Kern-Dokumente — die braucht auch ein Mitantragsteller.
@@ -62,11 +62,15 @@ const FRUEH_STATI = ['Unterlagen noch anfordern', 'Unterlagen angefordert', 'Unt
 // Profil aus den Ordner-appProperties lesen (mit sinnvollen Defaults).
 function readProfil(props) {
   const bool = (k, def) => (props['p_' + k] === undefined ? def : props['p_' + k] === '1');
+  const bestand = bool('bestand', false);
+  const bestandArt = props['p_bestandArt'] || 'eigen'; // 'eigen' | 'vermietet' | 'beides'
   return {
     miete:    bool('miete', true),   // die meisten wohnen zur Miete → Mietvertrag erstmal sichtbar
     pkv:      bool('pkv', false),
     kredite:  bool('kredite', false),
-    bestand:  bool('bestand', false),
+    bestand,
+    bestandArt,
+    vermietet: bestand && (bestandArt === 'vermietet' || bestandArt === 'beides'), // abgeleitet → steuert Mietvertrag
     bestandN: props['p_bestandN'] ? (parseInt(props['p_bestandN'], 10) || 0) : 0,
     mit:      bool('mit', false),
     mitName:  props['p_mitName'] || '',
@@ -74,13 +78,14 @@ function readProfil(props) {
 }
 function profilToProps(p) {
   return {
-    p_miete:    p.miete ? '1' : '0',
-    p_pkv:      p.pkv ? '1' : '0',
-    p_kredite:  p.kredite ? '1' : '0',
-    p_bestand:  p.bestand ? '1' : '0',
-    p_bestandN: String(p.bestand ? (p.bestandN || 1) : 0),
-    p_mit:      p.mit ? '1' : '0',
-    p_mitName:  p.mit ? String(p.mitName || '').slice(0, 80) : '',
+    p_miete:     p.miete ? '1' : '0',
+    p_pkv:       p.pkv ? '1' : '0',
+    p_kredite:   p.kredite ? '1' : '0',
+    p_bestand:   p.bestand ? '1' : '0',
+    p_bestandArt: p.bestand ? (p.bestandArt || 'eigen') : 'eigen',
+    p_bestandN:  String(p.bestand ? (p.bestandN || 1) : 0),
+    p_mit:       p.mit ? '1' : '0',
+    p_mitName:   p.mit ? String(p.mitName || '').slice(0, 80) : '',
   };
 }
 
@@ -139,7 +144,9 @@ module.exports = async (req, res) => {
         const p = body.profil || {};
         const profil = {
           miete: !!p.miete, pkv: !!p.pkv, kredite: !!p.kredite,
-          bestand: !!p.bestand, bestandN: parseInt(p.bestandN, 10) || 0,
+          bestand: !!p.bestand,
+          bestandArt: ['eigen', 'vermietet', 'beides'].includes(p.bestandArt) ? p.bestandArt : 'eigen',
+          bestandN: parseInt(p.bestandN, 10) || 0,
           mit: !!p.mit, mitName: (p.mitName || '').toString().trim().slice(0, 80),
         };
         await setFolderAppProps(payload.folderId, profilToProps(profil));
