@@ -6,7 +6,7 @@
 
 `bb-kalkulator-v2` — Multi-User-Web-App für den internen B&B-Vertrieb von Kapitalanlagen-Wohneinheiten.
 
-- **Live:** Vercel Auto-Deploy aus `main`, Custom-Domain `backstube.bub-immo.de` (DNS-CNAME pending bei lah-a.de, Task #134)
+- **Live:** Vercel Auto-Deploy aus `main`, Custom-Domain `backstube.bub-immo.de` ✅ aktiv (liefert Production, verifiziert 2026-06-16)
 - **User:** interne Vertriebler (Edgar, Henry, Laurin, Attilla) + Admin (Edgar/Henry)
 - **Reife:** Iter 90+, Pricing-Modell konsolidiert (2026-05-26), Pre-Go-Live-Sweep durch (FS-3)
 
@@ -112,7 +112,7 @@ Projektspezifische Skills, in Code-Sessions automatisch verfügbar (Trigger übe
 | Was | Status |
 |---|---|
 | Vercel-Deploy | ✅ aktiv (Auto aus `main`) |
-| Custom-Domain `backstube.bub-immo.de` | ⏳ DNS-CNAME pending |
+| Custom-Domain `backstube.bub-immo.de` | ✅ aktiv (Production-Alias, verifiziert 2026-06-16) |
 | Pricing-Modell | ✅ konsolidiert 2026-05-26 |
 | Berechnungs-Engine | ✅ stabil (Iter 90+) |
 | Multi-Persona-Audit + Pre-Go-Live | ✅ 2026-05-25 |
