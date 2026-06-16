@@ -96,7 +96,8 @@ module.exports = async (req, res) => {
   const gemeinsam = sa.gemeinsam === true;
 
   if (!a.email) return res.status(400).json({ error: 'E-Mail des Antragstellers fehlt in der Selbstauskunft.' });
-  if (gemeinsam && !m.email) return res.status(400).json({ error: 'E-Mail des Mitantragstellers fehlt — bitte in der SA ergänzen.' });
+  // Edgar 2026-06-16: SA-Versand braucht nur EINE Unterschrift (Antragsteller). Die
+  //   Mitantragsteller-E-Mail ist nicht mehr erforderlich (kein zweiter Empfänger).
 
   // ----- 1) HTML zu PDF via Puppeteer -----
   let pdfBuffer = null;
@@ -128,6 +129,10 @@ module.exports = async (req, res) => {
   // ----- 2) PandaDoc-Upload (multipart/form-data) -----
   // Recipients: Antragsteller + ggf. Mitantragsteller. Rollen-Strings exakt
   // wie die Field-Tags im PDF ([signature:Antragsteller___]).
+  // Edgar 2026-06-16: Nur EIN Empfänger/Unterschrift (Antragsteller). Vorher wurde bei
+  //   gemeinsamem Antrag ein zweiter Empfänger (Mitantragsteller) ergänzt — bei gleicher
+  //   E-Mail (Ehepaar an einem Gerät) lehnte PandaDoc den Doppel-Empfänger ab. Das PDF
+  //   zeigt via singleSignature ohnehin nur noch das Antragsteller-Signaturfeld.
   const recipients = [{
     email: a.email,
     first_name: a.vorname || '',
@@ -135,15 +140,6 @@ module.exports = async (req, res) => {
     role: 'Antragsteller',
     signing_order: 1,
   }];
-  if (gemeinsam) {
-    recipients.push({
-      email: m.email,
-      first_name: m.vorname || '',
-      last_name: m.name || '',
-      role: 'Mitantragsteller',
-      signing_order: 2,
-    });
-  }
   const docName = `Selbstauskunft – ${a.vorname || ''} ${a.name || ''}`.trim();
   // Iter 86 (22.05.2026): parse_form_fields auf FALSE setzen.
   //   PandaDoc hat zwei verschiedene Erkennungs-Modi:
@@ -205,7 +201,7 @@ module.exports = async (req, res) => {
   // parallele Frontend-Saves während der PDF-Generation).
   try {
     const stempel = new Date().toISOString().substring(0, 16).replace('T', ' ');
-    const zeile = `[${stempel}] Selbstauskunft erstellt für ${a.email}${gemeinsam ? ` + ${m.email}` : ''} — PandaDoc-Doc: ${docId} (wartet auf manuellen Send)`;
+    const zeile = `[${stempel}] Selbstauskunft erstellt für ${a.email} — PandaDoc-Doc: ${docId} (wartet auf manuellen Send)`;
     await appendActivityZeile(kundeId, zeile);
   } catch (e) {
     // Notiz-Schreib-Fehler ist nicht tödlich

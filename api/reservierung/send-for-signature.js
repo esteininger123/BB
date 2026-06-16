@@ -238,10 +238,12 @@ module.exports = async (req, res) => {
       { name: 'Kaufinteressent.PostalCode',       value: kundePlz || '' },
       // 2026-06-16: StreetAddress/PostalCode sind in PandaDoc Empfänger-KONTAKT-Variablen
       //   (englische Standardnamen) und füllen sich NICHT aus den Inline-Recipient-Adressfeldern
-      //   — anders als FirstName/LastName. Lösung: eigene Custom-Variablen wie Kaufinteressent.Ort
-      //   (die funktioniert). Template nutzt jetzt [Kaufinteressent.Strasse] / [Kaufinteressent.PLZ].
-      { name: 'Kaufinteressent.Strasse',          value: kundeStrasse || '' },
-      { name: 'Kaufinteressent.PLZ',              value: kundePlz || '' },
+      //   — anders als FirstName/LastName. Lösung: eigene Custom-Variablen wie Kaufinteressent.Ort.
+      //   Template-Variablen heißen exakt (Edgar 2026-06-16):
+      //     [Kaufinteressent.Straße.Hausnummer]  = Straße + Hausnr.
+      //     [Kaufinteressent.PLZ.Ort]            = nur PLZ (der Ort kommt aus [Kaufinteressent.Ort] daneben)
+      { name: 'Kaufinteressent.Straße.Hausnummer', value: kundeStrasse || '' },
+      { name: 'Kaufinteressent.PLZ.Ort',           value: kundePlz || '' },
       { name: 'Kaufinteressent.State',            value: kundeOrt || '' },
       { name: 'Kaufinteressent.City',             value: kundeOrt || '' },
       { name: 'Verkäufer.FirstName',              value: verkaeuferFirst },

@@ -1036,7 +1036,7 @@ function reservierung(kunde, kalkInputs, user) {
    GwG/PEP/Herkunft-EK sind im Frontend-Form vorhanden (CRM-Zweck), aber
    NICHT mehr im Banker-PDF — Hypovision-Original hat das auch nicht.
    ==================================================================== */
-function _buildSelbstauskunftBody(kunde, user) {
+function _buildSelbstauskunftBody(kunde, user, opts = {}) {
   const k = kunde || {};
   let sa = k.saJson;
   if (typeof sa === 'string') { try { sa = JSON.parse(sa); } catch(e) { sa = null; } }
@@ -1572,7 +1572,7 @@ function _buildSelbstauskunftBody(kunde, user) {
           <div class="sig-meta">Ort, Datum &middot; Unterschrift Antragsteller</div>
           <div class="sig-meta sig-tag" style="margin-top:1mm;">[date:Antragsteller____]</div>
         </div>
-        ${gemeinsam ? `
+        ${(gemeinsam && !opts.singleSignature) ? `
         <div class="sig-col">
           <div class="sig-line"><span class="sig-tag">[signature:Mitantragsteller____]</span></div>
           <div class="sig-meta">Ort, Datum &middot; Unterschrift Mitantragsteller</div>
@@ -1599,7 +1599,10 @@ function selbstauskunft(kunde, user) {
 // PandaDoc-HTML-Builder: kompletter HTML-Document mit Inline-CSS, fertig zum Upload.
 // Wird vom Backend-Endpoint /api/sa/send-for-signature an Puppeteer übergeben.
 function selbstauskunftHtmlForPandaDoc(kunde, user) {
-  const body = _buildSelbstauskunftBody(kunde, user);
+  // Edgar 2026-06-16: Für den digitalen Versand reicht EINE Unterschrift (Antragsteller).
+  //   singleSignature blendet das Mitantragsteller-Signaturfeld aus → ein Empfänger,
+  //   kein Doppel-Mail-Konflikt bei gleicher E-Mail (Ehepaar an einem Gerät).
+  const body = _buildSelbstauskunftBody(kunde, user, { singleSignature: true });
   return `<!doctype html>
 <html lang="de">
 <head>
