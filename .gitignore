@@ -18,3 +18,4 @@ scripts/.drive-token.txt
 .playwright-mcp/
 portal-preview*.png
 package-lock.json
+backups/
