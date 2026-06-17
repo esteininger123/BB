@@ -89,7 +89,10 @@
   .doc.done .add{background:#fff;color:var(--green-d);border:1.5px solid var(--green-line);box-shadow:none}
   .cam-link{font-size:12px;color:var(--muted);text-decoration:none;border-bottom:1px dashed #cfc8ba} .cam-link:hover{color:var(--bronze-d)}
   .files{margin:11px 0 0;display:flex;flex-direction:column;gap:5px}
-  .files .f{font-size:12px;color:var(--green-d);display:flex;align-items:center;gap:7px;background:var(--green-bg);padding:6px 10px;border-radius:8px;word-break:break-word}
+  .files .f{font-size:12px;color:var(--green-d);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--green-bg);padding:6px 8px 6px 10px;border-radius:8px}
+  .fn{word-break:break-word;min-width:0}
+  .del{flex:0 0 auto;appearance:none;border:none;background:transparent;color:#9a8f7d;cursor:pointer;font-size:14px;line-height:1;padding:4px 7px;border-radius:6px;transition:.15s}
+  .del:hover{background:#f0d9d4;color:#9A3E33}
 
   details.help{margin-top:11px;border-top:1px solid var(--line);padding-top:9px}
   details.help summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--bronze-d);user-select:none}
@@ -106,7 +109,7 @@
   #wt-select{flex:1;min-width:165px} #wt-beschr{flex:1;min-width:150px;display:none}
   .more .add{background:var(--green)} .more .add:hover{background:var(--green-d)}
   .more-list{margin-top:13px;display:flex;flex-direction:column;gap:6px}
-  .more-list .f{font-size:12px;color:var(--green-d);display:flex;align-items:center;gap:7px;background:var(--green-bg);padding:7px 11px;border-radius:8px;word-break:break-word}
+  .more-list .f{font-size:12px;color:var(--green-d);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--green-bg);padding:7px 8px 7px 11px;border-radius:8px}
 
   .objekt{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:20px}
   .objekt h2{font-family:'Fraunces',serif;font-weight:600;font-size:17px;margin:0 0 10px;display:flex;align-items:center;gap:9px}
@@ -210,7 +213,7 @@ function reqItems(){
 function card(d,person){
   const key=d.key, files=byPP[key+'|'+person]||[], isDone=files.length>0, m=META[key]||{};
   const badge=isDone?'<span class="badge done">erledigt ✓</span>':'<span class="badge open">offen</span>';
-  const fl=files.map(f=>`<div class="f">✓ ${esc((f.name||'').replace(/^.*? — /,''))}</div>`).join('');
+  const fl=files.map(f=>`<div class="f"><span class="fn">✓ ${esc((f.name||'').replace(/^.*? — /,''))}</span><button class="del" onclick="delFile('${f.id}')" aria-label="Datei entfernen" title="Entfernen">✕</button></div>`).join('');
   return `<article class="doc ${isDone?'done':''}" style="--i:${CI++}">
     <div class="doc-main">
       <div class="thumb">${SVGof(key)}<div class="cap">Beispiel</div></div>
@@ -250,7 +253,7 @@ function render(){
     : 'Für dein <b>selbstgenutztes Eigenheim</b>: Darlehensvertrag, Restschuld-Nachweis und Eigentumsnachweis. Einen Mietvertrag brauchst du hier nicht.';
   const weitere=byPP['weitere|haupt']||[];
   const opts=TYPEN.map(t=>`<option value="${esc(t.key)}">${esc(t.label)}</option>`).join('');
-  const wl=weitere.map(f=>`<div class="f">✓ ${esc(f.typ||(f.name||'').replace(/ — .*$/,''))} · ${esc((f.name||'').replace(/^.*? — /,''))}</div>`).join('');
+  const wl=weitere.map(f=>`<div class="f"><span class="fn">✓ ${esc(f.typ||(f.name||'').replace(/ — .*$/,''))} · ${esc((f.name||'').replace(/^.*? — /,''))}</span><button class="del" onclick="delFile('${f.id}')" aria-label="Datei entfernen" title="Entfernen">✕</button></div>`).join('');
 
   $('#content').innerHTML=`
     <div class="hero">
@@ -333,6 +336,15 @@ function addWeitere(){
   const inp=document.createElement('input');inp.type='file';inp.multiple=true;inp.accept='image/*,application/pdf';
   inp.onchange=()=>{if(inp.files.length)uploadFiles('weitere','haupt',[...inp.files],bez);};inp.click();
 }
+async function delFile(fileId){
+  if(!confirm('Diese Datei wirklich entfernen? Sie wird auch bei uns aus dem System gelöscht.')) return;
+  toast('Wird entfernt …');
+  try{
+    const r=await fetch(apiBase,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'delete',fileId})});
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||('HTTP '+r.status));}
+    toast('Datei entfernt ✓'); await load();
+  }catch(e){ toast('Konnte nicht entfernen: '+e.message,true); }
+}
 function pick(key,person,camera){
   const inp=document.createElement('input');inp.type='file';inp.multiple=true;
   inp.accept=camera?'image/*':'image/*,application/pdf';if(camera)inp.setAttribute('capture','environment');
@@ -354,7 +366,7 @@ async function uploadFiles(key,person,files,bez){
   if(ok)toast(`${ok} Datei${ok>1?'en':''} sicher hochgeladen ✓`);
   await load();
 }
-window.pick=pick;window.onTyp=onTyp;window.addWeitere=addWeitere;window.tog=tog;window.setArt=setArt;window.saveProfil=saveProfil;
+window.pick=pick;window.onTyp=onTyp;window.addWeitere=addWeitere;window.tog=tog;window.setArt=setArt;window.saveProfil=saveProfil;window.delFile=delFile;
 load();
 </script>
 </body>

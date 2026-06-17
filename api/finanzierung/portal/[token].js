@@ -13,7 +13,7 @@ const { readBody, methodNotAllowed, sendError } = require('../../_lib/http');
 const { airtable } = require('../../_lib/airtable');
 const { TABLES, FINANZIERUNGSFALL_FIELDS } = require('../../_lib/tables');
 const { verifyUploadToken } = require('../../_lib/upload-token');
-const { listFiles, uploadFile, getFolderAppProps, setFolderAppProps } = require('../../_lib/drive');
+const { listFiles, uploadFile, getFolderAppProps, setFolderAppProps, getFileMeta, trashFile } = require('../../_lib/drive');
 const { resolveVerkaufsunterlagenFolder } = require('../../_lib/objektunterlagen');
 
 // Dokumentenmodell. gruppe: 'person' (pro Antragsteller) · 'allgemein' (Haushalt) ·
@@ -138,6 +138,21 @@ module.exports = async (req, res) => {
     if (req.method === 'POST') {
       if (!requireSafeOrigin(req, res)) return;
       const body = await readBody(req);
+
+      // — Datei löschen (Kunde entfernt einen eigenen Upload) —
+      if (body.action === 'delete') {
+        const fileId = (body.fileId || '').toString();
+        if (!fileId) return res.status(400).json({ error: 'fileId erforderlich' });
+        // Absicherung: nur Dateien aus DIESEM Kundenordner — keine Objekt-/Fremddateien.
+        const meta = await getFileMeta(fileId).catch(() => null);
+        if (!meta) return res.status(404).json({ error: 'Datei nicht gefunden' });
+        const parents = Array.isArray(meta.parents) ? meta.parents : [];
+        if (!parents.includes(payload.folderId)) {
+          return res.status(403).json({ error: 'Diese Datei gehört nicht zu deinem Upload-Ordner' });
+        }
+        await trashFile(fileId);
+        return res.status(200).json({ ok: true, id: fileId });
+      }
 
       // — Profil-Update —
       if (body.action === 'profil') {

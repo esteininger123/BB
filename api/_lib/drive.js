@@ -140,6 +140,24 @@ async function ensureShortcut(name, targetId, parentId) {
   }, token);
 }
 
+// Liest Metadaten einer Datei (für die Lösch-Absicherung: gehört die Datei in den
+// Kundenordner dieses Tokens?). Rückgabe: { id, name, parents, appProperties }.
+async function getFileMeta(fileId, fields = 'id,name,parents,appProperties,trashed') {
+  if (!fileId) return null;
+  return driveFetch(
+    `/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`
+  );
+}
+
+// Verschiebt eine Datei in den Papierkorb (reversibel, 30 Tage). Aus listFiles
+// (trashed=false) verschwindet sie sofort. Rückgabe: { id, trashed }.
+async function trashFile(fileId) {
+  return driveFetch(
+    `/files/${encodeURIComponent(fileId)}?fields=id,trashed&supportsAllDrives=true`,
+    { method: 'PATCH', body: JSON.stringify({ trashed: true }) }
+  );
+}
+
 // Liest die appProperties eines Ordners (genutzt für das Portal-Profil: welche
 // situativen Dokumente der Kunde braucht — über Tage/Geräte stabil gespeichert).
 async function getFolderAppProps(folderId) {
@@ -193,4 +211,4 @@ async function uploadFile(folderId, name, mimeType, buffer, appProperties) {
   return res.json();
 }
 
-module.exports = { getAccessToken, driveFetch, ensureFolder, folderIdFromUrl, listFiles, uploadFile, copyFile, ensureShortcut, getFolderAppProps, setFolderAppProps };
+module.exports = { getAccessToken, driveFetch, ensureFolder, folderIdFromUrl, listFiles, uploadFile, copyFile, ensureShortcut, getFolderAppProps, setFolderAppProps, getFileMeta, trashFile };
