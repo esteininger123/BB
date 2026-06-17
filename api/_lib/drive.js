@@ -158,6 +158,23 @@ async function trashFile(fileId) {
   );
 }
 
+// Lädt den Datei-Inhalt (Bytes) herunter — für die Portal-Vorschau: das Backend
+// streamt die Datei token-autorisiert an den Kunden, ohne Drive-Login. Rückgabe: Buffer.
+async function downloadFile(fileId) {
+  const token = await getAccessToken();
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    const err = new Error(`Drive download ${res.status}: ${t}`);
+    err.status = res.status;
+    throw err;
+  }
+  return Buffer.from(await res.arrayBuffer());
+}
+
 // Liest die appProperties eines Ordners (genutzt für das Portal-Profil: welche
 // situativen Dokumente der Kunde braucht — über Tage/Geräte stabil gespeichert).
 async function getFolderAppProps(folderId) {
@@ -211,4 +228,4 @@ async function uploadFile(folderId, name, mimeType, buffer, appProperties) {
   return res.json();
 }
 
-module.exports = { getAccessToken, driveFetch, ensureFolder, folderIdFromUrl, listFiles, uploadFile, copyFile, ensureShortcut, getFolderAppProps, setFolderAppProps, getFileMeta, trashFile };
+module.exports = { getAccessToken, driveFetch, ensureFolder, folderIdFromUrl, listFiles, uploadFile, copyFile, ensureShortcut, getFolderAppProps, setFolderAppProps, getFileMeta, trashFile, downloadFile };

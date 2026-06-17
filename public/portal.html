@@ -90,7 +90,9 @@
   .cam-link{font-size:12px;color:var(--muted);text-decoration:none;border-bottom:1px dashed #cfc8ba} .cam-link:hover{color:var(--bronze-d)}
   .files{margin:11px 0 0;display:flex;flex-direction:column;gap:5px}
   .files .f{font-size:12px;color:var(--green-d);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--green-bg);padding:6px 8px 6px 10px;border-radius:8px}
-  .fn{word-break:break-word;min-width:0}
+  .fn{word-break:break-word;min-width:0;color:var(--green-d);text-decoration:none;border-bottom:1px solid rgba(35,88,56,.32);transition:border-color .15s}
+  .fn:hover{border-bottom-color:var(--green-d)}
+  .fn .pv{font-size:11px;opacity:.65;white-space:nowrap}
   .del{flex:0 0 auto;appearance:none;border:none;background:transparent;color:#9a8f7d;cursor:pointer;font-size:14px;line-height:1;padding:4px 7px;border-radius:6px;transition:.15s}
   .del:hover{background:#f0d9d4;color:#9A3E33}
 
@@ -213,7 +215,7 @@ function reqItems(){
 function card(d,person){
   const key=d.key, files=byPP[key+'|'+person]||[], isDone=files.length>0, m=META[key]||{};
   const badge=isDone?'<span class="badge done">erledigt ✓</span>':'<span class="badge open">offen</span>';
-  const fl=files.map(f=>`<div class="f"><span class="fn">✓ ${esc((f.name||'').replace(/^.*? — /,''))}</span><button class="del" onclick="delFile('${f.id}')" aria-label="Datei entfernen" title="Entfernen">✕</button></div>`).join('');
+  const fl=files.map(f=>`<div class="f"><a class="fn" href="${apiBase}?file=${encodeURIComponent(f.id)}" target="_blank" rel="noopener" title="Ansehen">✓ ${esc((f.name||'').replace(/^.*? — /,''))} <span class="pv">↗ ansehen</span></a><button class="del" onclick="delFile('${f.id}')" aria-label="Datei entfernen" title="Entfernen">✕</button></div>`).join('');
   return `<article class="doc ${isDone?'done':''}" style="--i:${CI++}">
     <div class="doc-main">
       <div class="thumb">${SVGof(key)}<div class="cap">Beispiel</div></div>
@@ -253,7 +255,7 @@ function render(){
     : 'Für dein <b>selbstgenutztes Eigenheim</b>: Darlehensvertrag, Restschuld-Nachweis und Eigentumsnachweis. Einen Mietvertrag brauchst du hier nicht.';
   const weitere=byPP['weitere|haupt']||[];
   const opts=TYPEN.map(t=>`<option value="${esc(t.key)}">${esc(t.label)}</option>`).join('');
-  const wl=weitere.map(f=>`<div class="f"><span class="fn">✓ ${esc(f.typ||(f.name||'').replace(/ — .*$/,''))} · ${esc((f.name||'').replace(/^.*? — /,''))}</span><button class="del" onclick="delFile('${f.id}')" aria-label="Datei entfernen" title="Entfernen">✕</button></div>`).join('');
+  const wl=weitere.map(f=>`<div class="f"><a class="fn" href="${apiBase}?file=${encodeURIComponent(f.id)}" target="_blank" rel="noopener" title="Ansehen">✓ ${esc(f.typ||(f.name||'').replace(/ — .*$/,''))} · ${esc((f.name||'').replace(/^.*? — /,''))} <span class="pv">↗</span></a><button class="del" onclick="delFile('${f.id}')" aria-label="Datei entfernen" title="Entfernen">✕</button></div>`).join('');
 
   $('#content').innerHTML=`
     <div class="hero">

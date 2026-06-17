@@ -13,7 +13,7 @@ const { readBody, methodNotAllowed, sendError } = require('../../_lib/http');
 const { airtable } = require('../../_lib/airtable');
 const { TABLES, FINANZIERUNGSFALL_FIELDS } = require('../../_lib/tables');
 const { verifyUploadToken } = require('../../_lib/upload-token');
-const { listFiles, uploadFile, getFolderAppProps, setFolderAppProps, getFileMeta, trashFile } = require('../../_lib/drive');
+const { listFiles, uploadFile, getFolderAppProps, setFolderAppProps, getFileMeta, trashFile, downloadFile } = require('../../_lib/drive');
 const { resolveVerkaufsunterlagenFolder } = require('../../_lib/objektunterlagen');
 
 // Dokumentenmodell. gruppe: 'person' (pro Antragsteller) · 'allgemein' (Haushalt) ·
@@ -116,6 +116,24 @@ module.exports = async (req, res) => {
 
     const centralFolderId = payload.weId ? await resolveVerkaufsunterlagenFolder(payload.weId) : '';
     const weSpezFolderId = payload.weSpezifischFolderId || '';
+
+    // — Datei-Vorschau (Kunde schaut einen eigenen Upload an) —
+    // Liefert die Datei token-autorisiert aus, ohne dass der Kunde Drive-Zugriff braucht.
+    if (req.method === 'GET' && req.query.file) {
+      const fileId = String(req.query.file);
+      const meta = await getFileMeta(fileId, 'id,name,parents,mimeType').catch(() => null);
+      if (!meta) return res.status(404).json({ error: 'Datei nicht gefunden' });
+      const parents = Array.isArray(meta.parents) ? meta.parents : [];
+      if (!parents.includes(payload.folderId)) {
+        return res.status(403).json({ error: 'Kein Zugriff auf diese Datei' });
+      }
+      const buf = await downloadFile(fileId);
+      const safe = (meta.name || 'datei').replace(/[^\w.\- ]/g, '_');
+      res.setHeader('Content-Type', meta.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `inline; filename="${safe}"`);
+      res.setHeader('Cache-Control', 'private, max-age=60');
+      return res.status(200).send(buf);
+    }
 
     if (req.method === 'GET') {
       let kundeName = '';
