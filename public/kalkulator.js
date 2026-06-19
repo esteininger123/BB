@@ -139,6 +139,54 @@ const PROFILES = {
   s42knk:  { zins: 0.048, tilgung: 0.01, knkMitfinanziert: true,  steuersatz: 0.42, saSteuersatz: 0.42, bonEinnahmen: 8000, bonAusgaben: 3000, bonVermoegen: 20000 },
 };
 
+/* ====================================================================
+   FINANZIERUNGS-KONDITIONEN (editierbar im Admin, 2026-06-19)
+   Zins+Tilgung je Kaufpreis-Band (klein <150k / gross >=150k) × KNK-Variante.
+   Defaults = heutige Werte; beide Bänder identisch → bis Henry differenziert
+   ändert sich am Rechenergebnis nichts.
+   ACHTUNG: Default-Zahlen auch in api/konditionen.js (KONDITIONEN_DEFAULTS) —
+   synchron halten.
+   ==================================================================== */
+const KONDITIONEN_DEFAULTS = Object.freeze({
+  version: 1,
+  schwelleKaufpreis: 150000,
+  baender: {
+    klein: { ohneKnk: { zins: 0.045, tilgung: 0.01 }, mitKnk: { zins: 0.048, tilgung: 0.01 } },
+    gross: { ohneKnk: { zins: 0.045, tilgung: 0.01 }, mitKnk: { zins: 0.048, tilgung: 0.01 } },
+  },
+});
+
+function _zelleMerge(partial, def) {
+  const p = partial || {};
+  const z = (typeof p.zins === 'number' && isFinite(p.zins)) ? p.zins : def.zins;
+  const t = (typeof p.tilgung === 'number' && isFinite(p.tilgung)) ? p.tilgung : def.tilgung;
+  return { zins: z, tilgung: t };
+}
+
+function mergeKonditionen(partial) {
+  const p = partial || {};
+  const pb = p.baender || {};
+  const D = KONDITIONEN_DEFAULTS;
+  const schwelle = (typeof p.schwelleKaufpreis === 'number' && isFinite(p.schwelleKaufpreis) && p.schwelleKaufpreis > 0)
+    ? p.schwelleKaufpreis : D.schwelleKaufpreis;
+  const band = (name) => {
+    const b = pb[name] || {};
+    return {
+      ohneKnk: _zelleMerge(b.ohneKnk, D.baender[name].ohneKnk),
+      mitKnk:  _zelleMerge(b.mitKnk,  D.baender[name].mitKnk),
+    };
+  };
+  return { version: 1, schwelleKaufpreis: schwelle, baender: { klein: band('klein'), gross: band('gross') } };
+}
+
+function resolveKondition(kaufpreis, knkMitfinanziert, config) {
+  const cfg = mergeKonditionen(config || (typeof window !== 'undefined' && window.Kalk && window.Kalk._konditionenActive) || null);
+  const kp = (typeof kaufpreis === 'number' && isFinite(kaufpreis)) ? kaufpreis : 0;
+  const band = kp >= cfg.schwelleKaufpreis ? cfg.baender.gross : cfg.baender.klein;
+  const zelle = knkMitfinanziert ? band.mitKnk : band.ohneKnk;
+  return { zins: zelle.zins, tilgung: zelle.tilgung };
+}
+
 /**
  * Iter-2 (21.05.2026, F-6): zentrale Default-Konstante.
  * Magic-Zahlen, die vorher an mehreren Stellen hardcoded standen, sind hier gebündelt.
@@ -1634,4 +1682,5 @@ window.Kalk = {
   PROFILES, PRESETS, BB_DEFAULTS, SPAR_ZINS_DEFAULT,
   ENGINE_VERSION,
   getDefaults, applyProfile,
+  KONDITIONEN_DEFAULTS, mergeKonditionen, resolveKondition,
 };
