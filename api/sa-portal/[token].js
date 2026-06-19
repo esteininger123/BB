@@ -28,6 +28,34 @@ function verifyPortalToken(token) {
   }
 }
 
+// Das SA-Portal nutzt seit dem Vollausbau (2026-06-19) exakt dieselben saJson-Keys
+// wie App + PDF (App-Schema). Diese Funktion migriert ALT-Daten, die noch im
+// früheren Portal-Schema vorliegen (offener Link / noch offener alter Browser-Tab),
+// verlustfrei aufs App-Schema. Läuft in GET (beim Ausliefern) UND PUT (beim Speichern).
+//   antragGemeinsam → gemeinsam · nachname → name · arbeitgeber → firma
+//   Immobilie.adresse → Immobilie.anschrift · pep-Default "nein"
+// Mutiert das übergebene Objekt (im GET wird auf einer Kopie gearbeitet).
+function normalizeToAppSchema(sa) {
+  if (!sa || typeof sa !== 'object') return sa;
+  const take = (obj, oldKey, newKey) => {
+    if (obj[oldKey] === undefined) return;
+    if (obj[newKey] === undefined || obj[newKey] === '' || obj[newKey] === null) obj[newKey] = obj[oldKey];
+    delete obj[oldKey];
+  };
+  take(sa, 'antragGemeinsam', 'gemeinsam');
+  ['antragsteller', 'mitantragsteller'].forEach(role => {
+    const p = sa[role];
+    if (!p || typeof p !== 'object') return;
+    take(p, 'nachname', 'name');
+    take(p, 'arbeitgeber', 'firma');
+    if (Array.isArray(p.immobilien)) {
+      p.immobilien.forEach(immo => { if (immo && typeof immo === 'object') take(immo, 'adresse', 'anschrift'); });
+    }
+    if (!p.pep) p.pep = 'nein'; // PEP wird im Portal nicht abgefragt → still "nein"
+  });
+  return sa;
+}
+
 module.exports = async (req, res) => {
   // Token aus URL-Param holen
   const token = (req.query && req.query.token) || '';
@@ -59,21 +87,12 @@ module.exports = async (req, res) => {
       // zurückgeben, damit das Portal-UI das im Header anzeigen kann.
       // FS-1 (24.05.2026, Pen-Tester #8): Email NICHT zurückgeben — Datenminimierung
       // bei Token-Leak (Vorname reicht für Begrüßung).
-      // FS-3l (Re-Audit P1 25.05.2026): saJson asymmetrische Schema-Migration.
-      // PUT akzeptiert beide Schemas (App-`gemeinsam`/`name` vorrangig). GET muss
-      // das Gegenstück liefern: Wenn Vertriebler im App-Schema gespeichert hat
-      // (`name`, `gemeinsam`), sieht das Portal-Frontend leere Felder, weil es
-      // `nachname` + `antragGemeinsam` liest. → für Portal beide Varianten ausgeben.
-      const _saMigrated = saJson && typeof saJson === 'object' ? JSON.parse(JSON.stringify(saJson)) : {};
-      if (_saMigrated.gemeinsam !== undefined && _saMigrated.antragGemeinsam === undefined) {
-        _saMigrated.antragGemeinsam = _saMigrated.gemeinsam;
-      }
-      ['antragsteller', 'mitantragsteller'].forEach(role => {
-        const a = _saMigrated[role];
-        if (a && typeof a === 'object' && a.name !== undefined && a.nachname === undefined) {
-          a.nachname = a.name;
-        }
-      });
+      // 2026-06-19: Portal liest jetzt App-Keys direkt. saJson auf App-Schema
+      // normalisieren (migriert evtl. vorhandene Alt-Portal-Felder verlustfrei) und
+      // auf einer Kopie arbeiten, damit der gespeicherte Record unangetastet bleibt.
+      const _saMigrated = normalizeToAppSchema(
+        saJson && typeof saJson === 'object' ? JSON.parse(JSON.stringify(saJson)) : {}
+      );
       const expiresAtIso = decoded.exp ? new Date(decoded.exp * 1000).toISOString() : null;
       return res.status(200).json({
         kundeId,
@@ -90,23 +109,11 @@ module.exports = async (req, res) => {
       if (typeof body.saJson !== 'object' && body.saJson !== null) {
         return res.status(400).json({ error: 'saJson muss ein Object sein' });
       }
-      // FS-3b + FS-3n (Re-Re-Audit P1 25.05.2026): SA-Portal schickt
-      // `antragGemeinsam` + `antragsteller.nachname`, App liest `gemeinsam` +
-      // `antragsteller.name`. Normalisierung auf App-Schema.
-      // FS-3n-Fix: `nachname` muss `name` IMMER überschreiben wenn vorhanden,
-      // nicht nur wenn `name` undefined ist — sonst Stale-Field nach Portal-Edit
-      // (GET migriert app-name→portal-nachname, PUT würde dann beide getrennt
-      // halten und die App liest weiter den alten `name`).
-      const _sa = body.saJson || {};
-      if (_sa.antragGemeinsam !== undefined) {
-        _sa.gemeinsam = _sa.antragGemeinsam;
-      }
-      ['antragsteller', 'mitantragsteller'].forEach(role => {
-        const a = _sa[role];
-        if (a && typeof a === 'object' && a.nachname !== undefined) {
-          a.name = a.nachname;
-        }
-      });
+      // 2026-06-19: Das neue Portal schickt bereits App-Keys. normalizeToAppSchema
+      // ist hier vor allem Rückwärts-Schutz: ein noch offener ALTER Browser-Tab
+      // könnte das frühere Portal-Schema (antragGemeinsam/nachname/arbeitgeber/
+      // Immo.adresse) senden — das wird verlustfrei aufs App-Schema gemappt.
+      const _sa = normalizeToAppSchema(body.saJson || {});
       // Größenbegrenzung: typische SA ~30 KB, Notbremse bei 200 KB
       const saStr = JSON.stringify(_sa);
       if (saStr.length > 200000) {

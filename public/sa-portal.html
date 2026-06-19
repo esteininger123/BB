@@ -274,6 +274,47 @@ button.btn-add:hover {
   margin-bottom: 12px;
 }
 .unit-hint { font-size: 11px; color: var(--text-tertiary); margin-left: 4px; }
+
+/* Kurzer Hilfetext unter einem Eingabefeld — erklärt erklärungsbedürftige Felder
+   knapp, ohne aufzublähen. */
+.field-help {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  line-height: 1.4;
+  margin-top: 3px;
+}
+
+/* Sub-Label innerhalb einer Immobilien-Karte (Finanzierungs-Abschnitt) */
+.immo-baufi-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-dark);
+  margin: 14px 0 8px;
+}
+
+.zusatz-gruppe { margin: 8px 0 4px; }
+
+/* Eigenkapital-Herkunft: Checkbox-Zeilen mit optionalem Zusatz-Input */
+.ek-list { display: flex; flex-direction: column; gap: 10px; }
+.ek-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 1.2fr);
+  gap: 10px;
+  align-items: center;
+}
+@media (max-width: 600px) { .ek-row { grid-template-columns: 1fr; gap: 4px; } }
+.ek-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 500;
+  cursor: pointer;
+  margin: 0;
+}
+.ek-check input { width: auto; min-height: 0; }
+.ek-extra { font-size: 13px; }
 </style>
 </head>
 <body>
@@ -345,7 +386,10 @@ async function init() {
     state.sa = data.saJson || _newSa();
     // Defensives Defaults
     if (!state.sa.antragsteller) state.sa.antragsteller = _newAntragsteller();
-    if (state.sa.antragGemeinsam === undefined) state.sa.antragGemeinsam = false;
+    else _ensureFields(state.sa.antragsteller);
+    if (state.sa.mitantragsteller) _ensureFields(state.sa.mitantragsteller);
+    if (state.sa.gemeinsam === undefined) state.sa.gemeinsam = false;
+    if (!state.sa.herkunftEk || typeof state.sa.herkunftEk !== 'object') state.sa.herkunftEk = {};
     // FS-1 (24.05.2026, Maurice #11): wenn lokales Backup existiert + ist neuer
     // (mehr Felder ausgefüllt) als der Server-Stand → User fragen.
     const backup = _loadBackup();
@@ -384,22 +428,55 @@ function _newSa() {
   return {
     antragsteller: _newAntragsteller(),
     mitantragsteller: null,
-    antragGemeinsam: false,
+    gemeinsam: false,
+    herkunftEk: {},
   };
 }
+// WICHTIG: Schlüssel EXAKT wie im internen App-Formular + PDF (public/pdf.js,
+// public/app.js saPersonHtml). So landet jeder Wert 1:1 in der Selbstauskunft-PDF.
 function _newAntragsteller() {
   return {
-    vorname: '', nachname: '',
-    geburtsdatum: '', strasse: '', plz: '', ort: '',
-    arbeitgeber: '', beruf: '', beschaeftigtSeit: '',
-    nettoMo: 0, anzahlGehaelter: 13,
-    unterhaltMo: 0, kindergeldMo: 0,
-    kinderAnzahl: 0,
-    mieteMo: 0, lebenshaltungMo: 0, pkvMo: 0, leasingMo: 0, unterhaltZahlungMo: 0,
+    // Person
+    vorname: '', name: '', geburtsname: '',
+    geburtsdatum: '', geburtsort: '', staatsangehoerigkeit: '',
+    strasse: '', plz: '', ort: '',
+    wohnhaftSeit: '', vorAnschrift: '',
+    wohnsituation: '', vermieter: '',
+    telefonPrivat: '', telefonGeschaeftlich: '', email: '',
+    steuerId: '',
+    familienstand: '', gueterstand: '',
+    kinderAnzahl: 0, kinderAlter: '', unterhaltspflichtig: 0,
+    bank: '', iban: '', bic: '',
+    // Beruf
+    beruf: '', firma: '', beschaeftigtSeit: '', befristung: '', probezeit: 'nein',
+    // Einkommen
+    bruttoMo: 0, nettoMo: 0, steuerklasse: '', anzahlGehaelter: 13,
+    kindergeldMo: 0, unterhaltMo: 0,
+    // Ausgaben (PKV/Leasing/Unterhalt-Zahlung laufen über den Baukasten 'zusatzAusgaben')
+    mieteMo: 0, lebenshaltungMo: 0,
+    // Vermögen (Depots/Sparbücher/Bauspar laufen über 'zusatzVermoegen')
     bankguthaben: 0,
-    immobilien: [], // [{ adresse, verkehrswert, anteil, baufiRestsaldo, baufiBelastungMo, mietenMo, notiz }]
+    // Listen
+    immobilien: [],
     zusatzEinnahmen: [], zusatzAusgaben: [], zusatzVermoegen: [], zusatzVerbindlichkeiten: [],
+    // GwG-Identifikation (Ausweis)
+    gwg: { ausweisArt: '', ausweisNr: '', ausweisBehoerde: '', ausweisAusgestellt: '', ausweisGueltig: '' },
+    // PEP wird im Portal NICHT abgefragt (zu erklärungsbedürftig), aber still auf "nein"
+    // gesetzt — Compliance/App braucht einen Wert (kommt praktisch nie vor).
+    pep: 'nein',
   };
+}
+// Sorgt dafür, dass ein vom Server geladener (evtl. teilbefüllter) Antragsteller
+// alle erwarteten Felder hat, ohne vorhandene Werte zu überschreiben.
+function _ensureFields(p) {
+  if (!p || typeof p !== 'object') return;
+  const def = _newAntragsteller();
+  for (const k in def) {
+    if (p[k] === undefined) p[k] = def[k];
+  }
+  if (!p.gwg || typeof p.gwg !== 'object') p.gwg = def.gwg;
+  else for (const k in def.gwg) { if (p.gwg[k] === undefined) p.gwg[k] = def.gwg[k]; }
+  if (!p.pep) p.pep = 'nein';
 }
 
 // === Rendering ===
@@ -431,7 +508,7 @@ function render() {
   if (!state.loaded) return;
   const a = state.sa.antragsteller || {};
   const m = state.sa.mitantragsteller || {};
-  const hasM = !!state.sa.antragGemeinsam;
+  const hasM = !!state.sa.gemeinsam;
   // Gültig-bis-Datum für Token-Info
   const expDateStr = state.expiresAt
     ? new Date(state.expiresAt).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })
@@ -461,6 +538,8 @@ function render() {
 
     ${hasM ? renderAntragsteller('Antragsteller 2', m, true) : ''}
 
+    ${renderHerkunftEk(state.sa.herkunftEk || {})}
+
     <div class="actions">
       <span class="save-status ${state.saved ? 'saved' : ''}" id="save-status">${state.saved ? '✓ Gespeichert' : ''}</span>
       <div style="display:flex;gap:10px;">
@@ -485,58 +564,147 @@ function render() {
   `;
 }
 
+// ---- Feld-Helper (px = 'a' | 'm') ----------------------------------------
+function _help(txt) { return txt ? `<div class="field-help">${txt}</div>` : ''; }
+function fText(px, key, label, val, help) {
+  return `<div><label>${esc(label)}</label>
+    <input type="text" value="${esc(val || '')}" oninput="window._upd('${px}','${key}',this.value)">${_help(help)}</div>`;
+}
+function fNum(px, key, label, val, step, help) {
+  return `<div><label>${esc(label)}</label>
+    <input type="number" min="0" step="${step || 'any'}" inputmode="decimal" value="${val || ''}" oninput="window._upd('${px}','${key}',parseFloat(this.value)||0)">${_help(help)}</div>`;
+}
+function fDate(px, key, label, val, help) {
+  return `<div><label>${esc(label)}</label>
+    <input type="date" value="${esc(val || '')}" oninput="window._upd('${px}','${key}',this.value)">${_help(help)}</div>`;
+}
+function fSelect(px, key, label, val, opts, help) {
+  return `<div><label>${esc(label)}</label>
+    <select oninput="window._upd('${px}','${key}',this.value)">
+      ${opts.map(o => `<option value="${esc(o.v)}" ${(val || '') === o.v ? 'selected' : ''}>${esc(o.l)}</option>`).join('')}
+    </select>${_help(help)}</div>`;
+}
+// Ausweis-Felder sind verschachtelt unter p.gwg.*
+function gNum() {} // (kein num im Ausweis)
+function gText(px, key, label, val, help) {
+  return `<div><label>${esc(label)}</label>
+    <input type="text" value="${esc(val || '')}" oninput="window._updGwg('${px}','${key}',this.value)">${_help(help)}</div>`;
+}
+function gDate(px, key, label, val, help) {
+  return `<div><label>${esc(label)}</label>
+    <input type="date" value="${esc(val || '')}" oninput="window._updGwg('${px}','${key}',this.value)">${_help(help)}</div>`;
+}
+
 function renderAntragsteller(titel, p, isMit) {
   const px = isMit ? 'm' : 'a';
+  const g = p.gwg || {};
   return `
     <div class="card">
       <div class="card-title">${esc(titel)}</div>
 
       <div class="section-sub">Persönliche Daten</div>
       <div class="grid-2">
-        <div><label>Vorname</label><input type="text" value="${esc(p.vorname || '')}" oninput="window._upd('${px}','vorname',this.value)"></div>
-        <div><label>Nachname</label><input type="text" value="${esc(p.nachname || '')}" oninput="window._upd('${px}','nachname',this.value)"></div>
-        <div><label>Geburtsdatum</label><input type="date" value="${esc(p.geburtsdatum || '')}" oninput="window._upd('${px}','geburtsdatum',this.value)"></div>
-        <div><label>Anzahl Kinder</label><input type="number" min="0" max="20" value="${p.kinderAnzahl || 0}" oninput="window._upd('${px}','kinderAnzahl',parseInt(this.value)||0)"></div>
+        ${fText(px, 'vorname', 'Vorname', p.vorname)}
+        ${fText(px, 'name', 'Nachname', p.name)}
+        ${fText(px, 'geburtsname', 'Geburtsname', p.geburtsname, 'nur falls abweichend')}
+        ${fDate(px, 'geburtsdatum', 'Geburtsdatum', p.geburtsdatum)}
+        ${fText(px, 'geburtsort', 'Geburtsort', p.geburtsort)}
+        ${fText(px, 'staatsangehoerigkeit', 'Staatsangehörigkeit', p.staatsangehoerigkeit)}
       </div>
       <div class="grid-3" style="margin-top:10px;">
-        <div><label>Straße + Nr</label><input type="text" value="${esc(p.strasse || '')}" oninput="window._upd('${px}','strasse',this.value)"></div>
-        <div><label>PLZ</label><input type="text" value="${esc(p.plz || '')}" oninput="window._upd('${px}','plz',this.value)"></div>
-        <div><label>Ort</label><input type="text" value="${esc(p.ort || '')}" oninput="window._upd('${px}','ort',this.value)"></div>
+        ${fText(px, 'strasse', 'Straße + Nr', p.strasse)}
+        ${fText(px, 'plz', 'PLZ', p.plz)}
+        ${fText(px, 'ort', 'Ort', p.ort)}
+        ${fText(px, 'wohnhaftSeit', 'Wohnhaft seit', p.wohnhaftSeit, 'Monat/Jahr, z.B. 03/2019')}
+        ${fText(px, 'vorAnschrift', 'Vorherige Anschrift', p.vorAnschrift, 'nur wenn Du noch keine 3 Jahre hier wohnst')}
+        ${fSelect(px, 'wohnsituation', 'Wohnsituation', p.wohnsituation, [
+          { v: '', l: '—' }, { v: 'miete', l: 'zur Miete' }, { v: 'eigentum', l: 'Eigentum' }, { v: 'mietfrei', l: 'mietfrei (z.B. bei Eltern)' }
+        ])}
       </div>
       <div class="grid-3" style="margin-top:10px;">
-        <div><label>Arbeitgeber</label><input type="text" value="${esc(p.arbeitgeber || '')}" oninput="window._upd('${px}','arbeitgeber',this.value)"></div>
-        <div><label>Beruf</label><input type="text" value="${esc(p.beruf || '')}" oninput="window._upd('${px}','beruf',this.value)"></div>
-        <div><label>Beschäftigt seit</label><input type="date" value="${esc(p.beschaeftigtSeit || '')}" oninput="window._upd('${px}','beschaeftigtSeit',this.value)"></div>
+        ${fText(px, 'vermieter', 'Vermieter', p.vermieter, 'nur falls zur Miete')}
+        ${fText(px, 'telefonPrivat', 'Telefon privat', p.telefonPrivat)}
+        ${fText(px, 'telefonGeschaeftlich', 'Telefon geschäftlich', p.telefonGeschaeftlich)}
+        <div><label>E-Mail</label><input type="email" value="${esc(p.email || '')}" oninput="window._upd('${px}','email',this.value)"></div>
+        ${fText(px, 'steuerId', 'Steuer-ID', p.steuerId, '11-stellig — auf der Lohnsteuerbescheinigung oder einem Brief vom Finanzamt')}
+      </div>
+      <div class="grid-3" style="margin-top:10px;">
+        ${fSelect(px, 'familienstand', 'Familienstand', p.familienstand, [
+          { v: '', l: '—' }, { v: 'ledig', l: 'ledig' }, { v: 'verheiratet', l: 'verheiratet' }, { v: 'geschieden', l: 'geschieden' }, { v: 'verwitwet', l: 'verwitwet' }
+        ])}
+        ${fSelect(px, 'gueterstand', 'Güterstand', p.gueterstand, [
+          { v: '', l: '—' }, { v: 'Zugewinngemeinschaft', l: 'Zugewinngemeinschaft' }, { v: 'Gütertrennung', l: 'Gütertrennung' }, { v: 'Gütergemeinschaft', l: 'Gütergemeinschaft' }, { v: 'Ehevertrag', l: 'sonst. Ehevertrag' }
+        ], 'nur falls verheiratet — ohne Ehevertrag ist es „Zugewinngemeinschaft"')}
+        <div></div>
+        ${fNum(px, 'kinderAnzahl', 'Anzahl Kinder', p.kinderAnzahl, '1')}
+        ${fText(px, 'kinderAlter', 'Alter der Kinder', p.kinderAlter, 'kommagetrennt, z.B. 4, 7')}
+        ${fNum(px, 'unterhaltspflichtig', 'davon unterhaltspflichtig', p.unterhaltspflichtig, '1', 'Personen, für die Du Unterhalt zahlst')}
+      </div>
+
+      <div class="section-sub">Bankverbindung</div>
+      <div class="grid-3">
+        ${fText(px, 'bank', 'Hausbank', p.bank)}
+        ${fText(px, 'iban', 'IBAN', p.iban)}
+        ${fText(px, 'bic', 'BIC', p.bic)}
+      </div>
+
+      <div class="section-sub">Beruf</div>
+      <div class="grid-3">
+        ${fText(px, 'beruf', 'Ausgeübter Beruf', p.beruf)}
+        ${fText(px, 'firma', 'Arbeitgeber', p.firma)}
+        ${fDate(px, 'beschaeftigtSeit', 'Beschäftigt seit', p.beschaeftigtSeit)}
+        ${fSelect(px, 'befristung', 'Arbeitsvertrag', p.befristung, [
+          { v: '', l: '—' }, { v: 'unbefristet', l: 'unbefristet' }, { v: 'befristet', l: 'befristet' }
+        ])}
+        ${fSelect(px, 'probezeit', 'In Probezeit?', p.probezeit, [
+          { v: 'nein', l: 'nein' }, { v: 'ja', l: 'ja' }
+        ])}
       </div>
 
       <div class="section-sub">Einkommen / Monat</div>
       <div class="grid-3">
-        <div><label>Netto-Einkommen €/Mo</label><input type="number" min="0" step="50" value="${p.nettoMo || ''}" oninput="window._upd('${px}','nettoMo',parseFloat(this.value)||0)"></div>
-        <div><label>Anzahl Gehälter / Jahr</label><input type="number" min="12" max="14" step="1" value="${p.anzahlGehaelter || 13}" oninput="window._upd('${px}','anzahlGehaelter',parseFloat(this.value)||13)"></div>
-        <div><label>Kindergeld €/Mo</label><input type="number" min="0" step="10" value="${p.kindergeldMo || ''}" oninput="window._upd('${px}','kindergeldMo',parseFloat(this.value)||0)"></div>
-        <div><label>Erhaltener Unterhalt €/Mo</label><input type="number" min="0" step="10" value="${p.unterhaltMo || ''}" oninput="window._upd('${px}','unterhaltMo',parseFloat(this.value)||0)"></div>
+        ${fNum(px, 'bruttoMo', 'Brutto-Gehalt €/Mo', p.bruttoMo, '50', 'vor Steuern & Abgaben')}
+        ${fNum(px, 'nettoMo', 'Netto-Gehalt €/Mo', p.nettoMo, '50', 'was auf dem Konto ankommt')}
+        ${fSelect(px, 'steuerklasse', 'Steuerklasse', p.steuerklasse, [
+          { v: '', l: '—' }, { v: 'I', l: 'I' }, { v: 'II', l: 'II' }, { v: 'III', l: 'III' }, { v: 'IV', l: 'IV' }, { v: 'V', l: 'V' }, { v: 'VI', l: 'VI' }
+        ])}
+        ${fNum(px, 'anzahlGehaelter', 'Gehälter / Jahr', p.anzahlGehaelter, '0.5', '12 = normal · 13 = + Weihnachtsgeld · 14 = + Urlaubs- & Weihnachtsgeld')}
+        ${fNum(px, 'kindergeldMo', 'Kindergeld €/Mo', p.kindergeldMo, '10')}
+        ${fNum(px, 'unterhaltMo', 'Erhaltener Unterhalt €/Mo', p.unterhaltMo, '10')}
       </div>
+      ${renderZusatzGruppe(p, isMit, 'zusatzEinnahmen', 'Weitere Einnahmen', '€/Mo', 'mo', 'z.B. Bonus, Rente, BU-Rente, Mieteinnahmen aus anderer Quelle')}
 
       <div class="section-sub">Ausgaben / Monat</div>
-      <div class="grid-3">
-        <div><label>Miete eigene Wohnung €/Mo</label><input type="number" min="0" step="10" value="${p.mieteMo || ''}" oninput="window._upd('${px}','mieteMo',parseFloat(this.value)||0)"></div>
-        <div><label>Lebenshaltung €/Mo<span class="unit-hint">(Essen, Hobby ...)</span></label><input type="number" min="0" step="50" value="${p.lebenshaltungMo || ''}" oninput="window._upd('${px}','lebenshaltungMo',parseFloat(this.value)||0)"></div>
-        <div><label>Private Krankenversicherung €/Mo</label><input type="number" min="0" step="10" value="${p.pkvMo || ''}" oninput="window._upd('${px}','pkvMo',parseFloat(this.value)||0)"></div>
-        <div><label>Leasing-Raten gesamt €/Mo</label><input type="number" min="0" step="10" value="${p.leasingMo || ''}" oninput="window._upd('${px}','leasingMo',parseFloat(this.value)||0)"></div>
-        <div><label>Gezahlter Unterhalt €/Mo</label><input type="number" min="0" step="10" value="${p.unterhaltZahlungMo || ''}" oninput="window._upd('${px}','unterhaltZahlungMo',parseFloat(this.value)||0)"></div>
+      <div class="grid-2">
+        ${fNum(px, 'mieteMo', 'Miete eigene Wohnung €/Mo', p.mieteMo, '10', 'inkl. Nebenkosten')}
+        ${fNum(px, 'lebenshaltungMo', 'Lebenshaltung €/Mo', p.lebenshaltungMo, '50', 'Essen, Hobby, Auto, Versicherungen ...')}
       </div>
+      ${renderZusatzGruppe(p, isMit, 'zusatzAusgaben', 'Weitere Ausgaben', '€/Mo', 'mo', 'z.B. private Krankenversicherung, Leasing-Rate, gezahlter Unterhalt, Kredit-Rate')}
 
       <div class="section-sub">Vermögen</div>
       <div class="grid-2">
-        <div><label>Bankguthaben €<span class="unit-hint">(Tagesgeld, Sparbuch)</span></label><input type="number" min="0" step="100" value="${p.bankguthaben || ''}" oninput="window._upd('${px}','bankguthaben',parseFloat(this.value)||0)"></div>
+        ${fNum(px, 'bankguthaben', 'Bankguthaben €', p.bankguthaben, '100', 'Giro, Tagesgeld')}
       </div>
+      ${renderZusatzGruppe(p, isMit, 'zusatzVermoegen', 'Weiteres Vermögen', '€', 'wert', 'z.B. Wertpapier-Depot, Sparbuch, Bausparvertrag, Lebensversicherung (Rückkaufswert)')}
+
+      <div class="section-sub">Verbindlichkeiten <span style="font-weight:400;color:var(--text-tertiary);font-size:11px;">— Kredite ohne Immobilien-Bezug</span></div>
+      ${renderZusatzGruppe(p, isMit, 'zusatzVerbindlichkeiten', 'Kredite / Schulden', '', 'mo-wert', 'z.B. Autokredit, Konsumkredit, Dispo — Rate UND Restsaldo')}
 
       <div class="section-sub">Bestehende Immobilien <span style="font-weight:400;color:var(--text-tertiary);font-size:11px;">— die Du schon besitzt</span></div>
       <div id="${px}-immo-list">${renderImmoList(p, isMit)}</div>
-      <button class="btn-add" onclick="window._addImmo('${px}')">+ Weitere Immobilie hinzufügen</button>
+      <button class="btn-add" onclick="window._addImmo('${px}')">+ Immobilie hinzufügen</button>
 
-      <div class="section-sub">Sonstige Positionen <span style="font-weight:400;color:var(--text-tertiary);font-size:11px;">— Aktien, Auto-Kredit, Bausparvertrag etc.</span></div>
-      ${renderZusatzGruppen(p, isMit)}
+      <div class="section-sub">Ausweis <span style="font-weight:400;color:var(--text-tertiary);font-size:11px;">— für die Identitätsprüfung der Bank (GwG)</span></div>
+      <div class="field-help" style="margin-bottom:10px;">Die Bank bestätigt die Identität später noch per PostIdent/VideoIdent. Hier reicht die Vorab-Angabe.</div>
+      <div class="grid-3">
+        ${fSelect(px, 'gwg.ausweisArt', 'Ausweisart', g.ausweisArt, [
+          { v: '', l: '—' }, { v: 'Personalausweis', l: 'Personalausweis' }, { v: 'Reisepass', l: 'Reisepass' }, { v: 'Sonstiges', l: 'Sonstiges' }
+        ])}
+        ${gText(px, 'ausweisNr', 'Ausweis-Nummer', g.ausweisNr)}
+        ${gText(px, 'ausweisBehoerde', 'Ausstellende Behörde', g.ausweisBehoerde)}
+        ${gDate(px, 'ausweisAusgestellt', 'Ausgestellt am', g.ausweisAusgestellt)}
+        ${gDate(px, 'ausweisGueltig', 'Gültig bis', g.ausweisGueltig)}
+      </div>
     </div>
   `;
 }
@@ -547,50 +715,90 @@ function renderImmoList(p, isMit) {
   if (arr.length === 0) {
     return '<div style="color:var(--text-tertiary);font-size:12px;font-style:italic;margin-bottom:6px;">Noch keine Immobilien — falls Du keine besitzt, ist das ok.</div>';
   }
+  // Update-Helper für Array-Felder (Text vs. Zahl)
+  const aT = (i, f) => `oninput="window._updArr('${px}','immobilien',${i},'${f}',this.value)"`;
+  const aN = (i, f) => `oninput="window._updArr('${px}','immobilien',${i},'${f}',parseFloat(this.value)||0)"`;
   return arr.map((immo, i) => `
     <div class="list-item">
       <button class="list-item-remove" onclick="window._rmImmo('${px}',${i})">Entfernen</button>
       <div class="grid-3">
-        <div><label>Adresse / Bezeichnung</label><input type="text" value="${esc(immo.adresse || '')}" oninput="window._updArr('${px}','immobilien',${i},'adresse',this.value)"></div>
-        <div><label>Verkehrswert €</label><input type="number" min="0" step="1000" value="${immo.verkehrswert || ''}" oninput="window._updArr('${px}','immobilien',${i},'verkehrswert',parseFloat(this.value)||0)"></div>
-        <div><label>Dein Anteil % <span class="unit-hint">(z.B. 50 bei hälftigem Besitz)</span></label><input type="number" min="0" max="100" step="1" value="${immo.anteil !== undefined && immo.anteil !== null ? immo.anteil : 100}" oninput="window._updArr('${px}','immobilien',${i},'anteil', this.value===''?100:(parseFloat(this.value)||0))"></div>
-        <div><label>Baufi-Restschuld €</label><input type="number" min="0" step="1000" value="${immo.baufiRestsaldo || ''}" oninput="window._updArr('${px}','immobilien',${i},'baufiRestsaldo',parseFloat(this.value)||0)"></div>
-        <div><label>Baufi-Rate €/Mo</label><input type="number" min="0" step="10" value="${immo.baufiBelastungMo || ''}" oninput="window._updArr('${px}','immobilien',${i},'baufiBelastungMo',parseFloat(this.value)||0)"></div>
-        <div><label>Mieten €/Mo <span class="unit-hint">(falls vermietet)</span></label><input type="number" min="0" step="10" value="${immo.mietenMo || ''}" oninput="window._updArr('${px}','immobilien',${i},'mietenMo',parseFloat(this.value)||0)"></div>
+        <div><label>Art</label><input type="text" value="${esc(immo.art || '')}" ${aT(i,'art')}>${_help('Wohnung, Haus, Garage, Grundstück, Gewerbe …')}</div>
+        <div><label>Anschrift</label><input type="text" value="${esc(immo.anschrift || '')}" ${aT(i,'anschrift')}></div>
+        <div><label>Wohnfläche m²</label><input type="number" min="0" step="1" value="${immo.wohnflaeche || ''}" ${aN(i,'wohnflaeche')}></div>
+        <div><label>Baujahr</label><input type="number" step="1" inputmode="numeric" value="${immo.baujahr || ''}" ${aN(i,'baujahr')}></div>
+        <div><label>Erwerbsjahr</label><input type="number" step="1" inputmode="numeric" value="${immo.erwerbsjahr || ''}" ${aN(i,'erwerbsjahr')}></div>
+        <div><label>Verkehrswert €</label><input type="number" min="0" step="1000" value="${immo.verkehrswert || ''}" ${aN(i,'verkehrswert')}>${_help('heutiger Marktwert, nicht der Kaufpreis von damals')}</div>
+        <div><label>Dein Anteil %</label><input type="number" min="0" max="100" step="1" value="${immo.anteil !== undefined && immo.anteil !== null ? immo.anteil : 100}" oninput="window._updArr('${px}','immobilien',${i},'anteil', this.value===''?100:(parseFloat(this.value)||0))">${_help('100 = Vollbesitz, 50 bei hälftigem Besitz')}</div>
+        <div><label>Mieten €/Mo</label><input type="number" min="0" step="10" value="${immo.mietenMo || ''}" ${aN(i,'mietenMo')}>${_help('falls vermietet')}</div>
       </div>
-      <div style="margin-top:8px;"><label>Notiz / Besonderheiten <span class="unit-hint">(Erbpacht, Eigentumsverhältnisse, Sanierungsstau …)</span></label><textarea rows="2" style="width:100%;" oninput="window._updArr('${px}','immobilien',${i},'notiz',this.value)">${esc(immo.notiz || '')}</textarea></div>
+      <div class="immo-baufi-label">Finanzierung dieser Immobilie <span style="font-weight:400;color:var(--text-tertiary);">— falls noch ein Darlehen läuft</span></div>
+      <div class="grid-2">
+        <div><label>Ursprüngliche Darlehenshöhe €</label><input type="number" min="0" step="1000" value="${immo.baufiUrspruenglich || ''}" ${aN(i,'baufiUrspruenglich')}>${_help('Betrag, der damals aufgenommen wurde')}</div>
+        <div><label>Restschuld heute €</label><input type="number" min="0" step="1000" value="${immo.baufiRestsaldo || ''}" ${aN(i,'baufiRestsaldo')}>${_help('was heute noch offen ist')}</div>
+        <div><label>Rate €/Mo</label><input type="number" min="0" step="10" value="${immo.baufiBelastungMo || ''}" ${aN(i,'baufiBelastungMo')}></div>
+        <div><label>Laufzeit bis</label><input type="date" value="${esc(immo.baufiLaufzeitBis || '')}" ${aT(i,'baufiLaufzeitBis')}></div>
+      </div>
+      <div style="margin-top:8px;"><label>Notiz / Besonderheiten <span class="unit-hint">(Erbpacht, Eigentumsverhältnisse, Sanierungsstau …)</span></label><textarea rows="2" style="width:100%;" ${aT(i,'notiz')}>${esc(immo.notiz || '')}</textarea></div>
     </div>
   `).join('');
 }
 
-function renderZusatzGruppen(p, isMit) {
+// Ein Baukasten-Block (Einnahmen/Ausgaben/Vermögen/Verbindlichkeiten).
+// variant: 'mo' (ein €/Mo-Betrag) · 'wert' (ein €-Betrag) · 'mo-wert' (Rate + Restsaldo).
+function renderZusatzGruppe(p, isMit, key, label, einheit, variant, hint) {
   const px = isMit ? 'm' : 'a';
-  const gruppen = [
-    { key: 'zusatzEinnahmen', label: 'Sonstige Einnahmen / Mo', betragLabel: '€/Mo', feld: 'mo' },
-    { key: 'zusatzAusgaben', label: 'Sonstige Ausgaben / Mo', betragLabel: '€/Mo', feld: 'mo' },
-    { key: 'zusatzVermoegen', label: 'Sonstiges Vermögen', betragLabel: '€', feld: 'wert' },
-    { key: 'zusatzVerbindlichkeiten', label: 'Sonstige Verbindlichkeiten', betragLabel: '€/Mo Rate + Restsaldo €', feld: 'mo' },
-  ];
-  return gruppen.map(g => {
-    const arr = Array.isArray(p[g.key]) ? p[g.key] : [];
-    const isVerb = g.key === 'zusatzVerbindlichkeiten';
-    return `
-      <div style="margin-bottom:10px;">
-        <div style="font-size:12px;color:var(--text-secondary);font-weight:600;margin-bottom:4px;">${esc(g.label)}</div>
-        ${arr.length === 0 ? '' : arr.map((x, i) => `
-          <div class="list-item">
-            <button class="list-item-remove" onclick="window._rmZ('${px}','${g.key}',${i})">Entfernen</button>
-            <div class="grid-3">
-              <div><label>Bezeichnung</label><input type="text" value="${esc(x.titel || '')}" oninput="window._updArr('${px}','${g.key}',${i},'titel',this.value)"></div>
-              <div><label>${esc(g.betragLabel.split('+')[0].trim())}</label><input type="number" min="0" step="10" value="${x[g.feld] || ''}" oninput="window._updArr('${px}','${g.key}',${i},'${g.feld}',parseFloat(this.value)||0)"></div>
-              ${isVerb ? `<div><label>Restsaldo €</label><input type="number" min="0" step="100" value="${x.wert || ''}" oninput="window._updArr('${px}','${g.key}',${i},'wert',parseFloat(this.value)||0)"></div>` : '<div></div>'}
-            </div>
-          </div>
-        `).join('')}
-        <button class="btn-add" onclick="window._addZ('${px}','${g.key}')">+ Hinzufügen</button>
+  const arr = Array.isArray(p[key]) ? p[key] : [];
+  const isDoppel = variant === 'mo-wert';
+  const betragFeld = variant === 'wert' ? 'wert' : 'mo';
+  const rows = arr.map((x, i) => `
+    <div class="list-item">
+      <button class="list-item-remove" onclick="window._rmZ('${px}','${key}',${i})">Entfernen</button>
+      <div class="grid-${isDoppel ? '3' : '2'}">
+        <div><label>Bezeichnung</label><input type="text" value="${esc(x.titel || '')}" oninput="window._updArr('${px}','${key}',${i},'titel',this.value)"></div>
+        ${isDoppel
+          ? `<div><label>Rate €/Mo</label><input type="number" min="0" step="10" inputmode="decimal" value="${x.mo || ''}" oninput="window._updArr('${px}','${key}',${i},'mo',parseFloat(this.value)||0)"></div>
+             <div><label>Restsaldo €</label><input type="number" min="0" step="100" inputmode="decimal" value="${x.wert || ''}" oninput="window._updArr('${px}','${key}',${i},'wert',parseFloat(this.value)||0)"></div>`
+          : `<div><label>Betrag ${esc(einheit)}</label><input type="number" min="0" step="10" inputmode="decimal" value="${x[betragFeld] || ''}" oninput="window._updArr('${px}','${key}',${i},'${betragFeld}',parseFloat(this.value)||0)"></div>`}
       </div>
-    `;
-  }).join('');
+    </div>`).join('');
+  return `
+    <div class="zusatz-gruppe">
+      ${hint ? `<div class="field-help" style="margin:4px 0 8px;">${hint}</div>` : ''}
+      ${rows}
+      <button class="btn-add" onclick="window._addZ('${px}','${key}')">+ ${esc(label)} hinzufügen</button>
+    </div>`;
+}
+
+// Eigenkapital-Herkunft (PDF-Seite 3, GwG-Vorabfrage) — gilt für den ganzen Antrag.
+function renderHerkunftEk(h) {
+  h = h || {};
+  const row = (key, label, extraKey, extraPlaceholder) => `
+    <div class="ek-row">
+      <label class="ek-check">
+        <input type="checkbox" ${h[key] ? 'checked' : ''} onchange="window._updEk('${key}', this.checked)">
+        <span>${esc(label)}</span>
+      </label>
+      ${extraKey ? `<input type="text" class="ek-extra" placeholder="${esc(extraPlaceholder)}" value="${esc(h[extraKey] || '')}" oninput="window._updEk('${extraKey}', this.value)">` : ''}
+    </div>`;
+  return `
+    <div class="card">
+      <div class="card-title">Eigenkapital — woher kommt es?</div>
+      <div class="intro" style="margin-bottom:14px;">
+        Die finanzierende Bank muss nach dem Geldwäschegesetz wissen, woher Dein Eigenkapital stammt. Kreuze an, was zutrifft — mehreres möglich.
+      </div>
+      <div class="ek-list">
+        ${row('ersparnisse', 'Eigene Ersparnisse')}
+        ${row('schenkung', 'Schenkung / Erbschaft', 'schenkGeber', 'Schenker / Erblasser (Name)')}
+        ${row('verkauf', 'Verkaufserlös (Immobilie, Wertpapiere)', 'verkaufObjekt', 'Was wurde verkauft + Jahr')}
+        ${row('bauspar', 'Bausparvertrag (zuteilungsreif)', 'bauspKasse', 'Bausparkasse')}
+        ${row('lv', 'Lebens-/Rentenversicherung', 'lvAnbieter', 'Versicherer')}
+        ${row('sonstiges', 'Sonstige Quelle', 'sonstQuelle', 'z.B. Arbeitgeber-Darlehen, Eigenleistung')}
+      </div>
+      <div style="margin-top:12px;">
+        <label>Anmerkung (optional)</label>
+        <input type="text" placeholder="z.B. „Notarvertrag liegt vor"" value="${esc(h.erlaeuterung || '')}" oninput="window._updEk('erlaeuterung', this.value)">
+      </div>
+    </div>`;
 }
 
 // === Handler ===
@@ -605,7 +813,27 @@ function _person(px) {
 
 window._upd = function(px, key, val) {
   const p = _person(px); if (!p) return;
-  p[key] = val;
+  // Dotted keys (z.B. 'gwg.ausweisArt') in verschachteltes Objekt schreiben.
+  if (key.indexOf('.') !== -1) {
+    const [parent, child] = key.split('.');
+    if (!p[parent] || typeof p[parent] !== 'object') p[parent] = {};
+    p[parent][child] = val;
+  } else {
+    p[key] = val;
+  }
+  _markUnsaved();
+};
+// Ausweis-Felder (verschachtelt unter p.gwg)
+window._updGwg = function(px, key, val) {
+  const p = _person(px); if (!p) return;
+  if (!p.gwg || typeof p.gwg !== 'object') p.gwg = {};
+  p.gwg[key] = val;
+  _markUnsaved();
+};
+// Eigenkapital-Herkunft (sa-weit, nicht pro Person)
+window._updEk = function(key, val) {
+  if (!state.sa.herkunftEk || typeof state.sa.herkunftEk !== 'object') state.sa.herkunftEk = {};
+  state.sa.herkunftEk[key] = val;
   _markUnsaved();
 };
 window._updArr = function(px, listKey, idx, field, val) {
@@ -618,7 +846,7 @@ window._updArr = function(px, listKey, idx, field, val) {
 window._addImmo = function(px) {
   const p = _person(px); if (!p) return;
   if (!Array.isArray(p.immobilien)) p.immobilien = [];
-  p.immobilien.push({ adresse: '', verkehrswert: 0, anteil: 100, baufiRestsaldo: 0, baufiBelastungMo: 0, mietenMo: 0, notiz: '' });
+  p.immobilien.push({ art: '', anschrift: '', baujahr: null, erwerbsjahr: null, wohnflaeche: null, verkehrswert: 0, anteil: 100, mietenMo: 0, baufiUrspruenglich: 0, baufiLaufzeitBis: '', baufiBelastungMo: 0, baufiRestsaldo: 0, notiz: '' });
   render();
 };
 window._rmImmo = function(px, idx) {
@@ -629,7 +857,7 @@ window._rmImmo = function(px, idx) {
 window._addZ = function(px, key) {
   const p = _person(px); if (!p) return;
   if (!Array.isArray(p[key])) p[key] = [];
-  p[key].push({ titel: '', mo: 0, wert: 0 });
+  p[key].push({ titel: '', notiz: '', mo: null, wert: null });
   render();
 };
 window._rmZ = function(px, key, idx) {
@@ -638,7 +866,7 @@ window._rmZ = function(px, key, idx) {
   render();
 };
 window._toggleMit = function(on) {
-  state.sa.antragGemeinsam = !!on;
+  state.sa.gemeinsam = !!on;
   if (on && !state.sa.mitantragsteller) state.sa.mitantragsteller = _newAntragsteller();
   render();
 };
