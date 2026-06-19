@@ -50,6 +50,12 @@
     - qm-Preis: `fldGClYivJ0IdvAyG` (berechnet)
     - WE-Nr: `fldGia0unyS8cBaE5`
     - Projekt-Link: `fld1cp8nYcq6wXZx6` (Link auf Projekt)
+- **Tabelle App-Konfiguration:** `tbl044p3Vg6zsFAqy` (Key/Value-Store, 1 Record je Key — 2026-06-19)
+  - Felder:
+    - Key: `fldJWAcW1pYcjds16` (singleLineText, Primary — z.B. `konditionen`)
+    - JSON: `fldZQ2hCOQOpqGerL` (multilineText — Config-Blob)
+    - Aktualisiert: `fldlZgqDjhUmxAnMr` (multilineText — ISO-Zeitstempel + Editor-Email)
+  - Aktueller Key `konditionen`: Finanzierungs-Konditionen (Zins/Tilgung je Kaufpreis-Band × KNK). Leer/kaputt → Code-Defaults aus `kalkulator.js` (`KONDITIONEN_DEFAULTS`).
 
 ## Initial-Vertriebler (bereits angelegt)
 
@@ -88,6 +94,18 @@
 ### `GET /api/me`
 - Liest Session-Cookie
 - Returns: Vertriebler-Profile
+
+### `GET /api/konditionen`
+- Auth: jeder eingeloggte User (der Kalkulator braucht die Werte)
+- Returns: Finanzierungs-Konditionen `{version, schwelleKaufpreis, baender:{klein,gross}:{ohneKnk,mitKnk}:{zins,tilgung}, _aktualisiert}`
+- Resilienz: kein Record / Parse-Fehler / Airtable-Timeout → Code-Defaults mit `200` (Rechner blockiert nie)
+
+### `PUT /api/konditionen`
+- Auth: **nur Admin** (`requireAdminVerified`, sonst 403)
+- Body: gleiche Struktur wie GET (ohne `_aktualisiert`)
+- Validierung: `schwelleKaufpreis > 0`; jede `zins ∈ [0, 0.20]`; jede `tilgung ∈ [0, 0.10]`; Struktur vollständig → sonst `400`
+- Upsert in Airtable App-Konfig (Key `konditionen`), setzt `Aktualisiert` (ISO + Editor-Email)
+- Returns: gespeicherte, normalisierte Konditionen
 
 ### `GET /api/kunden`
 - Vertriebler: nur eigene (Owner = self)
