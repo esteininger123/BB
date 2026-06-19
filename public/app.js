@@ -8057,37 +8057,43 @@ async function renderAdmin() {
       ${(() => {
         const c = state.konditionen || (window.Kalk && window.Kalk.mergeKonditionen(null)) || {};
         const b = c.baender || {};
+        // Auf/Zu-Zustand merken (Default: eingeklappt). Reiner UI-State, kein Session-Datum.
+        let kondOpen = false;
+        try { kondOpen = localStorage.getItem('bbk_admin_konditionen_open') === '1'; } catch (e) {}
         const pct = (x) => (typeof x === 'number' ? (x * 100).toString().replace('.', ',') : '');
+        const inpStyle = 'width:54px;padding:4px 6px;font-size:13px';
         const cell = (band, variant) => {
           const z = (b[band] && b[band][variant]) || {};
           return `
-            <td><input type="number" step="0.01" min="0" max="20" id="kond-${band}-${variant}-zins" value="${pct(z.zins)}" style="width:78px"> %</td>
-            <td><input type="number" step="0.01" min="0" max="10" id="kond-${band}-${variant}-tilg" value="${pct(z.tilgung)}" style="width:78px"> %</td>`;
+            <td><input type="number" step="0.01" min="0" max="20" id="kond-${band}-${variant}-zins" value="${pct(z.zins)}" style="${inpStyle}"> %</td>
+            <td><input type="number" step="0.01" min="0" max="10" id="kond-${band}-${variant}-tilg" value="${pct(z.tilgung)}" style="${inpStyle}"> %</td>`;
         };
         return `
-        <div class="card">
-          <div class="card-title">Finanzierungs-Konditionen
+        <details class="card" ${kondOpen ? 'open' : ''} ontoggle="try{localStorage.setItem('bbk_admin_konditionen_open', this.open?'1':'0')}catch(e){}">
+          <summary style="cursor:pointer;font-weight:600;font-size:15px;">Finanzierungs-Konditionen
             <span class="text-tertiary text-small" style="font-weight:normal;">— Zins &amp; Tilgung je Preisklasse, von Henry pflegbar</span>
+          </summary>
+          <div style="margin-top:14px;">
+            <p class="text-tertiary text-small">Die Schwelle bestimmt, ab welchem Kaufpreis das „groß"-Band gilt (Kaufpreis ≥ Schwelle = groß). Werte gelten sofort für alle Vertriebler.</p>
+            <div style="margin:8px 0 14px;">
+              <label class="text-small">Schwelle Kaufpreis:
+                <input type="number" step="1000" min="1" id="kond-schwelle" value="${(c.schwelleKaufpreis||150000)}" style="width:92px;padding:4px 6px;font-size:13px"> €
+              </label>
+            </div>
+            <table class="table" style="font-size:13px;width:auto;">
+              <thead><tr><th></th><th>Zins<br>ohne KNK</th><th>Tilg.<br>ohne KNK</th><th>Zins<br>mit KNK</th><th>Tilg.<br>mit KNK</th></tr></thead>
+              <tbody>
+                <tr><td><strong>&lt; Schwelle (klein)</strong></td>${cell('klein','ohneKnk')}${cell('klein','mitKnk')}</tr>
+                <tr><td><strong>&ge; Schwelle (groß)</strong></td>${cell('gross','ohneKnk')}${cell('gross','mitKnk')}</tr>
+              </tbody>
+            </table>
+            <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+              <button class="primary" onclick="saveKonditionen()">Konditionen speichern</button>
+              <span class="text-tertiary text-small">${c._aktualisiert ? 'Zuletzt: ' + esc(c._aktualisiert) : ''}</span>
+            </div>
+            <p id="kond-msg" class="text-small" style="margin-top:8px;"></p>
           </div>
-          <p class="text-tertiary text-small">Die Schwelle bestimmt, ab welchem Kaufpreis das „groß"-Band gilt (Kaufpreis ≥ Schwelle = groß). Werte gelten sofort für alle Vertriebler.</p>
-          <div style="margin:8px 0 16px;">
-            <label>Schwelle Kaufpreis:
-              <input type="number" step="1000" min="1" id="kond-schwelle" value="${(c.schwelleKaufpreis||150000)}" style="width:120px"> €
-            </label>
-          </div>
-          <table class="table">
-            <thead><tr><th></th><th>Zins ohne KNK</th><th>Tilgung ohne KNK</th><th>Zins mit KNK</th><th>Tilgung mit KNK</th></tr></thead>
-            <tbody>
-              <tr><td><strong>&lt; Schwelle (klein)</strong></td>${cell('klein','ohneKnk')}${cell('klein','mitKnk')}</tr>
-              <tr><td><strong>&ge; Schwelle (groß)</strong></td>${cell('gross','ohneKnk')}${cell('gross','mitKnk')}</tr>
-            </tbody>
-          </table>
-          <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-            <button class="primary" onclick="saveKonditionen()">Konditionen speichern</button>
-            <span class="text-tertiary text-small">${c._aktualisiert ? 'Zuletzt: ' + esc(c._aktualisiert) : ''}</span>
-          </div>
-          <p id="kond-msg" class="text-small" style="margin-top:8px;"></p>
-        </div>`;
+        </details>`;
       })()}
 
       ${renderAdminStammdatenAudit(state.adminStammAudit || [])}
