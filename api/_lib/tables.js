@@ -23,6 +23,8 @@ const TABLES = {
   KALK_STAMMDATEN: 'tblz5KNtzkLSLHHFo',
   // Endkunden-Finanzierungsfall (Finanzierungs-Handover, 2026-06-15).
   FINANZIERUNGSFALL: 'tblM4e4tDae2o9mQz',
+  // App-weite Konfiguration (1 Record je Key). 2026-06-19: Finanzierungs-Konditionen.
+  APP_KONFIG: 'tbl044p3Vg6zsFAqy',
 };
 
 // Felder der Objekt-Tabelle, die wir lesen
@@ -148,6 +150,14 @@ const FINANZIERUNGSFALL_FIELDS = {
 };
 
 const FINANZIERUNGSFALL_STATUS_START = 'Unterlagen noch anfordern';
+
+// App-Konfiguration (Key/Value-Store, 1 Record pro Key). 2026-06-19.
+const APP_KONFIG_FIELDS = {
+  KEY:          'fldJWAcW1pYcjds16', // singleLineText (Primary) — Config-Schlüssel
+  JSON:         'fldZQ2hCOQOpqGerL', // multilineText — Config-Blob als JSON-String
+  AKTUALISIERT: 'fldlZgqDjhUmxAnMr', // multilineText — ISO + Editor-Email (Audit)
+};
+const APP_KONFIG_KEY_KONDITIONEN = 'konditionen';
 
 const WE_FIELDS = {
   LAGE_BEZ:    'fldhlG1CH22gG3Ta6',
@@ -309,4 +319,6 @@ module.exports = {
   KALK_STATUS_ARCHIV,
   FINANZIERUNGSFALL_FIELDS,
   FINANZIERUNGSFALL_STATUS_START,
+  APP_KONFIG_FIELDS,
+  APP_KONFIG_KEY_KONDITIONEN,
 };
