@@ -9,6 +9,7 @@ Multi-User-Web-App für den Vertrieb von Kapitalanlagen-Wohneinheiten bei B&B Im
 - **Kalkulator** mit Live-Daten aus Airtable (Wohneinheiten in Vermarktung)
 - **PDF-Export** mit Vertriebler-Branding: Investitionsrechnung, Reservierungsformular, Selbstauskunft (Bank)
 - **Admin-Panel** für Edgar + Henry: alle Kunden + Vertriebler + Statistik
+- **Finanzierungs-Konditionen** im Admin pflegbar: Zins + Tilgung je Kaufpreis-Band (< / ≥ 150.000 €) × KNK-Variante; gilt sofort für alle Vertriebler (Default = bisherige Werte)
 
 ## Tech-Stack
 
