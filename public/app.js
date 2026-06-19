@@ -3035,13 +3035,12 @@ function bindKalkInputs() {
         state.kalk.subventionPhasen = [];
         state.kalk._subventionQuelle = 'manuell-slider';
       }
-      // Iter 60 (20.05.2026): KNK-Toggle schaltet den Default-Zins um.
-      //   - KNK NICHT mitfinanziert → 4,5 % Zins
-      //   - KNK mitfinanziert       → 4,8 % Zins
-      //   Tilgung bleibt unverändert (1 % Default aus Profil). User kann den
-      //   Wert danach manuell überschreiben.
+      // KNK-Toggle zieht Zins+Tilgung als Zelle aus der Konditionen-Matrix
+      // (band-aware nach Kaufpreis). Default-Matrix = 4,5 % ohne / 4,8 % mit KNK.
+      // Manueller Zins-Slider überschreibt danach bis zum nächsten Trigger.
       if (k === 'knkMitfinanziert') {
-        state.kalk.zins = (v === true) ? 0.048 : 0.045;
+        state.kalk.knkMitfinanziert = v;
+        syncKonditionen();
         renderTabKalkulator();
         return;
       }
@@ -3062,12 +3061,25 @@ function bindKalkInputs() {
   });
 }
 
+// Setzt Zins+Tilgung zentral aus der Konditionen-Matrix (Kaufpreis-Band × KNK).
+// Aufgerufen bei: WE laden, Profil anwenden, KNK-Toggle. Manueller Zins-Slider
+// überschreibt danach bis zum nächsten dieser Trigger (wie bisher).
+function syncKonditionen() {
+  if (!window.Kalk || !window.Kalk.resolveKondition) return;
+  const k = window.Kalk.resolveKondition(state.kalk.kaufpreis, state.kalk.knkMitfinanziert, state.konditionen);
+  state.kalk.zins = k.zins;
+  state.kalk.tilgung = k.tilgung;
+}
+window.syncKonditionen = syncKonditionen;
+
 function applyProfil(name) {
   const P = window.Kalk.PROFILES[name];
   if (!P) return;
   Object.assign(state.kalk, JSON.parse(JSON.stringify(P)));
   // Profil-Tag merken (für Snapshot-Bezeichnung + UI-Anzeige nach Reload)
   state.kalk._profil = name;
+  // Zins+Tilgung kommen aus der Konditionen-Matrix, nicht aus dem Profil.
+  syncKonditionen();
   renderTabKalkulator();
 }
 window.applyProfil = applyProfil;
@@ -3406,6 +3418,8 @@ async function loadWeIntoKalk(weId) {
   // QA-Sprint 2026-05-23 (Audit-K B-K1): nicht rendern, wenn der User schon
   // eine andere WE gewählt hat — sonst Re-Render mit obsoleten Daten.
   if (myToken !== _loadWeToken) return;
+  // Zins+Tilgung band-aware aus der Konditionen-Matrix für den Kaufpreis dieser WE.
+  syncKonditionen();
   renderTabKalkulator();
   // FS-1 (24.05.2026, Vertriebler B1): nach WE-Wechsel scrollTo top, damit
   // im Screen-Share-Termin der Käufer den Header der neuen WE sieht statt
@@ -8509,6 +8523,12 @@ function _renderWeListeContent() {
         // Bruchsal-3-Jahre-Bug. Spiegelt loadWeIntoKalk-Logic (Z.1899).
         monateSeitMieterhoehung: monateSeit != null ? monateSeit : (modus === 'sprung' ? 36 : 0),
       });
+      // Zins+Tilgung aus der Konditionen-Matrix (nicht aus dem Profil), band-genau nach KP dieser WE.
+      if (window.Kalk && window.Kalk.resolveKondition) {
+        const kc = window.Kalk.resolveKondition(inputs.kaufpreis, profile && profile.knkMitfinanziert, state.konditionen);
+        inputs.zins = kc.zins;
+        inputs.tilgung = kc.tilgung;
+      }
       const r = window.Kalk.recalc(inputs);
       // QA-Fix 2026-05-23 (Audit E-1): null bei kaufpreis=0 sauber handhaben.
       if (r == null) return { incomplete: true, reason: 'Kaufpreis nicht gepflegt' };
@@ -8711,8 +8731,16 @@ function _renderWeListeContent() {
   // crash bei zins=undefined.toFixed. Plus (Audit-P-4): Schreibweise „KP + KNK
   // finanziert" mit Spaces, einheitlich zum Dropdown.
   const profilObj = (window.Kalk && window.Kalk.PROFILES && window.Kalk.PROFILES[_weListeProfil]) || null;
+  // Zins kommt aus der Konditionen-Matrix (preisabhängig). Bei Band-Unterschied als Spanne klein/groß.
+  const _kondZinsBand = (gross) => (window.Kalk && window.Kalk.resolveKondition)
+    ? window.Kalk.resolveKondition(gross ? 1e9 : 1, profilObj && profilObj.knkMitfinanziert, state.konditionen).zins
+    : (profilObj ? (profilObj.zins || 0) : 0);
+  const _zK = _kondZinsBand(false), _zG = _kondZinsBand(true);
+  const _zinsLabel = (_zK === _zG)
+    ? `${(_zG * 100).toFixed(1).replace('.', ',')} % Zins`
+    : `${(_zK * 100).toFixed(1).replace('.', ',')}/${(_zG * 100).toFixed(1).replace('.', ',')} % Zins (klein/groß)`;
   const profilLabel = profilObj
-    ? `${Math.round((profilObj.steuersatz || 0) * 100)} % StSatz · ${((profilObj.zins || 0) * 100).toFixed(1).replace('.', ',')} % Zins · ${Math.round((profilObj.tilgung || 0) * 100)} % Tilg. · ${profilObj.knkMitfinanziert ? 'KP + KNK finanziert' : 'KP ohne KNK'}`
+    ? `${Math.round((profilObj.steuersatz || 0) * 100)} % StSatz · ${_zinsLabel} · ${Math.round((profilObj.tilgung || 0) * 100)} % Tilg. · ${profilObj.knkMitfinanziert ? 'KP + KNK finanziert' : 'KP ohne KNK'}`
     : '(unbekannt)';
   // QA-Fix 2026-05-23 (Audit-P-3): bei KNK-finanziert greift ekBedarf=0 → IRR
   // ist mathematisch undefined (kein Initial-Investment für die Rendite-Rechnung).
@@ -8874,6 +8902,12 @@ function _renderWeVergleichModal() {
           : (verm.letzteMietsteigerung || null),
         monateSeitMieterhoehung: monateSeit != null ? monateSeit : (modus === 'sprung' ? 36 : 0),
       });
+      // Zins+Tilgung aus der Konditionen-Matrix (nicht aus dem Profil), band-genau nach KP dieser WE.
+      if (window.Kalk && window.Kalk.resolveKondition) {
+        const kc = window.Kalk.resolveKondition(inputs.kaufpreis, profile && profile.knkMitfinanziert, state.konditionen);
+        inputs.zins = kc.zins;
+        inputs.tilgung = kc.tilgung;
+      }
       calcByWeId[row.we.id] = window.Kalk.recalc(inputs);
     } catch (e) {
       calcByWeId[row.we.id] = null;
