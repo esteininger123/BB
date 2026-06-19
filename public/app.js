@@ -46,6 +46,7 @@ const state = {
   kalk: null,                // aktiver Kalkulator-State (Inputs)
   adminStats: null,
   googleClientId: null,
+  konditionen: null,         // Finanzierungs-Konditionen (aus /api/konditionen, Fallback Code-Defaults)
   loadingData: false,
   lastError: null,
 };
@@ -9095,10 +9096,23 @@ function render() {
 
 /* ============================== BOOT ============================== */
 
+// Finanzierungs-Konditionen laden — Fallback auf Code-Defaults, blockiert nie.
+async function loadKonditionen() {
+  try {
+    const cfg = await api.get('/api/konditionen');
+    state.konditionen = window.Kalk.mergeKonditionen(cfg);
+  } catch (e) {
+    state.konditionen = window.Kalk.mergeKonditionen(null); // = Defaults
+  }
+  window.Kalk._konditionenActive = state.konditionen;
+}
+window.loadKonditionen = loadKonditionen;
+
 window.addEventListener('hashchange', () => { route(); render(); });
 window.addEventListener('load', async () => {
   try {
     state.user = await api.get('/api/me');
+    await loadKonditionen();
     await loadInitialData();
   } catch (e) {
     state.user = null;
