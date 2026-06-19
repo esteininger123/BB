@@ -7881,6 +7881,69 @@ window.loadSnapshot = loadSnapshot;
 // ===== MODUL: views/admin (renderAdmin + renderAdminStammdatenAudit) =====
 /* ============================== ADMIN ============================== */
 
+// Cockpit-Logik (2026-06-19): Admin ist Überblick, kein Daten-Dump. Die Kunden-Tabelle
+// ist seit dem Merge (16.06.) die fusionierte Ex-Käufer-Tabelle — ohne Filter kippen
+// hunderte Bestandskäufer in die Ansicht. Darum: Default nur aktive Pipeline, Rest auf Abruf.
+const ADMIN_AKTIV_PHASEN = ['Lead', 'Reservierung', 'Bank-Einreichung', 'Notar-Termin'];
+const ADMIN_FEST_PHASEN  = ['Reservierung', 'Bank-Einreichung', 'Notar-Termin'];
+const ADMIN_FEST_TAGE    = 14;
+
+function adminTageSeit(dateStr) {
+  if (!dateStr) return null;
+  const t = new Date(dateStr).getTime();
+  if (!isFinite(t)) return null;
+  return Math.floor((Date.now() - t) / 86400000);
+}
+
+function adminKundenRow(k) {
+  return `
+    <tr onclick="go('/kunde/${esc(k.id)}')" style="cursor:pointer;">
+      <td><strong>${esc(kundeDisplayName(k))}</strong></td>
+      <td class="text-tertiary">${esc(k.email || '—')}</td>
+      <td class="text-tertiary">${esc(k.ownerName || '—')}</td>
+      <td><span class="badge ${phaseBadgeClass(k.phase)}">${esc(k.phase || '—')}</span></td>
+      <td class="text-tertiary">${esc(fmtDate(k.lastActivity))}</td>
+    </tr>`;
+}
+
+function adminKundenTable(list, emptyMsg) {
+  if (!list.length) return `<div class="empty-state">${esc(emptyMsg)}</div>`;
+  return `
+    <table class="table">
+      <thead><tr><th>Name</th><th>E-Mail</th><th>Owner</th><th>Phase</th><th>Letzte Aktivität</th></tr></thead>
+      <tbody>${list.map(adminKundenRow).join('')}</tbody>
+    </table>`;
+}
+
+// Suche über ALLE Kunden (auch Bestandskäufer + Archivierte). Leeres Feld → nur aktive Pipeline.
+// Filtert client-seitig über die schon geladene Liste (state.adminStats.alleKunden) — kein Extra-Call.
+function adminFilterKunden(q) {
+  const cont = document.getElementById('admin-kunden-list');
+  if (!cont) return;
+  const all = (state.adminStats && state.adminStats.alleKunden) || [];
+  const query = (q || '').trim().toLowerCase();
+  let list, emptyMsg;
+  if (!query) {
+    list = all.filter(k => !k.archiviert && ADMIN_AKTIV_PHASEN.includes(k.phase));
+    emptyMsg = 'Keine aktiven Pipeline-Kunden.';
+  } else {
+    list = all.filter(k => {
+      const hay = (kundeDisplayName(k) + ' ' + (k.email || '') + ' ' + (k.ownerName || '')).toLowerCase();
+      return hay.includes(query);
+    });
+    emptyMsg = 'Kein Treffer für „' + q + '".';
+  }
+  const CAP = 100;
+  let note = '';
+  let shown = list;
+  if (list.length > CAP) {
+    shown = list.slice(0, CAP);
+    note = `<p class="text-tertiary text-small" style="margin-top:8px;">${list.length} Treffer — zeige die ersten ${CAP}. Suche verfeinern.</p>`;
+  }
+  cont.innerHTML = adminKundenTable(shown, emptyMsg) + note;
+}
+window.adminFilterKunden = adminFilterKunden;
+
 async function renderAdmin() {
   const app = document.getElementById('app');
   app.innerHTML = `<div class="main"><h1 class="page-title">Admin</h1><div class="empty-state">Lade…</div></div>`;
@@ -7902,8 +7965,7 @@ async function renderAdmin() {
   const s = state.adminStats || {};
   const wes = state.adminWohneinheiten || [];
 
-  // Wohneinheiten nach Projekt gruppieren — getrennt nach Aktiv-Status (Iter 53)
-  const wesAktiv = wes.filter(w => w.inStammdatenAktiv);
+  // Nur potenziell aktivierbare WEs werden noch gebraucht (auf Abruf). Rest läuft über den Audit-Block.
   const wesPotenziell = wes.filter(w => !w.inStammdatenAktiv);
   function groupByProjekt(list) {
     const map = {};
@@ -7914,127 +7976,146 @@ async function renderAdmin() {
     });
     return map;
   }
-  const wesAktivByProjekt = groupByProjekt(wesAktiv);
   const wesPotenziellByProjekt = groupByProjekt(wesPotenziell);
-  const wesByProjekt = groupByProjekt(wes); // kombiniert für Stammdaten-Audit
-  const projektKeys = Object.keys(wesByProjekt).sort();
-
-  // Summen pro Projekt (für Header-Info)
-  function projektSumme(arr) {
-    let kp = 0, qm = 0, miete = 0;
-    arr.forEach(w => { kp += w.kp || 0; qm += w.qm || 0; miete += w.kaltmiete || 0; });
-    return { kp, qm, miete, count: arr.length };
-  }
   // Helfer für €/Zahl-Anzeige
   const eur = (v) => (v === null || v === undefined || !isFinite(v)) ? '–' : Math.round(v).toLocaleString('de-DE') + ' €';
   const num = (v, d) => (v === null || v === undefined || !isFinite(v)) ? '–' : v.toLocaleString('de-DE', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
 
+  // --- Cockpit-Kennzahlen client-seitig aus alleKunden (Phase/Owner/lastActivity sind im Basic-Record) ---
+  const alleKunden     = s.alleKunden || [];
+  const aktivePipeline = alleKunden.filter(k => !k.archiviert && ADMIN_AKTIV_PHASEN.includes(k.phase));
+  const bestandskaeufer = alleKunden.filter(k => k.phase === 'Bestandskäufer');
+  const reservierungen = aktivePipeline.filter(k => k.phase === 'Reservierung').length;
+  const notarTermine   = aktivePipeline.filter(k => k.phase === 'Notar-Termin').length;
+  const vertrieblerCount = (s.vertriebler || []).length;
+
+  // Festhängende Deals: aktive Pipeline (Reservierung/Bank/Notar) ohne Aktivität seit >14 Tagen.
+  // lastActivity == null → nicht gewertet (Altbestand-Merge hat oft keinen Zeitstempel → kein Fehlalarm).
+  const festhaengend = alleKunden
+    .filter(k => !k.archiviert && ADMIN_FEST_PHASEN.includes(k.phase))
+    .map(k => ({ k, tage: adminTageSeit(k.lastActivity) }))
+    .filter(x => x.tage !== null && x.tage > ADMIN_FEST_TAGE)
+    .sort((a, b) => b.tage - a.tage);
+
+  // Vertriebler-Pipeline client-seitig neu rechnen (Backend-Zahlen zählen Bestandskäufer mit → für ein
+  // Cockpit irreführend). Hier: aktive Pipeline pro Person, Beurkundet = Bestandskäufer der Person.
+  const vListe = (s.vertriebler || []).map(v => {
+    const meine = aktivePipeline.filter(k => k.ownerId === v.id);
+    return {
+      name: v.name, rolle: v.rolle,
+      aktiv:      meine.length,
+      reserviert: meine.filter(k => k.phase === 'Reservierung').length,
+      notar:      meine.filter(k => k.phase === 'Notar-Termin').length,
+      beurkundet: bestandskaeufer.filter(k => k.ownerId === v.id).length,
+    };
+  });
+
   app.innerHTML = `
     <div class="main">
       <h1 class="page-title">Admin</h1>
-      <p class="page-subtitle">Statistik, Kunden &amp; WE-Stammdaten</p>
+      <p class="page-subtitle">Cockpit — aktive Pipeline, Vertriebs-Leistung &amp; Stammdaten auf Abruf</p>
 
-      ${(() => {
-        const aktivWes = wes.filter(w => w.inStammdatenAktiv);
-        const potenzielleWes = wes.filter(w => !w.inStammdatenAktiv);
-        return `
-          <div class="kpi-grid">
-            <div class="kpi"><div class="label">Gesamt Kunden</div><div class="value">${s.totalKunden || 0}</div></div>
-            <div class="kpi"><div class="label">Vertriebler</div><div class="value">${(s.vertriebler || []).length}</div></div>
-            <div class="kpi positive"><div class="label">Käufer</div><div class="value">${(s.byPhase && s.byPhase['Bestandskäufer']) || 0}</div></div>
-            <div class="kpi"><div class="label">Aktive WEs im Vertrieb</div><div class="value">${aktivWes.length}<span style="font-size:12px;color:#7A7A72;font-weight:normal;"> &nbsp;+ ${potenzielleWes.length} potenziell</span></div></div>
-          </div>`;
-      })()}
+      <div class="kpi-grid">
+        <div class="kpi"><div class="label">Aktive Pipeline</div><div class="value">${aktivePipeline.length}</div></div>
+        <div class="kpi"><div class="label">Reservierungen</div><div class="value">${reservierungen}</div></div>
+        <div class="kpi"><div class="label">Notar-Termin</div><div class="value">${notarTermine}</div></div>
+        <div class="kpi positive"><div class="label">Bestandskäufer</div><div class="value">${bestandskaeufer.length}</div></div>
+        <div class="kpi"><div class="label">Vertriebler</div><div class="value">${vertrieblerCount}</div></div>
+      </div>
 
-      <div class="card">
-        <div class="card-title">Vertriebler <span class="text-tertiary text-small" style="font-weight:normal;">(Pipeline pro Person)</span></div>
+      ${festhaengend.length > 0 ? `
+        <details class="card mt-16" style="border-left:3px solid var(--negative, #c0392b);" open>
+          <summary style="cursor:pointer;font-weight:600;color:var(--negative, #c0392b);">
+            ⚠ ${festhaengend.length} festhängende${festhaengend.length === 1 ? 'r' : ''} Deal${festhaengend.length === 1 ? '' : 's'}
+            <span class="text-tertiary text-small" style="font-weight:normal;">— Reservierung/Bank/Notar, seit &gt;${ADMIN_FEST_TAGE} Tagen ohne Aktivität</span>
+          </summary>
+          <div style="margin-top:12px;overflow-x:auto;">
+            <table class="table">
+              <thead><tr><th>Name</th><th>Owner</th><th>Phase</th><th class="num">Tage still</th><th>Letzte Aktivität</th></tr></thead>
+              <tbody>
+                ${festhaengend.map(({ k, tage }) => `
+                  <tr onclick="go('/kunde/${esc(k.id)}')" style="cursor:pointer;">
+                    <td><strong>${esc(kundeDisplayName(k))}</strong></td>
+                    <td class="text-tertiary">${esc(k.ownerName || '—')}</td>
+                    <td><span class="badge ${phaseBadgeClass(k.phase)}">${esc(k.phase)}</span></td>
+                    <td class="num" style="color:var(--negative, #c0392b);font-weight:600;">${tage}</td>
+                    <td class="text-tertiary">${esc(fmtDate(k.lastActivity))}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      ` : ''}
+
+      <div class="card mt-16">
+        <div class="card-title">Vertriebler <span class="text-tertiary text-small" style="font-weight:normal;">(aktive Pipeline pro Person)</span></div>
         <table class="table">
           <thead>
             <tr>
               <th>Name</th>
               <th>Rolle</th>
-              <th class="num">Kunden gesamt</th>
-              <th class="num">In Bearbeitung</th>
+              <th class="num">Aktive Pipeline</th>
               <th class="num">Reserviert</th>
               <th class="num">Notar-Termin</th>
               <th class="num">Beurkundet</th>
             </tr>
           </thead>
           <tbody>
-            ${(s.vertriebler || []).map(v => `
+            ${vListe.map(v => `
               <tr>
                 <td><strong>${esc(v.name)}</strong></td>
                 <td>${esc(v.rolle)}</td>
-                <td class="num">${v.kundenGesamt || 0}</td>
-                <td class="num">${v.inBearbeitung || 0}</td>
-                <td class="num ${(v.reserviert||0)>0 ? 'stats-cell warn' : ''}">${v.reserviert || 0}</td>
-                <td class="num ${(v.notarTermin||0)>0 ? 'stats-cell notar' : ''}">${v.notarTermin || 0}</td>
-                <td class="num pos">${v.beurkundet || 0}</td>
+                <td class="num">${v.aktiv}</td>
+                <td class="num ${v.reserviert > 0 ? 'stats-cell warn' : ''}">${v.reserviert}</td>
+                <td class="num ${v.notar > 0 ? 'stats-cell notar' : ''}">${v.notar}</td>
+                <td class="num pos">${v.beurkundet}</td>
               </tr>
             `).join('')}
-            ${(s.vertriebler || []).length > 1 ? `
+            ${vListe.length > 1 ? `
               <tr class="stats-row-summary">
                 <td>Summe</td><td></td>
-                <td class="num">${(s.vertriebler || []).reduce((a,v) => a + (v.kundenGesamt||0), 0)}</td>
-                <td class="num">${(s.vertriebler || []).reduce((a,v) => a + (v.inBearbeitung||0), 0)}</td>
-                <td class="num">${(s.vertriebler || []).reduce((a,v) => a + (v.reserviert||0), 0)}</td>
-                <td class="num">${(s.vertriebler || []).reduce((a,v) => a + (v.notarTermin||0), 0)}</td>
-                <td class="num pos">${(s.vertriebler || []).reduce((a,v) => a + (v.beurkundet||0), 0)}</td>
+                <td class="num">${vListe.reduce((a, v) => a + v.aktiv, 0)}</td>
+                <td class="num">${vListe.reduce((a, v) => a + v.reserviert, 0)}</td>
+                <td class="num">${vListe.reduce((a, v) => a + v.notar, 0)}</td>
+                <td class="num pos">${vListe.reduce((a, v) => a + v.beurkundet, 0)}</td>
               </tr>
             ` : ''}
           </tbody>
         </table>
       </div>
 
-      ${(() => {
-        // Iter 52: Aktive Kunden + Archivierte separat darstellen (Admin-only)
-        const alle = s.alleKunden || [];
-        const aktiv = alle.filter(k => !k.archiviert);
-        const archiv = alle.filter(k => !!k.archiviert);
-        const kundenRow = (k) => {
-          const displayName = kundeDisplayName(k);
-          return `
-            <tr onclick="go('/kunde/${esc(k.id)}')" style="cursor:pointer;">
-              <td><strong>${esc(displayName)}</strong></td>
-              <td class="text-tertiary">${esc(k.email || '—')}</td>
-              <td class="text-tertiary">${esc(k.ownerName || '—')}</td>
-              <td><span class="badge ${phaseBadgeClass(k.phase)}">${esc(k.phase || '—')}</span></td>
-              <td class="text-tertiary">${esc(fmtDate(k.lastActivity))}</td>
-            </tr>
-          `;
-        };
-        return `
-          <div class="card mt-16">
-            <div class="card-title">Aktive Kunden <span class="text-tertiary text-small" style="font-weight:normal;">(${aktiv.length})</span></div>
-            ${aktiv.length === 0 ? `
-              <div class="empty-state">Keine aktiven Kunden.</div>
-            ` : `
-              <table class="table">
-                <thead><tr><th>Name</th><th>E-Mail</th><th>Owner</th><th>Phase</th><th>Letzte Aktivität</th></tr></thead>
-                <tbody>${aktiv.map(kundenRow).join('')}</tbody>
-              </table>
-            `}
-          </div>
-          ${archiv.length > 0 ? `
-            <details class="card mt-16" style="background:#f7f7f4;">
-              <summary style="cursor:pointer;font-weight:600;color:#7A7A72;padding:6px 0;list-style:none;">
-                <span style="font-size:14px;">📦 Archivierte Kunden (${archiv.length}) — vom Vertrieb ausgeblendet</span>
-              </summary>
-              <div style="margin-top:12px;">
-                <table class="table">
-                  <thead><tr><th>Name</th><th>E-Mail</th><th>Owner</th><th>Phase</th><th>Letzte Aktivität</th></tr></thead>
-                  <tbody>${archiv.map(kundenRow).join('')}</tbody>
-                </table>
-              </div>
-            </details>
-          ` : ''}
-        `;
-      })()}
+      <div class="card mt-16">
+        <div class="card-title">Aktive Pipeline <span class="text-tertiary text-small" style="font-weight:normal;">(${aktivePipeline.length})</span></div>
+        <input type="search" id="admin-kunden-suche" placeholder="Suche Name / E-Mail / Owner — findet auch Bestandskäufer &amp; Archivierte"
+               oninput="adminFilterKunden(this.value)"
+               style="width:100%;box-sizing:border-box;padding:8px 10px;margin-bottom:12px;font-size:14px;border:1px solid var(--border,#ddd);border-radius:6px;">
+        <div id="admin-kunden-list">
+          ${adminKundenTable(aktivePipeline, 'Keine aktiven Pipeline-Kunden.')}
+        </div>
+      </div>
+
+      <details class="card mt-16">
+        <summary style="cursor:pointer;font-weight:600;">Bestandskäufer
+          <span class="text-tertiary text-small" style="font-weight:normal;">(${bestandskaeufer.length}) — abgeschlossene Käufe, einzelne über die Suche oben finden</span>
+        </summary>
+        <div style="margin-top:12px;">
+          ${(() => {
+            const sorted = bestandskaeufer.slice().sort((a, b) => new Date(b.lastActivity || 0) - new Date(a.lastActivity || 0));
+            const CAP = 200;
+            const shown = sorted.slice(0, CAP);
+            return adminKundenTable(shown, 'Keine Bestandskäufer.') +
+              (sorted.length > CAP ? `<p class="text-tertiary text-small" style="margin-top:8px;">${sorted.length} gesamt — zeige die neuesten ${CAP}.</p>` : '');
+          })()}
+        </div>
+      </details>
 
       ${wesPotenziell.length > 0 ? `
-        <div class="card mt-16" style="border-left:3px solid #B08A4D;">
-          <div class="card-title">⚙ Potenziell aktivierbare Wohneinheiten <span class="text-tertiary text-small" style="font-weight:normal;">(${wesPotenziell.length} in Vermarktung, ohne Aktiv-Stammdaten)</span></div>
-          <p class="text-tertiary text-small" style="margin:0 0 12px;">Diese WEs sind aktuell in Vermarktung bei B&amp;B Immo, haben aber noch keine Kalk-Stammdaten auf „Aktiv". Domi/Henry können diese aktivieren, sobald MbV + Marktmiete + Marktpreis IS/HD + Vermietungs-Modus gepflegt sind.</p>
+        <details class="card mt-16" style="border-left:3px solid #B08A4D;">
+          <summary style="cursor:pointer;font-weight:600;">⚙ Potenziell aktivierbare Wohneinheiten
+            <span class="text-tertiary text-small" style="font-weight:normal;">(${wesPotenziell.length} in Vermarktung, ohne Aktiv-Stammdaten)</span>
+          </summary>
+          <p class="text-tertiary text-small" style="margin:10px 0 12px;">Diese WEs sind aktuell in Vermarktung bei B&amp;B Immo, haben aber noch keine Kalk-Stammdaten auf „Aktiv". Domi/Henry können diese aktivieren, sobald MbV + Marktmiete + Marktpreis IS/HD + Vermietungs-Modus gepflegt sind.</p>
           <table class="table">
             <thead><tr><th>Projekt</th><th>WE</th><th class="num">Kaufpreis</th><th class="num">qm</th><th class="num">Kaltmiete</th></tr></thead>
             <tbody>
@@ -8051,7 +8132,7 @@ async function renderAdmin() {
               ).join('')}
             </tbody>
           </table>
-        </div>
+        </details>
       ` : ''}
 
       ${(() => {
@@ -8184,11 +8265,13 @@ function renderAdminStammdatenAudit(audit) {
   }, {});
 
   return `
-    <div class="card mt-16">
-      <div class="card-title">
+    <details class="card mt-16">
+      <summary style="cursor:pointer;font-weight:600;font-size:15px;">
         Kalkulations-Stammdaten-Audit
-        <span class="text-tertiary text-small" style="font-weight:normal;">(live aus Airtable · zeigt alle WEs in Vermarktung · markiert Lücken rot)</span>
-        <button class="secondary" style="float:right;font-size:13px;" onclick="reloadAdminWohneinheiten()">⟳ Neu laden</button>
+        <span class="text-tertiary text-small" style="font-weight:normal;">(live aus Airtable · ${audit.length} WEs · markiert Lücken rot)</span>
+      </summary>
+      <div style="margin:12px 0;">
+        <button class="secondary" style="font-size:13px;" onclick="reloadAdminWohneinheiten()">⟳ Neu laden</button>
       </div>
       <div class="text-tertiary text-small mb-12">
         <strong>${audit.length} WEs</strong> · ${counts['Aktiv'] || 0} Aktiv (App nutzt direkt) · ${counts['Entwurf'] || 0} Entwurf · ${counts['fehlt'] || 0} ohne Stammdaten-Eintrag.
@@ -8201,7 +8284,7 @@ function renderAdminStammdatenAudit(audit) {
         });
         const aktiv = arr.filter(r => r.stammdaten && r.stammdaten.status === 'Aktiv').length;
         return `
-          <details open style="margin-top:12px;">
+          <details style="margin-top:12px;">
             <summary class="admin-audit-summary-bar">
               ${esc(pn)} <span class="text-tertiary text-small" style="font-weight:normal;margin-left:8px;">${arr.length} WEs · ${aktiv} Aktiv</span>
             </summary>
@@ -8276,7 +8359,7 @@ function renderAdminStammdatenAudit(audit) {
       <div class="text-tertiary text-small mt-12" style="font-style:italic;">
         Bearbeitung läuft in Airtable. Direktlink: <a href="${AIRTABLE_LINKS.KALK_STAMMDATEN}" target="_blank" rel="noopener">Kalkulations-Stammdaten-Tabelle</a> bzw. <a href="${AIRTABLE_LINKS.WOHNEINHEIT}" target="_blank" rel="noopener">Wohneinheit-Tabelle</a>.
       </div>
-    </div>
+    </details>
   `;
 }
 
