@@ -8054,10 +8054,70 @@ async function renderAdmin() {
         </div>
       ` : ''}
 
+      ${(() => {
+        const c = state.konditionen || (window.Kalk && window.Kalk.mergeKonditionen(null)) || {};
+        const b = c.baender || {};
+        const pct = (x) => (typeof x === 'number' ? (x * 100).toString().replace('.', ',') : '');
+        const cell = (band, variant) => {
+          const z = (b[band] && b[band][variant]) || {};
+          return `
+            <td><input type="number" step="0.01" min="0" max="20" id="kond-${band}-${variant}-zins" value="${pct(z.zins)}" style="width:78px"> %</td>
+            <td><input type="number" step="0.01" min="0" max="10" id="kond-${band}-${variant}-tilg" value="${pct(z.tilgung)}" style="width:78px"> %</td>`;
+        };
+        return `
+        <div class="card">
+          <div class="card-title">Finanzierungs-Konditionen
+            <span class="text-tertiary text-small" style="font-weight:normal;">— Zins &amp; Tilgung je Preisklasse, von Henry pflegbar</span>
+          </div>
+          <p class="text-tertiary text-small">Die Schwelle bestimmt, ab welchem Kaufpreis das „groß"-Band gilt (Kaufpreis ≥ Schwelle = groß). Werte gelten sofort für alle Vertriebler.</p>
+          <div style="margin:8px 0 16px;">
+            <label>Schwelle Kaufpreis:
+              <input type="number" step="1000" min="1" id="kond-schwelle" value="${(c.schwelleKaufpreis||150000)}" style="width:120px"> €
+            </label>
+          </div>
+          <table class="table">
+            <thead><tr><th></th><th>Zins ohne KNK</th><th>Tilgung ohne KNK</th><th>Zins mit KNK</th><th>Tilgung mit KNK</th></tr></thead>
+            <tbody>
+              <tr><td><strong>&lt; Schwelle (klein)</strong></td>${cell('klein','ohneKnk')}${cell('klein','mitKnk')}</tr>
+              <tr><td><strong>&ge; Schwelle (groß)</strong></td>${cell('gross','ohneKnk')}${cell('gross','mitKnk')}</tr>
+            </tbody>
+          </table>
+          <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <button class="primary" onclick="saveKonditionen()">Konditionen speichern</button>
+            <span class="text-tertiary text-small">${c._aktualisiert ? 'Zuletzt: ' + esc(c._aktualisiert) : ''}</span>
+          </div>
+          <p id="kond-msg" class="text-small" style="margin-top:8px;"></p>
+        </div>`;
+      })()}
+
       ${renderAdminStammdatenAudit(state.adminStammAudit || [])}
     </div>
   `;
 }
+
+async function saveKonditionen() {
+  const msg = document.getElementById('kond-msg');
+  const numPct = (id) => { const el = document.getElementById(id); const v = parseFloat(String(el && el.value).replace(',', '.')); return isFinite(v) ? v / 100 : NaN; };
+  const cellOf = (band, variant) => ({ zins: numPct(`kond-${band}-${variant}-zins`), tilgung: numPct(`kond-${band}-${variant}-tilg`) });
+  const schwelleEl = document.getElementById('kond-schwelle');
+  const payload = {
+    schwelleKaufpreis: parseFloat(schwelleEl && schwelleEl.value),
+    baender: {
+      klein: { ohneKnk: cellOf('klein','ohneKnk'), mitKnk: cellOf('klein','mitKnk') },
+      gross: { ohneKnk: cellOf('gross','ohneKnk'), mitKnk: cellOf('gross','mitKnk') },
+    },
+  };
+  try {
+    if (msg) { msg.textContent = 'Speichere…'; msg.style.color = ''; }
+    const saved = await api.put('/api/konditionen', payload);
+    state.konditionen = window.Kalk.mergeKonditionen(saved);
+    window.Kalk._konditionenActive = state.konditionen;
+    if (msg) { msg.textContent = '✓ Gespeichert.'; msg.style.color = 'green'; }
+  } catch (e) {
+    if (msg) { msg.textContent = 'Fehler: ' + (e && e.message || 'unbekannt'); msg.style.color = 'crimson'; }
+  }
+}
+window.saveKonditionen = saveKonditionen;
 
 async function reloadAdminWohneinheiten() {
   try {
