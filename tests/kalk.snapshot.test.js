@@ -157,7 +157,7 @@ test('Sensitivitäts-Matrix: 5×4-Raster, Wesseling WE8', () => {
   const m = Kalk.sensitivitaetsMatrix(inputs);
   assert.strictEqual(m.cells.length, 4, 'Leerstand-Zeilen');
   assert.strictEqual(m.cells[0].length, 5, 'Zins-Spalten');
-  assert.strictEqual(m.engineVersion, '3.0', 'engineVersion mit propagiert');
+  assert.strictEqual(m.engineVersion, '3.1', 'engineVersion mit propagiert');
   // Basis-Zelle (0Mo Leerstand, 0% Zins-Delta) muss zur normalen recalc passen.
   const baseCell = m.cells[0][1];
   near(baseCell.cfJ1, -665.12, 'Basis-Zelle CF Jahr 1 = normal recalc');
@@ -186,6 +186,6 @@ test('Stress-Szenario: Wesseling WE8, Worst-Default', () => {
 test('engineVersion ist in jedem recalc-Ergebnis', () => {
   const preset = WE_PRESETS_BY_RECID['recDl2o8H2Fmigm0R'];
   const r = Kalk.recalc(Object.assign({}, preset, Kalk.PROFILES.s30ohne));
-  assert.strictEqual(r.engineVersion, '3.0', 'engineVersion = 3.0 (Welle 1)');
-  assert.strictEqual(Kalk.ENGINE_VERSION, '3.0', 'globaler Export passt');
+  assert.strictEqual(r.engineVersion, '3.1', 'engineVersion = 3.1 (Renobonus-Outputs)');
+  assert.strictEqual(Kalk.ENGINE_VERSION, '3.1', 'globaler Export passt');
 });
