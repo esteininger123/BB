@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<!--
+  Vorschau-Harness für den Renovierungsbonus (2026-06-21).
+  Lädt die ECHTE Engine (../public/kalkulator.js) + Branding (../public/styles.css)
+  und rendert Card + EK-KPI mit echten recalc-Zahlen für 3 Zustände.
+  NICHT Teil der App — reines Verifikations-Artefakt für Playwright/Screenshot.
+-->
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Renobonus-Vorschau</title>
+  <link rel="stylesheet" href="../public/styles.css">
+  <style>
+    body { padding: 24px; background: #faf8f4; }
+    .preview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; max-width: 1200px; }
+    .preview-col h2 { font-size: 14px; margin: 0 0 8px; color: #6b6b63; }
+    .kpi { background:#fff; border:1px solid #e6e1d8; border-radius:8px; padding:14px; margin-bottom:12px; }
+    .kpi .label { font-size:12px; color:#8a8a82; font-weight:600; }
+    .kpi .value { font-size:22px; font-weight:700; margin-top:4px; }
+    .subv-status-card { background:#fff; border:1px solid #e6e1d8; border-radius:8px; padding:14px; }
+    .subv-status-card .title { font-weight:600; }
+    .subv-status-card .hint { color:#8a8a82; font-size:12px; margin-top:4px; }
+    .text-tertiary { color:#8a8a82; } .text-small { font-size:12px; }
+    .preview-meta { font-family:monospace; font-size:11px; color:#999; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <h1>Renovierungsbonus — echte Engine-Zahlen, 3 Zustände</h1>
+  <div class="preview-grid" id="grid"></div>
+
+  <script src="../public/kalkulator.js"></script>
+  <script>
+    const fmt = (v) => Math.round(v || 0).toLocaleString('de-DE');
+
+    // Test-WE: 60 qm, 150.000 €, Steuersatz 40 %, KNK nicht mitfinanziert.
+    function testWE(zustand, override) {
+      return Object.assign({}, window.Kalk.getDefaults(), {
+        kaufpreis: 150000, qm: 60, stellplatzKp: 0,
+        steuersatz: 0.40, gebaeudeAnteil: 0.85, knkMitfinanziert: false,
+        zustand: zustand,
+        renovierungsbonusOverride: (override != null ? override : ''),
+      });
+    }
+
+    // --- exakt das App-Markup (app.js) ---
+    function ekKpi(r) {
+      const value = (r.renovierungsbonus > 0
+        ? `${fmt(r.ekBedarfNetto)}${r.ekBedarfNetto < 0 ? ' <span class="text-small">(Tag-1-Überschuss)</span>' : ''}<div class="text-tertiary text-small" style="font-weight:400;margin-top:2px;line-height:1.3;">KNK ${fmt(r.ekBedarf)} − Renovierungsbudget ${fmt(r.renovierungsbonus)} zurück nach Notar</div>`
+        : fmt(r.ekBedarf));
+      return `<div class="kpi"><div class="label">Dein EK-Bedarf</div><div class="value">${value}</div></div>`;
+    }
+
+    function renobonusCard(r, kalk) {
+      const bonus = (r && r.renovierungsbonus) || 0;
+      if (!(bonus > 0)) {
+        return `<div class="subv-status-card">
+          <div class="title">Kein Renovierungsbonus</div>
+          <div class="hint">Zustand „${kalk.zustand || '—'}" — kein Bonus hinterlegt.</div>
+        </div>`;
+      }
+      const erst = (r && r.renoErstattung) || 0;
+      const stPct = Math.round((kalk.steuersatz || 0) * 100);
+      return `
+        <div class="subv-status-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="text-transform:uppercase;letter-spacing:0.05em;font-size:11px;font-weight:600;color:var(--text-tertiary,#8a8a82);">Renovierungsbudget</span>
+            <span style="font-weight:700;color:var(--positive,#2e7d32);font-size:14px;">${fmt(bonus)} €</span>
+          </div>
+          <div class="text-small" style="line-height:1.5;">
+            Im Kaufpreis enthalten, <strong>nach dem Notartermin an den Käufer ausgezahlt</strong> — zweckgebunden für die Renovierung.
+            <div style="margin-top:6px;"><strong>Wenn der Käufer renoviert:</strong></div>
+            <ul style="margin:4px 0 0;padding-left:16px;">
+              <li>Steuererstattung ≈ <strong>${fmt(erst)} €</strong> (${stPct} % Steuersatz, mit dem Steuerbescheid des Folgejahres)</li>
+              <li>Wertzuwachs der Wohnung um mind. ${fmt(bonus)} €</li>
+              <li>Höhere erzielbare Miete — sofern noch Luft zur Marktmiete ist</li>
+            </ul>
+            <div class="text-tertiary text-small" style="margin-top:6px;font-size:11.5px;">Renovierungskosten sind steuerlich absetzbar; Details mit dem Steuerberater.</div>
+          </div>
+        </div>`;
+    }
+
+    const faelle = [
+      { titel: 'Standard (Default 100 €/qm)', zustand: 'Standard' },
+      { titel: 'renovierungsbedürftig (200 €/qm)', zustand: 'renovierungsbedürftig' },
+      { titel: 'kernsaniert (kein Bonus)', zustand: 'kernsaniert' },
+    ];
+
+    const grid = document.getElementById('grid');
+    grid.innerHTML = faelle.map(f => {
+      const kalk = testWE(f.zustand);
+      const r = window.Kalk.recalc(kalk);
+      return `<div class="preview-col" data-zustand="${f.zustand}">
+        <h2>${f.titel}</h2>
+        ${ekKpi(r)}
+        ${renobonusCard(r, kalk)}
+        <div class="preview-meta">bonus=${Math.round(r.renovierungsbonus)} · ekBrutto=${Math.round(r.ekBedarf)} · ekNetto=${Math.round(r.ekBedarfNetto)} · erstattung=${Math.round(r.renoErstattung)} · cap=${Math.round(r.renovierungsbonusCap)}</div>
+      </div>`;
+    }).join('');
+
+    // Marker für Playwright
+    window.__renobonusReady = true;
+  </script>
+</body>
+</html>

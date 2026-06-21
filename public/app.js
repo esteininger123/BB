@@ -2730,6 +2730,43 @@ function kalkInputsThemenHtml(i) {
             </div>`;
         })()}
         ${(() => {
+          // Renovierungsbonus-Card (2026-06-21) — spiegelt die Mietsubventions-Card.
+          // Carve-out: Teil des Kaufpreises, der nach Notar an den Käufer zurückfließt
+          // (zweckgebunden Renovierung). Werte aus dem recalc-Result; Fallback frischer
+          // recalc, falls das Panel vor recalcAndRender rendert.
+          let r = state.kalkResult;
+          if ((!r || r.renovierungsbonus == null) && window.Kalk && typeof window.Kalk.recalc === 'function') {
+            try { r = window.Kalk.recalc(state.kalk); } catch (e) { r = null; }
+          }
+          const bonus = (r && r.renovierungsbonus) || 0;
+          const fmtRb = (v) => Math.round(v).toLocaleString('de-DE');
+          if (!(bonus > 0)) {
+            return `<div class="subv-status-card">
+              <div class="title">Kein Renovierungsbonus</div>
+              <div class="hint">Zustand „${esc(state.kalk.zustand || '—')}" — kein Bonus hinterlegt.</div>
+            </div>`;
+          }
+          const erst = (r && r.renoErstattung) || 0;
+          const stPct = Math.round((state.kalk.steuersatz || 0) * 100);
+          return `
+            <div class="subv-status-card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <span style="text-transform:uppercase;letter-spacing:0.05em;font-size:11px;font-weight:600;color:var(--text-tertiary);">Renovierungsbudget</span>
+                <span style="font-weight:700;color:var(--positive);font-size:14px;">${fmtRb(bonus)} €</span>
+              </div>
+              <div class="text-small" style="line-height:1.5;">
+                Im Kaufpreis enthalten, <strong>nach dem Notartermin an den Käufer ausgezahlt</strong> — zweckgebunden für die Renovierung.
+                <div style="margin-top:6px;"><strong>Wenn der Käufer renoviert:</strong></div>
+                <ul style="margin:4px 0 0;padding-left:16px;">
+                  <li>Steuererstattung ≈ <strong>${fmtRb(erst)} €</strong> (${stPct} % Steuersatz, mit dem Steuerbescheid des Folgejahres)</li>
+                  <li>Wertzuwachs der Wohnung um mind. ${fmtRb(bonus)} €</li>
+                  <li>Höhere erzielbare Miete — sofern noch Luft zur Marktmiete ist</li>
+                </ul>
+                <div class="text-tertiary text-small" style="margin-top:6px;font-size:11.5px;">Renovierungskosten sind steuerlich absetzbar; Details mit dem Steuerberater.</div>
+              </div>
+            </div>`;
+        })()}
+        ${(() => {
           // Subventionsregler (Team-Feedback 2026-06-01): Trade-off Mietsubvention <-> Kaufpreis.
           // Skaliert die vereinbarte Subvention und reduziert den KP 1:1 um den weggenommenen
           // Betrag. Alles rechnet via recalcAndRender() durch (Cashflow, Annuität, Magazin, PDF).
@@ -3185,6 +3222,8 @@ async function loadWeIntoKalk(weId) {
   // WE-Basis aus Airtable
   state.kalk.kaufpreis = w.kp || w.kaufpreis || 0;
   state.kalk.qm = w.qm || 0;
+  state.kalk.zustand = w.zustand || '';
+  state.kalk.renovierungsbonusOverride = (w.renovierungsbonusOverride != null) ? w.renovierungsbonusOverride : '';
   state.kalk.kaltmiete = w.kaltmiete || 0;
 
   // 3) Live-Airtable-Stammdaten holen — Airtable ist Wahrheit (siehe SOP-E).
@@ -3204,6 +3243,8 @@ async function loadWeIntoKalk(weId) {
       const stplMiete = (resp.stellplaetze && resp.stellplaetze.mieteMoSumme) || 0;
       state.kalk.kaufpreis = resp.we.kp || 0;          // NUR Wohnung
       state.kalk.qm = resp.we.qm || state.kalk.qm;
+      if (resp.we.zustand != null) state.kalk.zustand = resp.we.zustand || '';
+      if (resp.we.renovierungsbonusOverride != null) state.kalk.renovierungsbonusOverride = resp.we.renovierungsbonusOverride;
       state.kalk.kaltmiete = resp.we.kaltmiete || 0;   // NUR Wohnung
       state.kalk.stellplatzKp    = stplKp;             // separat in den Kalkulator-Input
       state.kalk.stellplatzMiete = stplMiete;          // separat (wird mit Inflation, nicht Kappung gewachsen)
@@ -3619,7 +3660,10 @@ function recalcAndRender() {
       <div class="kpi-info-box" hidden>${esc(info)}</div>
     </div>`;
   const kpis = [
-    kpiCard('Dein EK-Bedarf', fmt(r.ekBedarf),
+    kpiCard('Dein EK-Bedarf',
+      (r.renovierungsbonus > 0
+        ? `${fmt(r.ekBedarfNetto)}${r.ekBedarfNetto < 0 ? ' <span class="text-small">(Tag-1-Überschuss)</span>' : ''}<div class="text-tertiary text-small" style="font-weight:400;margin-top:2px;line-height:1.3;">KNK ${fmt(r.ekBedarf)} − Renovierungsbudget ${fmt(r.renovierungsbonus)} zurück nach Notar</div>`
+        : fmt(r.ekBedarf)),
       (() => {
         const grEstPct = (state.kalk && parseFloat(state.kalk.grEstPct)) || 0.05;
         const totalPct = grEstPct + 0.015 + 0.005;

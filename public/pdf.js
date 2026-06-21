@@ -687,9 +687,15 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
             return ' · Rechtsgrundlage prüfen';
           })()}</span></div>
           <div class="pdf-c-ass-row"><span class="k">Mietsubvention</span><span class="v">${subvText}</span></div>
+          <div class="pdf-c-ass-row"><span class="k">Renovierungsbudget</span><span class="v">${r.renovierungsbonus > 0 ? fmt(r.renovierungsbonus) + ' · nach Notar ausgezahlt' : '—'}</span></div>
           <div class="pdf-c-ass-row"><span class="k">Sparbuch-Vergleich</span><span class="v">${((i.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a.</span></div>
         </div>
       </div>
+      ${r.renovierungsbonus > 0 ? `
+      <div style="margin-top:4mm;padding:3mm;border:0.3mm solid #d8d2c6;border-radius:1.5mm;">
+        <div style="font-weight:600;margin-bottom:1.5mm;">Renovierungsbudget ${fmt(r.renovierungsbonus)} — nach dem Notartermin an Dich ausgezahlt</div>
+        <div style="font-size:8pt;line-height:1.5;">Im Kaufpreis enthalten und zweckgebunden für die Renovierung. Wenn Du renovierst: Steuererstattung ≈ <strong>${fmt(r.renoErstattung)}</strong> (mit dem Steuerbescheid des Folgejahres), Wertzuwachs der Wohnung um mindestens ${fmt(r.renovierungsbonus)}, und eine höhere erzielbare Miete — sofern noch Luft zur Marktmiete ist. Renovierungskosten sind steuerlich absetzbar; Details mit Deinem Steuerberater.</div>
+      </div>` : ''}
       <!-- QA-Fix 2026-05-23 (Edgar P3): Disclaimer von Seite 5 entfernt — durch B5
            war er 5× länger und Seite 5 (Annahmen + Cashflow-Tabelle) lief in
            overflow:hidden über. Disclaimer jetzt auf Seite 7. -->
@@ -920,6 +926,9 @@ function reservierung(kunde, kalkInputs, user) {
   const spFla   = (kalkInputs && kalkInputs._stellplatzFlaecheCount) || 0;
   const fmt     = window.Kalk.fmtEur;
   const fmtQm   = (v) => (v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' qm';
+  // Renovierungsbonus (2026-06-21): reservierung() bekommt kein Result → frisch rechnen.
+  const _resR = (window.Kalk && window.Kalk.recalc) ? (window.Kalk.recalc(kalkInputs) || {}) : {};
+  const renoBonus = _resR.renovierungsbonus || 0;
 
   // Reservierungs- + Unterschriftsdatum (default: heute / heute+30T)
   const heute   = new Date();
@@ -997,6 +1006,8 @@ function reservierung(kunde, kalkInputs, user) {
           <strong>Objekt:</strong><br>
           ${objektZeile}
         </p>
+
+        ${renoBonus > 0 ? `<p><strong>Renovierungsbudget:</strong> ${fmt(renoBonus)} — im Kaufpreis enthalten, wird nach dem Notartermin an den Käufer ausgezahlt (zweckgebunden für die Renovierung).</p>` : ''}
 
         <p>Die Vertragsparteien sind sich einig, einen notariellen Kaufvertrag gemäß den oben genannten Angaben und den persönlichen Daten bei einem ortsnahen Notar zu erstellen.</p>
 
