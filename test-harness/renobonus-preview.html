@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!--
-  Vorschau-Harness für den Renovierungsbonus (2026-06-21).
+  Vorschau-Harness für den Renovierungsbonus (2026-06-21, Override-only).
   Lädt die ECHTE Engine (../public/kalkulator.js) + Branding (../public/styles.css)
-  und rendert Card + EK-KPI mit echten recalc-Zahlen für 3 Zustände.
+  und rendert Card + EK-KPI mit echten recalc-Zahlen für 3 Override-Fälle.
   NICHT Teil der App — reines Verifikations-Artefakt für Playwright/Screenshot.
 -->
 <html lang="de">
@@ -19,13 +19,13 @@
     .kpi .value { font-size:22px; font-weight:700; margin-top:4px; }
     .subv-status-card { background:#fff; border:1px solid #e6e1d8; border-radius:8px; padding:14px; }
     .subv-status-card .title { font-weight:600; }
-    .subv-status-card .hint { color:#8a8a82; font-size:12px; margin-top:4px; }
     .text-tertiary { color:#8a8a82; } .text-small { font-size:12px; }
     .preview-meta { font-family:monospace; font-size:11px; color:#999; margin-top:8px; }
+    .empty-note { color:#b0b0a8; font-size:12px; font-style:italic; }
   </style>
 </head>
 <body>
-  <h1>Renovierungsbonus — echte Engine-Zahlen, 3 Zustände</h1>
+  <h1>Renovierungsbonus — Override-only, echte Engine-Zahlen</h1>
   <div class="preview-grid" id="grid"></div>
 
   <script src="../public/kalkulator.js"></script>
@@ -33,11 +33,10 @@
     const fmt = (v) => Math.round(v || 0).toLocaleString('de-DE');
 
     // Test-WE: 60 qm, 150.000 €, Steuersatz 40 %, KNK nicht mitfinanziert.
-    function testWE(zustand, override) {
+    function testWE(override) {
       return Object.assign({}, window.Kalk.getDefaults(), {
         kaufpreis: 150000, qm: 60, stellplatzKp: 0,
         steuersatz: 0.40, gebaeudeAnteil: 0.85, knkMitfinanziert: false,
-        zustand: zustand,
         renovierungsbonusOverride: (override != null ? override : ''),
       });
     }
@@ -50,16 +49,11 @@
       return `<div class="kpi"><div class="label">Dein EK-Bedarf</div><div class="value">${value}</div></div>`;
     }
 
-    function renobonusCard(r, kalk) {
+    function renobonusCard(r) {
       const bonus = (r && r.renovierungsbonus) || 0;
-      if (!(bonus > 0)) {
-        return `<div class="subv-status-card">
-          <div class="title">Kein Renovierungsbonus</div>
-          <div class="hint">Zustand „${kalk.zustand || '—'}" — kein Bonus hinterlegt.</div>
-        </div>`;
-      }
+      if (!(bonus > 0)) return '<div class="empty-note">— keine Renobonus-Card (kein Override gepflegt)</div>';
       const erst = (r && r.renoErstattung) || 0;
-      const stPct = Math.round((kalk.steuersatz || 0) * 100);
+      const stPct = 40;
       return `
         <div class="subv-status-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
@@ -80,24 +74,22 @@
     }
 
     const faelle = [
-      { titel: 'Standard (Default 100 €/qm)', zustand: 'Standard' },
-      { titel: 'renovierungsbedürftig (200 €/qm)', zustand: 'renovierungsbedürftig' },
-      { titel: 'kernsaniert (kein Bonus)', zustand: 'kernsaniert' },
+      { titel: 'Kein Override (Bestand)', ov: '' },
+      { titel: 'Override 8.000 €', ov: 8000 },
+      { titel: 'Override 99.999 € (Cap greift)', ov: 99999 },
     ];
 
     const grid = document.getElementById('grid');
     grid.innerHTML = faelle.map(f => {
-      const kalk = testWE(f.zustand);
-      const r = window.Kalk.recalc(kalk);
-      return `<div class="preview-col" data-zustand="${f.zustand}">
+      const r = window.Kalk.recalc(testWE(f.ov));
+      return `<div class="preview-col" data-ov="${f.ov}">
         <h2>${f.titel}</h2>
         ${ekKpi(r)}
-        ${renobonusCard(r, kalk)}
+        ${renobonusCard(r)}
         <div class="preview-meta">bonus=${Math.round(r.renovierungsbonus)} · ekBrutto=${Math.round(r.ekBedarf)} · ekNetto=${Math.round(r.ekBedarfNetto)} · erstattung=${Math.round(r.renoErstattung)} · cap=${Math.round(r.renovierungsbonusCap)}</div>
       </div>`;
     }).join('');
 
-    // Marker für Playwright
     window.__renobonusReady = true;
   </script>
 </body>

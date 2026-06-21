@@ -2740,12 +2740,7 @@ function kalkInputsThemenHtml(i) {
           }
           const bonus = (r && r.renovierungsbonus) || 0;
           const fmtRb = (v) => Math.round(v).toLocaleString('de-DE');
-          if (!(bonus > 0)) {
-            return `<div class="subv-status-card">
-              <div class="title">Kein Renovierungsbonus</div>
-              <div class="hint">Zustand „${esc(state.kalk.zustand || '—')}" — kein Bonus hinterlegt.</div>
-            </div>`;
-          }
+          if (!(bonus > 0)) return ''; // kein Override gepflegt → keine Card (Bestand bleibt clean)
           const erst = (r && r.renoErstattung) || 0;
           const stPct = Math.round((state.kalk.steuersatz || 0) * 100);
           return `
@@ -3222,8 +3217,7 @@ async function loadWeIntoKalk(weId) {
   // WE-Basis aus Airtable
   state.kalk.kaufpreis = w.kp || w.kaufpreis || 0;
   state.kalk.qm = w.qm || 0;
-  state.kalk.zustand = w.zustand || '';
-  state.kalk.renovierungsbonusOverride = (w.renovierungsbonusOverride != null) ? w.renovierungsbonusOverride : '';
+  state.kalk.renovierungsbonusOverride = ''; // Reset; aus Kalk-Stammdaten (Aktiv) befüllt
   state.kalk.kaltmiete = w.kaltmiete || 0;
 
   // 3) Live-Airtable-Stammdaten holen — Airtable ist Wahrheit (siehe SOP-E).
@@ -3243,8 +3237,6 @@ async function loadWeIntoKalk(weId) {
       const stplMiete = (resp.stellplaetze && resp.stellplaetze.mieteMoSumme) || 0;
       state.kalk.kaufpreis = resp.we.kp || 0;          // NUR Wohnung
       state.kalk.qm = resp.we.qm || state.kalk.qm;
-      if (resp.we.zustand != null) state.kalk.zustand = resp.we.zustand || '';
-      if (resp.we.renovierungsbonusOverride != null) state.kalk.renovierungsbonusOverride = resp.we.renovierungsbonusOverride;
       state.kalk.kaltmiete = resp.we.kaltmiete || 0;   // NUR Wohnung
       state.kalk.stellplatzKp    = stplKp;             // separat in den Kalkulator-Input
       state.kalk.stellplatzMiete = stplMiete;          // separat (wird mit Inflation, nicht Kappung gewachsen)
@@ -3325,6 +3317,8 @@ async function loadWeIntoKalk(weId) {
       if (sd.wertsteigerung !== null)        state.kalk.wertsteigerung = sd.wertsteigerung;
       if (sd.grEst !== null)                 state.kalk.grEstPct = sd.grEst;
       if (sd.gebaeudeAnteil !== null)        state.kalk.gebaeudeAnteil = sd.gebaeudeAnteil;
+      // Renovierungsbonus-Override (Carve-out) — nur wenn gepflegt, sonst bleibt 0.
+      if (sd.renovierungsbonusOverride !== null) state.kalk.renovierungsbonusOverride = sd.renovierungsbonusOverride;
       // QA-Fix 2026-05-24 (Edgar): hgInflation komplett ignoriert — immer 0.
       state.kalk.hgInflation = 0;
       // Iter 41.9 / 41.15 — Miete bei Verkauf ersetzt NUR die Wohnungs-Kaltmiete.

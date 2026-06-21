@@ -204,12 +204,15 @@ const BB_DEFAULTS = Object.freeze({
 // Backward-Compat: ältere Stellen lesen evtl. noch SPAR_ZINS_DEFAULT
 const SPAR_ZINS_DEFAULT = BB_DEFAULTS.sparZinsPa;
 
-// Renovierungsbonus (Carve-out, 2026-06-21): Default-Sätze je Zustand + Cap.
+// Renovierungsbonus (Carve-out, 2026-06-21): Cap = 15 % des Gebäudewerts.
 // Der Bonus ist ein Teil des Verkaufspreises, der nach Notar an den Käufer
-// zurückfließt (zweckgebunden Renovierung). Cap = 15 % des Gebäudewerts hält
-// die Reno als Erhaltungsaufwand unter der anschaffungsnahe-HK-Grenze (§6 EStG),
-// damit die Sofort-Absetzung (R × Steuersatz) immer gilt.
-const RENOBONUS_SATZ_QM = { 'Standard': 100, 'renovierungsbedürftig': 200 };
+// zurückfließt (zweckgebunden Renovierung). Der Cap hält die Reno als
+// Erhaltungsaufwand unter der anschaffungsnahe-HK-Grenze (§6 EStG), damit die
+// Sofort-Absetzung (R × Steuersatz) immer gilt. Der Bonus selbst ist ein
+// manueller Override pro WE (Kalk-Stammdaten) — kein zustandsbasierter Auto-
+// Default, damit Bestandseinheiten ohne Override unverändert bei 0 bleiben.
+// Pflege-Vorschlag (nur in Airtable dokumentiert): Standard 100 €/qm,
+// renovierungsbedürftig 200 €/qm.
 const RENOBONUS_CAP_PCT = 0.15;
 
 // Welle 0 (2026-05-24): ENGINE_VERSION wird in jedem recalc-Ergebnis mitgeschrieben.
@@ -716,15 +719,12 @@ function recalc(i) {
   const afaMo = afaJahr / 12;
 
   // --- Renovierungsbonus (Carve-out) ---
-  // Darlehen + AfA-Basis bleiben oben unverändert auf vollem K (Käufer
-  // beurkundet zu K). Hier nur der Rückfluss: senkt den ausgewiesenen EK-Bedarf.
-  const _rbQm   = parseFloat(i.qm) || 0;
-  const _rbSatz = RENOBONUS_SATZ_QM[i.zustand] || 0;
-  const _rbOv   = i.renovierungsbonusOverride;
-  const _rbHasOverride = (_rbOv !== undefined && _rbOv !== null && _rbOv !== '' && isFinite(parseFloat(_rbOv)));
-  const _rbRoh  = _rbHasOverride ? parseFloat(_rbOv) : (_rbQm * _rbSatz);
+  // Aktiver Bonus = manueller Override (€ pro WE, aus Kalk-Stammdaten), gedeckelt
+  // auf 15 % Gebäudewert. Kein Auto-Default — leer => 0 (Bestand bleibt unverändert).
+  // Darlehen + AfA-Basis bleiben oben auf vollem K; der Bonus senkt nur den EK-Bedarf.
   const renovierungsbonusCap = RENOBONUS_CAP_PCT * gebaeudeAnteilFaktor * kpGesamt;
-  const renovierungsbonus = Math.max(0, Math.min(_rbRoh, renovierungsbonusCap));
+  const _rbOv = parseFloat(i.renovierungsbonusOverride);
+  const renovierungsbonus = (isFinite(_rbOv) && _rbOv > 0) ? Math.min(_rbOv, renovierungsbonusCap) : 0;
   const ekBedarfNetto = ekBedarf - renovierungsbonus;
   const renoErstattung = renovierungsbonus * (parseFloat(i.steuersatz) || 0);
 

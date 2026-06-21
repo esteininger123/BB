@@ -415,6 +415,8 @@ function kalkStammRecordToApi(rec) {
     // für Idempotenz-Check beim Write-back).
     autoSubvMo:    num(f[KALK_STAMMDATEN_FIELDS.AUTO_SUBV_MO]),
     autoSubvTotal: num(f[KALK_STAMMDATEN_FIELDS.AUTO_SUBV_TOTAL]),
+    // Renovierungsbonus (Carve-out, 2026-06-21): manueller Override € pro WE.
+    renovierungsbonusOverride: num(f[KALK_STAMMDATEN_FIELDS.RENOVIERUNGSBONUS]),
   };
 }
 

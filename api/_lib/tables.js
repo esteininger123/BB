@@ -291,6 +291,10 @@ const KALK_STAMMDATEN_FIELDS = {
   // markiert und werden physisch entfernt.
   KP_VORSCHLAG_WOHNUNG:      'fldaxnWdFP1mLYVtH', // Haupt-Pricing-Feld (inkl. Subv-Risiko-Abzug)
   STELLPLATZ_KP_GESAMT:      'fldwNFyzAk2EaQ15Q', // SUM aller verlinkten Stellplatz-KPs
+  // Renovierungsbonus (Carve-out, 2026-06-21): manueller Override € pro WE.
+  // Leer => kein Bonus (Bestand bleibt unverändert). Pflege-Vorschlag: Standard
+  // 100 €/qm, renovierungsbedürftig 200 €/qm. Engine deckelt auf 15 % Gebäudewert.
+  RENOVIERUNGSBONUS:         'fldWkm04lIAhYsfpN', // Currency €
 };
 
 const KALK_STATUS_AKTIV    = 'Aktiv';
