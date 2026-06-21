@@ -1,7 +1,16 @@
 # Design: Zustand-Umbau (4 Werte) + Renovierungsbonus
 
 **Datum:** 2026-06-21
-**Status:** Brainstorming abgeschlossen, Spec zur Review
+**Status:** In Umsetzung — siehe Realitäts-Addendum unten (Schema wich vom Entwurf ab)
+
+> ## ⚠️ Umsetzungs-Realität (2026-06-21, nach Airtable-Introspektion)
+> Beim Anbinden via Airtable-API stellten sich drei Annahmen des Entwurfs als falsch heraus — korrigiert:
+> 1. **Feld-Heimat:** Das preiswirksame Zustand-Feld ist **„Zustand WE" (`fldcB9Q4vmoLYWCjr`) auf Kalkulations-Stammdaten** (`tblz5KNtzkLSLHHFo`), nicht auf der Wohneinheit. Die Wohneinheit-Zustandsfelder („Zustand (IST)", „Zustand (Einkauf)") sind beschreibend, nicht preiswirksam.
+> 2. **Bonus = Override-only:** Edgar („bestehende Einheiten bleiben wie sie sind") → **kein zustandsbasierter Auto-Default**. Aktiver Bonus = manuelles Currency-Feld **„Renovierungsbonus (€)" (`fldWkm04lIAhYsfpN`)** auf Kalk-Stammdaten (neu angelegt). Leer = 0. Die 100/200 €/qm leben als Pflege-Vorschlag in der Feld-Beschreibung, nicht als Auto-Wert. Engine deckelt auf 15 % Gebäudewert.
+> 3. **Labels:** Airtable-API kann Select-Choices nicht ändern (nur `name`/`description`/Formel). Die **Formel** wurde via API auf das neue %-Modell gesetzt und matcht **alte UND neue** Labels (kernsaniert +8, renoviert +3, Rest 0) → bruchfrei. Die **Label-Umbenennung** (Bezugsfertig→Standard, Renov.bed.(−5%)→Renovierungsbedürftig, Renoviert(+3%)→Renoviert, Kernsaniert(+6%)→Kernsaniert, Sanierungsbedürftig löschen) macht Edgar **manuell im Airtable-UI**.
+> 4. **Engine-Outputs unverändert additiv:** `renovierungsbonus`, `renovierungsbonusCap`, `ekBedarfNetto`, `renoErstattung`. `ekBedarf`/`irr`/`vermoegenNetto10` bleiben auf KNK-Brutto (per Test abgesichert).
+
+**Status (Original):** Brainstorming abgeschlossen, Spec zur Review
 **Auslöser:** Das Zustand-Feld soll keine Abschläge mehr fahren. Statt „schlechter Zustand → Preisabschlag" arbeiten wir mit einem **Renovierungsbonus**: ein Teil des Verkaufspreises, der nach dem Notartermin an den Käufer zurückfließt, damit er renovieren kann. Aufschläge für gute Zustände bleiben.
 
 ---
