@@ -2750,14 +2750,13 @@ function kalkInputsThemenHtml(i) {
                 <span style="font-weight:700;color:var(--positive);font-size:14px;">${fmtRb(bonus)} €</span>
               </div>
               <div class="text-small" style="line-height:1.5;">
-                Im Kaufpreis enthalten, <strong>nach dem Notartermin an den Käufer ausgezahlt</strong> — zweckgebunden für die Renovierung.
-                <div style="margin-top:6px;"><strong>Wenn der Käufer renoviert:</strong></div>
+                Im Kaufpreis enthalten, <strong>nach dem Notartermin an den Käufer ausgezahlt</strong> — senkt den Kapitaleinsatz Tag 1 (siehe EK-Bedarf).
+                <div style="margin-top:6px;">Verwendet der Käufer die ${fmtRb(bonus)} € für die Renovierung:</div>
                 <ul style="margin:4px 0 0;padding-left:16px;">
-                  <li>Steuererstattung ≈ <strong>${fmtRb(erst)} €</strong> (${stPct} % Steuersatz, mit dem Steuerbescheid des Folgejahres)</li>
-                  <li>Wertzuwachs der Wohnung um mind. ${fmtRb(bonus)} €</li>
-                  <li>Höhere erzielbare Miete — sofern noch Luft zur Marktmiete ist</li>
+                  <li>steuerlich absetzbar → ≈ <strong>${fmtRb(erst)} €</strong> zurück (${stPct} % Steuersatz, mit dem Steuerbescheid des Folgejahres)</li>
+                  <li>höhere erzielbare Miete und Wiederverkaufswert — sofern noch Luft zur Marktmiete ist</li>
                 </ul>
-                <div class="text-tertiary text-small" style="margin-top:6px;font-size:11.5px;">Renovierungskosten sind steuerlich absetzbar; Details mit dem Steuerberater.</div>
+                <div class="text-tertiary text-small" style="margin-top:6px;font-size:11.5px;">Details mit dem Steuerberater.</div>
               </div>
             </div>`;
         })()}

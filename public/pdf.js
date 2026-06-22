@@ -694,7 +694,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       ${r.renovierungsbonus > 0 ? `
       <div style="margin-top:4mm;padding:3mm;border:0.3mm solid #d8d2c6;border-radius:1.5mm;">
         <div style="font-weight:600;margin-bottom:1.5mm;">Renovierungsbudget ${fmt(r.renovierungsbonus)} — nach dem Notartermin an Dich ausgezahlt</div>
-        <div style="font-size:8pt;line-height:1.5;">Im Kaufpreis enthalten und zweckgebunden für die Renovierung. Wenn Du renovierst: Steuererstattung ≈ <strong>${fmt(r.renoErstattung)}</strong> (mit dem Steuerbescheid des Folgejahres), Wertzuwachs der Wohnung um mindestens ${fmt(r.renovierungsbonus)}, und eine höhere erzielbare Miete — sofern noch Luft zur Marktmiete ist. Renovierungskosten sind steuerlich absetzbar; Details mit Deinem Steuerberater.</div>
+        <div style="font-size:8pt;line-height:1.5;">Im Kaufpreis enthalten und nach dem Notartermin an Dich ausgezahlt — das senkt Deinen Kapitaleinsatz am Tag 1. Verwendest Du die Summe für die Renovierung, ist sie steuerlich absetzbar (≈ <strong>${fmt(r.renoErstattung)}</strong> zurück mit dem Steuerbescheid des Folgejahres) und hebt Miete sowie Wiederverkaufswert — sofern noch Luft zur Marktmiete ist. Details mit Deinem Steuerberater.</div>
       </div>` : ''}
       <!-- QA-Fix 2026-05-23 (Edgar P3): Disclaimer von Seite 5 entfernt — durch B5
            war er 5× länger und Seite 5 (Annahmen + Cashflow-Tabelle) lief in
