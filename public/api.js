@@ -36,6 +36,10 @@ async function _fetch(url, opts) {
 
 const api = {
   get(url) { return _fetch(url, { credentials: 'include' }); },
+  // HubSpot-Kontaktsuche für "Import on demand" beim Kunden-Anlegen (nur lesend).
+  hubspotSearch(q) {
+    return _fetch('/api/hubspot/contacts?q=' + encodeURIComponent(q || ''), { credentials: 'include' });
+  },
   post(url, body) {
     return _fetch(url, {
       method: 'POST', credentials: 'include',

@@ -980,6 +980,11 @@ function openNeuerKundeModal() {
       '<div class="reserv-modal nk-modal">' +
         '<h2>Neuen Kunden anlegen</h2>' +
         '<div class="reserv-modal-body">' +
+          '<div class="nk-hs">' +
+            '<input type="text" id="nk-hs-search" class="nk-hs-input" placeholder="🔍 Aus HubSpot übernehmen — Name oder E-Mail…" autocomplete="off" />' +
+            '<div id="nk-hs-results" class="nk-hs-results" hidden></div>' +
+            '<div id="nk-hs-note" class="nk-hs-note" hidden></div>' +
+          '</div>' +
           '<div class="nk-grid">' +
             '<label class="nk-field">' +
               '<span class="nk-label">Vorname <span class="nk-req">*</span></span>' +
@@ -1009,6 +1014,79 @@ function openNeuerKundeModal() {
     const errEl = $('nk-error');
     const showError = (msg) => { errEl.textContent = msg; errEl.hidden = false; };
     const hideError = () => { errEl.hidden = true; };
+
+    // --- HubSpot-Import (on demand): suchen → Treffer übernehmen → Felder vorausfüllen.
+    // Treffer werden per DOM-API (textContent) gebaut, nicht innerHTML → kein XSS über
+    // HubSpot-Namen/E-Mails. Race-Schutz über hsSeq (alte Antworten verwerfen). ---
+    const hsSearch  = $('nk-hs-search');
+    const hsResults = $('nk-hs-results');
+    const hsNote    = $('nk-hs-note');
+    let hsTimer = null, hsSeq = 0;
+
+    const fillFromContact = (c) => {
+      $('nk-vorname').value  = c.vorname  || '';
+      $('nk-nachname').value = c.nachname || '';
+      $('nk-email').value    = c.email    || '';
+      $('nk-telefon').value  = c.telefon  || '';
+      hsResults.hidden = true; hsResults.innerHTML = '';
+      hideError();
+      const raw = c.rawName || ((c.vorname || '') + ' ' + (c.nachname || '')).trim();
+      hsNote.textContent = 'Aus HubSpot: «' + raw + '» — Vor-/Nachname bitte prüfen.';
+      hsNote.hidden = false;
+      $('nk-nachname').focus();
+    };
+
+    const renderResults = (list) => {
+      hsResults.innerHTML = '';
+      if (!list || !list.length) {
+        const e = document.createElement('div');
+        e.className = 'nk-hs-empty'; e.textContent = 'Keine Treffer in HubSpot.';
+        hsResults.appendChild(e); hsResults.hidden = false; return;
+      }
+      list.forEach((c) => {
+        const row = document.createElement('button');
+        row.type = 'button'; row.className = 'nk-hs-row';
+        const nm = document.createElement('span');
+        nm.className = 'nk-hs-row-name';
+        nm.textContent = c.rawName || ((c.vorname || '') + ' ' + (c.nachname || '')).trim() || '(ohne Name)';
+        row.appendChild(nm);
+        const metaTxt = [c.email, c.telefon].filter(Boolean).join('  ·  ');
+        if (metaTxt) {
+          const meta = document.createElement('span');
+          meta.className = 'nk-hs-row-meta'; meta.textContent = metaTxt;
+          row.appendChild(meta);
+        }
+        row.onclick = () => fillFromContact(c);
+        hsResults.appendChild(row);
+      });
+      hsResults.hidden = false;
+    };
+
+    const doSearch = async (q) => {
+      const seq = ++hsSeq;
+      try {
+        const list = await api.hubspotSearch(q);
+        if (seq !== hsSeq) return;
+        renderResults(list);
+      } catch (e) {
+        if (seq !== hsSeq) return;
+        hsResults.innerHTML = '';
+        const el = document.createElement('div');
+        el.className = 'nk-hs-empty';
+        el.textContent = (e && e.status === 503)
+          ? 'HubSpot ist nicht verbunden.'
+          : ('HubSpot-Suche fehlgeschlagen: ' + ((e && e.message) || 'Fehler'));
+        hsResults.appendChild(el); hsResults.hidden = false;
+      }
+    };
+
+    hsSearch.addEventListener('input', () => {
+      hsNote.hidden = true;
+      const q = hsSearch.value.trim();
+      if (hsTimer) clearTimeout(hsTimer);
+      if (q.length < 2) { hsResults.hidden = true; hsResults.innerHTML = ''; return; }
+      hsTimer = setTimeout(() => doSearch(q), 280);
+    });
 
     const close = (val) => { m.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
 
@@ -1040,9 +1118,15 @@ function openNeuerKundeModal() {
     m.onclick = (e) => { if (e.target === m) close(null); };
 
     const onKey = (e) => {
-      if (e.key === 'Escape') close(null);
-      else if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') {
+      if (e.key === 'Escape') { close(null); return; }
+      if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') {
         e.preventDefault();
+        // Enter im HubSpot-Suchfeld → sofort suchen, NICHT den Kunden anlegen.
+        if (e.target.id === 'nk-hs-search') {
+          const q = e.target.value.trim();
+          if (q.length >= 2) { if (hsTimer) clearTimeout(hsTimer); doSearch(q); }
+          return;
+        }
         trySave();
       }
     };
@@ -1077,6 +1161,34 @@ function _neuerKundeEnsureStyles() {
     .nk-error {
       margin-top: 12px; padding: 9px 12px; background: #fbe9e9; color: #8a1f1f;
       border-left: 3px solid #c44; border-radius: 4px; font-size: 0.88em;
+    }
+    .nk-hs { margin-bottom: 16px; }
+    .nk-hs-input {
+      width: 100%; box-sizing: border-box; padding: 9px 11px;
+      border: 1px solid #d4d0ca; border-radius: 6px; background: #faf9f7;
+      font-family: inherit; font-size: 0.95em; transition: border-color 0.12s, background 0.12s;
+    }
+    .nk-hs-input:focus {
+      outline: none; border-color: #1a1a1a; background: #fff;
+      box-shadow: 0 0 0 2px rgba(26,26,26,0.08);
+    }
+    .nk-hs-results {
+      margin-top: 6px; border: 1px solid #e0ddd8; border-radius: 6px;
+      max-height: 200px; overflow-y: auto; background: #fff;
+    }
+    .nk-hs-row {
+      display: flex; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;
+      text-align: left; padding: 8px 11px; border: none; border-bottom: 1px solid #f0eee9;
+      background: #fff; cursor: pointer; font-family: inherit;
+    }
+    .nk-hs-row:last-child { border-bottom: none; }
+    .nk-hs-row:hover { background: #f5f3f0; }
+    .nk-hs-row-name { font-size: 0.92em; color: #1a1a1a; font-weight: 500; }
+    .nk-hs-row-meta { font-size: 0.8em; color: #8a857d; }
+    .nk-hs-empty { padding: 9px 11px; font-size: 0.85em; color: #8a857d; }
+    .nk-hs-note {
+      margin-top: 8px; padding: 7px 10px; background: #eef5ee; color: #2f5f2f;
+      border-left: 3px solid #6aa06a; border-radius: 4px; font-size: 0.82em;
     }
   `;
   document.head.appendChild(s);
