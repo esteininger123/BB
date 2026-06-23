@@ -11,7 +11,7 @@
 const { requireSafeOrigin } = require('../../_lib/auth');
 const { readBody, methodNotAllowed, sendError } = require('../../_lib/http');
 const { airtable } = require('../../_lib/airtable');
-const { TABLES, FINANZIERUNGSFALL_FIELDS } = require('../../_lib/tables');
+const { TABLES, FINANZIERUNGSFALL_FIELDS, FINANZIERUNG_BB } = require('../../_lib/tables');
 const { verifyUploadToken } = require('../../_lib/upload-token');
 const { listFiles, uploadFile, getFolderAppProps, setFolderAppProps, getFileMeta, trashFile, downloadFile } = require('../../_lib/drive');
 const { resolveVerkaufsunterlagenFolder } = require('../../_lib/objektunterlagen');
@@ -99,6 +99,15 @@ function requiredItems(profil) {
   return items;
 }
 
+// Airtable-Choice "Finanzierung über B&B" → Frontend-Key.
+function finModusFromFall(fall) {
+  const v = fall && fall.fields && fall.fields[FINANZIERUNGSFALL_FIELDS.FINANZIERUNG_UEBER_BB];
+  const name = (v && typeof v === 'object') ? v.name : v;
+  if (name === FINANZIERUNG_BB.JA) return 'ueber_bb';
+  if (name === FINANZIERUNG_BB.EXTERN) return 'extern';
+  return 'offen';
+}
+
 const slim = (f) => ({
   id: f.id, name: f.name, webViewLink: f.webViewLink,
   punkt: (f.appProperties && f.appProperties.punkt) || '',
@@ -123,8 +132,11 @@ module.exports = async (req, res) => {
       const fileId = String(req.query.file);
       const meta = await getFileMeta(fileId, 'id,name,parents,mimeType').catch(() => null);
       if (!meta) return res.status(404).json({ error: 'Datei nicht gefunden' });
+      // Ansehbar: eigene Uploads + Objektunterlagen (zentral + WE-spezifisch) — alle an
+      // diesen Token gebunden. Löschen bleibt strikt auf den eigenen Ordner beschränkt.
+      const allowedParents = [payload.folderId, centralFolderId, weSpezFolderId].filter(Boolean);
       const parents = Array.isArray(meta.parents) ? meta.parents : [];
-      if (!parents.includes(payload.folderId)) {
+      if (!parents.some((p) => allowedParents.includes(p))) {
         return res.status(403).json({ error: 'Kein Zugriff auf diese Datei' });
       }
       const buf = await downloadFile(fileId);
@@ -136,19 +148,20 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'GET') {
-      let kundeName = '';
+      let kundeName = '', finanzierungUeberUns = 'offen';
       if (payload.fallId) {
         try {
           const fall = await airtable('get', TABLES.FINANZIERUNGSFALL, { recordId: payload.fallId });
           kundeName = (fall.fields && fall.fields[FINANZIERUNGSFALL_FIELDS.TITEL]) || '';
-        } catch { /* Titel optional */ }
+          finanzierungUeberUns = finModusFromFall(fall);
+        } catch { /* Titel/Modus optional */ }
       }
       const profil = readProfil(await getFolderAppProps(payload.folderId).catch(() => ({})));
       const uploads = (await listFiles(payload.folderId).catch(() => [])).map(slim);
       const objCentral = centralFolderId ? (await listFiles(centralFolderId).catch(() => [])).map(slim) : [];
       const objSpez = weSpezFolderId ? (await listFiles(weSpezFolderId).catch(() => [])).map(slim) : [];
       return res.status(200).json({
-        kundeName, profil, dokumente: DOKUMENTE, personKern: PERSON_KERN,
+        kundeName, finanzierungUeberUns, profil, dokumente: DOKUMENTE, personKern: PERSON_KERN,
         weitereTypen: WEITERE_TYPEN, uploads, objektunterlagen: [...objCentral, ...objSpez],
       });
     }
@@ -170,6 +183,17 @@ module.exports = async (req, res) => {
         }
         await trashFile(fileId);
         return res.status(200).json({ ok: true, id: fileId });
+      }
+
+      // — Finanzierungs-Modus umschalten (Kunde entscheidet: über uns oder extern) —
+      if (body.action === 'finanzierung') {
+        if (!payload.fallId) return res.status(400).json({ error: 'Kein Fall verknüpft' });
+        const ueberUns = !!body.ueberUns;
+        await airtable('update', TABLES.FINANZIERUNGSFALL, {
+          recordId: payload.fallId,
+          fields: { [FINANZIERUNGSFALL_FIELDS.FINANZIERUNG_UEBER_BB]: ueberUns ? FINANZIERUNG_BB.JA : FINANZIERUNG_BB.EXTERN },
+        });
+        return res.status(200).json({ ok: true, finanzierungUeberUns: ueberUns ? 'ueber_bb' : 'extern' });
       }
 
       // — Profil-Update —

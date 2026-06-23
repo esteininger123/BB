@@ -111,6 +111,7 @@ module.exports = async (req, res) => {
       wasWichtig:             body.wasWichtig || '',
       notizVertrieb:          body.notizVertrieb || '',
       notarterminZiel:        body.notarterminZiel || '',
+      finanzierungUeberUns:   body.finanzierungUeberUns || 'offen',
     });
 
     const created = await airtable('create', TABLES.FINANZIERUNGSFALL, { fields });
@@ -172,15 +173,13 @@ module.exports = async (req, res) => {
       console.error('[uebergeben] Drive-Ordner/Upload-Link fehlgeschlagen (nicht kritisch):', e && e.message);
     }
 
-    // Kunden-Phase auf "Bank-Einreichung" + Letzte-Aktivität touchen (nicht kritisch)
+    // Letzte-Aktivität touchen; Phase nur auf "Bank-Einreichung", wenn die Finanzierung
+    // wirklich über uns läuft. Reine Dokumenten-Freigaben (extern/offen) verschieben den
+    // Kunden nicht in die Bank-Phase. (nicht kritisch)
     try {
-      await airtable('update', TABLES.KUNDEN, {
-        recordId: body.kundeId,
-        fields: {
-          [KUNDEN_FIELDS.PHASE]: 'Bank-Einreichung',
-          [KUNDEN_FIELDS.LAST_ACTIVITY]: new Date().toISOString(),
-        }
-      });
+      const kundenFields = { [KUNDEN_FIELDS.LAST_ACTIVITY]: new Date().toISOString() };
+      if (body.finanzierungUeberUns === 'ueber_bb') kundenFields[KUNDEN_FIELDS.PHASE] = 'Bank-Einreichung';
+      await airtable('update', TABLES.KUNDEN, { recordId: body.kundeId, fields: kundenFields });
     } catch { /* nicht kritisch */ }
 
     return res.status(201).json({ ok: true, id: created.id, driveLink, uploadLink });

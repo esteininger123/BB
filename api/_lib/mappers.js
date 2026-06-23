@@ -1,6 +1,9 @@
 // Field-Mappings: Airtable-Record → API-Object und API-Body → Airtable-Fields.
 
-const { KUNDEN_FIELDS, SNAPSHOT_FIELDS, VERTRIEBLER_FIELDS, WE_FIELDS, FINANZIERUNGSFALL_FIELDS, FINANZIERUNGSFALL_STATUS_START } = require('./tables');
+const { KUNDEN_FIELDS, SNAPSHOT_FIELDS, VERTRIEBLER_FIELDS, WE_FIELDS, FINANZIERUNGSFALL_FIELDS, FINANZIERUNGSFALL_STATUS_START, FINANZIERUNG_BB } = require('./tables');
+
+// Frontend-Key ('ueber_bb' | 'offen' | 'extern') → Airtable-Choice-Name.
+const FINANZIERUNG_BB_BY_KEY = { ueber_bb: FINANZIERUNG_BB.JA, offen: FINANZIERUNG_BB.OFFEN, extern: FINANZIERUNG_BB.EXTERN };
 
 // --- Kunden ---
 
@@ -237,6 +240,9 @@ function finanzierungsfallBodyToFields(body) {
   out[F.WAS_WICHTIG]             = body.wasWichtig || '';
   out[F.NOTIZ_VERTRIEB]          = body.notizVertrieb || '';
   if (body.notarterminZiel) out[F.NOTARTERMIN_ZIEL] = body.notarterminZiel;
+
+  // Läuft die Finanzierung über uns? (steuert den Upload-Teil im Kundenportal)
+  out[F.FINANZIERUNG_UEBER_BB] = FINANZIERUNG_BB_BY_KEY[body.finanzierungUeberUns] || FINANZIERUNG_BB.OFFEN;
 
   out[F.STATUS]    = FINANZIERUNGSFALL_STATUS_START;
   out[F.SA_STATUS] = 'fehlt';

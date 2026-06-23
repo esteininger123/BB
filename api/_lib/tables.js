@@ -147,9 +147,14 @@ const FINANZIERUNGSFALL_FIELDS = {
   SA_STATUS:               'fld2ycS7SZZB9W9XJ', // singleSelect: fehlt / liegt vor
   KUNDEN_DRIVE:            'fldVLOKeXrgkJLWaD', // url — Link zum Drive-Ordner des Kunden (Baustein D)
   UPLOAD_LINK:             'fldBra4iUkp25viju', // url — Token-Link fürs Kunden-Upload-Portal (Baustein U)
+  FINANZIERUNG_UEBER_BB:   'fldtvPsplayOthsqA', // singleSelect — läuft die Finanzierung über uns? (steuert Upload-Teil im Portal)
 };
 
 const FINANZIERUNGSFALL_STATUS_START = 'Unterlagen noch anfordern';
+
+// Choice-Werte des Feldes "Finanzierung über B&B". Vertriebler setzt den Default,
+// Kunde kann im Portal umschalten. OFFEN/EXTERN = nur Objektunterlagen, kein Upload-Zwang.
+const FINANZIERUNG_BB = { JA: 'Über B&B', OFFEN: 'Noch offen', EXTERN: 'Extern' };
 
 // App-Konfiguration (Key/Value-Store, 1 Record pro Key). 2026-06-19.
 const APP_KONFIG_FIELDS = {
@@ -323,6 +328,7 @@ module.exports = {
   KALK_STATUS_ARCHIV,
   FINANZIERUNGSFALL_FIELDS,
   FINANZIERUNGSFALL_STATUS_START,
+  FINANZIERUNG_BB,
   APP_KONFIG_FIELDS,
   APP_KONFIG_KEY_KONDITIONEN,
 };

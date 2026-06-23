@@ -1148,42 +1148,54 @@ function openFinanzierungUebergabeModal(snapshots) {
     }).join('');
     m.innerHTML =
       '<div class="reserv-modal fin-modal">' +
-        '<h2>An Finanzierung übergeben</h2>' +
-        '<div class="fin-hinweis">Vor der Übergabe: Kalkulation als <b>Snapshot</b> gespeichert und <b>unterschriebene Selbstauskunft</b> liegt vor. Die Finanzierung kann erst mit unterschriebener Selbstauskunft einreichen.</div>' +
+        '<h2>Kundenportal eröffnen</h2>' +
+        '<div class="fin-hinweis fin-hinweis-allg">Der Kunde bekommt einen Portal-Link: Dort sieht er die <b>Objektunterlagen</b> zu seiner Wohnung. Läuft die <b>Finanzierung über uns</b>, lädt er im selben Portal seine Unterlagen hoch.</div>' +
         '<div class="reserv-modal-body">' +
+          '<label class="fin-field fin-full"><span class="fin-label">Finanzierung über B&amp;B? <span class="nk-req">*</span></span>' +
+            '<select id="fin-modus">' +
+              '<option value="ueber_bb">Ja — läuft über uns</option>' +
+              '<option value="offen" selected>Noch offen</option>' +
+              '<option value="extern">Nein — Kunde finanziert extern</option>' +
+            '</select></label>' +
           (snaps.length
-            ? '<label class="fin-field fin-full"><span class="fin-label">Maßgebliche Kalkulation <span class="nk-req">*</span></span>' +
-                '<select id="fin-snapshot">' + snapOptions + '</select></label>'
+            ? '<label class="fin-field fin-full"><span class="fin-label">Maßgebliche Kalkulation / Wohnung <span class="nk-req">*</span></span>' +
+                '<select id="fin-snapshot">' + snapOptions + '</select>' +
+                '<span class="fin-sub">Bestimmt, welche Objektunterlagen der Kunde sieht.</span></label>'
             : '<div class="nk-error">Kein Snapshot vorhanden — bitte zuerst eine Kalkulation speichern.</div>') +
-          '<label class="fin-field"><span class="fin-label">Finanzierungsform</span>' +
-            '<select id="fin-form"><option value="107">107 % (inkl. Nebenkosten)</option>' +
-            '<option value="100">100 %</option><option value="andere">andere</option></select></label>' +
-          '<label class="fin-field"><span class="fin-label">— falls andere</span>' +
-            '<input type="text" id="fin-form-andere" placeholder="z.B. KfW-Kombi" /></label>' +
-          '<label class="fin-field"><span class="fin-label">Max. Eigenkapital (€)</span>' +
-            '<input type="number" id="fin-maxek" min="0" step="1000" placeholder="optional" /></label>' +
-          '<label class="fin-field"><span class="fin-label">Notartermin-Ziel</span>' +
-            '<input type="date" id="fin-notar" /></label>' +
-          '<label class="fin-field fin-check fin-full"><input type="checkbox" id="fin-hb" /> <span>Hausbank vorhanden</span></label>' +
-          '<div id="fin-hb-details" class="fin-details fin-full" hidden>' +
-            '<label class="fin-field fin-full"><span class="fin-label">Hausbank — Name</span>' +
-              '<input type="text" id="fin-hb-name" placeholder="Name der Bank" /></label>' +
-            '<label class="fin-field fin-full"><span class="fin-label">Hausbank — Berater</span>' +
-              '<input type="text" id="fin-hb-berater" placeholder="Ansprechpartner bei der Bank" /></label>' +
+          '<div id="fin-only" class="fin-only fin-full" hidden>' +
+            '<div class="fin-hinweis">Vor dem Einreichen: Kalkulation als <b>Snapshot</b> gespeichert und <b>unterschriebene Selbstauskunft</b> liegt vor. Die Finanzierung kann erst mit unterschriebener Selbstauskunft einreichen.</div>' +
+            '<div class="fin-grid">' +
+              '<label class="fin-field"><span class="fin-label">Finanzierungsform</span>' +
+                '<select id="fin-form"><option value="107">107 % (inkl. Nebenkosten)</option>' +
+                '<option value="100">100 %</option><option value="andere">andere</option></select></label>' +
+              '<label class="fin-field"><span class="fin-label">— falls andere</span>' +
+                '<input type="text" id="fin-form-andere" placeholder="z.B. KfW-Kombi" /></label>' +
+              '<label class="fin-field"><span class="fin-label">Max. Eigenkapital (€)</span>' +
+                '<input type="number" id="fin-maxek" min="0" step="1000" placeholder="optional" /></label>' +
+              '<label class="fin-field"><span class="fin-label">Notartermin-Ziel</span>' +
+                '<input type="date" id="fin-notar" /></label>' +
+              '<label class="fin-field fin-check fin-full"><input type="checkbox" id="fin-hb" /> <span>Hausbank vorhanden</span></label>' +
+              '<div id="fin-hb-details" class="fin-details fin-full" hidden>' +
+                '<label class="fin-field fin-full"><span class="fin-label">Hausbank — Name</span>' +
+                  '<input type="text" id="fin-hb-name" placeholder="Name der Bank" /></label>' +
+                '<label class="fin-field fin-full"><span class="fin-label">Hausbank — Berater</span>' +
+                  '<input type="text" id="fin-hb-berater" placeholder="Ansprechpartner bei der Bank" /></label>' +
+              '</div>' +
+              '<label class="fin-field fin-check fin-full"><input type="checkbox" id="fin-fb" /> <span>Eigener Finanzierer vorhanden</span></label>' +
+              '<div id="fin-fb-details" class="fin-details fin-full" hidden>' +
+                '<label class="fin-field fin-full"><span class="fin-label">Finanzierer — Kontakt</span>' +
+                  '<input type="text" id="fin-fb-kontakt" placeholder="Name / Kontakt des Finanzierers" /></label>' +
+              '</div>' +
+              '<label class="fin-field fin-full"><span class="fin-label">Was ist dem Kunden wichtig?</span>' +
+                '<textarea id="fin-wichtig" rows="2" placeholder="z.B. niedrige Rate, schnelle Zusage, Sondertilgung"></textarea></label>' +
+              '<label class="fin-field fin-full"><span class="fin-label">Notiz an die Finanzierung</span>' +
+                '<textarea id="fin-notiz" rows="2" placeholder="Was die Finanzierung sonst wissen sollte"></textarea></label>' +
+            '</div>' +
           '</div>' +
-          '<label class="fin-field fin-check fin-full"><input type="checkbox" id="fin-fb" /> <span>Eigener Finanzierer vorhanden</span></label>' +
-          '<div id="fin-fb-details" class="fin-details fin-full" hidden>' +
-            '<label class="fin-field fin-full"><span class="fin-label">Finanzierer — Kontakt</span>' +
-              '<input type="text" id="fin-fb-kontakt" placeholder="Name / Kontakt des Finanzierers" /></label>' +
-          '</div>' +
-          '<label class="fin-field fin-full"><span class="fin-label">Was ist dem Kunden wichtig?</span>' +
-            '<textarea id="fin-wichtig" rows="2" placeholder="z.B. niedrige Rate, schnelle Zusage, Sondertilgung"></textarea></label>' +
-          '<label class="fin-field fin-full"><span class="fin-label">Notiz an die Finanzierung</span>' +
-            '<textarea id="fin-notiz" rows="2" placeholder="Was die Finanzierung sonst wissen sollte"></textarea></label>' +
         '</div>' +
         '<div class="reserv-modal-actions">' +
           '<button class="reserv-cancel" id="fin-cancel">Abbrechen</button>' +
-          '<button class="reserv-confirm" id="fin-save"' + (snaps.length ? '' : ' disabled') + '>Übergeben</button>' +
+          '<button class="reserv-confirm" id="fin-save"' + (snaps.length ? '' : ' disabled') + '>Portal eröffnen</button>' +
         '</div>' +
       '</div>';
     const $ = (id) => m.querySelector('#' + id);
@@ -1197,23 +1209,31 @@ function openFinanzierungUebergabeModal(snapshots) {
     };
     bindToggle('fin-hb', 'fin-hb-details');
     bindToggle('fin-fb', 'fin-fb-details');
+    // Modus steuert die Finanzierungs-Detailfelder: nur sichtbar, wenn über uns finanziert.
+    const modusSel = $('fin-modus'), finOnly = $('fin-only');
+    const applyModus = () => { finOnly.hidden = (modusSel.value !== 'ueber_bb'); };
+    modusSel.addEventListener('change', applyModus);
+    applyModus();
     const onSave = () => {
       const snapshotId = snaps.length ? $('fin-snapshot').value : '';
       if (!snapshotId) return;
-      const hb = $('fin-hb').checked, fb = $('fin-fb').checked;
+      const modus = $('fin-modus').value;
+      const ueberUns = modus === 'ueber_bb';
+      const hb = ueberUns && $('fin-hb').checked, fb = ueberUns && $('fin-fb').checked;
       close({
         snapshotId,
-        finanzierungsform: $('fin-form').value,
-        finanzierungsformAndere: $('fin-form-andere').value.trim(),
-        maxEigenkapital: $('fin-maxek').value ? Number($('fin-maxek').value) : null,
-        notarterminZiel: $('fin-notar').value || '',
+        finanzierungUeberUns: modus,
+        finanzierungsform: ueberUns ? $('fin-form').value : '',
+        finanzierungsformAndere: ueberUns ? $('fin-form-andere').value.trim() : '',
+        maxEigenkapital: (ueberUns && $('fin-maxek').value) ? Number($('fin-maxek').value) : null,
+        notarterminZiel: ueberUns ? ($('fin-notar').value || '') : '',
         hausbankVorhanden: hb,
         hausbankName: hb ? $('fin-hb-name').value.trim() : '',
         hausbankBerater: hb ? $('fin-hb-berater').value.trim() : '',
         finanzberaterVorhanden: fb,
         finanzberaterKontakt: fb ? $('fin-fb-kontakt').value.trim() : '',
-        wasWichtig: $('fin-wichtig').value.trim(),
-        notizVertrieb: $('fin-notiz').value.trim(),
+        wasWichtig: ueberUns ? $('fin-wichtig').value.trim() : '',
+        notizVertrieb: ueberUns ? $('fin-notiz').value.trim() : '',
       });
     };
     $('fin-cancel').onclick = () => close(null);
@@ -1245,6 +1265,11 @@ function _finUebergabeEnsureStyles() {
       background: #fff; font-family: inherit; font-size: 0.95em;
     }
     .fin-field.fin-check input { width: auto; }
+    .fin-hinweis-allg { background: #eef5f0; border-left-color: #2D6E47; color: #2c4a38; }
+    .fin-sub { font-size: 0.78em; color: #8a8a8a; margin-top: 3px; }
+    .fin-only { display: block; }
+    .fin-only[hidden] { display: none; }
+    .fin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 6px; }
   `;
   document.head.appendChild(s);
 }
@@ -1258,11 +1283,11 @@ async function uebergebeAnFinanzierung() {
     const check = await api.get('/api/finanzierung/uebergeben?kundeId=' + encodeURIComponent(state.kundeId));
     if (check && check.count > 0) {
       const msg = check.count === 1
-        ? 'Für diesen Kunden existiert bereits ein Finanzierungsfall.'
-        : `Für diesen Kunden existieren bereits ${check.count} Finanzierungsfälle.`;
-      if (!confirm(msg + '\n\nWirklich einen WEITEREN anlegen?')) return;
+        ? 'Für diesen Kunden wurde bereits ein Kundenportal eröffnet.'
+        : `Für diesen Kunden wurden bereits ${check.count} Portale eröffnet.`;
+      if (!confirm(msg + '\n\nWirklich ein WEITERES eröffnen?')) return;
     }
-  } catch (e) { /* Check nicht kritisch — im Zweifel Übergabe zulassen */ }
+  } catch (e) { /* Check nicht kritisch — im Zweifel zulassen */ }
 
   const data = await openFinanzierungUebergabeModal(snaps);
   if (!data) return;
@@ -1270,6 +1295,7 @@ async function uebergebeAnFinanzierung() {
     const res = await api.post('/api/finanzierung/uebergeben', {
       kundeId: state.kundeId,
       snapshotId: data.snapshotId,
+      finanzierungUeberUns: data.finanzierungUeberUns,
       finanzierungsform: data.finanzierungsform,
       finanzierungsformAndere: data.finanzierungsformAndere,
       maxEigenkapital: data.maxEigenkapital,
@@ -1286,12 +1312,12 @@ async function uebergebeAnFinanzierung() {
     try {
       const snap = snaps.find(s => s.id === data.snapshotId);
       const weBez = (snap && (snap.weBezeichnung || snap.bezeichnung)) || '';
-      const formLabel = data.finanzierungsform === 'andere'
-        ? (data.finanzierungsformAndere || 'andere')
-        : (data.finanzierungsform + '%');
-      await _appendActivityToNotizen('An Finanzierung übergeben' + (weBez ? ' — ' + weBez : '') + ' (' + formLabel + ')');
+      const modusLabel = data.finanzierungUeberUns === 'ueber_bb'
+        ? 'Finanzierung über uns'
+        : (data.finanzierungUeberUns === 'extern' ? 'extern finanziert' : 'Finanzierung offen');
+      await _appendActivityToNotizen('Kundenportal eröffnet' + (weBez ? ' — ' + weBez : '') + ' (' + modusLabel + ')');
     } catch (e) { /* Historie nicht kritisch */ }
-    toast('An Finanzierung übergeben — Fall angelegt', 'success');
+    toast('Kundenportal eröffnet ✓', 'success');
     if (res && res.uploadLink) showUploadLinkModal(res.uploadLink);
     if (typeof renderKunde === 'function') renderKunde();
   } catch (e) {
@@ -1307,9 +1333,9 @@ function showUploadLinkModal(link) {
   m.className = 'reserv-modal-overlay';
   m.innerHTML =
     '<div class="reserv-modal" style="max-width:480px">' +
-      '<h2>Übergeben ✓</h2>' +
+      '<h2>Portal eröffnet ✓</h2>' +
       '<div class="reserv-modal-body">' +
-        '<p style="margin:0 0 10px;font-size:0.92em;color:#444">Schick dem Kunden diesen Link — darüber lädt er seine Unterlagen hoch und sieht die Objektunterlagen:</p>' +
+        '<p style="margin:0 0 10px;font-size:0.92em;color:#444">Schick dem Kunden diesen Link — darüber sieht er seine Objektunterlagen und kann (falls Finanzierung über uns) seine Unterlagen hochladen:</p>' +
         '<input type="text" id="ul-link" readonly style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #d4d0ca;border-radius:6px;font-size:0.82em;background:#fff" value="' + esc(link) + '">' +
       '</div>' +
       '<div class="reserv-modal-actions">' +
@@ -1928,19 +1954,19 @@ function renderTabUebersicht() {
       </div>`;
   })();
 
-  // Finanzierungs-Übergabe (2026-06-15) — bewusst hervorgehobene Aktions-Karte.
+  // Kundenportal eröffnen (2026-06-15, umgewidmet 2026-06-23) — bewusst hervorgehobene Aktions-Karte.
   const finUebergabeCard = `
     <div class="card mt-16" style="border:1.5px solid #B08A4D;background:#fbf6ec;box-shadow:0 1px 4px rgba(176,138,77,.12);">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
         <div style="min-width:210px;">
           <div style="font-weight:800;font-size:15.5px;display:flex;align-items:center;gap:8px;margin-bottom:3px;">
-            <span style="font-size:19px;">🏦</span> An Finanzierung übergeben
+            <span style="font-size:19px;">📂</span> Kundenportal eröffnen
           </div>
-          <span class="text-tertiary text-small">Übergibt Kalkulation &amp; Kunden-Infos und erzeugt den Unterlagen-Upload-Link für den Kunden.</span>
+          <span class="text-tertiary text-small">Legt den Kundenordner an und erzeugt den Portal-Link: Objektunterlagen für den Kunden — plus Unterlagen-Upload, falls die Finanzierung über uns läuft.</span>
         </div>
-        <button type="button" onclick="uebergebeAnFinanzierung()" title="An die Finanzierung übergeben"
+        <button type="button" onclick="uebergebeAnFinanzierung()" title="Kundenportal eröffnen"
           style="background:#2D6E47;color:#fff;border:none;border-radius:9px;padding:14px 24px;font-size:15px;font-weight:800;cursor:pointer;white-space:nowrap;box-shadow:0 2px 7px rgba(45,110,71,.28);"
-          onmouseover="this.style.background='#245a3a'" onmouseout="this.style.background='#2D6E47'">→ Übergeben</button>
+          onmouseover="this.style.background='#245a3a'" onmouseout="this.style.background='#2D6E47'">→ Eröffnen</button>
       </div>
     </div>`;
 
