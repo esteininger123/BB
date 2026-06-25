@@ -13,7 +13,7 @@ const {
   MIETVERTRAG_FIELDS,
   KALK_STAMMDATEN_FIELDS,
   weStatusSichtbarFormula,
-  MAKLER_BUB,
+  maklerFirmaFormula,
 } = require('../_lib/tables');
 
 function num(v) {
@@ -54,7 +54,7 @@ module.exports = async (req, res) => {
 
   try {
     // 1) Alle WEs in Vermarktung (B&B Immo) parallel laden
-    const formula = `AND(${weStatusSichtbarFormula()}, FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0)`;
+    const formula = `AND(${weStatusSichtbarFormula()}, ${maklerFirmaFormula()})`;
     const [weRecs, stammRecs, stplRecs, vertraegeRecs] = await Promise.all([
       listAll(TABLES.WOHNEINHEIT, {
         filterByFormula: formula,

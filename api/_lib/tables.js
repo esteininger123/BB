@@ -192,6 +192,16 @@ function weStatusSichtbarFormula() {
   return 'OR(' + WE_STATUS_SICHTBAR.map((s) => `{Status}='${s}'`).join(', ') + ')';
 }
 const MAKLER_BUB = 'B&B Immo GmbH';
+// 2026-06-25 (Edgar): Backstube/Kalkulator zeigte nur 'B&B Immo GmbH', weil der Firma-
+// Lookup hart auf diesen einen Namen geprüft wurde. Objekte der Schwester-Gesellschaften
+// (B&B Bayern GmbH = z.B. Marktheidenfeld, Bärte Immo GmbH) fielen komplett raus — auch
+// wenn ihre WEs aktiv waren und im Verkauf standen. Jetzt: alle drei Vertriebsgesellschaften.
+const MAKLER_FIRMEN = ['B&B Immo GmbH', 'B&B Bayern GmbH', 'Bärte Immo GmbH'];
+// Baut die OR-Klausel über den Firma-Lookup. Trailing-Spaces ("B&B Immo GmbH  ") sind
+// dank FIND()/Substring-Match unkritisch. Keine Substring-Kollisionen zwischen den drei Namen.
+function maklerFirmaFormula() {
+  return 'OR(' + MAKLER_FIRMEN.map((f) => `FIND('${f}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0`).join(', ') + ')';
+}
 // Iter 41.9 — Vertriebs-Filter aus Henry-Feedback. Wenn die WE im Eigenvertrieb (KAV)
 // verkauft wird, weist Henry/Schenki den Makler-Record "Team B&B" zu. Der Filter ist
 // derzeit NICHT zwingend (Edgar 17.05.: "kann auch jemand anderes sein oder niemand"),
@@ -322,6 +332,8 @@ module.exports = {
   WE_STATUS_SICHTBAR,
   weStatusSichtbarFormula,
   MAKLER_BUB,
+  MAKLER_FIRMEN,
+  maklerFirmaFormula,
   TEAM_BB_LABEL,
   KALK_STATUS_AKTIV,
   KALK_STATUS_ENTWURF,

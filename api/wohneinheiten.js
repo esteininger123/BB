@@ -8,7 +8,7 @@ const { methodNotAllowed, sendError } = require('./_lib/http');
 const {
   TABLES, WE_FIELDS, PROJEKT_FIELDS, PROJEKT_HEAD_FIELDS,
   KALK_STAMMDATEN_FIELDS, KALK_STATUS_AKTIV,
-  weStatusSichtbarFormula, MAKLER_BUB
+  weStatusSichtbarFormula, maklerFirmaFormula
 } = require('./_lib/tables');
 const { weRecordToApi } = require('./_lib/mappers');
 
@@ -230,10 +230,10 @@ module.exports = async (req, res) => {
     const weIdArr = Array.from(aktiveWeIds);
     let formula;
     if (showAll) {
-      formula = `AND(${weStatusSichtbarFormula()}, FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0, ${objektFormula})`;
+      formula = `AND(${weStatusSichtbarFormula()}, ${maklerFirmaFormula()}, ${objektFormula})`;
     } else {
       const weIdFormula = 'OR(' + weIdArr.map(id => `RECORD_ID()='${id}'`).join(', ') + ')';
-      formula = `AND(${weStatusSichtbarFormula()}, FIND('${MAKLER_BUB}', ARRAYJOIN({Firma (from Projekt) (from Objekt)}))>0, ${objektFormula}, ${weIdFormula})`;
+      formula = `AND(${weStatusSichtbarFormula()}, ${maklerFirmaFormula()}, ${objektFormula}, ${weIdFormula})`;
     }
 
     const fields = [
