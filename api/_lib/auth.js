@@ -230,6 +230,15 @@ function requireSafeOrigin(req, res) {
   return true;
 }
 
+// 2026-06-27: Externe Vertriebler bekommen die Rolle 'Extern' und haben eingeschränkten
+// Zugriff — zunächst: keine HubSpot-Lead-Suche. Zentral hier, damit weitere Sperren
+// (künftige extern-Beschränkungen) an derselben Stelle hängen. rolle stammt aus dem
+// server-signierten JWT (signSession), ist also nicht vom Client fälschbar.
+const ROLLE_EXTERN = 'Extern';
+function isExtern(session) {
+  return !!(session && session.rolle === ROLLE_EXTERN);
+}
+
 module.exports = {
   COOKIE_NAME,
   verifyGoogleToken,
@@ -242,5 +251,7 @@ module.exports = {
   requireAdminVerified,
   isAdminByEmailWhitelist,
   isSafeOrigin,
-  requireSafeOrigin
+  requireSafeOrigin,
+  ROLLE_EXTERN,
+  isExtern
 };

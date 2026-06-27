@@ -974,17 +974,22 @@ function openNeuerKundeModal() {
   _reservEnsureStyles();
   _neuerKundeEnsureStyles();
   return new Promise((resolve) => {
+    // Externe Vertriebler (Rolle 'Extern') bekommen die HubSpot-Suche nicht. Das Backend
+    // sperrt die Route ohnehin (403) — hier wird das Suchfeld zusätzlich gar nicht gerendert.
+    const hsAllowed = !!(state.user && state.user.rolle !== 'Extern');
     const m = document.createElement('div');
     m.className = 'reserv-modal-overlay';
     m.innerHTML =
       '<div class="reserv-modal nk-modal">' +
         '<h2>Neuen Kunden anlegen</h2>' +
         '<div class="reserv-modal-body">' +
-          '<div class="nk-hs">' +
-            '<input type="text" id="nk-hs-search" class="nk-hs-input" placeholder="🔍 Aus HubSpot übernehmen — Name oder E-Mail…" autocomplete="off" />' +
-            '<div id="nk-hs-results" class="nk-hs-results" hidden></div>' +
-            '<div id="nk-hs-note" class="nk-hs-note" hidden></div>' +
-          '</div>' +
+          (hsAllowed ?
+            '<div class="nk-hs">' +
+              '<input type="text" id="nk-hs-search" class="nk-hs-input" placeholder="🔍 Aus HubSpot übernehmen — Name oder E-Mail…" autocomplete="off" />' +
+              '<div id="nk-hs-results" class="nk-hs-results" hidden></div>' +
+              '<div id="nk-hs-note" class="nk-hs-note" hidden></div>' +
+            '</div>'
+          : '') +
           '<div class="nk-grid">' +
             '<label class="nk-field">' +
               '<span class="nk-label">Vorname <span class="nk-req">*</span></span>' +
@@ -1018,75 +1023,84 @@ function openNeuerKundeModal() {
     // --- HubSpot-Import (on demand): suchen → Treffer übernehmen → Felder vorausfüllen.
     // Treffer werden per DOM-API (textContent) gebaut, nicht innerHTML → kein XSS über
     // HubSpot-Namen/E-Mails. Race-Schutz über hsSeq (alte Antworten verwerfen). ---
-    const hsSearch  = $('nk-hs-search');
-    const hsResults = $('nk-hs-results');
-    const hsNote    = $('nk-hs-note');
-    let hsTimer = null, hsSeq = 0;
+    // hsTimer + doSearch leben außerhalb des hsAllowed-Blocks, damit der Enter-Handler
+    // (onKey) sie immer referenzieren kann. Für externe Vertriebler bleibt doSearch ein
+    // Noop und das Suchfeld existiert gar nicht.
+    let hsTimer = null;
+    let doSearch = async () => {};
+    if (hsAllowed) {
+      const hsSearch  = $('nk-hs-search');
+      const hsResults = $('nk-hs-results');
+      const hsNote    = $('nk-hs-note');
+      let hsSeq = 0;
 
-    const fillFromContact = (c) => {
-      $('nk-vorname').value  = c.vorname  || '';
-      $('nk-nachname').value = c.nachname || '';
-      $('nk-email').value    = c.email    || '';
-      $('nk-telefon').value  = c.telefon  || '';
-      hsResults.hidden = true; hsResults.innerHTML = '';
-      hideError();
-      const raw = c.rawName || ((c.vorname || '') + ' ' + (c.nachname || '')).trim();
-      hsNote.textContent = 'Aus HubSpot: «' + raw + '» — Vor-/Nachname bitte prüfen.';
-      hsNote.hidden = false;
-      $('nk-nachname').focus();
-    };
+      const fillFromContact = (c) => {
+        $('nk-vorname').value  = c.vorname  || '';
+        $('nk-nachname').value = c.nachname || '';
+        $('nk-email').value    = c.email    || '';
+        $('nk-telefon').value  = c.telefon  || '';
+        hsResults.hidden = true; hsResults.innerHTML = '';
+        hideError();
+        const raw = c.rawName || ((c.vorname || '') + ' ' + (c.nachname || '')).trim();
+        hsNote.textContent = 'Aus HubSpot: «' + raw + '» — Vor-/Nachname bitte prüfen.';
+        hsNote.hidden = false;
+        $('nk-nachname').focus();
+      };
 
-    const renderResults = (list) => {
-      hsResults.innerHTML = '';
-      if (!list || !list.length) {
-        const e = document.createElement('div');
-        e.className = 'nk-hs-empty'; e.textContent = 'Keine Treffer in HubSpot.';
-        hsResults.appendChild(e); hsResults.hidden = false; return;
-      }
-      list.forEach((c) => {
-        const row = document.createElement('button');
-        row.type = 'button'; row.className = 'nk-hs-row';
-        const nm = document.createElement('span');
-        nm.className = 'nk-hs-row-name';
-        nm.textContent = c.rawName || ((c.vorname || '') + ' ' + (c.nachname || '')).trim() || '(ohne Name)';
-        row.appendChild(nm);
-        const metaTxt = [c.email, c.telefon].filter(Boolean).join('  ·  ');
-        if (metaTxt) {
-          const meta = document.createElement('span');
-          meta.className = 'nk-hs-row-meta'; meta.textContent = metaTxt;
-          row.appendChild(meta);
-        }
-        row.onclick = () => fillFromContact(c);
-        hsResults.appendChild(row);
-      });
-      hsResults.hidden = false;
-    };
-
-    const doSearch = async (q) => {
-      const seq = ++hsSeq;
-      try {
-        const list = await api.hubspotSearch(q);
-        if (seq !== hsSeq) return;
-        renderResults(list);
-      } catch (e) {
-        if (seq !== hsSeq) return;
+      const renderResults = (list) => {
         hsResults.innerHTML = '';
-        const el = document.createElement('div');
-        el.className = 'nk-hs-empty';
-        el.textContent = (e && e.status === 503)
-          ? 'HubSpot ist nicht verbunden.'
-          : ('HubSpot-Suche fehlgeschlagen: ' + ((e && e.message) || 'Fehler'));
-        hsResults.appendChild(el); hsResults.hidden = false;
-      }
-    };
+        if (!list || !list.length) {
+          const e = document.createElement('div');
+          e.className = 'nk-hs-empty'; e.textContent = 'Keine Treffer in HubSpot.';
+          hsResults.appendChild(e); hsResults.hidden = false; return;
+        }
+        list.forEach((c) => {
+          const row = document.createElement('button');
+          row.type = 'button'; row.className = 'nk-hs-row';
+          const nm = document.createElement('span');
+          nm.className = 'nk-hs-row-name';
+          nm.textContent = c.rawName || ((c.vorname || '') + ' ' + (c.nachname || '')).trim() || '(ohne Name)';
+          row.appendChild(nm);
+          const metaTxt = [c.email, c.telefon].filter(Boolean).join('  ·  ');
+          if (metaTxt) {
+            const meta = document.createElement('span');
+            meta.className = 'nk-hs-row-meta'; meta.textContent = metaTxt;
+            row.appendChild(meta);
+          }
+          row.onclick = () => fillFromContact(c);
+          hsResults.appendChild(row);
+        });
+        hsResults.hidden = false;
+      };
 
-    hsSearch.addEventListener('input', () => {
-      hsNote.hidden = true;
-      const q = hsSearch.value.trim();
-      if (hsTimer) clearTimeout(hsTimer);
-      if (q.length < 2) { hsResults.hidden = true; hsResults.innerHTML = ''; return; }
-      hsTimer = setTimeout(() => doSearch(q), 280);
-    });
+      doSearch = async (q) => {
+        const seq = ++hsSeq;
+        try {
+          const list = await api.hubspotSearch(q);
+          if (seq !== hsSeq) return;
+          renderResults(list);
+        } catch (e) {
+          if (seq !== hsSeq) return;
+          hsResults.innerHTML = '';
+          const el = document.createElement('div');
+          el.className = 'nk-hs-empty';
+          el.textContent = (e && e.status === 503)
+            ? 'HubSpot ist nicht verbunden.'
+            : (e && e.status === 403)
+              ? 'Kein HubSpot-Zugriff.'
+              : ('HubSpot-Suche fehlgeschlagen: ' + ((e && e.message) || 'Fehler'));
+          hsResults.appendChild(el); hsResults.hidden = false;
+        }
+      };
+
+      hsSearch.addEventListener('input', () => {
+        hsNote.hidden = true;
+        const q = hsSearch.value.trim();
+        if (hsTimer) clearTimeout(hsTimer);
+        if (q.length < 2) { hsResults.hidden = true; hsResults.innerHTML = ''; return; }
+        hsTimer = setTimeout(() => doSearch(q), 280);
+      });
+    }
 
     const close = (val) => { m.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
 
