@@ -21,17 +21,19 @@ function linkIds(v) {
 function dedupe(arr) { return Array.from(new Set(arr || [])); }
 
 // Aggregiert die Stellplätze einer WE.
-//   vermietet:        bool — false => leer => keine Stellplätze (Edgar-Entscheidung)
+//   vermietet:        bool — laufender Mietvertrag vorhanden? Steuert NUR die Miet-Herkunft,
+//                     NICHT mehr den Kaufpreis (Edgar 28.06.2026: der Kaufpreis zählt IMMER,
+//                     der Käufer kauft den Stellplatz mit — auch bei Leerstand).
 //   neuStellplatzIds: string[] — Stellplatz-IDs aus "NEU: Vermieteter Stellplatz" der AKTIVEN Verträge
-//   altStellplatzIds: string[] — Stellplatz-IDs aus der alten Stellplatz->WE-Verknüpfung (Fallback)
+//   altStellplatzIds: string[] — Stellplatz-IDs aus der Stellplatz->WE-Verknüpfung
 //   stpById:          { [id]: { titel, typ, kaufpreis, mieteMo } } — Stellplatz-Datensätze
-//   vertragMieteFallback: number — Summe alte Vertrags-Stellplatzmiete (nur wenn keine Stellplatz-Mietkosten gepflegt)
+//   vertragMieteFallback: number — Summe alte Vertrags-Stellplatzmiete (Fallback nur bei vermietet)
+//   stellplatzMieteBeiVerkauf: number — angenommene Stellplatzmiete €/Mo aus den Kalk-Stammdaten
+//                     (Pendant zu "Miete bei Verkauf" der Wohnung). Wenn >0, gewinnt sie immer —
+//                     bei Leerstand die einzige Mietquelle.
 // Rückgabe-Form ist identisch zur bisherigen API (anzahl/garageCount/flaecheCount/kaufpreisSumme/mieteMoSumme/mieteMoQuelle/details),
 // damit das Frontend unverändert bleibt.
-function aggregateStellplaetze({ vermietet, neuStellplatzIds, altStellplatzIds, stpById, vertragMieteFallback }) {
-  if (!vermietet) {
-    return { anzahl: 0, garageCount: 0, flaecheCount: 0, kaufpreisSumme: 0, mieteMoSumme: 0, mieteMoQuelle: 'leer', details: [] };
-  }
+function aggregateStellplaetze({ vermietet, neuStellplatzIds, altStellplatzIds, stpById, vertragMieteFallback, stellplatzMieteBeiVerkauf }) {
   // Henry-Bug 28.06.2026 (Marktheidenfeld 5A): VEREINIGUNG statt Entweder/Oder.
   // Vorher: `neu.length ? neu : alt` — sobald EIN Stellplatz im Mietvertrag-NEU-Feld
   // hing (typisch: die migrierte Garage), wurde die komplette alte WE-Verknüpfung
@@ -58,12 +60,34 @@ function aggregateStellplaetze({ vermietet, neuStellplatzIds, altStellplatzIds, 
     details.push({ id, titel: s.titel || '', typ: s.typ || '', kaufpreis: kp, mieteMo: mk });
   });
 
-  // Miete: Stellplatz-Mietkosten haben Vorrang (= NEU-Rollup-Logik). Wenn dort GAR NICHTS
-  // gepflegt ist, fällt es auf die alte Vertrags-Stellplatzmiete zurück, damit während der
-  // Migration nichts auf 0 springt (Iter-46-Prinzip, jetzt auf die NEU-Stellplatzmenge bezogen).
+  // --- Miete bestimmen ---
+  // Edgar 28.06.2026: Die angenommene "Stellplatz-Miete bei Verkauf" aus den Kalk-Stammdaten
+  // hat IMMER Vorrang (wenn >0) — analog zu "Miete bei Verkauf" bei der Wohnung. Bei Leerstand
+  // (kein laufender Vertrag) ist das die einzige Mietquelle.
+  // Sonst (vermietet, kein Annahme-Feld): Stellplatz-Mietkosten haben Vorrang (= NEU-Rollup-Logik);
+  // ist dort nichts gepflegt, Fallback auf die alte Vertrags-Stellplatzmiete (Iter-46-Prinzip),
+  // damit während der Migration nichts auf 0 springt.
+  const mbvStp = (typeof stellplatzMieteBeiVerkauf === 'number' && isFinite(stellplatzMieteBeiVerkauf) && stellplatzMieteBeiVerkauf > 0)
+    ? stellplatzMieteBeiVerkauf : 0;
   const fb = (typeof vertragMieteFallback === 'number' && isFinite(vertragMieteFallback)) ? vertragMieteFallback : 0;
-  const mieteMoSumme = mieteStellplatz > 0 ? mieteStellplatz : fb;
-  const mieteMoQuelle = mieteStellplatz > 0 ? quelleBasis : (fb > 0 ? 'vertrag-alt' : 'keine');
+
+  let mieteMoSumme, mieteMoQuelle;
+  if (mbvStp > 0 && details.length) {
+    // Annahme-Miete nur, wenn überhaupt ein Stellplatz existiert (details.length>0).
+    // Sonst entstünde eine Phantom-Miete auf 0 Stellplätzen (Pflegefehler: Feld gesetzt,
+    // aber kein Stellplatz verlinkt) — die in Cashflow/IRR einfließt. Review-Fund 28.06.2026.
+    mieteMoSumme = mbvStp;
+    mieteMoQuelle = 'miete-bei-verkauf';
+  } else if (vermietet) {
+    mieteMoSumme = mieteStellplatz > 0 ? mieteStellplatz : fb;
+    mieteMoQuelle = mieteStellplatz > 0 ? quelleBasis : (fb > 0 ? 'vertrag-alt' : 'keine');
+  } else {
+    // Leerstand ohne (greifende) Annahme: Kaufpreis zählt (oben), aber keine Miete.
+    // details.length (= anzahl), nicht ids.length, damit die Quelle zur tatsächlich
+    // gefundenen Stellplatz-Menge passt (Orphan-IDs ohne Datensatz zählen nicht).
+    mieteMoSumme = 0;
+    mieteMoQuelle = details.length ? 'leer-keine-miete' : 'leer';
+  }
 
   return {
     anzahl: details.length,

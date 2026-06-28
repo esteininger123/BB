@@ -403,6 +403,8 @@ function kalkStammRecordToApi(rec) {
     quelle:                f[KALK_STAMMDATEN_FIELDS.QUELLE] || '',
     // Iter 41.9 — Henry-Feedback 17.05.2026:
     mieteBeiVerkauf:       num(f[KALK_STAMMDATEN_FIELDS.MIETE_BEI_VERKAUF]),
+    // 28.06.2026 (Edgar) — angenommene Stellplatzmiete bei Verkauf (Pendant zu MBV).
+    stellplatzMieteBeiVerkauf: num(f[KALK_STAMMDATEN_FIELDS.STELLPLATZ_MIETE_BEI_VERKAUF]),
     marktpreisImmoscout:   num(f[KALK_STAMMDATEN_FIELDS.MARKTPREIS_IS]),
     marktpreisHomeday:     num(f[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]),
     marktmiete:            num(f[KALK_STAMMDATEN_FIELDS.MARKTMIETE]),
@@ -1034,6 +1036,7 @@ module.exports = async (req, res) => {
         altStellplatzIds: weStpIds,
         stpById: stellplaetzeData.byId,
         vertragMieteFallback: vertragInfo.stellplatzMietsumme,
+        stellplatzMieteBeiVerkauf: kalkApi ? kalkApi.stellplatzMieteBeiVerkauf : null,
       });
       const stpKaufpreisSumme = stpAgg.kaufpreisSumme;
       const stpMieteEffektiv = stpAgg.mieteMoSumme;
@@ -1230,6 +1233,8 @@ module.exports = async (req, res) => {
       if (body.notizen !== undefined)               fields[KALK_STAMMDATEN_FIELDS.NOTIZEN]              = body.notizen || '';
       // Iter 41.9 — neue Felder
       if (body.mieteBeiVerkauf !== undefined)       fields[KALK_STAMMDATEN_FIELDS.MIETE_BEI_VERKAUF]    = num(body.mieteBeiVerkauf);
+      // 28.06.2026 (Edgar) — angenommene Stellplatzmiete bei Verkauf.
+      if (body.stellplatzMieteBeiVerkauf !== undefined) fields[KALK_STAMMDATEN_FIELDS.STELLPLATZ_MIETE_BEI_VERKAUF] = num(body.stellplatzMieteBeiVerkauf);
       if (body.marktpreisImmoscout !== undefined)   fields[KALK_STAMMDATEN_FIELDS.MARKTPREIS_IS]        = num(body.marktpreisImmoscout);
       if (body.marktpreisHomeday !== undefined)     fields[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]        = num(body.marktpreisHomeday);
       // Iter 41.10

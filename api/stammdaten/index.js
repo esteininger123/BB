@@ -220,6 +220,8 @@ module.exports = async (req, res) => {
         altStellplatzIds: weStpIds,
         stpById: stplById,
         vertragMieteFallback: stpVertragMiete,
+        // 28.06.2026 (Edgar) — angenommene Stellplatzmiete bei Verkauf (Pendant zu MBV).
+        stellplatzMieteBeiVerkauf: num(sf[KALK_STAMMDATEN_FIELDS.STELLPLATZ_MIETE_BEI_VERKAUF]),
       });
 
       const stammLetzte = sf[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG] || null;
@@ -266,6 +268,7 @@ module.exports = async (req, res) => {
           quelle:                sf[KALK_STAMMDATEN_FIELDS.QUELLE] || '',
           // Iter 41.9
           mieteBeiVerkauf:       num(sf[KALK_STAMMDATEN_FIELDS.MIETE_BEI_VERKAUF]),
+          stellplatzMieteBeiVerkauf: num(sf[KALK_STAMMDATEN_FIELDS.STELLPLATZ_MIETE_BEI_VERKAUF]),
           marktpreisImmoscout:   num(sf[KALK_STAMMDATEN_FIELDS.MARKTPREIS_IS]),
           marktpreisHomeday:     num(sf[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]),
           marktmiete:            num(sf[KALK_STAMMDATEN_FIELDS.MARKTMIETE]),

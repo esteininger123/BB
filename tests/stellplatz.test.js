@@ -69,10 +69,9 @@ test('nur alt verlinkt (keine NEU-Migration, z.B. Bruchsal) → zählt unveränd
   assert.strictEqual(r.kaufpreisSumme, 8000);
 });
 
-test('leerstehend (vermietet=false) → kein Stellplatz (Edgar-Regel 04.06., Bug B)', () => {
-  // Dokumentiert die AKTUELLE Business-Regel: leer => alles 0, inkl. Kaufpreis.
-  // Sollte Edgar diese Regel lockern (Stellplatz-KP auch bei Leerstand zeigen),
-  // ist DIESER Test bewusst anzupassen.
+test('leerstehend ohne Annahme → KP zählt trotzdem, Miete 0 (Bug B, Edgar 28.06.)', () => {
+  // Edgar 28.06.2026: KP zählt IMMER (Käufer kauft den Stellplatz mit), auch bei Leerstand.
+  // Ohne gepflegte "Stellplatz-Miete bei Verkauf" bleibt die Miete aber 0 (kein Vertrag).
   const r = aggregateStellplaetze({
     vermietet: false,
     neuStellplatzIds: [],
@@ -80,6 +79,82 @@ test('leerstehend (vermietet=false) → kein Stellplatz (Edgar-Regel 04.06., Bug
     stpById,
     vertragMieteFallback: 0,
   });
+  assert.strictEqual(r.anzahl, 1, 'Stellplatz wird erkannt');
+  assert.strictEqual(r.flaecheCount, 1);
+  assert.strictEqual(r.kaufpreisSumme, 8000, 'KP zählt auch bei Leerstand');
+  assert.strictEqual(r.mieteMoSumme, 0, 'ohne Annahme keine Miete');
+  assert.strictEqual(r.mieteMoQuelle, 'leer-keine-miete');
+});
+
+test('leerstehend + Stellplatz-Miete bei Verkauf → KP zählt + angenommene Miete greift', () => {
+  const r = aggregateStellplaetze({
+    vermietet: false,
+    neuStellplatzIds: [],
+    altStellplatzIds: ['flaeche'],
+    stpById,
+    vertragMieteFallback: 0,
+    stellplatzMieteBeiVerkauf: 35,
+  });
+  assert.strictEqual(r.anzahl, 1);
+  assert.strictEqual(r.kaufpreisSumme, 8000);
+  assert.strictEqual(r.mieteMoSumme, 35, 'angenommene Miete aus Stammdaten');
+  assert.strictEqual(r.mieteMoQuelle, 'miete-bei-verkauf');
+});
+
+test('Stellplatz-Miete bei Verkauf überschreibt auch die Ist-Miete bei vermietet (wie MBV)', () => {
+  const r = aggregateStellplaetze({
+    vermietet: true,
+    neuStellplatzIds: ['garage'],      // Garage hat 30 €/Mo MIETKOSTEN
+    altStellplatzIds: ['garage'],
+    stpById,
+    vertragMieteFallback: 0,
+    stellplatzMieteBeiVerkauf: 50,
+  });
+  assert.strictEqual(r.mieteMoSumme, 50, 'Annahme gewinnt vor Ist-Miete');
+  assert.strictEqual(r.mieteMoQuelle, 'miete-bei-verkauf');
+});
+
+test('Annahme-Feld gesetzt, aber 0 Stellplätze → KEINE Phantom-Miete (Review-Fund)', () => {
+  // Pflegefehler: "Stellplatz-Miete bei Verkauf" gepflegt, aber kein Stellplatz verlinkt.
+  // Darf KEINE Miete erzeugen (sonst Phantom-Einnahme in Cashflow/IRR ohne KP-Gegenwert).
+  const r = aggregateStellplaetze({
+    vermietet: false,
+    neuStellplatzIds: [],
+    altStellplatzIds: [],
+    stpById,
+    vertragMieteFallback: 0,
+    stellplatzMieteBeiVerkauf: 40,
+  });
   assert.strictEqual(r.anzahl, 0);
   assert.strictEqual(r.kaufpreisSumme, 0);
+  assert.strictEqual(r.mieteMoSumme, 0, 'keine Miete ohne Stellplatz');
+  assert.strictEqual(r.mieteMoQuelle, 'leer');
+});
+
+test('Annahme-Feld gesetzt + Orphan-ID (nicht in stpById) → keine Phantom-Miete', () => {
+  const r = aggregateStellplaetze({
+    vermietet: false,
+    neuStellplatzIds: [],
+    altStellplatzIds: ['gibtsnicht'],
+    stpById,
+    vertragMieteFallback: 0,
+    stellplatzMieteBeiVerkauf: 40,
+  });
+  assert.strictEqual(r.anzahl, 0);
+  assert.strictEqual(r.mieteMoSumme, 0);
+  assert.strictEqual(r.mieteMoQuelle, 'leer');
+});
+
+test('komplett leer (kein Stellplatz) → 0/leer', () => {
+  const r = aggregateStellplaetze({
+    vermietet: false,
+    neuStellplatzIds: [],
+    altStellplatzIds: [],
+    stpById,
+    vertragMieteFallback: 0,
+  });
+  assert.strictEqual(r.anzahl, 0);
+  assert.strictEqual(r.kaufpreisSumme, 0);
+  assert.strictEqual(r.mieteMoSumme, 0);
+  assert.strictEqual(r.mieteMoQuelle, 'leer');
 });

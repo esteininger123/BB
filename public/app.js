@@ -122,6 +122,21 @@ function initialen(name) {
   if (!name) return '?';
   return name.split(/\s+/).map(p => p[0] || '').slice(0,2).join('').toUpperCase();
 }
+// Macht die technische Stellplatz-Miet-Quelle aus dem Backend lesbar fürs
+// Vertriebsgespräch. 'miete-bei-verkauf' = angenommene Miete (z.B. bei Leerstand,
+// kein laufender Vertrag) — muss klar als Annahme erkennbar sein (Edgar 28.06.2026).
+function stplMieteQuelleLabel(q) {
+  return ({
+    'miete-bei-verkauf':        'angenommen bei Verkauf',
+    'leer-keine-miete':         'leer',
+    'leer':                     'leer',
+    'vertrag-alt':              'aus Mietvertrag',
+    'mietvertrag-neu':          'aus Mietvertrag',
+    'mietvertrag-neu+we-link':  'aus Mietvertrag',
+    'we-link-alt':              'aus Stellplatz',
+    'keine':                    '—',
+  })[q] || q || '';
+}
 function phaseBadgeClass(phase) {
   if (!phase) return '';
   const p = phase.toLowerCase();
@@ -2471,7 +2486,7 @@ function renderTabKalkulator() {
                     return `+ ${i._stellplatzAnzahl} Stellplatz${i._stellplatzAnzahl > 1 ? 'e' : ''}`;
                   })()}</strong>
                   ${i._stellplatzKp > 0 ? ' · KP ' + Math.round(i._stellplatzKp).toLocaleString('de-DE') + ' €' : ''}
-                  ${i._stellplatzMiete > 0 ? ' · Miete ' + Math.round(i._stellplatzMiete) + ' €/Mo (' + esc(i._stellplatzMieteQuelle || '') + ')' : ''}
+                  ${i._stellplatzMiete > 0 ? ' · Miete ' + Math.round(i._stellplatzMiete) + ' €/Mo (' + esc(stplMieteQuelleLabel(i._stellplatzMieteQuelle)) + ')' : ''}
                 </div>
               ` : ''}
               ${(() => {

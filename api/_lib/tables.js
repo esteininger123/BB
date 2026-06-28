@@ -275,6 +275,11 @@ const KALK_STAMMDATEN_FIELDS = {
   QUELLE:                'fldrMUcQs06YF0lGi',
   // Iter 41.9 — Henry-Feedback 17.05.2026:
   MIETE_BEI_VERKAUF:     'fldy0UJDRV7CNoN6D', // Currency €/Mo — die Miete, die der Käufer übernimmt
+  // 28.06.2026 (Edgar) — Pendant zu MIETE_BEI_VERKAUF für den Stellplatz. Angenommene
+  // Stellplatz-/Garagenmiete €/Mo, mit der bei Verkauf gerechnet wird. Greift v.a. bei
+  // leerstehenden Einheiten (kein laufender Mietvertrag). Wenn gepflegt (>0), überschreibt
+  // sie die aggregierte Stellplatzmiete (siehe aggregateStellplaetze).
+  STELLPLATZ_MIETE_BEI_VERKAUF: 'fldbCBygfUhPObiXf', // Currency €/Mo
   MARKTPREIS_IS:         'fldhMmMxLn1PSjbwN', // Currency €/m² — ImmoScout-Marktpreis
   MARKTPREIS_HD:         'fldvlXM6pBUzVYdpF', // Currency €/m² — Homeday-Marktpreis
   // Iter 41.10 — Mietsubvention 2-Phasen-Modell:
