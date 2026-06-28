@@ -32,9 +32,18 @@ function aggregateStellplaetze({ vermietet, neuStellplatzIds, altStellplatzIds, 
   if (!vermietet) {
     return { anzahl: 0, garageCount: 0, flaecheCount: 0, kaufpreisSumme: 0, mieteMoSumme: 0, mieteMoQuelle: 'leer', details: [] };
   }
+  // Henry-Bug 28.06.2026 (Marktheidenfeld 5A): VEREINIGUNG statt Entweder/Oder.
+  // Vorher: `neu.length ? neu : alt` — sobald EIN Stellplatz im Mietvertrag-NEU-Feld
+  // hing (typisch: die migrierte Garage), wurde die komplette alte WE-Verknüpfung
+  // ignoriert. Folge: ein zusätzlich über die WE verlinkter Stellplatz (Henrys neue
+  // "Fläche") wurde verschluckt — aber NUR bei Einheiten, die schon eine Garage im
+  // NEU-Feld hatten. Einheiten ohne Garage zeigten die Fläche korrekt (alt-Fallback),
+  // genau das Muster aus Henrys Meldung. dedupe() verhindert, dass ein in BEIDEN
+  // Feldern hängender Stellplatz doppelt zählt.
   const neu = dedupe(neuStellplatzIds);
-  const ids = neu.length ? neu : dedupe(altStellplatzIds);
-  const quelleBasis = neu.length ? 'mietvertrag-neu' : 'we-link-alt';
+  const alt = dedupe(altStellplatzIds);
+  const ids = dedupe(neu.concat(alt));
+  const quelleBasis = neu.length ? (alt.some((id) => !neu.includes(id)) ? 'mietvertrag-neu+we-link' : 'mietvertrag-neu') : 'we-link-alt';
 
   let kaufpreisSumme = 0, mieteStellplatz = 0, garageCount = 0, flaecheCount = 0;
   const details = [];
