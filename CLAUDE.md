@@ -30,9 +30,12 @@
 4. **`SETUP.md`** — falls Setup-/Deploy-/Env-Fragen
 5. **`FIX_VERCEL_DEPLOY.md`** — falls Deploy-Probleme
 
-Bei Fragen zur **Berechnungslogik** (Cashflow, IRR, Steuer, Sensitivität) → `../docs/` (Container-Level), insbesondere:
-- `../docs/2026-05-26_Master-Referenz_Berechnungslogik.html`
-- `../docs/2026-05-25_Rechenlogik-Cheatsheet.html`
+Bei Fragen zur **Berechnungslogik** (Cashflow, IRR, Steuer, Sensitivität) → im Repo unter `docs/`:
+- `docs/2026-05-26_Master-Referenz_Berechnungslogik.html`
+- `docs/2026-05-25_Rechenlogik-Cheatsheet.html`
+- `docs/2026-05-19_Kalkulator-System-Diagramm.html`
+
+> Diese drei sind Kopien aus dem Container-Ordner `../docs/` (Edgars Cowork-Workspace), damit sie beim git-Klonen mitkommen. Master-Quelle bleibt `../docs/` — bei Formel-Änderungen dort UND hier aktualisieren.
 
 ## Code-Struktur (Kern)
 

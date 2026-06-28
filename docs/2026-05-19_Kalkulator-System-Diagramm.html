@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>B&B Kalkulator — System-Übersicht</title>
+<style>
+:root {
+  --green-dark: #22543d;
+  --green: #2D6E47;
+  --gold: #B08A4D;
+  --gray-text: #4a5568;
+  --gray-soft: #7A7A72;
+  --gray-line: #e2e8f0;
+  --bg-card: #ffffff;
+  --bg-section: #fafafa;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+  color: #1a202c;
+  font-size: 13px;
+  line-height: 1.5;
+  background: #f7f7f4;
+  margin: 0;
+  padding: 24px;
+}
+.container { max-width: 1400px; margin: 0 auto; }
+h1 {
+  font-size: 22px;
+  margin: 0 0 4px;
+  color: var(--green-dark);
+}
+.subtitle { color: var(--gray-soft); margin-bottom: 24px; font-size: 13px; }
+
+.legend {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--gray-text);
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid var(--gray-line);
+  align-items: center;
+}
+.legend-label {
+  color: var(--gray-text);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  margin-right: 8px;
+}
+.legend-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: white;
+  border: 1px solid var(--gray-line);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--gray-text);
+  transition: all 0.15s;
+}
+.legend-btn:hover {
+  background: #f7fafc;
+  border-color: var(--green-dark);
+}
+.legend-btn.active {
+  background: #fffaf0;
+  border-color: var(--gold);
+  color: var(--green-dark);
+  font-weight: 600;
+}
+.legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+.dot-edgar { background: #22543d; }
+.dot-henry { background: #B08A4D; }
+.dot-domi { background: #d69e2e; }
+.dot-schenki { background: #2c5282; }
+.dot-vivien { background: #319795; }
+.dot-anasta { background: #805ad5; }
+.dot-auto { background: #7A7A72; }
+
+.pipeline {
+  display: grid;
+  grid-template-columns: 1fr 50px 1fr 50px 1fr;
+  gap: 0;
+  align-items: stretch;
+  margin-bottom: 30px;
+}
+.col {
+  background: var(--bg-section);
+  border: 1px solid var(--gray-line);
+  border-radius: 8px;
+  padding: 16px;
+}
+.col-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--green-dark);
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--green-dark);
+}
+.arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: var(--gold);
+  font-weight: 700;
+}
+.box {
+  background: var(--bg-card);
+  border: 1px solid var(--gray-line);
+  border-left: 3px solid var(--gray-soft);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.box:hover {
+  border-color: var(--green-dark);
+  background: #f7fafc;
+  transform: translateX(2px);
+}
+.box.edgar { border-left-color: #22543d; }
+.box.henry { border-left-color: #B08A4D; }
+.box.domi { border-left-color: #d69e2e; }
+.box.schenki { border-left-color: #2c5282; }
+.box.vivien { border-left-color: #319795; }
+.box.anasta { border-left-color: #805ad5; }
+.box.auto { border-left-color: #7A7A72; }
+.box-title { font-weight: 600; font-size: 13px; margin-bottom: 3px; }
+.box-sub { font-size: 11.5px; color: var(--gray-text); }
+.box-pers {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 3px;
+  margin-left: 6px;
+  font-weight: 600;
+}
+.tag-edgar { background: #c6f6d5; color: #22543d; }
+.tag-henry { background: #faf089; color: #744210; }
+.tag-domi { background: #fefcbf; color: #744210; }
+.tag-schenki { background: #bee3f8; color: #2c5282; }
+.tag-vivien { background: #b2f5ea; color: #234e52; }
+.tag-anasta { background: #e9d8fd; color: #553c9a; }
+.tag-auto { background: #edf2f7; color: #4a5568; }
+
+.section {
+  background: white;
+  border: 1px solid var(--gray-line);
+  border-radius: 8px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+.section-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--green-dark);
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--green-dark);
+}
+.formel-row {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px dotted var(--gray-line);
+  font-size: 12.5px;
+}
+.formel-row:last-child { border-bottom: none; }
+.formel-name { font-weight: 600; color: var(--gray-text); }
+.formel-code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  color: var(--green-dark);
+}
+.trigger-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.trigger {
+  background: white;
+  border: 1px solid var(--gray-line);
+  border-left: 3px solid var(--gold);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+}
+.trigger-when {
+  font-weight: 700;
+  color: var(--gold);
+  font-size: 11px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  letter-spacing: 0.04em;
+}
+.trigger-then { color: var(--gray-text); }
+
+.detail-panel {
+  background: #fffaf0;
+  border-left: 4px solid var(--gold);
+  border-radius: 0 6px 6px 0;
+  padding: 14px 18px;
+  margin: 12px 0 22px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  animation: slideIn 0.2s ease-out;
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.detail-close {
+  float: right;
+  font-size: 11px;
+  color: var(--gray-soft);
+  cursor: pointer;
+  background: none;
+  border: 1px solid var(--gray-line);
+  border-radius: 3px;
+  padding: 2px 8px;
+}
+.detail-close:hover { background: white; }
+.detail-h {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--green-dark);
+  margin-bottom: 8px;
+}
+.detail-list { margin: 8px 0 0; padding-left: 20px; }
+.detail-list li { margin: 4px 0; }
+
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table th {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 2px solid var(--green-dark);
+  color: var(--green-dark);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--gray-line);
+}
+table tr:last-child td { border-bottom: none; }
+
+@media (max-width: 1000px) {
+  .pipeline { grid-template-columns: 1fr; gap: 12px; }
+  .arrow { transform: rotate(90deg); padding: 4px 0; }
+  .trigger-grid { grid-template-columns: 1fr; }
+  .formel-row { grid-template-columns: 1fr; gap: 4px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>B&amp;B Kalkulator — System-Übersicht</h1>
+<div class="subtitle">Wo Daten herkommen, wer pflegt, was das System rechnet, was der Kunde sieht. Stand 19.05.2026, Iter 50. Klick auf Datenquellen-Boxen ODER auf Personen-Buttons unten für Details.</div>
+
+<div class="legend">
+  <span class="legend-label">Wer pflegt — klick für Details:</span>
+  <button class="legend-btn" onclick="togglePerson('edgar')"><span class="legend-dot dot-edgar"></span>Edgar (System)</button>
+  <button class="legend-btn" onclick="togglePerson('henry')"><span class="legend-dot dot-henry"></span>Henry (Vertriebsleitung)</button>
+  <button class="legend-btn" onclick="togglePerson('domi')"><span class="legend-dot dot-domi"></span>Domi (Datenpflege)</button>
+  <button class="legend-btn" onclick="togglePerson('schenki')"><span class="legend-dot dot-schenki"></span>Schenki (Head of Office)</button>
+  <button class="legend-btn" onclick="togglePerson('vivien')"><span class="legend-dot dot-vivien"></span>Vivien (Vertretung)</button>
+  <button class="legend-btn" onclick="togglePerson('anasta')"><span class="legend-dot dot-anasta"></span>Anastasija</button>
+  <button class="legend-btn" onclick="togglePerson('auto')"><span class="legend-dot dot-auto"></span>System</button>
+</div>
+
+<div class="pipeline">
+
+  <div class="col">
+    <div class="col-title">1 · Datenquellen (Airtable)</div>
+
+    <div class="box domi" onclick="toggle('wohneinheit')">
+      <div class="box-title">Wohneinheit <span class="box-pers tag-domi">Domi</span><span class="box-pers tag-henry">Henry</span></div>
+      <div class="box-sub">Kaufpreis, qm, Status, Projekt, Objektvorstellung-Link</div>
+    </div>
+
+    <div class="box henry" onclick="toggle('stammdaten')">
+      <div class="box-title">Kalk-Stammdaten <span class="box-pers tag-henry">Henry</span><span class="box-pers tag-domi">Domi</span></div>
+      <div class="box-sub">MbV, Marktmiete, Lage, Zustand</div>
+    </div>
+
+    <div class="box schenki" onclick="toggle('mieter')">
+      <div class="box-title">Mieter <span class="box-pers tag-schenki">Schenki</span></div>
+      <div class="box-sub">Mieter-Stammdaten, Pipedrive-Link</div>
+    </div>
+
+    <div class="box schenki" onclick="toggle('mietvertrag')">
+      <div class="box-title">Mietvertrag <span class="box-pers tag-schenki">Schenki</span></div>
+      <div class="box-sub">Vertrag, Kaltmiete, Mieterhöhung</div>
+    </div>
+
+    <div class="box schenki" onclick="toggle('stellplatz')">
+      <div class="box-title">Stellplatz <span class="box-pers tag-schenki">Schenki</span><span class="box-pers tag-vivien">Vivien</span></div>
+      <div class="box-sub">Anzahl, Miete, KP pro Platz</div>
+    </div>
+
+    <div class="box auto" onclick="toggle('projekt')">
+      <div class="box-title">Projekt <span class="box-pers tag-auto">auto</span></div>
+      <div class="box-sub">Adresse, Code, Firma</div>
+    </div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="col">
+    <div class="col-title">2 · Backend rechnet</div>
+
+    <div class="box auto" onclick="toggle('subv-calc')">
+      <div class="box-title">computeAutoSubvention</div>
+      <div class="box-sub">Phase 1 + 2, Cap, Effektivmiete</div>
+    </div>
+
+    <div class="box auto" onclick="toggle('prorata')">
+      <div class="box-title">Stellplatz-Aggregat</div>
+      <div class="box-sub">Summe + Pro-rata (Vertrag)</div>
+    </div>
+
+    <div class="box auto" onclick="toggle('vermstatus')">
+      <div class="box-title">Vermietungs-Status</div>
+      <div class="box-sub">vermietet / leer (WE-Lookup)</div>
+    </div>
+
+    <div class="box auto" onclick="toggle('marktschn')">
+      <div class="box-title">Marktpreis-Mittel</div>
+      <div class="box-sub">IS + HD ÷ 2</div>
+    </div>
+
+    <div class="box auto" onclick="toggle('letzte-mietst')">
+      <div class="box-title">Letzte Mietsteigerung</div>
+      <div class="box-sub">Stammdaten → Vertragsbeginn</div>
+    </div>
+
+    <div class="box edgar" onclick="toggle('kpvorschlag')">
+      <div class="box-title">KP-Vorschlag (Airtable-Formel)</div>
+      <div class="box-sub">Intern für Edgar/Henry</div>
+    </div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <div class="col">
+    <div class="col-title">3 · Frontend zeigt (Du-Form)</div>
+
+    <div class="box auto" onclick="toggle('recalc')">
+      <div class="box-title">kalkulator.recalc()</div>
+      <div class="box-sub">Cashflow, Vermögen, Bonität</div>
+    </div>
+
+    <div class="box auto" onclick="toggle('kpi')">
+      <div class="box-title">5 KPI-Karten</div>
+      <div class="box-sub">EK, Belastung, IRR, Vermögen</div>
+    </div>
+
+    <div class="box auto" onclick="toggle('charts')">
+      <div class="box-title">3 Charts</div>
+      <div class="box-sub">Vermögen, Cashflow, EK-Vergleich</div>
+    </div>
+
+    <div class="box auto" onclick="toggle('stories')">
+      <div class="box-title">7 Story-Sections</div>
+      <div class="box-sub">Markteinkauf → Exit → Bonität</div>
+    </div>
+
+    <div class="box auto" onclick="toggle('pdf')">
+      <div class="box-title">PDFs</div>
+      <div class="box-sub">Investitionsrechnung, Reservierung</div>
+    </div>
+
+    <div class="box domi" onclick="toggle('vorstellung')">
+      <div class="box-title">↗ Objektvorstellung-Button <span class="box-pers tag-domi">Domi pflegt</span></div>
+      <div class="box-sub">Direktlink neben WE-Auswahl</div>
+    </div>
+  </div>
+</div>
+
+<div id="detail-zone"></div>
+
+<div class="section">
+  <div class="section-title">Formeln &amp; Logik</div>
+
+  <div class="formel-row"><div class="formel-name">Subv Phase 1 (€/Mo)</div><div class="formel-code">xFinal = MIN(MbV × ((1+kapp)² − 1), Marktmiete − MbV)</div></div>
+  <div class="formel-row"><div class="formel-name">Subv Phase 2 (€/Mo)</div><div class="formel-code">MAX(0, xFinal − MbV × kapp)</div></div>
+  <div class="formel-row"><div class="formel-name">Subv-Cap (€ gesamt)</div><div class="formel-code">MAX(5.000, qm × 150)</div></div>
+  <div class="formel-row"><div class="formel-name">Phase-1-Dauer</div><div class="formel-code">36 − (Monate seit letzter Mietsteigerung)</div></div>
+  <div class="formel-row"><div class="formel-name">Phase-2-Dauer</div><div class="formel-code">36 Monate (wenn nach P1 noch &gt;10% unter Markt)</div></div>
+  <div class="formel-row"><div class="formel-name">Effektivmiete (konstant)</div><div class="formel-code">MbV + Phase-1-Subv → konstant über alle Phasen</div></div>
+  <div class="formel-row"><div class="formel-name">Mietsteigerung Bestand</div><div class="formel-code">+15 % alle 36 Mo (Kappung)</div></div>
+  <div class="formel-row"><div class="formel-name">Mietsteigerung Neuvermiet.</div><div class="formel-code">Staffel 3 %/Jahr linear (Edgar-Policy)</div></div>
+  <div class="formel-row"><div class="formel-name">AfA pro Jahr</div><div class="formel-code">Kaufpreis × Gebäude-Anteil (80%) × AfA-Satz (2–4,5%)</div></div>
+  <div class="formel-row"><div class="formel-name">Steuervorteil/Jahr</div><div class="formel-code">(AfA + Zinsen + MV + HV − Miete) × Steuersatz</div></div>
+  <div class="formel-row"><div class="formel-name">Annuität (monatlich)</div><div class="formel-code">iterativ über 240 Mo (Standard 20 J)</div></div>
+  <div class="formel-row"><div class="formel-name">IRR (Eigenkapitalrendite)</div><div class="formel-code">[−EK, CF1…CF9, CF10+Verkaufserlös]</div></div>
+  <div class="formel-row"><div class="formel-name">KP-Vorschlag (Airtable)</div><div class="formel-code">MEAN(Ertragswert, Vergleichswert)</div></div>
+  <div class="formel-row"><div class="formel-name">Ertragswert</div><div class="formel-code">(MbV + Subv) × 12 × Lage-Mult × (1 + Markt-Hebel + Zustand)</div></div>
+  <div class="formel-row"><div class="formel-name">Vergleichswert</div><div class="formel-code">Marktpreis Ø(IS, HD) × Wohnfläche</div></div>
+</div>
+
+<div class="section">
+  <div class="section-title">Trigger &amp; Regeln</div>
+  <div class="trigger-grid">
+    <div class="trigger"><div class="trigger-when">Wenn: WE auf „Aktiv" setzen</div><div class="trigger-then">Pflichtfelder geprüft (MbV, Marktmiete, Marktpreis IS/HD, Vermietungs-Modus, letzte Mietsteigerung bei Bestand). Sonst 400-Fehler.</div></div>
+    <div class="trigger"><div class="trigger-when">Wenn: Stellplatz aus WE entfernt</div><div class="trigger-then">Backend reduziert Stellplatzmiete automatisch (Stellplatz-Tabelle = Source of Truth).</div></div>
+    <div class="trigger"><div class="trigger-when">Wenn: MbV ≥ Marktmiete</div><div class="trigger-then">Keine Subv möglich. Erläuterung: „keine legale Erhöhung möglich".</div></div>
+    <div class="trigger"><div class="trigger-when">Wenn: Vermietungs-Modus = Leer</div><div class="trigger-then">Keine Subv, Staffelmiete 3 %/Jahr ab Tag 1 (Neuvermietung).</div></div>
+    <div class="trigger"><div class="trigger-when">Wenn: Letzte Mietsteigerung leer</div><div class="trigger-then">Fallback auf jüngsten Vertragsbeginn aus Mietvertrag-Tabelle.</div></div>
+    <div class="trigger"><div class="trigger-when">Wenn: Marktpreis IS oder HD fehlt</div><div class="trigger-then">Nur der vorhandene Wert wird genutzt. Beide leer → kein Vergleichswert.</div></div>
+    <div class="trigger"><div class="trigger-when">Wenn: Subv-Total &gt; Cap</div><div class="trigger-then">Aufschlag wird reduziert, Effektivmiete bleibt konstant aber niedriger.</div></div>
+    <div class="trigger"><div class="trigger-when">Wenn: Mieterhöhung in Phase 1</div><div class="trigger-then">Subv schmilzt automatisch — Effektivmiete bleibt konstant (Glättung).</div></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Verantwortlichkeiten — Wer pflegt wann</div>
+  <table>
+    <thead>
+      <tr><th style="width:160px;">Person</th><th>Verantwortlich für</th><th style="width:260px;">Wann</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="box-pers tag-edgar">Edgar</span></td><td>System bauen + optimieren, KP-Vorschlag-Logik, Pricing-Strategie</td><td>Bei Tool-Erweiterungen</td></tr>
+      <tr><td><span class="box-pers tag-henry">Henry</span></td><td>Vertriebsleitung. Marktmiete, Lage-Typ, Zustand WE, MbV, Marktpreis IS/HD, Kappungsgrenze, AfA</td><td>Vor Aktiv-Schaltung, bei Vertriebs-Pitch</td></tr>
+      <tr><td><span class="box-pers tag-domi">Domi (Dominik Bierer)</span></td><td>Datenpflege Wohneinheiten + Kalk-Stammdaten, Projektvorstellungen erstellen, Link-Feld pflegen</td><td>Laufend, vor Kundengespräch</td></tr>
+      <tr><td><span class="box-pers tag-schenki">Schenki (Head of Office)</span></td><td>Mieter, Mietverträge, Stellplatz-Verknüpfungen im Vertrag, Mieterhöhungen, Stellplatzmiete im Vertrag</td><td>Laufend bei Vertragsänderungen</td></tr>
+      <tr><td><span class="box-pers tag-vivien">Vivien</span></td><td>Vertretung Schenki bei Ausfall. Stellplatz-Co-Owner Asset-Teil, Ablage, Rechnungs-Erfassung</td><td>Wenn Schenki nicht da ist</td></tr>
+      <tr><td><span class="box-pers tag-anasta">Anastasija</span></td><td>Banking, Kaufpreis-Eingang, Bankkonten-Pflege, Miet-Eingänge auf Konten</td><td>Nach Notar / monatlich</td></tr>
+      <tr><td><span class="box-pers tag-auto">System</span></td><td>Subv-Phasen, Pro-rata, IRR, Cashflow, Bonität, KP-Vorschlag</td><td>Bei jedem App-Aufruf live</td></tr>
+    </tbody>
+  </table>
+</div>
+
+</div>
+
+<script>
+const details = {
+  wohneinheit: { title: "Wohneinheit (tblAV81mX1MaxqVQi)", body: "Stammdaten der WE: Kaufpreis (geplant), Wohnfläche, Kaltmiete IST, Status (Vermarktung), Projekt-Link, Vermietungs-Status (Lookup). Henry pflegt Verkaufspreis und kontrolliert qm. Wird nur in App geladen wenn Kalk-Stammdaten auf „Aktiv"." },
+  stammdaten: { title: "Kalk-Stammdaten (tblz5KNtzkLSLHHFo)", body: "Pricing-relevante Felder: Miete bei Verkauf (Henry), Marktmiete €/Mo (Edgar/Henry), Marktpreis ImmoScout + Homeday €/qm (Henry), Lage-Typ Single-Select (Edgar), Zustand WE (Edgar), Kappungsgrenze (Henry), AfA-Gutachten (Henry), Vermietungs-Modus, Hausgeld+Rücklage, Mietverwaltung, Hausverwaltung, Mietzuschuss-Override (selten), Letzte Mietsteigerung (Henry spiegelt von Schenki), Status (Aktiv/Entwurf/Archiviert). Pflichtfelder zum Aktiv-Setzen: MbV, Marktmiete, Marktpreis IS oder HD, Vermietungs-Modus, Letzte Mietsteigerung (bei Bestand)." },
+  mieter: { title: "Mieter (tblGu9FjDuwh2uLdP)", body: "Person/en hinter dem Mietverhältnis: Name, Pipedrive-Link, Kontakt. Schenki pflegt. Hauptzweck: Verknüpfung zu Mietvertrag, Mieter-Historie pro WE." },
+  mietvertrag: { title: "Mietvertrag (tblJQWNQaJiLEfNRh)", body: "Pro WE mehrere Verträge (Historie/Versionierung): Aktiv-Status, Kaltmiete, Stellplatzmiete-Pauschale, Stellplatz-Link, Vertragsart, Vertragsbeginn, „Anpassung gültig ab" (für Mieterhöhungen). Schenki ist Owner. Bei jeder Mieterhöhung: neuer Vertragsdatensatz, kein Update. App nutzt jüngsten Vertragsbeginn als Fallback für Mietsteigerungs-Berechnung wenn Kalk-Stammdaten leer." },
+  stellplatz: { title: "Stellplatz (tblCfcVP5ipG91yHg)", body: "Ein Datensatz pro physischem Stellplatz: Titel, Typ (Garage/Fläche), Kaufpreis-Anteil, Mietkosten, WE-Link. Schenki + Vivien pflegen gemeinsam (Asset-Teil). Source of Truth für Stellplatzmiete: wenn hier &gt;0 gepflegt → Vorrang vor Mietvertrag-Pauschale. Beim Entfernen aus WE sinkt Summe automatisch." },
+  projekt: { title: "Projekt (tblbBSh0fyPelFLvz)", body: "Bestand-Container: Adresse, Code, Firma (B&B Immo / B&B Bayern / Bärte). Nur B&B Immo wird aktuell in der App angezeigt (MAKLER_BUB-Filter in Sammelroute)." },
+  "subv-calc": { title: "computeAutoSubvention (Backend)", body: "Pipeline: Vermietungs-Modus checken → MbV vorhanden? → Kappung vorhanden? → Marktmiete-Deckel berechnen → Phase-1-Subv = MIN(MbV×((1+kapp)²−1), Marktmiete−MbV) → Phase-1-Dauer = 36−monateSeit → Phase-2-Aktiv (wenn nach P1 noch &gt;10% unter Markt) → Phase-2-Subv = MAX(0, P1 − MbV×kapp) → Cap MAX(5000, qm×150) → wenn überschritten, X gekürzt. Effektivmiete bleibt konstant über alle Phasen." },
+  prorata: { title: "Stellplatz-Pro-rata", body: "Backend liest erst alle WE-Stellplätze (Stellplatz-Tabelle), dann alle Mietverträge. Pro Vertrag: prüft welche Stellplätze noch zur WE gehören. Wenn Stellplatz-Tabelle Mieten gepflegt hat → diese Summe (Vorrang). Sonst: Vertrags-Pauschale × (gültige Stellplätze / Vertrags-Stellplätze)." },
+  vermstatus: { title: "Vermietungs-Status", body: "Autoritativ aus WE-Lookup „Miet-status (ist)" (vermietet/leer). Fallback: Mietvertrag vorhanden ODER Kaltmiete &gt; 0 → vermietet. Bei leer: keine Subv, Staffelmiete 3 % ab Tag 1." },
+  marktschn: { title: "Marktpreis-Mittel", body: "AVG der beiden €/qm-Werte ImmoScout + Homeday. Wenn nur einer gepflegt → der einzelne Wert. Beide leer → keine Vergleichswert-Komponente im KP-Vorschlag." },
+  "letzte-mietst": { title: "Letzte Mietsteigerung", body: "Priorität: 1) Kalk-Stammdaten manuell gepflegt (Henry spiegelt von Schenki) → autoritativ; 2) Fallback auf jüngsten Vertragsbeginn aus Mietvertrag-Tabelle. Bei Status=leer wird IMMER null gesetzt (alte Vertragsdaten dürfen nicht in die Subv-Logik)." },
+  kpvorschlag: { title: "KP-Vorschlag (Airtable-Formel, intern)", body: "fldaxnWdFP1mLYVtH in Kalk-Stammdaten. Mischung aus Ertragswert (MbV+Subv) × 12 × Lage-Mult × (1+Hebel) UND Vergleichswert (€/qm-Mittel × Wfl). MEAN beider mit Fallback auf nur Ertragswert wenn Vergleich leer. Hinweis-Feld „KP-Diff-Warnung" zeigt ⚠ bei Diff &gt;25 %. NICHT in der Endkunden-App sichtbar — nur für Edgar/Henry zur Preis-Konsistenz." },
+  recalc: { title: "kalkulator.recalc() (Frontend)", body: "Hauptberechnung: nimmt alle Inputs (Stammdaten + Slider) → rechnet 30-Jahres-Cashflow + 120-Monats-Cashflow + Vermögensaufbau + Bonität + IRR + Sparen-vs-Investieren. Subv-Glättung über subvForMonth(m) sorgt für konstante Effektivmiete." },
+  kpi: { title: "5 KPI-Karten oben", body: "Dein EK-Bedarf, Deine Belastung/Monat, Deine EK-Rendite (IRR) 10J, Dein Gesamtvermögen 10J, Dein Vermögenszuwachs 10J. Plus optional „Dein Markteinkauf-Vorteil" wenn Marktpreis gesetzt. Alle mit Du-Form, klickbar für Erklärungs-Tooltip." },
+  charts: { title: "3 Charts (Du-Form)", body: "1) Dein Vermögensaufbau 10 Jahre (Schere Marktwert/Restschuld, Gewinn-Zone). 2) Dein Cashflow 10 Jahre (10 Bars Operativ+Steuervorteil gestapelt, Linie CF nach Steuern dunkelgrün hervorgehoben). 3) Dein EK Anlage vs. Immobilie (2 Linien mit Fill, dunkelgrün dominant)." },
+  stories: { title: "7 Story-Sections", body: "01 Du kaufst unter Marktpreis → 02 Cashflow heute → 03 Dein Steuervorteil → 04 Dein Vermögensaufbau (3 Hebel) → 05 Dein Exit nach 10J → 06 Dein Bonitätseffekt → 07 Dein Vergleich Anlage vs. Immobilie. Alle in Du-Form, mit Tabellen + Erklärungstext." },
+  pdf: { title: "PDFs", body: "Investitionsrechnung (Bank-tauglich, Hypovision-konform) + Reservierung (B&B-Template). Werte aus recalc-Result. PDFs noch nicht auf Du-Form umgestellt." },
+  vorstellung: { title: "Objektvorstellung-Button (Iter 51)", body: "Wenn Domi in der Wohneinheit-Tabelle das Feld „Link zur Objektvorstellung" pflegt (fldITEQwhu9tDi7Iy), erscheint in der App neben der WE-Auswahl ein dunkelgrüner Button „↗ Objektvorstellung öffnen". Der Vertriebler klickt darauf und öffnet die passende Vorstellung in einem neuen Tab — parallel zur Kalkulation im Kundengespräch. Wenn das Feld leer ist, wird der Button nicht angezeigt." }
+};
+
+const persons = {
+  edgar: {
+    title: "Edgar — System-Architekt",
+    role: "Geschäftsführer B&B Immo, 30 % Anteil. Pflegt das System selbst — nicht die Tagesdaten.",
+    items: [
+      "<strong>Kalkulations-Tool bauen + optimieren</strong> (App-Logik, Backend, Airtable-Schema)",
+      "<strong>KP-Vorschlag-Logik</strong> (Airtable-Formeln, Lage-Multiplikatoren, Zustands-Hebel)",
+      "<strong>Pricing-Strategie</strong> entscheiden (Wertsteigerungs-Annahmen, Subv-Cap-Höhe)",
+      "<strong>Final-Entscheidung</strong> bei Aktiv-Schaltung neuer Projekte/WEs",
+      "Tagespflege macht Edgar <strong>NICHT</strong> — das ist Henry + Team"
+    ],
+    wann: "Bei Tool-Erweiterungen + strategischen Pricing-Reviews"
+  },
+  henry: {
+    title: "Henry — Vertriebsleitung",
+    role: "Geschäftsführer Vertrieb B&B Immo, 10 % Anteil. Verantwortlich für das gesamte Vertriebs-Team und deren Datenqualität.",
+    items: [
+      "<strong>Vertriebs-Team-Führung</strong> (Domi, Schenki, weitere)",
+      "<strong>Datenpflege-Verantwortung</strong> — orchestriert Team, prüft Ergebnisse",
+      "<strong>Marktmiete + Lage-Typ + Zustand WE</strong> in Kalk-Stammdaten (Pricing-relevant)",
+      "<strong>MbV, Marktpreis IS/HD, Kappungsgrenze, AfA-Gutachten</strong>",
+      "<strong>Verkaufspreis (geplant)</strong> in Wohneinheit — der finale KP",
+      "<strong>Letzte Mietsteigerung</strong> in Kalk-Stammdaten spiegeln (von Schenki im Vertrag)"
+    ],
+    wann: "Vor Aktiv-Schaltung, bei Vertriebs-Pitch, Team-Reviews"
+  },
+  domi: {
+    title: "Dominik Bierer (Domi) — Datenpflege & Projektvorstellungen",
+    role: "Backoffice Verkauf bei B&B Immo. Häufigster Pfleger in Airtable. Macht die Projektvorstellungen.",
+    items: [
+      "<strong>Datenpflege in der Wohneinheit-Tabelle</strong> (Kaufpreis, qm, Status, Lage)",
+      "<strong>Kalk-Stammdaten anlegen + pflegen</strong> (Standard-Werte, Notizen)",
+      "<strong>Projektvorstellungen erstellen</strong> (Verkaufs-Unterlagen für Käufer)",
+      "<strong>„Link zur Objektvorstellung"</strong> in der Wohneinheit pflegen — wird in der App als Direktlink angezeigt",
+      "<strong>Vertriebs-Filter „Team B&B"</strong> setzen (Eigenvertrieb-Markierung)"
+    ],
+    wann: "Laufend bei neuen WEs, vor Aktiv-Schaltung, vor Kundengespräch"
+  },
+  schenki: {
+    title: "Alexandra Schenk (Schenki) — Head of Office",
+    role: "Head of Office B&B Immo. Owner für alle Mietverhältnisse + organisatorische Office-Pflege.",
+    items: [
+      "<strong>Office-Leitung</strong> (organisatorisch übergeordnet)",
+      "<strong>Mieter-Anlage</strong> in Mieter-Tabelle (Name, Pipedrive-Link, Kontakt)",
+      "<strong>Mietverträge anlegen + versionieren</strong> — bei jeder Mieterhöhung neuer Datensatz, nicht Update",
+      "<strong>Mieterwechsel</strong> — alten Vertrag auf inaktiv, neuen anlegen",
+      "<strong>Stellplatzmiete im Mietvertrag</strong> (Feld „Stellplatzmiete")",
+      "<strong>Stellplatz-Verknüpfungen</strong> zum Mietvertrag",
+      "<strong>Mieterhöhungen</strong> mit Beleg (Pflicht-Anhang gemäß SOP-E §3.5)",
+      "<strong>„Anpassung gültig ab"</strong> Datum im Mietvertrag bei jeder Erhöhung"
+    ],
+    wann: "Laufend bei Vertragsänderungen, neuem Mieter, Mieterhöhung"
+  },
+  vivien: {
+    title: "Vivien — Vertretung & Stellplatz-Co-Owner",
+    role: "Springt für Schenki ein. Plus Co-Pflege bei Stellplätzen (Asset-Teil).",
+    items: [
+      "<strong>Vertretung Schenki</strong> bei Ausfall — gleiche SOP-Schritte (siehe SOP-E)",
+      "<strong>Stellplatz-Co-Owner</strong> (Asset-Pflege)",
+      "<strong>Ablage</strong> (Drive-Strukturen)",
+      "<strong>Rechnungs-Erfassung</strong> (SOP-D)",
+      "<strong>Bankkonto-Pflege Vertretung</strong> (SOP-B Vertretung Anastasija)"
+    ],
+    wann: "Bei Schenki-Ausfall, laufend bei Ablage + Rechnungen"
+  },
+  anasta: {
+    title: "Anastasija — Banking",
+    role: "Owner für Bankkonten-Welt + Kaufpreis-Eingänge. Schnittstelle zur Mieter-Welt nur über Konten.",
+    items: [
+      "<strong>Bankkonten-Pflege</strong> in Airtable (SOP-B v2.0)",
+      "<strong>Kaufpreis-Eingang</strong> nach Notar tracken",
+      "<strong>Miet-Eingänge</strong> auf Konten zuordnen (keine Pflege im Mieter-Modell)",
+      "<strong>Konten-Master Stein-Gruppe v5</strong> Sheet (alle Mandanten)",
+      "<strong>Mietsubvention-Auszahlung</strong> (Phase 1 + Phase 2)"
+    ],
+    wann: "Nach Notar (Kaufpreis-Eingang), monatlich (Miet-Eingänge), bei jedem OutBank-Screenshot"
+  },
+  auto: {
+    title: "System — Automatik",
+    role: "Was die App + das Backend ohne menschliche Pflege rechnen.",
+    items: [
+      "<strong>Subv-Phasen-Berechnung</strong> (computeAutoSubvention im Backend)",
+      "<strong>Stellplatz-Pro-rata</strong> bei Stellplatz-Entfernung aus WE",
+      "<strong>Vermietungs-Status</strong> aus WE-Lookup + Fallback",
+      "<strong>Marktpreis-Mittel</strong> aus IS + HD",
+      "<strong>IRR über 10 Jahre</strong>, monatlicher Cashflow, Vermögensaufbau",
+      "<strong>Bonität</strong> (Quick + Detail-Modus aus Selbstauskunft)",
+      "<strong>KP-Vorschlag</strong> als Airtable-Formel"
+    ],
+    wann: "Bei jedem App-Aufruf live"
+  }
+};
+
+function toggle(key) {
+  const d = details[key];
+  if (!d) return;
+  const zone = document.getElementById('detail-zone');
+  const existing = zone.querySelector('.detail-panel');
+  if (existing && existing.dataset.key === key) {
+    existing.remove();
+    return;
+  }
+  zone.innerHTML = `<div class="detail-panel" data-key="${key}">
+    <button class="detail-close" onclick="this.parentNode.remove()">schließen</button>
+    <div class="detail-h">${d.title}</div>
+    <div>${d.body}</div>
+  </div>`;
+  zone.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function togglePerson(key) {
+  const p = persons[key];
+  if (!p) return;
+  document.querySelectorAll('.legend-btn').forEach(b => b.classList.remove('active'));
+  const zone = document.getElementById('detail-zone');
+  const existing = zone.querySelector('.detail-panel');
+  if (existing && existing.dataset.key === 'pers-' + key) {
+    existing.remove();
+    return;
+  }
+  // Mark active button
+  event.currentTarget.classList.add('active');
+  const liste = p.items.map(it => `<li>${it}</li>`).join('');
+  zone.innerHTML = `<div class="detail-panel" data-key="pers-${key}">
+    <button class="detail-close" onclick="this.parentNode.remove();document.querySelectorAll('.legend-btn').forEach(b=>b.classList.remove('active'));">schließen</button>
+    <div class="detail-h">${p.title}</div>
+    <div style="margin-bottom:8px;color:var(--gray-text);font-style:italic;">${p.role}</div>
+    <div><strong>Verantwortlich für:</strong></div>
+    <ul class="detail-list">${liste}</ul>
+    <div style="margin-top:8px;"><strong>Wann:</strong> ${p.wann}</div>
+  </div>`;
+  zone.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+</script>
+</body>
+</html>

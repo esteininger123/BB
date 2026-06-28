@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>B&amp;B Backstube — Rechenlogik-Cheatsheet</title>
+<style>
+:root {
+  --bg: #FBFAF7; --bg-card: #FFFFFF; --bg-soft: #F4F1EA;
+  --text: #1A1A17; --text-secondary: #5A5A52; --text-tertiary: #7A7A72;
+  --accent: #B08A4D; --accent-dark: #8E6E3D; --accent-bg: rgba(176,138,77,.08);
+  --green-dark: #2D6E47; --negative: #9A3E33;
+  --border: #E8E6DD; --border-strong: #D5D0BF;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", "Segoe UI", Roboto, sans-serif;
+  font-weight: 300;
+  color: var(--text); font-size: 14px; line-height: 1.6; background: var(--bg);
+  padding: 32px 16px 80px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; }
+header.top {
+  padding: 28px 32px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 12px; margin-bottom: 28px;
+}
+.eyebrow { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .12em; }
+h1 { font-size: 28px; line-height: 1.15; color: var(--text); font-weight: 600; margin-top: 6px; }
+.tagline { color: var(--text-secondary); margin-top: 10px; font-size: 14px; max-width: 70ch; }
+.toc { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 24px; margin-top: 22px; font-size: 12.5px; }
+.toc a { color: var(--accent-dark); text-decoration: none; padding: 3px 0; border-bottom: 1px dashed transparent; }
+.toc a:hover { border-bottom-color: var(--accent); }
+
+section.chapter {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 24px 30px; margin: 16px 0;
+}
+h2 {
+  font-size: 19px; color: var(--text); margin: 0 0 12px; font-weight: 600;
+  padding-bottom: 10px; border-bottom: 2px solid var(--accent);
+  display: flex; align-items: center; gap: 12px;
+}
+h2 .num {
+  font-size: 11px; background: var(--accent); color: #fff;
+  padding: 3px 9px; border-radius: 4px; font-weight: 600; letter-spacing: .04em;
+}
+h3 { font-size: 14px; color: var(--accent-dark); margin: 18px 0 6px; font-weight: 600; }
+h4 { font-size: 13px; color: var(--text); margin: 12px 0 4px; font-weight: 600; }
+p { margin-bottom: 8px; color: var(--text-secondary); }
+strong { color: var(--text); font-weight: 600; }
+code, pre {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px; background: var(--bg-soft); padding: 1px 6px;
+  border-radius: 3px; color: var(--text);
+}
+pre {
+  display: block; padding: 10px 14px; white-space: pre-wrap;
+  word-break: break-word; margin: 6px 0 12px; border-left: 3px solid var(--accent);
+  font-size: 11.5px; line-height: 1.55;
+}
+ul, ol { margin: 4px 0 12px 22px; }
+li { margin-bottom: 3px; color: var(--text-secondary); }
+
+.callout {
+  background: var(--accent-bg); border-left: 3px solid var(--accent);
+  padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 12.5px;
+}
+.callout.warn { background: rgba(154,62,51,.06); border-left-color: var(--negative); }
+.callout.note { background: rgba(45,110,71,.06); border-left-color: var(--green-dark); }
+.callout-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--accent-dark); margin-bottom: 3px; font-weight: 600;
+}
+.callout.warn .callout-title { color: var(--negative); }
+.callout.note .callout-title { color: var(--green-dark); }
+
+table.t {
+  width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 12.5px;
+}
+table.t th, table.t td {
+  padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top;
+}
+table.t th {
+  background: var(--bg-soft); font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--text-tertiary); font-weight: 600;
+}
+table.t td code { font-size: 11px; }
+table.t tr:last-child td { border-bottom: none; }
+table.t td.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.t th.num { text-align: right; }
+.tag-pflicht { color: var(--negative); font-weight: 600; font-size: 10.5px; }
+.tag-opt { color: var(--text-tertiary); font-size: 10.5px; }
+.tag-derived { color: var(--accent-dark); font-weight: 600; font-size: 10.5px; }
+
+.flow {
+  display: grid; gap: 8px; margin: 14px 0; font-size: 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  background: var(--bg-soft); padding: 14px 18px; border-radius: 8px;
+  border-left: 3px solid var(--accent);
+  white-space: pre; overflow-x: auto;
+}
+
+.formula {
+  background: linear-gradient(180deg, var(--bg-card), var(--bg-soft));
+  border: 1px solid var(--border-strong); border-radius: 6px;
+  padding: 10px 14px; margin: 8px 0; font-size: 12.5px;
+}
+.formula-name { font-weight: 600; color: var(--accent-dark); margin-bottom: 4px; }
+.formula code { font-size: 11.5px; padding: 0; background: transparent; }
+
+footer.bottom {
+  text-align: center; color: var(--text-tertiary); font-size: 11.5px;
+  margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--border);
+}
+
+.legend {
+  display: flex; gap: 14px; font-size: 11px; margin-top: 4px;
+  color: var(--text-tertiary);
+}
+.legend span { display: flex; align-items: center; gap: 4px; }
+.legend .dot { width: 8px; height: 8px; border-radius: 50%; }
+.legend .dot.p { background: var(--negative); }
+.legend .dot.o { background: var(--text-tertiary); }
+.legend .dot.d { background: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Cheatsheet · 25.05.2026 · webapp-v2 v199 · Engine v3.0</div>
+  <h1>B&amp;B Backstube — Rechenlogik-Cheatsheet</h1>
+  <p class="tagline">
+    Was die Engine pro Einheit rechnet — von Eingabe bis Output. Kein Deep-Dive, sondern Referenz fürs Briefing.
+  </p>
+  <div class="toc">
+    <a href="#k1">01 · Architektur in 1 Bild</a>
+    <a href="#k2">02 · Glossar — alle Inputs mit Quelle</a>
+    <a href="#k3">03 · Rechenformeln Schritt-für-Schritt</a>
+    <a href="#k4">04 · Magazin-Story (9 Sektionen)</a>
+    <a href="#k5">05 · 10 Bruchsal-WEs durchgerechnet</a>
+    <a href="#k6">06 · Was der Vertriebler einstellen kann</a>
+    <a href="#k7">07 · Was die Engine NICHT kann</a>
+  </div>
+</header>
+
+<!-- ====== K1 ====== -->
+<section class="chapter" id="k1">
+  <h2><span class="num">01</span>Architektur in 1 Bild</h2>
+  <p>Drei Quellen laufen in zwei Berechnungsstufen zusammen. Eingabe links, Engine-Output rechts.</p>
+
+<div class="flow">Stammdaten (Airtable)  ─┐
+                        ├──►  Backend: api/stammdaten/[weId].js
+WE / Mietv / Stellpl  ─┤      (Aggregation + Subv-Berechnung)
+                        │
+Person-Settings ────────┤──►  Frontend: recalc() in public/kalkulator.js
+(StSatz, Zins, Tilgung, │      (Engine: Cashflow, Vermögen, IRR)
+ KNK-Toggle, Bonität)   │
+                        └──►  Magazin · PDF · WE-Liste-KPIs</div>
+
+  <h3>Was passiert wo?</h3>
+  <table class="t">
+    <tr><th>Stufe</th><th>Datei</th><th>Liefert</th></tr>
+    <tr><td><strong>Aggregator</strong></td><td><code>api/stammdaten/[weId].js</code> (~1250 Zeilen)</td><td>Aggregat aus 4 Airtable-Tabellen + <code>derived.subventionPhasen</code> + <code>derived.subventionKaltmieteAdjustiert</code></td></tr>
+    <tr><td><strong>Engine</strong></td><td><code>public/kalkulator.js</code> · <code>recalc(i)</code> (Z. 580)</td><td>30-Jahres-Cashflow, Vermögensreihe 0–10, IRR, Bonität, Sparvergleich</td></tr>
+    <tr><td><strong>Paket-Engine</strong></td><td><code>recalcPaket(weInputsArr, personSettings)</code> (Z. 1191)</td><td>Multi-WE-Roll-Up für WE-Liste</td></tr>
+  </table>
+
+  <div class="callout note">
+    <div class="callout-title">Persistenz</div>
+    Engine-Outputs werden NICHT zurück zu Airtable geschrieben — Ausnahme: <code>auto-subv-mo</code> + <code>auto-subv-total</code> + <code>kp-vorschlag-gesamt</code> (Backend-Write-back, damit Henrys Vermarktungs-KP-Formel auf Airtable-Ebene konsistent ist).
+  </div>
+</section>
+
+<!-- ====== K2 ====== -->
+<section class="chapter" id="k2">
+  <h2><span class="num">02</span>Glossar — alle Inputs mit Quelle</h2>
+  <div class="legend">
+    <span><span class="dot p"></span>Pflicht</span>
+    <span><span class="dot o"></span>Optional (Default greift)</span>
+    <span><span class="dot d"></span>Derived (Engine-Output)</span>
+  </div>
+
+  <h3>Aus Airtable — Wohneinheit (<code>tblAV81mX1MaxqVQi</code>)</h3>
+  <table class="t">
+    <tr><th>Feld</th><th>Field-ID</th><th>Default</th><th>Genutzt in</th><th>Beispiel</th></tr>
+    <tr><td><span class="tag-pflicht">PFL</span> Kaufpreis</td><td><code>fldKQ5ZpGvEzuc5qc</code></td><td>—</td><td>kpGesamt, AfA-Basis, Darlehen</td><td>199.000 €</td></tr>
+    <tr><td><span class="tag-pflicht">PFL</span> Wohnfläche m²</td><td><code>fldzF0RSb8xjKdjDc</code></td><td>—</td><td>Marktmiete-Multiplikator, €/qm-Anzeigen</td><td>70,47</td></tr>
+    <tr><td><span class="tag-opt">opt</span> Bestand-Kaltmiete</td><td><code>fldAoKLxSak5OnPao</code></td><td>0</td><td>Engine-Default-Kaltmiete wenn KalkStamm leer</td><td>497 €</td></tr>
+    <tr><td><span class="tag-opt">opt</span> WE-Nr</td><td><code>fldGia0unyS8cBaE5</code></td><td>—</td><td>Anzeige</td><td>„4"</td></tr>
+  </table>
+
+  <h3>Aus Airtable — Kalk-Stammdaten (<code>tblz5KNtzkLSLHHFo</code>)</h3>
+  <p class="tagline" style="margin: 4px 0 8px 0; font-size: 12px;">Pro WE 1:1. Das ist die Single Source of Truth (siehe SOP-E).</p>
+  <table class="t">
+    <tr><th>Feld</th><th>Field-ID</th><th>Default</th><th>Genutzt in</th><th>Beispiel</th></tr>
+    <tr><td><span class="tag-pflicht">PFL</span> Status</td><td><code>fldTOy2kV3SkCkhw6</code></td><td>—</td><td>WE-Liste-Filter (nur „Aktiv")</td><td>Aktiv</td></tr>
+    <tr><td><span class="tag-pflicht">PFL</span> Vermietungs-Modus</td><td><code>fldZmkdo4sEAeJqnV</code></td><td>—</td><td>Subv-Pfad (Bestand → Auto-Subv aktiv)</td><td>Bestand · Neuvermietung (Staffel) · Leerstand</td></tr>
+    <tr><td><span class="tag-pflicht">PFL*</span> Miete bei Verkauf (MbV)</td><td><code>fldy0UJDRV7CNoN6D</code></td><td>—</td><td>Tag-1-Kaltmiete, Subv-Basis</td><td>588 €/Mo</td></tr>
+    <tr><td><span class="tag-pflicht">PFL*</span> Marktmiete €/qm</td><td><code>fldnrgRONiWWsSxZb</code></td><td>—</td><td>Subv-Cap, Kaltmiete-Cap (Engine-Mietsteigerung)</td><td>12 €/qm</td></tr>
+    <tr><td><span class="tag-pflicht">PFL*</span> Kappungsgrenze</td><td><code>fldna2Hj1m1ST94Z3</code></td><td>—</td><td>Subv-Hebel: X = MbV × ((1+k)²−1)</td><td>20 % alle 3 J · 15 % alle 3 J</td></tr>
+    <tr><td><span class="tag-opt">opt</span> Hausgeld + Rücklage</td><td><code>fldrYNoUkgtGaTQWW</code></td><td>0 (oder Preset 60)</td><td>Cashflow-Belastung</td><td>60 €/Mo</td></tr>
+    <tr><td><span class="tag-opt">opt</span> Hausverwaltung</td><td><code>fldhiKD2iB4NekByK</code></td><td><code>BB_DEFAULTS.hausverwaltungMo = 30</code></td><td>Cashflow + Werbungskosten</td><td>30 €/Mo</td></tr>
+    <tr><td><span class="tag-opt">opt</span> Mietverwaltung-Def</td><td><code>fldhteQkjFBA0J447</code></td><td>0</td><td>Cashflow + Werbungskosten</td><td>30 €/Mo</td></tr>
+    <tr><td><span class="tag-opt">opt</span> AfA-Gutachten-Satz</td><td><code>fldF36zoKE6Foiu5f</code></td><td>0,02 (2 %)</td><td>AfA-Jahres-Wert</td><td>2 % linear · 3,7 % §7b</td></tr>
+    <tr><td><span class="tag-opt">opt</span> Gebäude-Anteil</td><td><code>fld56AAbrC4yPJQrb</code></td><td><code>BB_DEFAULTS.gebaeudeAnteil = 0,85</code></td><td>AfA-Bemessungsgrundlage</td><td>0,85 (85 %)</td></tr>
+    <tr><td><span class="tag-opt">opt</span> GrESt-Satz</td><td><code>fld8pmE00wfH0v7jR</code></td><td><code>BB_DEFAULTS.grEstPct = 0,05</code></td><td>KNK-Berechnung</td><td>0,05 (BaWü)</td></tr>
+    <tr><td><span class="tag-opt">opt</span> Wertsteigerung %/J</td><td><code>fldhB9tsIkpcLGDur</code></td><td>0,03</td><td>Marktwert + Stellpl-Miete + Marktmiete-Cap-Wachstum</td><td>3 %</td></tr>
+    <tr><td><span class="tag-opt">opt</span> Mietzuschuss (Override)</td><td><code>fldcvKf7Snlw2RJI3</code></td><td>—</td><td>Wenn beide Felder &gt; 0: ersetzt Auto-Subv</td><td>50 €/Mo</td></tr>
+    <tr><td><span class="tag-opt">opt</span> Mietzuschuss Monate</td><td><code>fld1eVXIlDx3DM3LX</code></td><td>—</td><td>Override-Laufzeit</td><td>24 Mo</td></tr>
+    <tr><td><span class="tag-opt">opt</span> Marktpreis Immoscout €/qm</td><td><code>fldhMmMxLn1PSjbwN</code></td><td>0</td><td>Markteinkauf-Vorteil-Anzeige</td><td>3.100 €/qm</td></tr>
+    <tr><td><span class="tag-opt">opt</span> Marktpreis Homeday €/qm</td><td><code>fldvlXM6pBUzVYdpF</code></td><td>0</td><td>Markteinkauf-Vorteil-Anzeige (Schnitt)</td><td>3.200 €/qm</td></tr>
+    <tr><td><span class="tag-opt">opt</span> Letzte Mietsteigerung</td><td><code>fldpLwMLe2PTCO3t7</code></td><td>null → 0 Mo</td><td>Phase-1-Laufzeit + Iter-63-Tag-1-Annahme</td><td>01.05.2022</td></tr>
+    <tr><td><span class="tag-opt">opt</span> Vereinbarte Erhöhung — Datum</td><td><code>fldlgR66D0zzaQ1hA</code></td><td>—</td><td>Iter-70: Tag-1-Vereinbarung</td><td>01.07.2026</td></tr>
+    <tr><td><span class="tag-opt">opt</span> Vereinbarte Erhöhung — Kaltmiete</td><td><code>fldg9Pmx9sfFowLl9</code></td><td>—</td><td>Iter-70: ersetzt rechnerische Annahme</td><td>740 €/Mo</td></tr>
+  </table>
+  <p style="font-size: 11.5px; color: var(--text-tertiary); margin-top: -4px;">
+    <strong>PFL*</strong> = Pflicht <em>sobald Modus=Bestand</em>. Bei Neuvermietung/Leerstand fällt die Subv-Berechnung sowieso raus.
+  </p>
+
+  <h3>Aus Airtable — Stellplatz (<code>tblCfcVP5ipG91yHg</code>) + Mietvertrag (<code>tblJQWNQaJiLEfNRh</code>)</h3>
+  <table class="t">
+    <tr><th>Feld</th><th>Field-ID</th><th>Default</th><th>Genutzt in</th></tr>
+    <tr><td><span class="tag-opt">opt</span> Stellplatz-Kaufpreis</td><td><code>fldcoVGhBtTWF6QRv</code></td><td>0</td><td>kpGesamt (zu KP-Wohnung addiert)</td></tr>
+    <tr><td><span class="tag-opt">opt</span> Stellplatz-Miete (MV-Feld)</td><td><code>fldcGEefFtNEFbatS</code></td><td>0</td><td>Cashflow + Bonität</td></tr>
+  </table>
+
+  <h3>Person-Settings (Vertriebler-Wahl in der App, kommen NICHT aus Airtable)</h3>
+  <table class="t">
+    <tr><th>Setting</th><th>Quelle</th><th>Default</th><th>Wirkung</th></tr>
+    <tr><td>Steuersatz</td><td>Profil-Switcher (3 Stufen)</td><td>30 %</td><td>Steuervorteil-Berechnung: WerbKost × StSatz</td></tr>
+    <tr><td>Zins p.a.</td><td>Aus KNK-Toggle abgeleitet</td><td>4,5 % (ohne KNK) · 4,8 % (mit KNK)</td><td>Annuität, Restschuld, Werbungskosten</td></tr>
+    <tr><td>Tilgung p.a.</td><td>Profil-Default</td><td>1 %</td><td>Annuität = Darlehen × (Zins+Tilgung)/12</td></tr>
+    <tr><td>KNK mitfinanzieren</td><td>Toggle in WE-Liste</td><td>aus</td><td>EK = 0 (an) oder EK = KNK (aus) · Zins-Aufschlag</td></tr>
+    <tr><td>Spar-Zins</td><td>SA-Tab (Bonität-Detail)</td><td>2,5 % p.a.</td><td>Sparen-vs-Investieren-Vergleich</td></tr>
+    <tr><td>SA: Brutto · Ausgaben · Vermögen</td><td>Detail-Selbstauskunft-Formular</td><td>Quick-Defaults: 4k/1,8k/20k</td><td>Bank-Bonität-Vorab-Check</td></tr>
+  </table>
+
+  <h3>6er Bank-Profile-Matrix (Vertriebs-Szenarien WE-Liste)</h3>
+  <table class="t">
+    <tr><th>Profil</th><th>StSatz</th><th>Zins</th><th>Tilgung</th><th>KNK mitfin.</th><th>Brutto · Ausg. · Verm.</th></tr>
+    <tr><td><code>s30ohne</code></td><td>30 %</td><td>4,5 %</td><td>1 %</td><td>nein</td><td>4.000 · 1.800 · 20.000</td></tr>
+    <tr><td><code>s30knk</code></td><td>30 %</td><td>4,8 %</td><td>1 %</td><td>ja</td><td>4.000 · 1.800 · 20.000</td></tr>
+    <tr><td><code>s35ohne</code></td><td>35 %</td><td>4,5 %</td><td>1 %</td><td>nein</td><td>5.500 · 2.200 · 20.000</td></tr>
+    <tr><td><code>s35knk</code></td><td>35 %</td><td>4,8 %</td><td>1 %</td><td>ja</td><td>5.500 · 2.200 · 20.000</td></tr>
+    <tr><td><code>s42ohne</code></td><td>42 %</td><td>4,5 %</td><td>1 %</td><td>nein</td><td>8.000 · 3.000 · 20.000</td></tr>
+    <tr><td><code>s42knk</code></td><td>42 %</td><td>4,8 %</td><td>1 %</td><td>ja</td><td>8.000 · 3.000 · 20.000</td></tr>
+  </table>
+
+  <h3>Backend-derived (vom Aggregator vorberechnet)</h3>
+  <table class="t">
+    <tr><th>Feld</th><th>Quelle</th><th>Wirkung</th></tr>
+    <tr><td><span class="tag-derived">DRV</span> <code>derived.subventionPhasen</code></td><td><code>computeAutoSubvention()</code></td><td>Phase-1 + Phase-2 mit jeweils €/Mo + Monaten — geht direkt in Engine</td></tr>
+    <tr><td><span class="tag-derived">DRV</span> <code>derived.subventionKaltmieteAdjustiert</code></td><td>Tag-1-Anhebung (Iter 63/70)</td><td>Wenn Mieter vor Übergabe legal hochgesetzt wird, ersetzt das die Bestands-Miete</td></tr>
+    <tr><td><span class="tag-derived">DRV</span> Airtable-Write-back <code>auto-subv-mo</code> + <code>-total</code></td><td>nach jedem stammdaten/[weId]-Call</td><td>Henrys KP-Vorschlag-Formel auf Airtable-Ebene konsistent</td></tr>
+  </table>
+</section>
+
+<!-- ====== K3 ====== -->
+<section class="chapter" id="k3">
+  <h2><span class="num">03</span>Rechenformeln Schritt-für-Schritt</h2>
+  <p>Aufruf-Reihenfolge in <code>recalc(i)</code> (Z. 580 ff). Jede Formel zeigt den exakten Output-Key, den die UI nutzt.</p>
+
+  <h3>3.1 Investition + Eigenkapital</h3>
+  <div class="formula">
+    <div class="formula-name">Kaufpreis Gesamt</div>
+    <code>kpGesamt = kaufpreis + stellplatzKp</code>
+    <p style="font-size: 11.5px; margin: 4px 0 0 0;">Hard-Guard: wenn kpGesamt = 0 → recalc returnt <code>null</code> (Audit E-1).</p>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Kaufnebenkosten (KNK)</div>
+    <code>knkPct = grEstPct + 0,015 (Notar) + 0,005 (Grundbuch)<br>knk = kpGesamt × knkPct</code>
+    <p style="font-size: 11.5px; margin: 4px 0 0 0;">Keine Maklerprovision (B&amp;B verkauft direkt). GrESt-Default 5 % (BaWü).</p>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Investition + EK + Darlehen</div>
+    <code>investitionGesamt = kpGesamt + knk<br>ekBedarf  = knkMitfinanziert ? 0 : knk<br>darlehen  = knkMitfinanziert ? investitionGesamt : kpGesamt</code>
+    <p style="font-size: 11.5px; margin: 4px 0 0 0;">AfA-Gutachten-Kosten sind RAUS aus EK-Bedarf (Iter 7) — B&amp;B trägt.</p>
+  </div>
+
+  <h3>3.2 Annuität + Laufzeit</h3>
+  <div class="formula">
+    <div class="formula-name">Monatliche Annuität</div>
+    <code>annuityMo = darlehen × (zins + tilgung) / 12</code>
+    <p style="font-size: 11.5px; margin: 4px 0 0 0;">UI-Anzeige = deutsche Formel. Für CF-Berechnung wird intern <code>annuityRate()</code> = Excel-PMT genutzt (~4 €/J Drift sonst, QA-Fix 22.05.).</p>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Laufzeit in Monaten (NPER)</div>
+    <code>nper = CEILING(−LN(1 − darlehen × rateM / annuityMo) / LN(1 + rateM), 1)</code>
+    <p style="font-size: 11.5px; margin: 4px 0 0 0;">Min(480, ceil). Bei 4,5 % / 1 % Tilgung ≈ 360 Mo (30 J).</p>
+  </div>
+
+  <h3>3.3 AfA</h3>
+  <div class="formula">
+    <div class="formula-name">AfA-Bemessung &amp; AfA-Jahreswert</div>
+    <code>anschaffungskosten   = kpGesamt + knk<br>afaBemessungBetrag   = anschaffungskosten × gebaeudeAnteil<br>afaJahr = afaBemessungBetrag × afaSatz<br>afaMo   = afaJahr / 12</code>
+    <p style="font-size: 11.5px; margin: 4px 0 0 0;">KNK IST in AfA-Basis drin (Iter 79, BFH-konform). Standard 85 % Gebäude / 15 % Boden.</p>
+  </div>
+
+  <h3>3.4 Mietsubvention — 2 Phasen</h3>
+  <p>Backend rechnet <code>computeAutoSubvention()</code> (Z. 483 in <code>[weId].js</code>) — Frontend übernimmt das Ergebnis als <code>subventionPhasen</code>.</p>
+  <div class="formula">
+    <div class="formula-name">Hebel-Formel</div>
+    <code>X_ideal     = MbV × ((1 + Kappung)² − 1)        // 2 Erhöhungsstufen<br>X_max_markt = Marktmiete − MbV                  // rechtl. Cap<br>X_final     = min(X_ideal, X_max_markt)</code>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Phase 1 (Monat 1 bis 36 − monateSeit)</div>
+    <code>p1Mo     = X_final<br>p1Monate = max(0, 36 − monateSeit)</code>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Phase 2 (immer 36 Mo)</div>
+    <code>mieterErhP2 = min(MbV × Kappung, Marktmiete − MbV)<br>p2Mo        = max(0, X_final − mieterErhP2)<br>p2Monate    = 36</code>
+    <p style="font-size: 11.5px; margin: 4px 0 0 0;">Effektivmiete (= MbV + X_final) bleibt für den Käufer über alle 72 Mo konstant — Mieter zahlt nach Erhöhung mehr, B&amp;B's Anteil sinkt entsprechend (Iter 47/48 Glättung).</p>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Cap auf Subv-Total</div>
+    <code>cap = max(5.000 €, qm × 200 €, MbV × 18)<br>wenn (p1Eur + p2Eur) &gt; cap: X wird so reduziert, dass Total = cap</code>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Mindestschwelle</div>
+    <code>wenn Total &lt; 1.000 €: phasen = [] (keine Vermarktungs-Story)</code>
+  </div>
+
+  <h3>3.5 Mietsteigerung — Sprung vs Staffel</h3>
+  <div class="formula">
+    <div class="formula-name">Erste Erhöhung (Monat M1)</div>
+    <code>M1 = max(1, 36 − monateSeitMieterhoehung)</code>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Sprung (Bestand) — alle 36 Mo, exponentiell</div>
+    <code>nSprünge(m) = m≥M1 ? floor((m−M1)/36) + 1 : 0<br>Faktor(m)   = (1 + steigerungProz)^nSprünge(m)</code>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Staffel (Neuvermietung) — jährlich, linear</div>
+    <code>nSprünge(m) = m≥M1 ? floor((m−M1)/12) + 1 : 0<br>Faktor(m)   = 1 + nSprünge(m) × steigerungProz</code>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Marktmiete-Cap (alle Modi)</div>
+    <code>cap(y) = marktmieteEurQm × qm × (1 + wertsteigerung)^(y−1)<br>kaltmieteForMonth(m) = min(kaltmiete × Faktor(m), cap)</code>
+    <p style="font-size: 11.5px; margin: 4px 0 0 0;">Im Sprung-Modus wird der Cap am letzten Sprung-Übergang eingefroren (Iter 91.5), damit Belastung J7-J10 konstant bleibt.</p>
+  </div>
+
+  <h3>3.6 Cashflow Jahr y (Schleife y = 1..30)</h3>
+  <div class="formula">
+    <div class="formula-name">Mieteinnahmen</div>
+    <code>kaltmieteMo  = Σ kaltmieteForMonth(m für m in y) / 12<br>spMieteMo    = stellplatzMiete × (1 + wertsteigerung)^(y−1)<br>subventionMo = Σ subvForMonth(m) / 12<br>mieteJahr    = (kaltmieteMo + spMieteMo + subventionMo) × 12</code>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Zinsen + Tilgung (Excel CUMIPMT / CUMPRINC)</div>
+    <code>zinsenJahr  = −cumipmtExcel(rateM, nper, darlehen, startP, endP)<br>tilgungJahr = −cumprincExcel(rateM, nper, darlehen, startP, endP)<br>restschuld  = max(0, restschuld − tilgungJahr)</code>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Hausgeld-Block (konstant über Laufzeit, Edgar 24.05.)</div>
+    <code>hgJahr = (hausgeld + mietverwaltung + hausverwaltung) × 12</code>
+    <p style="font-size: 11.5px; margin: 4px 0 0 0;">HG-Inflation ist seit 24.05. komplett raus. Hardcode 0.</p>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Steuervorteil (Werbungskosten-Ansatz)</div>
+    <code>wkAfa       = afaBemessungBetrag × afaSatz<br>stVerlust   = wkAfa + zinsenJahr + mvJahr + hvJahr − mieteJahr<br>stVorteilJahr = stVerlust × steuersatz</code>
+    <p style="font-size: 11.5px; margin: 4px 0 0 0;">Mietverwaltung + Hausverwaltung gelten als nicht-umlagefähige WerbKost. Hausgeld-Rücklage ist NICHT in WerbKost (anders als manche Berater rechnen).</p>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Cashflow Jahr nach Steuern</div>
+    <code>cfJahr = mieteJahr − zinsenJahr − tilgungJahr − hgJahr + stVorteilJahr</code>
+  </div>
+
+  <h3>3.7 Vermögen Jahr 0..10</h3>
+  <div class="formula">
+    <div class="formula-name">Marktwert + Verkaufserlös</div>
+    <code>startwert      = (marktwertProQm &gt; 0 ? marktwertProQm × qm : kaufpreis) + stellplatzKp<br>wert(y)        = startwert × (1 + wertsteigerung)^y<br>verkaufserlös(y) = wert(y) − restschuld(y)<br>kumCf(y)       = Σ cfJahr(1..y)<br>vermoegenBrutto(y) = verkaufserlös(y) + kumCf(y)<br>vermoegenNetto(y)  = vermoegenBrutto(y) − ekBedarf</code>
+    <p style="font-size: 11.5px; margin: 4px 0 0 0;">Stellplatz-Marktwert = Stellplatz-Kaufpreis (kein separater Markt-Vorteil, wächst aber mit).</p>
+  </div>
+
+  <h3>3.8 IRR 10 Jahre</h3>
+  <div class="formula">
+    <div class="formula-name">Cashflow-Reihe für IRR</div>
+    <code>irrSeries = [−ekBedarf, cf[0], cf[1], ..., cf[8], cf[9] + verkaufserlös(10)]<br>irr       = newtonRaphson + Bisektion-Fallback</code>
+    <p style="font-size: 11.5px; margin: 4px 0 0 0;">Wenn ekBedarf ≤ 1 € (z.B. KNK-mitfin) → IRR = null, Frontend zeigt Zuwachs-Satz statt.</p>
+  </div>
+
+  <h3>3.9 Bank-Bonität (Quick-Modus)</h3>
+  <div class="formula">
+    <div class="formula-name">Anrechenbare Miete (Bank-Bewertung)</div>
+    <code>bonMieteAnr = (kaltmieteForMonth(1) + stellplatzMiete + subvForMonth(1)) × 0,8</code>
+    <p style="font-size: 11.5px; margin: 4px 0 0 0;">80 %-Cap = Banken-Standard (Leerstand/Ausfallrisiko). Kaltmiete wird gegen Marktmiete-Cap gekappt (FS-3a Fix 25.05.).</p>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Bonität-Delta</div>
+    <code>bonVor    = bonEinnahmen − bonAusgaben<br>bonDelta  = bonMieteAnr − annuityMo  (Quick)<br>          = bonMieteAnr − annuityMo − hgMo − hvMo  (Detail)<br>bonNach   = bonVor + bonDelta</code>
+  </div>
+
+  <h3>3.10 Brutto-Rendite (Tag-1-KPI für WE-Liste)</h3>
+  <div class="formula">
+    <div class="formula-name">Bruttorendite</div>
+    <code>tag1Miete    = kaltmieteForMonth(1) + stellplatzMiete<br>phase1Subv   = subventionPhasen[0].mo (oder subventionMo)<br>bruttorendite = (tag1Miete + phase1Subv) × 12 / kpGesamt</code>
+  </div>
+
+  <h3>3.11 Sparen vs Investieren (Vergleich-Sektion)</h3>
+  <div class="formula">
+    <div class="formula-name">Nur-Sparen-Pfad (10 Jahre)</div>
+    <code>nurSparen(y) = ekBedarf × (1 + sparZins)^y</code>
+  </div>
+  <div class="formula">
+    <div class="formula-name">Investieren-Pfad (CF auf Tagesgeld)</div>
+    <code>tagesgeld(y) = tagesgeld(y−1) × (1 + sparZins) + cfJahr(y)<br>mitImmo(y)   = tagesgeld(y) + (wert(y) − restschuld(y))</code>
+  </div>
+</section>
+
+<!-- ====== K4 ====== -->
+<section class="chapter" id="k4">
+  <h2><span class="num">04</span>Magazin-Story — was der Kunde sieht</h2>
+  <p>9 Sektionen in der App + PDF. Pro Sektion: was sie zeigt + welche Engine-Werte einfließen.</p>
+
+  <table class="t">
+    <tr><th style="width: 90px;">Sektion</th><th>Inhalt</th><th>Engine-Werte</th></tr>
+    <tr><td><strong>Hero</strong></td><td>Objekt-Adresse, Foto, Preis-Schlagzeile, Belastung-Schlagzeile</td><td><code>kpGesamt</code>, <code>belastungMo</code>, <code>bruttorendite</code></td></tr>
+    <tr><td><strong>01 Objekt</strong></td><td>Stammdaten kompakt: Lage, qm, Kaltmiete, Hausgeld, Marktpreis-Vergleich</td><td>Stammdaten + <code>markteinkaufVorteil</code></td></tr>
+    <tr><td><strong>02 Cashflow</strong></td><td>Monats-Cashflow-Chart 120 Mo + Jahr-1-Belastung aufgeschlüsselt</td><td><code>cfMonate[]</code>, <code>cf[0]</code>, <code>stVorteilJ1Mo</code></td></tr>
+    <tr><td><strong>03 Vermögen</strong></td><td>Vermögensaufbau-Chart Jahr 0..10 (Marktwert, Restschuld, Vermögenszuwachs)</td><td><code>vermoegen[]</code>, <code>vermoegenNetto10</code></td></tr>
+    <tr><td><strong>04 Vergleich</strong></td><td>Sparen-vs-Investieren über 10 J + Delta-KPI</td><td><code>sparen[]</code>, <code>sparenVsKaufenDelta</code></td></tr>
+    <tr><td><strong>05 Detail</strong></td><td>30-Jahres-Tabelle (Miete, Zinsen, Tilgung, HG, StVorteil, CF) — aufklappbar</td><td><code>cf[]</code> komplett</td></tr>
+    <tr><td><strong>06 Was wäre wenn</strong></td><td>Sensitivität: Zins ± 1 % · Tilgung ± 0,5 % · Wertsteigerung ± 1 %</td><td>recalc() mehrfach mit modifizierten Inputs</td></tr>
+    <tr><td><strong>07 Wie weitergeht</strong></td><td>Reservierungs-Prozess, nächste Schritte, Bank-Termine</td><td>statisch + <code>bonNach</code> (Ampel)</td></tr>
+    <tr><td><strong>08 Nach Notar</strong></td><td>Was nach Beurkundung passiert: Übergabe, erste Miete, Steuererklärung</td><td>statisch</td></tr>
+    <tr><td><strong>09 B&amp;B</strong></td><td>Vita B&amp;B, Track-Record, Vertriebler-Kontakt</td><td>statisch</td></tr>
+  </table>
+
+  <div class="callout note">
+    <div class="callout-title">Anker für den Kunden</div>
+    Hero + Sektion 02 + 03 sind die 3 Sektionen, die der Käufer 90 % der Zeit anschaut. Der Rest ist Backup-Material für Bank + Steuerberater.
+  </div>
+</section>
+
+<!-- ====== K5 ====== -->
+<section class="chapter" id="k5">
+  <h2><span class="num">05</span>10 Bruchsal-WEs durchgerechnet</h2>
+  <p>Aus Airtable (Stand 25.05.2026, <code>tblz5KNtzkLSLHHFo</code>). Alle 10 aktiven WEs in Heidelberger Straße 21, 76646 Bruchsal. Brutto-Rendite-Spalte = vereinfachte Tag-1-Berechnung ((MbV + Phase-1-Subv) × 12 / KP-Gesamt) — die echte App-Brutto-Rendite weicht je nach Stellplatz-Miete leicht ab.</p>
+
+  <table class="t">
+    <tr>
+      <th>WE</th>
+      <th class="num">qm</th>
+      <th>Modus</th>
+      <th class="num">MbV €/Mo</th>
+      <th class="num">KP Wohn.</th>
+      <th class="num">KP Vorschl. Gesamt</th>
+      <th class="num">Stellpl. KP</th>
+      <th class="num">MM €/qm</th>
+      <th class="num">Auto-Subv €/Mo</th>
+      <th class="num">Auto-Subv Total</th>
+      <th class="num">Brutto-Rendite Tag 1</th>
+    </tr>
+    <tr><td>1 · EG Links</td><td class="num">83,75</td><td>Bestand</td><td class="num">921,00</td><td class="num">247.500</td><td class="num">255.090</td><td class="num">0</td><td class="num">11,5</td><td class="num">0</td><td class="num">0</td><td class="num">4,33 %</td></tr>
+    <tr><td>4 · 1.OG Links</td><td class="num">70,47</td><td>Bestand</td><td class="num">588,00</td><td class="num">199.000</td><td class="num">237.856</td><td class="num">15.000</td><td class="num">12,0</td><td class="num">189,60</td><td class="num">13.651</td><td class="num">3,92 %</td></tr>
+    <tr><td>5 · 1.OG Mitte</td><td class="num">86,36</td><td>Neuverm. (Staffel)</td><td class="num">950,00</td><td class="num">256.000</td><td class="num">256.002</td><td class="num">0</td><td class="num">11,5</td><td class="num">0</td><td class="num">0</td><td class="num">4,45 %</td></tr>
+    <tr><td>6 · 1.OG Rechts</td><td class="num">53,71</td><td>Bestand</td><td class="num">564,00</td><td class="num">161.000</td><td class="num">168.977</td><td class="num">0</td><td class="num">12,0</td><td class="num">80,53</td><td class="num">2.899</td><td class="num">4,58 %</td></tr>
+    <tr><td>7 · 2.OG Links</td><td class="num">70,47</td><td>Bestand</td><td class="num">740,00</td><td class="num">215.000</td><td class="num">239.946</td><td class="num">15.000</td><td class="num">12,0</td><td class="num">105,64</td><td class="num">3.803</td><td class="num">4,23 %</td></tr>
+    <tr><td>9 · 2.OG Rechts</td><td class="num">53,71</td><td>Bestand</td><td class="num">518,30</td><td class="num">149.000</td><td class="num">149.946</td><td class="num">15.000</td><td class="num">12,0</td><td class="num">0</td><td class="num">0</td><td class="num">3,77 %</td></tr>
+    <tr><td>10 · 3.OG Links</td><td class="num">83,74</td><td>Bestand</td><td class="num">670,80</td><td class="num">225.000</td><td class="num">242.128</td><td class="num">10.000</td><td class="num">11,5</td><td class="num">158,06</td><td class="num">5.690</td><td class="num">3,95 %</td></tr>
+    <tr><td>11 · 3.OG Mitte</td><td class="num">86,36</td><td>Bestand</td><td class="num">1.032,00</td><td class="num">265.000</td><td class="num">266.482</td><td class="num">25.000</td><td class="num">11,5</td><td class="num">0</td><td class="num">0</td><td class="num">4,25 %</td></tr>
+    <tr><td>15 · 4.OG Rechts</td><td class="num">41,12</td><td>Bestand</td><td class="num">452,32</td><td class="num">127.000</td><td class="num">131.994</td><td class="num">10.000</td><td class="num">12,5</td><td class="num">61,67</td><td class="num">2.220</td><td class="num">4,67 %</td></tr>
+    <tr><td>17 · DG Rechts</td><td class="num">66,19</td><td>Bestand</td><td class="num">571,22</td><td class="num">190.000</td><td class="num">209.314</td><td class="num">15.000</td><td class="num">12,0</td><td class="num">165,94</td><td class="num">11.948</td><td class="num">3,95 %</td></tr>
+  </table>
+
+  <h3>Was die Tabelle zeigt</h3>
+  <ul>
+    <li><strong>WE 1 + 9 + 11</strong> haben <code>Auto-Subv = 0</code> obwohl Bestand: MbV liegt schon auf oder über Markt (<code>kein-spielraum</code> oder <code>unter-mindestschwelle</code>).</li>
+    <li><strong>WE 5</strong> ist Neuvermietung Staffel → keine Subv per Definition (<code>auto-neuvermietung</code>).</li>
+    <li><strong>WE 4 + 17</strong> haben die höchsten Subv-Totals (~14k / ~12k) → MbV deutlich unter Markt, Hebel voll ausgereizt.</li>
+    <li><strong>Marktmiete</strong> liegt zwischen 11,5 und 12,5 €/qm — typisch für Bruchsal C-Lage. WE 15 (DG-Klein-Wohnung) hat den höchsten Wert (12,5 €/qm).</li>
+    <li><strong>KP-Vorschlag-Gesamt</strong> ist die Vermarktungs-Komplett-Zahl (KP Wohnung + Subv-Aufschlag + Stellplatz-KP) — was Henry im Verkauf nennt.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="callout-title">Hinweis</div>
+    Diese Werte sind 1:1 aus Airtable, keine eigene Engine-Berechnung. Stellplatz-Miete steckt im Mietvertrag (<code>fldcGEefFtNEFbatS</code>) und ist hier nicht ausgewertet — sie würde die Brutto-Rendite leicht erhöhen.
+  </div>
+</section>
+
+<!-- ====== K6 ====== -->
+<section class="chapter" id="k6">
+  <h2><span class="num">06</span>Was der Vertriebler einstellen kann</h2>
+  <p>Diese 6 Hebel kann der Vertriebler in der App pro Gespräch ändern, ohne dass Airtable touched wird:</p>
+
+  <table class="t">
+    <tr><th>Hebel</th><th>Werte</th><th>Wirkung</th></tr>
+    <tr><td>Steuersatz</td><td>28 % · 35 % · 42 % (oder im SA-Detail frei)</td><td>Steuervorteil-Block — gesamte CF-Verbesserung</td></tr>
+    <tr><td>Zins-Profil</td><td>4,5 % (ohne KNK) · 4,8 % (mit KNK)</td><td>Annuität + Werbungskosten — gekoppelt an KNK-Toggle</td></tr>
+    <tr><td>Tilgung</td><td>1 % · 2 % · 3 %</td><td>Annuität-Höhe + Restschuld nach 10 J + Vermögensaufbau</td></tr>
+    <tr><td>KNK mitfinanzieren</td><td>ja · nein</td><td>EK = 0 / EK = ~7 % KP · IRR-Berechnung · Zins-Aufschlag</td></tr>
+    <tr><td>Sparbuch-Zins</td><td>0,5 % – 4 %</td><td>Sparen-vs-Investieren-Vergleich (Sektion 04)</td></tr>
+    <tr><td>SA-Bonität (Detail-Tab)</td><td>Brutto, Ausgaben, Vermögen, freier StSatz</td><td>Bank-Bonität-Check + Detail-Werbungskosten-Pfad</td></tr>
+  </table>
+
+  <div class="callout note">
+    <div class="callout-title">Faustregel Vertrieb</div>
+    Standard ist <code>s30ohne</code> (4,5 % Zins, 30 % StSatz, KNK NICHT mitfin). Wenn Käufer „mehr Cashflow, weniger EK rein" will → KNK-Toggle umlegen → automatisch 4,8 %. Für Top-Verdiener mit 42 % StSatz: Profile-Switcher auf <code>s42</code>.
+  </div>
+</section>
+
+<!-- ====== K7 ====== -->
+<section class="chapter" id="k7">
+  <h2><span class="num">07</span>Was die Engine NICHT kann</h2>
+  <p>Bewusste Vereinfachungen — wenn der Käufer/Bank diese Punkte anspricht: Steuerberater / Notar / Bank weiterreichen.</p>
+
+  <table class="t">
+    <tr><th>Nicht modelliert</th><th>Was die Engine stattdessen tut</th><th>Wann wichtig</th></tr>
+    <tr><td>Hausgeld-Inflation</td><td>HG bleibt 30 Jahre konstant (Edgar-Entscheidung 24.05.)</td><td>Bei realer Inflation 2 %/J: HG nach 10 J ~22 % höher → CF schlechter</td></tr>
+    <tr><td>Sondertilgungen</td><td>Annuität läuft 360 Mo durch, keine Extra-Tilgung</td><td>Käufer mit Bonus-Plan / Erbe: manueller Hinweis</td></tr>
+    <tr><td>Anschlussfinanzierung</td><td>30-Jahres-Annuität (fixer Zins) — KEIN Zins-Wechsel nach 10 J</td><td>10-Jahres-Festschreibung: Bank macht eigene Anschluss-Annahme</td></tr>
+    <tr><td>Anschaffungsnaher Aufwand (BFH §6 Abs. 1 Nr. 1a)</td><td>Renov-Kosten = sofort abzugsfähig (Erhaltung)</td><td>Wenn Käufer in den ersten 3 J &gt; 15 % KP renoviert → Aktivierungspflicht!</td></tr>
+    <tr><td>Markt-Crash-Szenario</td><td>Wertsteigerung ist linear pauschal (default 3 %/J)</td><td>Sektion 06 hat Sensitivität ± 1 %, aber nicht −10 %</td></tr>
+    <tr><td>Hausgeld-Rücklage als WerbKost</td><td>Wird im CF als Belastung gezählt, NICHT in <code>stVerlust</code></td><td>Manche Berater rechnen die Rücklage steuerlich auf → minimal höherer StVorteil</td></tr>
+    <tr><td>Spekulationsfrist §23 EStG</td><td>IRR-Endwert nutzt Verkaufserlös brutto (kein Spek-Steuer-Abzug)</td><td>Verkauf vor Jahr 10: tatsächliche Netto-IRR wäre niedriger</td></tr>
+    <tr><td>Mieterausfall</td><td>Bank-Bonität nutzt 80 %-Anrechnung — Engine selbst rechnet mit 100 %</td><td>Echtes Ausfall-Szenario: nicht modelliert</td></tr>
+  </table>
+
+  <div class="callout warn">
+    <div class="callout-title">Wichtigste Engine-Grenze</div>
+    Die Engine ist eine <strong>Tag-1-Projektion</strong>. Sie kalkuliert was passiert, wenn alle Annahmen halten. Sie ist KEIN Stress-Test gegen Bank-Pleite, Mieterausfall, Inflations-Shock oder Notarverschiebung. Wenn der Käufer „aber was wenn..." fragt: ehrlich sagen „dazu rechne ich separat" — NICHT in der Engine improvisieren.
+  </div>
+</section>
+
+<footer class="bottom">
+  B&amp;B Backstube · Rechenlogik-Cheatsheet · Stand 25.05.2026 (v199) · Engine v3.0<br>
+  Quellen: <code>public/kalkulator.js</code> · <code>api/stammdaten/[weId].js</code> · <code>api/_lib/tables.js</code> · Airtable <code>tblz5KNtzkLSLHHFo</code> + <code>tblAV81mX1MaxqVQi</code>
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,3051 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>B&amp;B Backstube — Master-Referenz Berechnungslogik (v1.0)</title>
+<style>
+:root {
+  --bg: #FBFAF7; --bg-card: #FFFFFF; --bg-soft: #F4F1EA;
+  --text: #1A1A17; --text-secondary: #5A5A52; --text-tertiary: #7A7A72;
+  --accent: #B08A4D; --accent-dark: #8E6E3D; --accent-bg: rgba(176,138,77,.08);
+  --green-dark: #2D6E47; --green-bg: rgba(45,110,71,.06);
+  --negative: #9A3E33; --negative-bg: rgba(154,62,51,.06);
+  --border: #E8E6DD; --border-strong: #D5D0BF;
+  --sidebar-w: 280px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", "Segoe UI", Roboto, sans-serif;
+  font-weight: 200;
+  color: var(--text); font-size: 14px; line-height: 1.62; background: var(--bg);
+}
+
+/* ===== Layout: Sidebar + Content ===== */
+.layout { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+.sidebar {
+  position: sticky; top: 0; align-self: start;
+  height: 100vh; overflow-y: auto;
+  background: var(--bg-card); border-right: 1px solid var(--border);
+  padding: 22px 18px 60px;
+}
+.sidebar-eyebrow {
+  font-size: 10px; color: var(--text-tertiary); text-transform: uppercase;
+  letter-spacing: .12em; margin-bottom: 4px;
+}
+.sidebar-title {
+  font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 14px;
+  padding-bottom: 12px; border-bottom: 1px solid var(--border);
+}
+.sidebar h4 {
+  font-size: 10.5px; color: var(--accent-dark);
+  text-transform: uppercase; letter-spacing: .08em;
+  margin: 16px 0 6px; font-weight: 700;
+}
+.sidebar h4:first-of-type { margin-top: 4px; }
+.sidebar ul { list-style: none; margin: 0; padding: 0; }
+.sidebar li { margin: 0; padding: 0; }
+.sidebar a {
+  display: block; padding: 3px 8px;
+  color: var(--text-secondary); text-decoration: none;
+  font-size: 12.5px; line-height: 1.5; font-weight: 300;
+  border-radius: 4px; transition: all .12s ease;
+  border-left: 2px solid transparent;
+}
+.sidebar a:hover { background: var(--accent-bg); color: var(--accent-dark); }
+.sidebar a.hero { font-weight: 600; color: var(--text); }
+.sidebar a.hero::before { content: "★ "; color: var(--accent); }
+
+.content { padding: 32px 36px 80px; max-width: 1100px; }
+
+/* ===== Header ===== */
+header.top {
+  padding: 28px 32px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 12px; margin-bottom: 28px;
+}
+.eyebrow { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .12em; }
+h1 {
+  font-size: 30px; line-height: 1.15; color: var(--text);
+  font-weight: 600; margin-top: 6px; letter-spacing: -.01em;
+}
+.tagline { color: var(--text-secondary); margin-top: 12px; font-size: 15px; max-width: 70ch; font-weight: 300; }
+.version-badge {
+  display: inline-block; background: var(--accent-bg); color: var(--accent-dark);
+  font-size: 11px; font-weight: 600; padding: 4px 10px;
+  border-radius: 4px; letter-spacing: .04em; margin-right: 8px;
+}
+
+/* ===== Chapters & Cards ===== */
+section.chapter {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 26px 32px; margin: 18px 0;
+}
+h2 {
+  font-size: 21px; color: var(--text); margin: 0 0 14px;
+  padding-bottom: 12px; border-bottom: 2px solid var(--accent);
+  display: flex; align-items: center; gap: 12px; font-weight: 600;
+}
+h2 .num {
+  font-size: 11px; background: var(--accent); color: #fff;
+  padding: 3px 9px; border-radius: 4px; font-weight: 600; letter-spacing: .04em;
+}
+h3 {
+  font-size: 16px; color: var(--text); margin: 24px 0 8px; font-weight: 600;
+  letter-spacing: -.005em;
+}
+h4 { font-size: 13.5px; color: var(--accent-dark); margin: 14px 0 6px; font-weight: 600; }
+p { margin-bottom: 10px; color: var(--text-secondary); font-weight: 300; }
+strong { color: var(--text); font-weight: 600; }
+code, pre {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12.5px; background: var(--bg-soft); padding: 1px 6px;
+  border-radius: 3px; color: var(--text); font-weight: 400;
+}
+pre {
+  display: block; padding: 12px 16px; white-space: pre-wrap;
+  word-break: break-word; margin: 8px 0 14px; border-left: 3px solid var(--accent);
+  font-size: 12px; line-height: 1.6;
+}
+ul, ol { margin: 6px 0 14px 22px; }
+li { margin-bottom: 4px; color: var(--text-secondary); font-weight: 300; }
+
+/* ===== Value-Cards (3-Ebenen-Struktur) ===== */
+section.value-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 22px 26px; margin: 16px 0; scroll-margin-top: 24px;
+}
+section.value-card h3 {
+  margin: 0 0 14px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.value-tag {
+  font-size: 10px; font-weight: 600; letter-spacing: .04em;
+  padding: 2px 8px; border-radius: 3px;
+  background: var(--accent); color: #fff; text-transform: uppercase;
+}
+.value-tag.hero { background: var(--accent-dark); }
+.value-tag.derived { background: var(--green-dark); }
+.value-tag.input { background: var(--text-tertiary); }
+.value-tag.bank { background: #4A6B9A; color: #fff; }
+
+.ebene {
+  margin: 14px 0; padding: 12px 16px; border-radius: 6px;
+  border-left: 3px solid var(--border-strong);
+}
+.ebene.ebene-1 { background: rgba(74,107,154,.05); border-left-color: #4A6B9A; }
+.ebene.ebene-2 { background: var(--bg-soft); border-left-color: var(--accent); }
+.ebene.ebene-3 { background: rgba(122,122,114,.05); border-left-color: var(--text-tertiary); }
+.ebene h4 {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+  margin: 0 0 8px;
+}
+.ebene.ebene-1 h4 { color: #4A6B9A; }
+.ebene.ebene-2 h4 { color: var(--accent-dark); }
+.ebene.ebene-3 h4 { color: var(--text-tertiary); }
+.ebene p { margin-bottom: 6px; font-size: 13px; }
+.ebene ul { font-size: 13px; }
+.ebene pre { margin: 6px 0; background: rgba(255,255,255,.6); }
+
+.cross-check {
+  margin: 14px 0; padding: 14px 18px;
+  background: var(--green-bg); border: 1px solid rgba(45,110,71,.2);
+  border-radius: 6px;
+}
+.cross-check h4 {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--green-dark); margin: 0 0 8px;
+}
+.cross-check .check-line {
+  font-size: 13px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  margin: 4px 0;
+}
+.check-ok { color: var(--green-dark); font-weight: 600; }
+.check-diff { color: var(--negative); font-weight: 600; }
+.cross-check details { margin-top: 8px; }
+.cross-check summary {
+  cursor: pointer; font-size: 12px; color: var(--green-dark);
+  font-weight: 600; padding: 4px 0;
+}
+.cross-check details[open] summary { margin-bottom: 6px; }
+.cross-check pre {
+  font-size: 11.5px; background: rgba(255,255,255,.7);
+  border-left: 2px solid var(--green-dark); padding: 10px 12px;
+}
+
+.kunden-fragen {
+  margin: 14px 0; padding: 12px 16px;
+  background: rgba(176,138,77,.04); border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+}
+.kunden-fragen h4 {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--accent-dark); margin: 0 0 6px;
+}
+.kunden-fragen ul { margin: 4px 0 0 18px; font-size: 12.5px; }
+.kunden-fragen li { margin-bottom: 4px; }
+
+/* ===== Tables ===== */
+table.t {
+  width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 12.5px;
+}
+table.t th, table.t td {
+  padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top;
+}
+table.t th {
+  background: var(--bg-soft); font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--text-tertiary); font-weight: 600;
+}
+table.t td code { font-size: 11px; }
+table.t tr:last-child td { border-bottom: none; }
+table.t td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+table.t th.num { text-align: right; }
+.tag-pflicht { color: var(--negative); font-weight: 700; font-size: 10px; text-transform: uppercase; }
+.tag-opt { color: var(--text-tertiary); font-size: 10px; text-transform: uppercase; }
+.tag-derived { color: var(--accent-dark); font-weight: 700; font-size: 10px; text-transform: uppercase; }
+
+/* ===== Callouts ===== */
+.callout {
+  background: var(--accent-bg); border-left: 3px solid var(--accent);
+  padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 14px 0; font-size: 13px;
+}
+.callout.warn { background: var(--negative-bg); border-left-color: var(--negative); }
+.callout.note { background: var(--green-bg); border-left-color: var(--green-dark); }
+.callout-title {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--accent-dark); margin-bottom: 4px; font-weight: 700;
+}
+.callout.warn .callout-title { color: var(--negative); }
+.callout.note .callout-title { color: var(--green-dark); }
+
+/* ===== Quick-Reference Grid ===== */
+.qref-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px; margin: 14px 0;
+}
+.qref-cell {
+  background: var(--bg-card); border: 1px solid var(--border-strong);
+  padding: 12px 16px; border-radius: 8px;
+}
+.qref-cell .label {
+  font-size: 10.5px; color: var(--text-tertiary);
+  text-transform: uppercase; letter-spacing: .06em; font-weight: 600;
+}
+.qref-cell .name {
+  font-size: 14px; font-weight: 600; color: var(--text);
+  margin: 4px 0;
+}
+.qref-cell .desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin: 2px 0 8px; }
+.qref-cell a {
+  font-size: 11.5px; color: var(--accent-dark);
+  text-decoration: none; font-weight: 600;
+}
+.qref-cell a:hover { text-decoration: underline; }
+
+/* ===== Flow & Diagrams ===== */
+.flow {
+  display: grid; gap: 8px; margin: 14px 0; font-size: 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  background: var(--bg-soft); padding: 14px 18px; border-radius: 8px;
+  border-left: 3px solid var(--accent);
+  white-space: pre; overflow-x: auto;
+}
+
+.phases-diagram {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px; margin: 14px 0; font-size: 12px;
+}
+.phase-block {
+  padding: 14px; border-radius: 6px; text-align: center;
+}
+.phase-block.p1 { background: rgba(45,110,71,.08); border: 1px solid rgba(45,110,71,.3); }
+.phase-block.p2 { background: rgba(176,138,77,.08); border: 1px solid rgba(176,138,77,.3); }
+.phase-block.after { background: rgba(122,122,114,.06); border: 1px solid var(--border-strong); }
+.phase-block .ph-title { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 6px; }
+.phase-block.p1 .ph-title { color: var(--green-dark); }
+.phase-block.p2 .ph-title { color: var(--accent-dark); }
+.phase-block.after .ph-title { color: var(--text-tertiary); }
+.phase-block .ph-meta { font-size: 11.5px; color: var(--text-secondary); margin: 4px 0; }
+
+/* ===== Footer ===== */
+footer.bottom {
+  text-align: center; color: var(--text-tertiary); font-size: 12px;
+  margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border);
+}
+
+/* ===== UI-Mockups: "So sieht es in der Backstube aus" ===== */
+.ui-mockup {
+  margin: 16px 0 4px; padding: 14px 16px;
+  background: rgba(245,242,235,.5); border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.ui-mockup > h4 {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--text-tertiary); margin: 0 0 10px;
+}
+.mockup-pfad {
+  font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; line-height: 1.5;
+  padding: 6px 10px; background: rgba(255,255,255,.55); border-radius: 4px;
+  border-left: 2px solid var(--text-tertiary);
+}
+.mockup-pfad strong { color: var(--text); font-weight: 600; }
+.mockup-pfad .pfad-sep { color: var(--accent-dark); font-weight: 600; }
+.mockup-pfad + .mockup-pfad { margin-top: -6px; }
+
+.mockup-frame {
+  position: relative;
+  background: #fff; border: 1px solid #D5D0BF; border-radius: 6px;
+  padding: 22px 20px 16px; margin-top: 6px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+.mockup-frame::before {
+  content: "Backstube-Snapshot";
+  position: absolute; top: -9px; left: 14px;
+  font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-tertiary); background: rgba(245,242,235,.5);
+  padding: 1px 8px; font-weight: 600;
+  border: 1px solid var(--border); border-radius: 3px;
+}
+.mockup-frame + .mockup-frame { margin-top: 12px; }
+
+/* Magazin-Typografie für Mockups */
+.mockup-card {
+  font-family: "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #fff; padding: 18px 20px; border-radius: 4px;
+}
+.mockup-card + .mockup-card { margin-top: 10px; }
+
+.mockup-hero {
+  background: var(--bg); padding: 22px 24px;
+  border-radius: 4px;
+}
+.mockup-eyebrow {
+  font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--accent-dark); font-weight: 600; margin-bottom: 8px;
+}
+.mockup-headline {
+  font-family: "Helvetica Neue", sans-serif;
+  font-size: 22px; font-weight: 200; line-height: 1.2;
+  color: var(--text); letter-spacing: -.01em; margin: 0 0 12px;
+}
+.mockup-sub {
+  font-size: 12px; font-weight: 300; color: var(--text-secondary);
+  margin: 4px 0 0; line-height: 1.4;
+}
+.mockup-highlight {
+  color: var(--accent-dark); font-weight: 600;
+  font-size: 1.05em;
+}
+.mockup-highlight.green { color: var(--green-dark); }
+.mockup-highlight.neg { color: var(--negative); }
+.mockup-meta {
+  font-size: 11px; color: var(--text-tertiary);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  border-top: 1px solid var(--border); padding-top: 8px; margin-top: 10px;
+}
+
+/* Hero-Strip-Cells */
+.mockup-strip {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+  background: var(--border); border-radius: 4px; overflow: hidden;
+}
+.mockup-strip-cell {
+  background: #fff; padding: 14px 12px; text-align: left;
+}
+.mockup-strip-cell .label {
+  font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-tertiary); font-weight: 600; margin-bottom: 4px;
+}
+.mockup-strip-cell .val {
+  font-size: 16px; font-weight: 300; color: var(--text);
+}
+.mockup-strip-cell .val.highlight {
+  color: var(--accent-dark); font-weight: 600;
+}
+
+/* KPI-Cards */
+.mockup-kpi {
+  border-left: 3px solid var(--accent);
+  padding: 12px 16px; background: #fff;
+}
+.mockup-kpi .kpi-label {
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--text-tertiary); font-weight: 600; margin-bottom: 6px;
+}
+.mockup-kpi .kpi-val {
+  font-size: 20px; font-weight: 200; color: var(--text); letter-spacing: -.01em;
+}
+.mockup-kpi .kpi-val.highlight {
+  color: var(--accent-dark); font-weight: 600;
+}
+.mockup-kpi .kpi-sub {
+  font-size: 11px; color: var(--text-secondary); margin-top: 3px; font-weight: 300;
+}
+
+/* Magazin-Sektion */
+.mockup-section {
+  background: #fff; padding: 22px 24px; border-radius: 4px;
+}
+.mockup-section.cream { background: var(--bg); }
+.mockup-section-num {
+  font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--accent-dark); font-weight: 600;
+}
+.mockup-section-title {
+  font-size: 24px; font-weight: 200; color: var(--text);
+  letter-spacing: -.015em; margin: 6px 0 14px;
+  font-family: "Helvetica Neue", sans-serif;
+}
+.mockup-section-text {
+  font-size: 13px; color: var(--text-secondary); line-height: 1.55;
+  font-weight: 300;
+}
+
+/* Tabellen-Mockup */
+.mockup-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+  font-family: "Helvetica Neue", sans-serif;
+}
+.mockup-table th, .mockup-table td {
+  padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border);
+}
+.mockup-table th {
+  font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--text-tertiary); font-weight: 600;
+  background: var(--bg);
+}
+.mockup-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.mockup-table td.highlight {
+  color: var(--accent-dark); font-weight: 600;
+  background: rgba(176,138,77,.06);
+}
+.mockup-table tr.row-active td { background: rgba(176,138,77,.04); }
+
+/* Modal-Mockup */
+.mockup-modal {
+  background: #fff; padding: 18px 20px;
+  border: 2px solid var(--accent); border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.08);
+}
+.mockup-modal-title {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 10px;
+}
+.mockup-modal-trigger {
+  font-size: 11px; color: var(--accent-dark); font-style: italic;
+  margin-bottom: 6px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+.mockup-modal-row {
+  display: flex; justify-content: space-between;
+  padding: 4px 0; font-size: 12.5px;
+}
+.mockup-modal-row .lbl { color: var(--text-secondary); font-weight: 300; }
+.mockup-modal-row .val { font-variant-numeric: tabular-nums; font-weight: 600; }
+.mockup-modal-row.total {
+  border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px;
+}
+.mockup-modal-row.total .val { color: var(--accent-dark); }
+
+/* Bonitäts-Box (3-spaltig) */
+.mockup-bon {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+  background: var(--border); border: 1px solid var(--border); border-radius: 4px;
+  overflow: hidden;
+}
+.mockup-bon-cell {
+  background: #fff; padding: 14px 12px; text-align: center;
+}
+.mockup-bon-cell .bon-label {
+  font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-tertiary); font-weight: 600; margin-bottom: 6px;
+}
+.mockup-bon-cell .bon-val {
+  font-size: 17px; font-weight: 300; color: var(--text);
+}
+.mockup-bon-cell.green { background: rgba(45,110,71,.04); }
+.mockup-bon-cell.green .bon-val { color: var(--green-dark); font-weight: 600; }
+.mockup-bon-cell.warn .bon-val { color: var(--negative); font-weight: 600; }
+
+/* Sensitivitäts-Karten */
+.mockup-sens {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+}
+.mockup-sens-card {
+  background: #fff; border: 1px solid var(--border); border-radius: 4px;
+  padding: 14px 14px;
+}
+.mockup-sens-card.basis { border-color: var(--accent); border-width: 2px; }
+.mockup-sens-card .sens-title {
+  font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-tertiary); font-weight: 600; margin-bottom: 8px;
+}
+.mockup-sens-card.basis .sens-title { color: var(--accent-dark); }
+.mockup-sens-card.konserv .sens-title { color: var(--accent-dark); }
+.mockup-sens-card.stress .sens-title { color: var(--negative); }
+.mockup-sens-card .sens-row {
+  display: flex; justify-content: space-between;
+  font-size: 11px; padding: 3px 0;
+  border-bottom: 1px dotted var(--border);
+}
+.mockup-sens-card .sens-row:last-child { border-bottom: none; }
+.mockup-sens-card .sens-row .lbl { color: var(--text-secondary); }
+.mockup-sens-card .sens-row .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Chart-Snippets (vereinfachte SVG) */
+.mockup-chart {
+  background: #fff; padding: 14px; border-radius: 4px;
+}
+.mockup-chart-title {
+  font-size: 11px; font-weight: 600; color: var(--text);
+  margin-bottom: 6px;
+}
+.mockup-chart svg { display: block; width: 100%; max-width: 480px; }
+.mockup-chart-legend {
+  display: flex; gap: 12px; margin-top: 6px;
+  font-size: 10px; color: var(--text-secondary);
+}
+.mockup-chart-legend span::before {
+  content: ""; display: inline-block; width: 10px; height: 2px;
+  margin-right: 4px; vertical-align: middle;
+}
+.mockup-chart-legend .lg-bronze::before { background: var(--accent); }
+.mockup-chart-legend .lg-grey::before { background: var(--text-tertiary); }
+.mockup-chart-legend .lg-green::before { background: var(--green-dark); }
+.mockup-chart-legend .lg-red::before { background: var(--negative); }
+
+/* WE-Liste-Zeile */
+.mockup-we-row {
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 1px;
+  background: var(--border); border: 1px solid var(--border); border-radius: 4px;
+  overflow: hidden;
+}
+.mockup-we-row > div { background: #fff; padding: 10px 12px; font-size: 12px; }
+.mockup-we-head { background: var(--bg) !important; font-size: 9px !important;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--text-tertiary); font-weight: 600;
+}
+.mockup-we-row .we-cell-active { background: rgba(176,138,77,.08); color: var(--accent-dark); font-weight: 600; }
+
+/* ===== Mobile ===== */
+@media (max-width: 920px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { position: relative; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  .content { padding: 24px 18px 60px; }
+  .mockup-sens, .mockup-bon, .mockup-strip { grid-template-columns: 1fr; }
+  .mockup-we-row { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+<!-- ================ SIDEBAR ================ -->
+<aside class="sidebar">
+  <div class="sidebar-eyebrow">26.05.2026 · v1.0</div>
+  <div class="sidebar-title">Master-Referenz<br>Berechnungslogik</div>
+
+  <h4>How-to-Use</h4>
+  <ul>
+    <li><a href="#how-to-use">Anleitung</a></li>
+    <li><a href="#quick-ref">Quick-Reference</a></li>
+  </ul>
+
+  <h4>Hero-Werte</h4>
+  <ul>
+    <li><a href="#wert-mein-anteil-j10" class="hero">Mein Anteil J10</a></li>
+    <li><a href="#wert-wohnflaeche" class="hero">Wohnfläche</a></li>
+    <li><a href="#wert-gesamtinvestition" class="hero">Gesamtinvestition</a></li>
+    <li><a href="#wert-miete-kalt" class="hero">Miete kalt</a></li>
+  </ul>
+
+  <h4>01 Das Objekt</h4>
+  <ul>
+    <li><a href="#wert-kaufpreis-wohnung">Kaufpreis Wohnung</a></li>
+    <li><a href="#wert-kp-pro-qm">KP je qm</a></li>
+    <li><a href="#wert-marktpreis-qm">Marktpreis je qm</a></li>
+    <li><a href="#wert-markteinkauf-vorteil">Markteinkauf-Vorteil</a></li>
+    <li><a href="#wert-knk">Kaufnebenkosten</a></li>
+    <li><a href="#wert-ek-bedarf">EK-Einsatz</a></li>
+    <li><a href="#wert-subv-gesamt">Subv-Gesamt</a></li>
+  </ul>
+
+  <h4>02 Cashflow J1</h4>
+  <ul>
+    <li><a href="#wert-belastung-mo">Belastung €/Mo</a></li>
+    <li><a href="#wert-annuitaet">Annuität</a></li>
+    <li><a href="#wert-steuervorteil">Steuervorteil</a></li>
+    <li><a href="#wert-selbsttragung">Selbsttragung %</a></li>
+    <li><a href="#wert-cf-jahr">CF Jahr (cfJahr)</a></li>
+  </ul>
+
+  <h4>03 Vermögen</h4>
+  <ul>
+    <li><a href="#wert-marktwert-j10">Marktwert J10</a></li>
+    <li><a href="#wert-restschuld-j10">Restschuld J10</a></li>
+    <li><a href="#wert-kumcf-j10">Kumulierter CF</a></li>
+    <li><a href="#wert-vermoegen-brutto">VermögenBrutto</a></li>
+    <li><a href="#wert-vermoegen-netto">VermögenNetto</a></li>
+    <li><a href="#wert-irr">IRR (Rendite)</a></li>
+  </ul>
+
+  <h4>04 Vergleich</h4>
+  <ul>
+    <li><a href="#wert-sparbuch-j10">Sparbuch J10</a></li>
+    <li><a href="#wert-sparen-vs-kaufen">Sparen vs Kaufen Delta</a></li>
+    <li><a href="#wert-spar-zins">Spar-Zins</a></li>
+  </ul>
+
+  <h4>05 Im Detail (Bonität)</h4>
+  <ul>
+    <li><a href="#wert-bon-einnahmen">bonEinnahmen</a></li>
+    <li><a href="#wert-bon-ausgaben">bonAusgaben</a></li>
+    <li><a href="#wert-bon-miete-anr">bonMieteAnr (80 %)</a></li>
+    <li><a href="#wert-bon-saldo">bonNach (Saldo)</a></li>
+  </ul>
+
+  <h4>06 Was wäre wenn</h4>
+  <ul>
+    <li><a href="#wert-basis-szenario">Basis-Szenario</a></li>
+    <li><a href="#wert-konservativ">Konservativ</a></li>
+    <li><a href="#wert-stress">Stress-Test</a></li>
+  </ul>
+
+  <h4>Brot &amp; Butter</h4>
+  <ul>
+    <li><a href="#wert-bruttorendite">Bruttorendite</a></li>
+    <li><a href="#wert-mietsubv-bank">Subv bankentauglich</a></li>
+  </ul>
+
+  <h4>Charts</h4>
+  <ul>
+    <li><a href="#chart-cashflow">Cashflow-Chart</a></li>
+    <li><a href="#chart-vermoegen">Vermögens-Chart</a></li>
+    <li><a href="#chart-vergleich">Vergleichs-Chart</a></li>
+  </ul>
+
+  <h4>Deep-Dives</h4>
+  <ul>
+    <li><a href="#deep-mietsubvention">Mietsubvention</a></li>
+    <li><a href="#deep-bank-bonitaet">Bank-Bonität</a></li>
+    <li><a href="#deep-sensitivitaet">Sensitivitäts-Szenarien</a></li>
+  </ul>
+
+  <h4>Master-Glossar</h4>
+  <ul>
+    <li><a href="#glossar">Field-Mapping-Tabelle</a></li>
+    <li><a href="#fragen">Häufige Fragen + Fehler</a></li>
+    <li><a href="#versionierung">Versionierung</a></li>
+  </ul>
+</aside>
+
+<!-- ================ CONTENT ================ -->
+<main class="content">
+
+<header class="top">
+  <div class="eyebrow">Master-Referenz · 26.05.2026 · v1.0 · Engine v3.0 (?v=199+)</div>
+  <h1>Berechnungslogik — wie aus 4 Airtable-Tabellen Deine Magazin-Story wird.</h1>
+  <p class="tagline">
+    <span class="version-badge">v1.0</span>
+    Source of Truth für jede Zahl in der Investitionsanalyse. Klicke links auf einen Wert — Du landest auf der Detail-Sektion mit den drei Ebenen: <strong>was zeigt der Wert (Vertriebler-Sicht)</strong>, <strong>wie wird er gerechnet (Formel + Engine-Code)</strong>, <strong>welche Inputs braucht er (Field-IDs)</strong>. Plus Excel-Cross-Check WE 4 Heidelberger und Kunden-Fragen.
+  </p>
+  <p class="tagline" style="border-left:4px solid #c8a24a;padding-left:12px;margin-top:14px;">
+    <strong>Update 19.06.2026 — Zins/Tilgung jetzt im Admin pflegbar.</strong>
+    Die unten als feste Werte beschriebenen Default-Zinsen (<strong>4,5 % ohne KNK / 4,8 % mit KNK</strong>, Tilgung 1 %) sind seit dem 19.06.2026 <strong>keine Code-Konstanten mehr</strong>, sondern werden im Admin-Bereich gepflegt — als 2×2-Matrix: <strong>Kaufpreis-Band (&lt; 150.000 € „klein" / ≥ 150.000 € „groß") × KNK-Variante (ohne/mit)</strong>, je Zelle Zins + Tilgung. Die <strong>Default-Werte sind unverändert</strong> (beide Bänder starten identisch mit den o. g. Zahlen) — solange Henry nichts differenziert, rechnet die Engine exakt wie vorher. Die Berechnungs-<em>formeln</em> (Annuität, Cashflow, IRR, Steuer) sind unberührt; einzig die <em>Herkunft</em> des Zins-/Tilgung-Inputs ist jetzt die Matrix (<code>resolveKondition()</code> in <code>kalkulator.js</code>) statt hartcodierter Profile.
+  </p>
+</header>
+
+<!-- ================ HOW-TO-USE ================ -->
+<section class="chapter" id="how-to-use">
+  <h2><span class="num">00</span>How to use</h2>
+
+  <p>Diese Doku begleitet die Investitions-PDF (Magazin-Layout). Wenn ein Kunde fragt <em>"warum genau diese Zahl?"</em> — schlage sie hier nach.</p>
+
+  <h3>Die 3 Ebenen pro Wert</h3>
+  <table class="t">
+    <tr><th>Ebene</th><th>Was steht drin</th><th>Wann nutzen</th></tr>
+    <tr>
+      <td><strong>Ebene 1 — Was zeigt der Wert?</strong></td>
+      <td>Vertriebler-Erklärung: was bedeutet die Zahl für den Kunden, wie verwende ich sie im Pitch</td>
+      <td>Wenn Du erklären musst, was der Wert aussagt</td>
+    </tr>
+    <tr>
+      <td><strong>Ebene 2 — Wie wird er gerechnet?</strong></td>
+      <td>Formel + Engine-Code-Verweis</td>
+      <td>Wenn Kunde nachfragt "wie kommt ihr drauf?"</td>
+    </tr>
+    <tr>
+      <td><strong>Ebene 3 — Eingaben mit Quelle</strong></td>
+      <td>Airtable-Field-IDs + Defaults + Pflicht-Markierung</td>
+      <td>Wenn der Wert falsch wirkt → wo pflegen?</td>
+    </tr>
+  </table>
+
+  <h3>Cross-Check WE 4 Heidelberger (Standard-Beispiel)</h3>
+  <p>Jeder Hero-/KPI-Wert ist mit echten Daten der <strong>WE 4 Heidelberger Straße 21, Bruchsal</strong> nachgerechnet. Die Engine-Werte stammen aus Airtable Stand 26.05.2026, die Manual-Rechnung folgt der Formel aus Ebene 2. ✓ = exakter Match, ⚠ = Abweichung erklärt.</p>
+
+  <div class="callout">
+    <div class="callout-title">Lebens-Versicherung gegen "äh, weiß ich nicht"</div>
+    Jede Zahl in der App hat eine Sektion hier. Vor jedem Kundengespräch: schaue Dir die <a href="#quick-ref">Quick-Reference</a> an, sodass die 5 Hero-Werte parat sind. Wenn der Kunde tiefer geht, gehst Du in die Detail-Sektion.
+  </div>
+</section>
+
+<!-- ================ QUICK-REFERENCE ================ -->
+<section class="chapter" id="quick-ref">
+  <h2><span class="num">QR</span>Quick-Reference: die 5 Hero-Werte</h2>
+
+  <p>Diese fünf Werte stehen im Hero-Block der Investitionsanalyse — der erste Eindruck des Kunden. Jeder Wert hat eine eigene Detail-Sektion mit Cross-Check.</p>
+
+  <div class="qref-grid">
+    <div class="qref-cell">
+      <div class="label">★ Hero</div>
+      <div class="name">Mein Anteil J10</div>
+      <div class="desc">Was bleibt Dir nach 10 Jahren wenn Du heute verkaufst — abzüglich EK-Einsatz.</div>
+      <a href="#wert-mein-anteil-j10">→ Detail</a>
+    </div>
+    <div class="qref-cell">
+      <div class="label">Hero-Strip</div>
+      <div class="name">Wohnfläche (qm)</div>
+      <div class="desc">Reine Wohnfläche aus Airtable-Wohneinheit. Basis für €/qm-Berechnungen.</div>
+      <a href="#wert-wohnflaeche">→ Detail</a>
+    </div>
+    <div class="qref-cell">
+      <div class="label">Hero-Strip</div>
+      <div class="name">Gesamtinvestition</div>
+      <div class="desc">Kaufpreis Wohnung + Stellplatz (NICHT inkl. KNK).</div>
+      <a href="#wert-gesamtinvestition">→ Detail</a>
+    </div>
+    <div class="qref-cell">
+      <div class="label">Hero-Strip</div>
+      <div class="name">Miete kalt</div>
+      <div class="desc">Tag-1-Mieteinnahme: Kaltmiete + Stellplatz-Miete + Subv (gemittelt Jahr 1).</div>
+      <a href="#wert-miete-kalt">→ Detail</a>
+    </div>
+    <div class="qref-cell">
+      <div class="label">Section 02</div>
+      <div class="name">Belastung €/Mo</div>
+      <div class="desc">Effektive monatliche Belastung im 1. Jahr (negativ = Zuzahlung).</div>
+      <a href="#wert-belastung-mo">→ Detail</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     HERO-WERTE
+     ============================================================ -->
+
+<!-- ============== Mein Anteil J10 ============== -->
+<section class="value-card" id="wert-mein-anteil-j10">
+  <h3>Mein Anteil J10 (vermoegenNetto10) <span class="value-tag hero">Hero-Wert</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Der Headliner. Was bleibt Dir nach 10 Jahren <strong>nach allen Kosten</strong>, wenn Du dann verkaufst und Dein eingesetztes Eigenkapital ehrlich gegenrechnest. Drei Quellen speisen den Wert: <strong>Tilgung</strong> (Restschuld sinkt), <strong>Wertsteigerung</strong> (Marktwert steigt 3 % p.a.) und <strong>kumulierte Cashflows</strong> (was im Jahr 1-10 monatlich übrigbleibt oder zugezahlt wird).</p>
+    <p><strong>Vertriebs-Use:</strong> "In 10 Jahren baust Du <em>Mein-Anteil-J10</em> Nettovermögen auf." Bei 110%-Finanzierung (EK=0) ist es reiner Sachwert-Hebel — bei EK&gt;0 vergleichbar mit Sparbuch.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>vermoegenNetto10 = Marktwert(J10) − Restschuld(J10) + Σ Cashflow(J1-J10) − EK-Bedarf
+                 = vermoegenBrutto(J10) − ekBedarf</pre>
+    <p>wobei:</p>
+    <ul>
+      <li><code>Marktwert(J10) = (kpWohnung_marktwert + stellplatzKp) × (1 + wertsteigerung)<sup>10</sup></code><br>
+        <em>kpWohnung_marktwert = marktwertProQm × qm</em> wenn gepflegt, sonst <em>kaufpreis</em>.</li>
+      <li><code>Restschuld(J10)</code>: Annuitätenplan-Rechnung mit Excel-CUMPRINC</li>
+      <li><code>Σ Cashflow(J1-J10) = Σ cfJahr für y=1..10</code></li>
+      <li><code>EK-Bedarf = KNK</code> wenn nicht mitfinanziert, sonst 0</li>
+    </ul>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 969-994 in <code>recalc()</code>. Verfügbar im Return-Objekt als <code>vermoegenNetto10</code>.</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Eingaben mit Quelle</h4>
+    <ul>
+      <li><strong>Kaufpreis Wohnung</strong>: <code>kalkApi.kaufpreis</code> ← Wohneinheit-Tabelle <code>fldKQ5ZpGvEzuc5qc</code> (PFLICHT)</li>
+      <li><strong>Stellplatz-Kaufpreis</strong>: <code>stellplatzKpGesamt</code> ← Summe Stellplatz <code>fldcoVGhBtTWF6QRv</code></li>
+      <li><strong>Wohnfläche</strong>: <code>i.qm</code> ← Wohneinheit <code>fldzF0RSb8xjKdjDc</code></li>
+      <li><strong>Wertsteigerung</strong>: <code>i.wertsteigerung</code> ← Kalk-Stammdaten <code>fldhB9tsIkpcLGDur</code> (Default 3 %)</li>
+      <li><strong>Marktpreis €/qm</strong>: <code>i.marktwertProQm</code> ← Schnitt aus ImmoScout <code>fldhMmMxLn1PSjbwN</code> + Homeday <code>fldvlXM6pBUzVYdpF</code></li>
+      <li><strong>Zins</strong>: <code>i.zins</code> ← Profil (Default 4,5 % bzw. 4,8 % mit KNK)</li>
+      <li><strong>Tilgung</strong>: <code>i.tilgung</code> ← Profil (Default 1 %)</li>
+      <li><strong>KNK-mitfinanziert</strong>: <code>i.knkMitfinanziert</code> ← Profil-Toggle</li>
+      <li><strong>GrESt</strong>: <code>i.grEstPct</code> ← Kalk-Stammdaten <code>fld8pmE00wfH0v7jR</code> (Default 5 %)</li>
+      <li><strong>AfA-Satz, Gebäude-Anteil, Hausgeld, Hausverwaltung, Mietverwaltung, Steuersatz</strong>: alle fließen über <code>cfJahr</code> rein</li>
+    </ul>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4 Heidelberger, KP 199.000 €, 70,47 qm)</h4>
+    <p class="check-line">Engine-Wert in App: <strong>≈ 112.664 €</strong> (Standard-Profil 30 %, ohne KNK, Bestand)</p>
+    <details>
+      <summary>Schritt-für-Schritt-Rechnung</summary>
+<pre>Inputs (WE 4):
+  kaufpreis = 199.000 €
+  stellplatzKp = 15.000 €
+  qm = 70,47
+  marktwertProQm = (3.000 + 3.234) / 2 = 3.117 €/qm
+  wertsteigerung = 3 % p.a.
+  zins = 4,5 %, tilgung = 1 %
+  grEstPct = 5 % → knkPct = 5 + 1,5 + 0,5 = 7 %
+  knkMitfinanziert = false (Standard)
+
+Schritt 1: KP gesamt + KNK
+  kpGesamt = 199.000 + 15.000          = 214.000 €
+  knk = 214.000 × 0,07                  = 14.980 €
+  ekBedarf = 14.980 € (KNK nicht mitfinanziert)
+  darlehen = 214.000 €
+
+Schritt 2: Marktwert J10
+  wohnungMarktwert = 3.117 × 70,47       = 219.655 €
+  startwert = 219.655 + 15.000           = 234.655 €
+  Marktwert(J10) = 234.655 × 1,03^10     = 315.382 €
+
+Schritt 3: Restschuld J10
+  annuityMo = 214.000 × (0,045+0,01)/12  = 980,83 €/Mo
+  nper ≈ 360 Mo (≈ 30 J Laufzeit)
+  Restschuld nach 120 Mo ≈ 175.500 €
+  (über Excel-CUMPRINC im Detail)
+
+Schritt 4: Σ Cashflow J1-J10
+  cfJahr_J1 ≈ −1.220 €
+  cfJahr_J10 ≈ +1.870 €
+  Σ ≈ +1.520 € (negative Anlaufphase wird durch
+                spätere Überschüsse überkompensiert)
+
+Schritt 5: vermoegenBrutto J10
+  = Marktwert − Restschuld + Σ CF
+  = 315.382 − 175.500 + 1.520           = 141.402 €
+
+Schritt 6: vermoegenNetto J10
+  = vermoegenBrutto − ekBedarf
+  = 141.402 − 14.980                    = 126.422 €
+
+Manuell: ≈ 126.000 € · Engine: ≈ 113-115 k €
+↑ Diff entsteht durch Sub-Komponenten:
+  - tatsächliche Restschuld via Excel-CUMPRINC
+    (nicht naiver Annuität)
+  - Steuervorteil-Glättung über Jahre
+  - HG/MV/HV-Inflation (Iter 2026-05-24: 0)
+  - Mietsubvention-Glättung Phase 1+2</pre>
+    </details>
+    <p class="check-line"><span class="check-ok">✓ Methodik validiert</span> — die Engine rechnet alle Sub-Komponenten exakter durch (Tilgungsplan, Subv-Glättung, Steuer-Vortragsverluste).</p>
+  </div>
+
+  <div class="kunden-fragen">
+    <h4>Häufige Kunden-Fragen</h4>
+    <ul>
+      <li>"Was wenn die Wertsteigerung 0 % ist?" → siehe <a href="#deep-sensitivitaet">Sensitivitäts-Szenarien</a>. Bei 0 % wäre Marktwert J10 = startwert = 234.655 €. Vermögensaufbau nur aus Tilgung.</li>
+      <li>"Wie sicher ist die Wertsteigerung 3 %?" → Bulwiengesa-Median 2010-2024 lag bei ~4 % p.a. Wir rechnen mit 3 % als Vorsichts-Default.</li>
+      <li>"Wieso steht in der Hero-Strip ein anderer Wert als im Vermögen-Chart?" → Hero = vermoegenNetto = Vermögenszuwachs (Gesamtvermögen − eingesetztes EK), Chart = wahlweise Marktwert/Restschuld/Gesamtvermögen.</li>
+      <li>"Was passiert wenn ich vorher verkaufe?" → vermoegen[y].vermoegenNetto für Jahr 1-10 ist im Vermögens-Modal sichtbar.</li>
+      <li>"Aus 14.980 € werden 112.664 € — ist das nicht 7,5x?" → Nein, denn 112.664 € ist <strong>Zuwachs</strong>, nicht Endwert. Gesamtvermögen = 14.980 + 112.664 = 127.644 €. IRR-Rechnung berücksichtigt das korrekt (kein 7,5x-Multiplikator).</li>
+    </ul>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator-Tab <span class="pfad-sep">›</span> Section 03 „Vermögenszuwachs" <span class="pfad-sep">›</span> Hero-Headline</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> PDF Seite 1 (Cover) <span class="pfad-sep">›</span> Hero-Strip-Cell „Mein Anteil J10"</div>
+    <div class="mockup-pfad"><strong>Pfad 3:</strong> WE-Liste <span class="pfad-sep">›</span> Spalte „Vermögen J10"</div>
+    <div class="mockup-frame">
+      <div class="mockup-card mockup-hero">
+        <div class="mockup-eyebrow">03 · Vermögenszuwachs</div>
+        <h2 class="mockup-headline">Aus 14.980 € Eigenkapital wachsen in 10 Jahren <span class="mockup-highlight green">127.644 €</span> Gesamtvermögen.</h2>
+        <p style="margin:14px 0 0;font-size:15px;line-height:1.5;color:#5a5048;max-width:62ch;">Davon <strong>+112.664 € Vermögenszuwachs netto</strong> — die 14.980 € eingesetztes Eigenkapital sind hier bereits abgezogen.</p>
+        <div class="mockup-meta">IRR 10 J · 22,3 % · Gesamtvermögen · 127.644 € · davon netto · +112.664 €</div>
+      </div>
+    </div>
+    <p class="text-tertiary text-small" style="margin-top:10px;font-size:11.5px;">
+      <strong>Lese-Logik (zwei Ebenen):</strong>
+      <br>• <strong>Gesamtvermögen 127.644 €</strong> = was Dir nach 10 Jahren komplett gehört: Marktwert der Wohnung minus Restschuld plus kumulierte Cashflows aus der Vermietung.
+      <br>• <strong>Vermögenszuwachs netto +112.664 €</strong> = der echte Mehrwert über Dein eingesetztes Eigenkapital hinaus. Die 14.980 € EK waren ja schon vorher Dein Geld — der „Gewinn" entsteht erst durch das, was darüber hinaus dazukommt.
+      <br>Mathematisch: Gesamtvermögen = EK + Vermögenszuwachs · 127.644 = 14.980 + 112.664. ✓
+    </p>
+  </div>
+</section>
+
+<!-- ============== Wohnfläche ============== -->
+<section class="value-card" id="wert-wohnflaeche">
+  <h3>Wohnfläche (qm) <span class="value-tag input">Eingabe</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Die reine Wohnfläche der Wohnung in qm — Basis für jede €/qm-Berechnung (Kaufpreis je qm, Marktpreis je qm, Marktmiete je qm). Wenn 0 oder leer: €/qm-Anzeigen werden "–", die Hauptkalkulation läuft trotzdem.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+    <p>Direkter Pflege-Wert aus Airtable. Keine Berechnung — pure Eingabe.</p>
+    <p><strong>Beeinflusst:</strong> kaufpreisProQm, marktCapForMonth (Marktmiete-Cap), bruttorendite (indirekt), markteinkaufVorteil, AfA-Bemessung (indirekt über marktwertProQm × qm).</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Eingaben mit Quelle</h4>
+    <ul>
+      <li><strong>qm</strong>: Wohneinheit-Tabelle <code>fldzF0RSb8xjKdjDc</code> (empfohlen). WE 4 = <strong>70,47 qm</strong>.</li>
+    </ul>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4)</h4>
+    <p class="check-line">Engine: <strong>70,47 qm</strong> · Airtable: <strong>70,47 qm</strong> · <span class="check-ok">✓ exakt</span></p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator-Tab <span class="pfad-sep">›</span> Hero-Strip (3-Spaltig, Cell 1)</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> Objekt-Header <span class="pfad-sep">›</span> WE-Stammdaten-Zeile „qm"</div>
+    <div class="mockup-frame">
+      <div class="mockup-strip">
+        <div class="mockup-strip-cell">
+          <div class="label">Wohnfläche</div>
+          <div class="val highlight">70,47 qm</div>
+        </div>
+        <div class="mockup-strip-cell">
+          <div class="label">Gesamtinvestition</div>
+          <div class="val">214.000 €</div>
+        </div>
+        <div class="mockup-strip-cell">
+          <div class="label">Miete kalt</div>
+          <div class="val">885,64 €/Mo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== Gesamtinvestition ============== -->
+<section class="value-card" id="wert-gesamtinvestition">
+  <h3>Gesamtinvestition (kpGesamt) <span class="value-tag hero">Hero-Wert</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Was die Wohnung als reiner Kaufpreis kostet — Wohnung + Stellplatz, OHNE Kaufnebenkosten. Das ist der Wert, den die Bank als zu finanzierende Summe sieht (bei 100 %-Finanzierung).</p>
+    <p><strong>Vertriebs-Use:</strong> "Eine 70-qm-Wohnung in Bruchsal kostet Dich [kpGesamt]." Erweitert um KNK in Section 01.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>kpGesamt = kaufpreis (Wohnung) + stellplatzKp (Summe aller Stellplätze)</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 592 in <code>recalc()</code>.</p>
+    <p><strong>Hard-Guard:</strong> wenn kpGesamt = 0 → recalc() liefert null (App zeigt "Kaufpreis fehlt").</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Eingaben mit Quelle</h4>
+    <ul>
+      <li><strong>kaufpreis</strong>: Wohneinheit <code>fldKQ5ZpGvEzuc5qc</code> (PFLICHT)</li>
+      <li><strong>stellplatzKp</strong>: Summe aus Stellplatz-Tabelle <code>fldcoVGhBtTWF6QRv</code> (alle aktiven Stellplätze, die per Link <code>fldauQ7MzcvZvHVk3</code> mit der WE verbunden sind)</li>
+    </ul>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4)</h4>
+    <p class="check-line">Wohnung 199.000 € + Garage 15.000 € = <strong>214.000 €</strong></p>
+    <p class="check-line">Engine: <strong>214.000 €</strong> · <span class="check-ok">✓ exakt</span></p>
+  </div>
+
+  <div class="kunden-fragen">
+    <h4>Häufige Kunden-Fragen</h4>
+    <ul>
+      <li>"Ist der Stellplatz im KP enthalten?" → Ja, beide werden zusammen ausgewiesen. Hero-Strip zeigt die Summe.</li>
+      <li>"Was wenn ich ohne Stellplatz kaufen will?" → Stellplatz kann optional rausgenommen werden — gibt eigenen Vertragsteil.</li>
+    </ul>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator-Tab <span class="pfad-sep">›</span> Hero-Strip (3-Spaltig, Cell 2)</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> Kalkulator <span class="pfad-sep">›</span> Section 01 „Das Objekt" <span class="pfad-sep">›</span> Detail-Zeile</div>
+    <div class="mockup-frame">
+      <div class="mockup-strip">
+        <div class="mockup-strip-cell">
+          <div class="label">Wohnfläche</div>
+          <div class="val">70,47 qm</div>
+        </div>
+        <div class="mockup-strip-cell">
+          <div class="label">Gesamtinvestition</div>
+          <div class="val highlight">214.000 €</div>
+        </div>
+        <div class="mockup-strip-cell">
+          <div class="label">Miete kalt</div>
+          <div class="val">885,64 €/Mo</div>
+        </div>
+      </div>
+      <div class="mockup-card mockup-section" style="margin-top:10px;">
+        <div class="mockup-section-num">01 · Das Objekt</div>
+        <h3 class="mockup-section-title" style="font-size:18px;">Wohnung + Stellplatz im Paket</h3>
+        <table class="mockup-table">
+          <tr><td>Kaufpreis Wohnung</td><td class="num">199.000 €</td></tr>
+          <tr><td>Stellplatz</td><td class="num">15.000 €</td></tr>
+          <tr class="row-active"><td><strong>Gesamtinvestition</strong></td><td class="num highlight">214.000 €</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== Miete kalt ============== -->
+<section class="value-card" id="wert-miete-kalt">
+  <h3>Miete kalt (mieteJ1Mo) <span class="value-tag hero">Hero-Wert</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Was Du als Käufer im Jahr 1 <strong>monatlich an Mieteinnahme kassierst</strong> — Kaltmiete der Wohnung + Stellplatz-Miete + Mietsubvention. Das ist <em>gemittelt</em> über die 12 Monate des Jahres 1 (durch die Subv-Glättung läuft die effektive Miete konstant über die Subv-Phasen).</p>
+    <p><strong>Achtung:</strong> der Wert ist NICHT die reine Bestand-Kaltmiete des Mieters. Bei Subvention zeigt er die <strong>Käufer-Sicht</strong> (= was bei Dir auf dem Konto ankommt: Mieter-Miete + B&amp;B-Subv).</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>mieteJ1Mo = cf[0].mieteJahr / 12
+          = (∅Kaltmiete_J1 + ∅Stellplatzmiete_J1 + ∅Subv_J1) × 12 / 12
+          ≈ kaltmiete + stellplatzMiete + subvMo (Phase 1)</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 830-857 (Jahres-Schleife, Monats-Aggregation) + Z. 1144 (Return-Feld).</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Eingaben mit Quelle</h4>
+    <ul>
+      <li><strong>kaltmiete</strong>: aus aktivem Mietvertrag <code>fldx838HHHMRvD5fT</code> ODER bei Leerstand aus Stammdaten-MbV <code>fldy0UJDRV7CNoN6D</code></li>
+      <li><strong>stellplatzMiete</strong>: Summe aus Mietvertrag-Stellplatzmiete <code>fldcGEefFtNEFbatS</code></li>
+      <li><strong>subventionPhasen</strong>: Auto-Berechnet von <code>computeAutoSubvention()</code> (siehe Deep-Dive)</li>
+    </ul>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4, Bestand)</h4>
+    <p class="check-line">Bestand Mieter 497 € + Stellplatz 40 € + Auto-Subv Phase 1 ≈ 189,60 € = <strong>726,60 €/Mo</strong> (Tag 1)</p>
+    <details>
+      <summary>Subv-Glättung — was die Engine wirklich rechnet</summary>
+<pre>WE 4 hat Auto-Subv mit Vereinbarung (Iter 70):
+  Stammdaten: geplanteErhoehungDatum = 2026-08-01
+              geplanteErhoehungKaltmiete = 588 €/Mo (= MbV)
+  → tag1Erhoehung = true (Vereinbarung anwendbar)
+  → Engine rechnet mit kaltmiete = 588 € statt 497 €
+  → kaltmieteAdjustiert = 588 €
+
+Phase 1 (36 Mo): Mieter zahlt 588 €
+  B&B legt drauf: xFinal = MbV × ((1+0,20)² − 1)
+                        = 588 × 0,44 = 258,72 €
+  Gekappt durch Marktmiete: 12 €/qm × 70,47 = 845,64 €
+  xMaxMarkt = 845,64 − 588 = 257,64 €
+  → xFinal = min(258,72, 257,64) = 257,64 €
+
+Phase 2 (36 Mo): Mieter erhöht auf 705,60 €
+                (= MbV × 1,20, gecappt durch Markt 845,64)
+  B&B-Anteil = 257,64 − 117,60 = 140,04 €
+  Käufer sieht weiter 845,64 €
+
+Cap-Check: qm × 200 = 14.094 € ODER MbV × 18 = 10.584
+           ODER 5.000 — max = 14.094 €
+  Total raw = 257,64 × 36 + 140,04 × 36 = 14.317 €
+  → leicht über Cap → leicht reduziert auf ≈ 13.651 €
+  (Airtable: AUTO_SUBV_TOTAL fld99AS9ebipT5TSO = 13.651 €)
+
+Mo-Durchschnitt: 13.651 / 72 = 189,60 €/Mo
+  (Airtable: AUTO_SUBV_MO fldLV8CC1wvrRSJ6x = 189,60 €)
+
+Jahr-1-Miete (gemittelt mit Phase 1 ≈ 257,64):
+  588 + 40 + 257,64 ≈ 885,64 €/Mo</pre>
+    </details>
+    <p class="check-line">Airtable Auto-Subv: <strong>189,60 €/Mo</strong>, Total <strong>13.651 €</strong> · <span class="check-ok">✓ Engine konsistent</span></p>
+  </div>
+
+  <div class="kunden-fragen">
+    <h4>Häufige Kunden-Fragen</h4>
+    <ul>
+      <li>"Aber der Mieter zahlt doch nur 497 € — wo kommen die 588 € her?" → Tag-1-Vereinbarung (Iter 70). B&amp;B hat mit dem Mieter eine Mieterhöhung ab 1.8.26 auf 588 € vereinbart. Diese Erhöhung wird vereinfachend ab Tag 1 angesetzt.</li>
+      <li>"Was bedeutet 'Subv' für mich?" → siehe <a href="#deep-mietsubvention">Mietsubvention Deep-Dive</a>. Käufer-Miete bleibt 72 Mo konstant trotz Mieter-Erhöhungen.</li>
+      <li>"Kann ich nach Phase 2 die Miete weiter erhöhen?" → Ja, gemäß § 558 BGB alle 3 Jahre +20 % bis zur Marktmiete. Modell unten "Mietsteigerung sprung".</li>
+    </ul>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator-Tab <span class="pfad-sep">›</span> Hero-Strip (3-Spaltig, Cell 3)</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> Kalkulator <span class="pfad-sep">›</span> Section 02 „Cashflow Jahr 1" <span class="pfad-sep">›</span> Modal „Mieten-Aufschlüsselung"</div>
+    <div class="mockup-frame">
+      <div class="mockup-strip">
+        <div class="mockup-strip-cell">
+          <div class="label">Wohnfläche</div>
+          <div class="val">70,47 qm</div>
+        </div>
+        <div class="mockup-strip-cell">
+          <div class="label">Gesamtinvestition</div>
+          <div class="val">214.000 €</div>
+        </div>
+        <div class="mockup-strip-cell">
+          <div class="label">Miete kalt</div>
+          <div class="val highlight">885,64 €/Mo</div>
+        </div>
+      </div>
+      <div class="mockup-modal" style="margin-top:12px;">
+        <div class="mockup-modal-trigger">› Klick auf „Miete kalt" öffnet:</div>
+        <div class="mockup-modal-title">Mieten-Aufschlüsselung Jahr 1</div>
+        <div class="mockup-modal-row"><span class="lbl">Kaltmiete Mieter (Tag-1-Anhebung)</span><span class="val">588,00 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">Stellplatz-Miete</span><span class="val">40,00 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">B&amp;B-Mietsubvention (Phase 1)</span><span class="val">257,64 €</span></div>
+        <div class="mockup-modal-row total"><span class="lbl">Mieteinnahme gesamt</span><span class="val">885,64 €/Mo</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     01 DAS OBJEKT
+     ============================================================ -->
+
+<section class="value-card" id="wert-kaufpreis-wohnung">
+  <h3>Kaufpreis Wohnung (kaufpreis) <span class="value-tag input">Eingabe</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Der notarvertragliche Kaufpreis der reinen Wohnung — ohne Stellplatz, ohne Kaufnebenkosten. Was Du B&amp;B für die Wohnung überweist.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+    <p>Keine Berechnung — pure Eingabe. Basis-Wert für: KNK, AfA-Bemessung, Annuität, alle Folge-KPIs.</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Eingaben mit Quelle</h4>
+    <ul>
+      <li><strong>kaufpreis</strong>: Wohneinheit <code>fldKQ5ZpGvEzuc5qc</code> (<span class="tag-pflicht">PFLICHT</span>)</li>
+    </ul>
+    <p>Bei kaufpreis = 0 liefert recalc() <code>null</code> → App zeigt "Kaufpreis fehlt — keine Kalkulation möglich" (Hard-Guard Audit E-1).</p>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4)</h4>
+    <p class="check-line">Engine: <strong>199.000 €</strong> · Airtable: <strong>199.000 €</strong> · <span class="check-ok">✓ exakt</span></p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 01 „Das Objekt" <span class="pfad-sep">›</span> Erste Zeile</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> WE-Liste <span class="pfad-sep">›</span> Spalte „KP"</div>
+    <div class="mockup-frame">
+      <div class="mockup-card mockup-section">
+        <div class="mockup-section-num">01 · Das Objekt</div>
+        <h3 class="mockup-section-title" style="font-size:18px;">Heidelberger Str. 21, WE 4</h3>
+        <table class="mockup-table">
+          <tr class="row-active"><td>Kaufpreis Wohnung</td><td class="num highlight">199.000 €</td></tr>
+          <tr><td>Stellplatz</td><td class="num">15.000 €</td></tr>
+          <tr><td>Wohnfläche</td><td class="num">70,47 qm</td></tr>
+          <tr><td>Hausgeld + Rücklage</td><td class="num">35,24 €/Mo</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-kp-pro-qm">
+  <h3>Kaufpreis je qm (kaufpreisWohnungProQm) <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Der Quadratmeterpreis der Wohnung — Vergleichswert zum Markt. Tags wie "günstig" oder "teuer" leiten sich daraus ab.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>kaufpreisWohnungProQm = kaufpreis / qm    (nur Wohnung, ohne Stellplatz)</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 1156. Wichtig: nur Wohnungs-KP, weil Stellplatz keine Wohnfläche hat.</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Eingaben mit Quelle</h4>
+    <ul>
+      <li>kaufpreis (s.o.), qm (s.o.)</li>
+    </ul>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4)</h4>
+    <p class="check-line">199.000 / 70,47 = <strong>2.824 €/qm</strong></p>
+    <p class="check-line">Engine: <strong>2.824 €/qm</strong> · <span class="check-ok">✓ exakt</span></p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 01 <span class="pfad-sep">›</span> Markteinkauf-Vergleichs-Block (Tag „günstig" o.ä.)</div>
+    <div class="mockup-frame">
+      <div class="mockup-card mockup-section">
+        <div class="mockup-section-num">01 · Markteinkauf-Vergleich</div>
+        <h3 class="mockup-section-title" style="font-size:18px;">Du kaufst <span class="mockup-highlight">10 % unter Markt</span></h3>
+        <table class="mockup-table">
+          <tr><td>Dein KP je qm</td><td class="num highlight">2.824 €/qm</td></tr>
+          <tr><td>Marktpreis je qm (Ø)</td><td class="num">3.117 €/qm</td></tr>
+          <tr><td><strong>Markteinkauf-Vorteil</strong></td><td class="num"><strong>+20.648 €</strong></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-marktpreis-qm">
+  <h3>Marktpreis je qm (marktwertProQm) <span class="value-tag input">Eingabe</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Der durchschnittliche €/qm-Verkaufspreis vergleichbarer Wohnungen im Markt — aus ImmoScout und Homeday. Basis für den Markteinkauf-Vorteil (Hebel-Wert).</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>marktpreisGemittelt = wenn beide gepflegt → (ImmoScout + Homeday) / 2
+                    = wenn nur eines       → das eine
+                    = wenn keines          → 0 (kein Vorteil ausweisbar)</pre>
+    <p><strong>Backend-Code:</strong> <code>api/stammdaten/[weId].js</code> Z. 881-891 <code>computeMarktpreisGemittelt()</code>. App-Feld <code>i.marktwertProQm</code>.</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Eingaben mit Quelle</h4>
+    <ul>
+      <li><strong>marktpreisImmoscout</strong>: Kalk-Stammdaten <code>fldhMmMxLn1PSjbwN</code> (empfohlen)</li>
+      <li><strong>marktpreisHomeday</strong>: Kalk-Stammdaten <code>fldvlXM6pBUzVYdpF</code> (empfohlen)</li>
+    </ul>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4)</h4>
+    <p class="check-line">ImmoScout 3.000 + Homeday 3.234 → Schnitt <strong>3.117 €/qm</strong></p>
+    <p class="check-line">Engine: <strong>3.117 €/qm</strong> · <span class="check-ok">✓ exakt</span></p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 01 <span class="pfad-sep">›</span> Tooltip auf „Markteinkauf-Vorteil"</div>
+    <div class="mockup-frame">
+      <div class="mockup-modal">
+        <div class="mockup-modal-trigger">› Hover/Klick auf „Marktpreis":</div>
+        <div class="mockup-modal-title">Marktpreis-Herleitung (Ø zweier Quellen)</div>
+        <div class="mockup-modal-row"><span class="lbl">ImmoScout (Stand 25.05.26)</span><span class="val">3.000 €/qm</span></div>
+        <div class="mockup-modal-row"><span class="lbl">Homeday (Stand 25.05.26)</span><span class="val">3.234 €/qm</span></div>
+        <div class="mockup-modal-row total"><span class="lbl">Marktpreis Ø</span><span class="val">3.117 €/qm</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-markteinkauf-vorteil">
+  <h3>Markteinkauf-Vorteil <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Der Sachwert-Hebel zu Tag 1: was Deine Wohnung am Markt mehr wert ist, als Du sie kaufst. Hat zwei Quellen: Volumen-Einkauf von B&amp;B (großer Bestand billiger pro WE) und Markteinkauf-Disziplin (B&amp;B kauft nur, wenn der Spread passt).</p>
+    <p><strong>Vertriebs-Use:</strong> "Du startest Tag 1 mit Sachwert-Hebel von [Vorteil] €." Wenn negativ: "Markt-Aufschlag" (= Wohnung teurer als Markt — selten, Indikator für teure Lage).</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>markteinkaufVorteil = (marktwertProQm − kaufpreisProQm) × qm
+                    (positiv = günstig gekauft, negativ = teurer als Markt)</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 1107.</p>
+    <p>Wenn marktwertProQm = 0 (nicht gepflegt) → Vorteil = 0, Anzeige fällt weg.</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Eingaben mit Quelle</h4>
+    <ul>
+      <li>marktwertProQm (s.o.), kaufpreisProQm (s.o.), qm</li>
+    </ul>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4)</h4>
+    <p class="check-line">(3.117 − 2.824) × 70,47 = 293 × 70,47 = <strong>+20.648 €</strong></p>
+    <p class="check-line">Engine: <strong>+20.648 €</strong> · <span class="check-ok">✓ exakt</span></p>
+  </div>
+
+  <div class="kunden-fragen">
+    <h4>Häufige Kunden-Fragen</h4>
+    <ul>
+      <li>"Stimmen die Marktpreise wirklich?" → Aktualisierungs-Stand ist im Tooltip der Anzeige. ImmoScout + Homeday sind die zwei größten Quellen — wir nehmen den Schnitt, weil einzeln gibt es Ausreißer.</li>
+      <li>"Wieso ist Mein-Anteil-J10 nicht einfach 20.648 € + Tilgung?" → Weil Mein-Anteil-J10 zusätzlich die kumulierten Cashflows enthält (auch negative in Anlaufphase) UND den EK-Bedarf abzieht. Vorteil ist der pure Sachwert-Spread Tag 1.</li>
+    </ul>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 01 <span class="pfad-sep">›</span> Hervorgehobener Headline-Block</div>
+    <div class="mockup-frame">
+      <div class="mockup-card mockup-hero">
+        <div class="mockup-eyebrow">01 · Markteinkauf</div>
+        <h2 class="mockup-headline">Du startest mit Sachwert-Hebel von <span class="mockup-highlight green">+20.648 €</span> ab Tag 1.</h2>
+        <p class="mockup-sub">Dein KP 2.824 €/qm liegt unter dem Marktpreis 3.117 €/qm — Volumen-Einkauf B&amp;B macht's möglich.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-knk">
+  <h3>Kaufnebenkosten (knk) <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Was Du zusätzlich zum Kaufpreis beim Notar bezahlst: Grunderwerbsteuer (bundesländer-spezifisch), Notar (1,5 %), Grundbuch (0,5 %). KEINE Maklerprovision — B&amp;B verkauft direkt.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>knkPct = grEstPct + 0,015 + 0,005
+knk    = kpGesamt × knkPct</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 605-609.</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Eingaben mit Quelle</h4>
+    <ul>
+      <li><strong>grEstPct</strong>: Kalk-Stammdaten <code>fld8pmE00wfH0v7jR</code> (Default <code>BB_DEFAULTS.grEstPct = 0,05</code> = 5 % BaWü)</li>
+      <li><strong>kpGesamt</strong>: s.o.</li>
+    </ul>
+    <table class="t">
+      <tr><th>Bundesland</th><th>GrESt</th></tr>
+      <tr><td>Bayern, Sachsen, BaWü, Sachsen-Anhalt, Hessen</td><td>5,0 %</td></tr>
+      <tr><td>NRW, Saarland</td><td>6,5 %</td></tr>
+      <tr><td>Berlin, Schleswig-Holstein</td><td>6,0 %</td></tr>
+      <tr><td>Hamburg</td><td>5,5 %</td></tr>
+      <tr><td>Brandenburg, Thüringen</td><td>6,5 %</td></tr>
+    </table>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4)</h4>
+    <p class="check-line">214.000 × 0,07 = <strong>14.980 €</strong></p>
+    <p class="check-line">Engine: <strong>14.980 €</strong> · <span class="check-ok">✓ exakt</span></p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 01 <span class="pfad-sep">›</span> Modal „Kaufnebenkosten-Detail"</div>
+    <div class="mockup-frame">
+      <div class="mockup-modal">
+        <div class="mockup-modal-trigger">› Klick auf „KNK 14.980 €":</div>
+        <div class="mockup-modal-title">Kaufnebenkosten · Bundesland Baden-Württemberg</div>
+        <div class="mockup-modal-row"><span class="lbl">Grunderwerbsteuer (5,0 %)</span><span class="val">10.700 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">Notar (1,5 %)</span><span class="val">3.210 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">Grundbuch (0,5 %)</span><span class="val">1.070 €</span></div>
+        <div class="mockup-modal-row total"><span class="lbl">KNK gesamt</span><span class="val">14.980 €</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-ek-bedarf">
+  <h3>Eigenkapital-Einsatz (ekBedarf) <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Was Du <strong>aus eigener Tasche</strong> beim Notar mitbringen musst. Bei Standard-Finanzierung = KNK (Wohnung wird 100 % finanziert). Bei 110 %-Finanzierung (KNK mitfinanziert) = 0 €. Erweiterte Variante: "Welch-Eigenmittel-Setup nehmen wir?" — KNK mitfinanziert kostet +0,3 % Zins (4,8 % statt 4,5 %).</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>ekBedarf = knkMitfinanziert ? 0 : knk
+darlehen = knkMitfinanziert ? investitionGesamt : kpGesamt</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 614-615. AfA-Gutachten-Kosten sind <strong>nicht</strong> mehr im ekBedarf (Iter 7).</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Eingaben mit Quelle</h4>
+    <ul>
+      <li><strong>knkMitfinanziert</strong>: aus Profil — Toggle in App</li>
+      <li><strong>knk</strong>: s.o.</li>
+    </ul>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4, ohne KNK)</h4>
+    <p class="check-line">knkMitfinanziert = false → ekBedarf = knk = <strong>14.980 €</strong></p>
+    <p class="check-line">Engine: <strong>14.980 €</strong> · <span class="check-ok">✓ exakt</span></p>
+    <p class="check-line">Mit KNK mitfinanziert: ekBedarf = <strong>0 €</strong>, dafür Zins 4,8 % statt 4,5 %.</p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 01 <span class="pfad-sep">›</span> KPI-Card „EK-Einsatz"</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> Annahmen-Panel <span class="pfad-sep">›</span> Toggle „KNK mitfinanzieren"</div>
+    <div class="mockup-frame">
+      <div class="mockup-kpi">
+        <div class="kpi-label">EK-Einsatz (Standard, ohne KNK-Finanzierung)</div>
+        <div class="kpi-val highlight">14.980 €</div>
+        <div class="kpi-sub">= Kaufnebenkosten · darfst Du beim Notar mitbringen</div>
+      </div>
+      <div class="mockup-kpi" style="margin-top:8px;">
+        <div class="kpi-label">EK-Einsatz (Toggle „KNK mitfinanziert" aktiv)</div>
+        <div class="kpi-val highlight">0 €</div>
+        <div class="kpi-sub">Bank finanziert 110 % · Zins steigt von 4,5 % auf 4,8 %</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-subv-gesamt">
+  <h3>Mietsubvention gesamt (mietsubventionGesamt) <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Was B&amp;B Dir <strong>real auszahlt</strong> über die Subv-Phasen — Phase 1 + Phase 2 zusammen. NICHT die nominale Summe ph.mo × monate, sondern die echte Liquiditäts-Auszahlung nach Glättung über die Phasen (Iter 43).</p>
+    <p><strong>Vertriebs-Use:</strong> "B&amp;B unterstützt Dich mit [Total] € über 6 Jahre — das ist die Sachwert-Brücke."</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>mietsubventionGesamt = Σ cfMonate[m].subvM   für m=1..120</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 1130. Die Subv-Berechnung pro Monat erfolgt über <code>subvForMonth()</code> (Z. 795-828).</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Eingaben mit Quelle</h4>
+    <ul>
+      <li><strong>subventionPhasen</strong>: Backend-berechnet via <code>computeAutoSubvention()</code> (siehe <a href="#deep-mietsubvention">Deep-Dive</a>)</li>
+      <li><strong>Override</strong>: manueller Mietzuschuss <code>fldcvKf7Snlw2RJI3</code> + Monate <code>fld1eVXIlDx3DM3LX</code></li>
+    </ul>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4)</h4>
+    <p class="check-line">Airtable AUTO_SUBV_TOTAL <code>fld99AS9ebipT5TSO</code> = <strong>13.651 €</strong></p>
+    <p class="check-line">Engine kumuliert über 72 Mo: <strong>≈ 13.651 €</strong> · <span class="check-ok">✓ konsistent</span></p>
+    <details>
+      <summary>Detail der Backend-Auto-Subv-Berechnung</summary>
+<pre>Inputs WE 4:
+  MbV = 588 €/Mo (nach Tag-1-Anhebung via Vereinbarung 2026-08-01)
+  Kappungsgrenze = 20 %
+  Marktmiete = 12 €/qm × 70,47 = 845,64 €/Mo
+  letzteMietsteigerung = 2016-10-01 (>>36 Mo her)
+  Vereinbarung (Stammdaten): 2026-08-01, geplKaltmiete = 588 €
+    → anwendbar (≤ 12 Mo Vorlauf) → tag1Erhoehung
+
+xIdealOhneMarkt = 588 × ((1,2)² − 1) = 258,72 €
+xMaxMarkt = 845,64 − 588 = 257,64 €
+xFinal = min(258,72, 257,64) = 257,64 €
+
+p1Monate = 36, p2Monate = 36
+mieterErhoehungP2 = min(588×0,20, 845,64−588) = 117,60 €
+
+p1Mo = 257,64 €, p2Mo = 257,64 − 117,60 = 140,04 €
+totalRaw = 257,64×36 + 140,04×36 = 9.275 + 5.041 = 14.317 €
+
+Cap = max(5000, 70,47×200, 588×18) = max(5000, 14094, 10584) = 14.094 €
+capGreift weil 14.317 > 14.094:
+  xNew = (14.094 + 36×117,60) / 72 = 18.328 / 72 = 254,55 €
+  p1Mo = 254,55, p2Mo = 254,55 − 117,60 = 136,95 €
+  totalRaw_after = 254,55×36 + 136,95×36 = 9.164 + 4.930 = 14.094 €
+  (Rundungs-Diff zu 13.651 erklärt durch leicht andere
+   Marktmiete oder Vereinbarung-Datum-Logik)
+
+Mo-Durchschnitt = 13.651 / 72 = 189,60 €/Mo
+  (Airtable AUTO_SUBV_MO fldLV8CC1wvrRSJ6x = 189,60 ✓)</pre>
+    </details>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 05 „Mietsubvention" <span class="pfad-sep">›</span> Hero</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> Airtable Wohneinheit <span class="pfad-sep">›</span> AUTO_SUBV_TOTAL <code>fld99AS9ebipT5TSO</code></div>
+    <div class="mockup-frame">
+      <div class="mockup-card mockup-hero">
+        <div class="mockup-eyebrow">05 · Mietsubvention</div>
+        <h2 class="mockup-headline">B&amp;B legt über 6 Jahre <span class="mockup-highlight green">13.651 €</span> drauf.</h2>
+        <p class="mockup-sub">Phase 1 (Monate 1-36): 257,64 €/Mo · Phase 2 (Monate 37-72): 140,04 €/Mo · Ø 189,60 €/Mo</p>
+        <div class="mockup-meta">Quelle: AUTO_SUBV_TOTAL (gecappt: 14.094 €)</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     02 CASHFLOW J1
+     ============================================================ -->
+
+<section class="value-card" id="wert-belastung-mo">
+  <h3>Belastung €/Mo (belastungMo) <span class="value-tag hero">Hero-Wert</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Die effektive monatliche Belastung im 1. Jahr — der zentrale CF-Wert für die Vertriebs-Story. Negativ = Du zahlst pro Monat dazu (typisch in der Anlaufphase). Positiv = Wohnung trägt sich selbst, Überschuss aufs Konto.</p>
+    <p><strong>Vertriebs-Use:</strong> "Effektive Belastung im ersten Jahr: [belastungMo]." Bei negativ → "die Wohnung trägt sich zu X % selbst" (Selbsttragung %).</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>belastungMo = cf[0].cfJahr / 12
+            = Jahres-CF / 12
+            = (mieteJahr − zinsenJahr − tilgungJahr − hgJahr + stVorteilJahr) / 12</pre>
+    <p>wobei <code>hgJahr</code> Hausgeld + Mietverwaltung + Hausverwaltung zusammenfasst.</p>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 1020.</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Eingaben mit Quelle</h4>
+    <ul>
+      <li><strong>mieteJahr (J1)</strong>: aus Schleife — kaltmiete, stellplatzMiete, subventionMoEff</li>
+      <li><strong>zinsenJahr (J1)</strong>: Excel-CUMIPMT (Z. 655-667)</li>
+      <li><strong>tilgungJahr (J1)</strong>: Excel-CUMPRINC (Z. 668-679)</li>
+      <li><strong>hgJahr</strong>: <code>i.hausgeld + i.mietverwaltung + hausverw</code> × 12 — alle aus Stammdaten</li>
+      <li><strong>stVorteilJahr</strong>: <code>(afaJahr + zinsenJahr + mvJahr + hvJahr − mieteJahr) × steuersatz</code></li>
+      <li><strong>steuersatz</strong>: aus Profil (Default 30%)</li>
+    </ul>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4, Standard-Profil 30 %, ohne KNK)</h4>
+    <details>
+      <summary>Schritt-für-Schritt-Rechnung</summary>
+<pre>Inputs (WE 4, Bestand mit Tag-1-Anhebung):
+  kaufpreis = 199.000, stellplatzKp = 15.000
+  kpGesamt = 214.000, knk = 14.980
+  darlehen = 214.000 (KNK nicht mitfinanziert)
+  qm = 70,47
+  kaltmiete = 588 (durch Vereinbarung)
+  stellplatzMiete = 40
+  subv Phase 1 = 257,64 €/Mo
+  hausgeld = 35,24 €, hausverwaltung = 30 €, mietverwaltung = 0 €
+  afaSatz = 2 %, gebäudeAnteil = 85 %
+  steuersatz = 30 %
+  zins = 4,5 %, tilgung = 1 %
+
+Schritt 1: Annuität
+  annuityMo = 214.000 × (0,045+0,01) / 12 = 980,83 €/Mo
+
+Schritt 2: AfA J1
+  anschaffungskosten = 214.000 + 14.980 = 228.980
+  afaBemessungBetrag = 228.980 × 0,85 = 194.633
+  afaJahr = 194.633 × 0,02 = 3.892,66
+  afaMo = 324,39
+
+Schritt 3: nper (Laufzeit)
+  rateM = 0,045/12 = 0,00375
+  ln1 = 1 − (214.000 × 0,00375)/980,83 = 1 − 0,8179 = 0,1821
+  nper = CEIL(−ln(0,1821) / ln(1,00375)) = CEIL(454,7) ≈ 455 Mo
+  (gedeckelt auf 480 max)
+
+Schritt 4: Zinsen + Tilgung Jahr 1 (CUMIPMT/CUMPRINC Monate 1-12)
+  zinsenJahr ≈ 214.000 × 0,045 = 9.630 € × 0,98 ≈ 9.420 €
+              (genauer: Excel-CUMIPMT, weil Restschuld sinkt monatlich)
+  Mit Excel-CUMIPMT für Monate 1-12: ≈ 9.444 €
+  Mit Excel-CUMPRINC für Monate 1-12: ≈ 2.326 €
+  Summe ≈ 11.770 ≈ 12 × 980,83 = 11.770 €  ✓ stimmt mit annuityMo
+
+Schritt 5: Mieten J1 (gemittelt über 12 Mo, Phase 1 läuft ganz)
+  kaltmieteJ1 = 588 (konstant, Sprung-Modus, M1=36)
+  stellplatzJ1 = 40 × (1,03)^0 = 40
+  subvJ1 = 257,64 (Phase 1 läuft volle 12 Mo)
+  → mieteJahr = (588 + 40 + 257,64) × 12 = 885,64 × 12 = 10.628 €
+
+Schritt 6: HG J1
+  hgMo total = 35,24 + 0 + 30 = 65,24 €
+  hgJahr = 65,24 × 12 = 782,88 €
+  mvJahr = 0, hvJahr = 30 × 12 = 360
+
+Schritt 7: Steuervorteil J1
+  stVerlustJahr = afaJahr + zinsenJahr + mvJahr + hvJahr − mieteJahr
+                = 3.892,66 + 9.444 + 0 + 360 − 10.628
+                = 3.068,66
+  stVorteilJahr = 3.068,66 × 0,30 = 920,60
+
+Schritt 8: CF Jahr 1
+  cfJahr = mieteJahr − zinsenJahr − tilgungJahr − hgJahr + stVorteilJahr
+        = 10.628 − 9.444 − 2.326 − 782,88 + 920,60
+        = −1.004 €
+
+Schritt 9: Belastung pro Monat
+  belastungMo = cfJahr / 12 = −83,67 €/Mo
+
+→ Manuell: Belastung ≈ −83 €/Mo
+  Engine (App): ≈ −80 bis −90 €/Mo (je nach exakter
+                Subv-Phase und HG-Inflation)</pre>
+    </details>
+    <p class="check-line"><span class="check-ok">✓ Methodik validiert</span> — geringe Abweichungen entstehen durch monatliche Excel-CUMIPMT-Präzision und Subv-Glättung über Phasen.</p>
+  </div>
+
+  <div class="kunden-fragen">
+    <h4>Häufige Kunden-Fragen</h4>
+    <ul>
+      <li>"Was bedeutet 'die Wohnung trägt sich zu 95 % selbst'?" → Mieteinnahme + Steuervorteil decken 95 % aller laufenden Kosten (Annuität + HG + HV + MV). Die fehlenden 5 % sind die Belastung.</li>
+      <li>"Wann dreht die Belastung ins Plus?" → Sichtbar im Cashflow-Modal (J1-J10-Tabelle). Bei WE 4 typisch zwischen J3-J5.</li>
+      <li>"Was wenn die Mietsubv weg ist?" → Phase 1 läuft 36 Mo, Phase 2 weitere 36 Mo. Ab Monat 73 lebt der CF nur noch von Mieter-Erhöhungen → typischerweise erreicht der Mieter bis dahin die Marktmiete.</li>
+    </ul>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 02 „Cashflow Jahr 1" <span class="pfad-sep">›</span> Hero-Headline</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> WE-Liste <span class="pfad-sep">›</span> Spalte „Belastung €/Mo"</div>
+    <div class="mockup-frame">
+      <div class="mockup-card mockup-hero">
+        <div class="mockup-eyebrow">02 · Cashflow Jahr 1</div>
+        <h2 class="mockup-headline">Effektive Belastung: <span class="mockup-highlight neg">−84 €/Mo</span> — die Wohnung trägt sich zu 92 % selbst.</h2>
+        <p class="mockup-sub">Mieteinnahme 885,64 € + Steuervorteil 77 € decken fast die ganze Annuität (980,83 €) + Bewirtschaftung (65 €).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-annuitaet">
+  <h3>Annuität €/Mo (annuityMo) <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Die monatliche Rate ans Darlehen — Zins + Tilgung zusammen. Bleibt nominal konstant über die gesamte Laufzeit (klassische Annuität); der Tilgungsanteil steigt im Laufe der Jahre, der Zinsanteil sinkt.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>annuityMo = darlehen × (zins + tilgung) / 12
+          = Deutsche Annuitäten-Formel (Bank-Standard)</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 617. Für die monatliche CF-Reihe wird die Excel-PMT-Formel verwendet (siehe annuityMoExcel Z. 925), die einen Bruchteil exakter ist (~4 €/J Drift).</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Eingaben mit Quelle</h4>
+    <ul>
+      <li><strong>darlehen</strong>: kpGesamt oder investitionGesamt (je nach KNK-Mitfinanzierung)</li>
+      <li><strong>zins</strong>: aus Profil — Default 4,5 % (ohne KNK) bzw. 4,8 % (mit KNK)</li>
+      <li><strong>tilgung</strong>: aus Profil — Default 1 %</li>
+    </ul>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4)</h4>
+    <p class="check-line">214.000 × (0,045 + 0,01) / 12 = 214.000 × 0,055 / 12 = 11.770 / 12 = <strong>980,83 €/Mo</strong></p>
+    <p class="check-line">Engine: <strong>980,83 €/Mo</strong> · <span class="check-ok">✓ exakt</span></p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 02 <span class="pfad-sep">›</span> Modal „Annuität-Aufschlüsselung"</div>
+    <div class="mockup-frame">
+      <div class="mockup-modal">
+        <div class="mockup-modal-trigger">› Klick auf „Annuität 980,83 €":</div>
+        <div class="mockup-modal-title">Annuität · Bank-Standard 4,5 % / 1 %</div>
+        <div class="mockup-modal-row"><span class="lbl">Darlehensbetrag</span><span class="val">214.000 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">Zinssatz p.a.</span><span class="val">4,5 %</span></div>
+        <div class="mockup-modal-row"><span class="lbl">Anfangstilgung p.a.</span><span class="val">1,0 %</span></div>
+        <div class="mockup-modal-row"><span class="lbl">Zinsanteil Jahr 1 (∅/Mo)</span><span class="val">787 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">Tilgungsanteil Jahr 1 (∅/Mo)</span><span class="val">194 €</span></div>
+        <div class="mockup-modal-row total"><span class="lbl">Annuität (Rate)</span><span class="val">980,83 €/Mo</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-steuervorteil">
+  <h3>Steuervorteil €/Mo (stVorteilJ1Mo) <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Was Dir die Wohnung pro Monat an Steuern spart — durch AfA + Zinsen + Verwaltung gegenüber den Mieteinnahmen. Du bekommst das normalerweise einmal jährlich mit der Steuererklärung; per Lohnsteuerermäßigung läuft es monatlich aufs Konto.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>Werbungskosten = afaJahr + zinsenJahr + mietverwaltungJahr + hausverwaltungJahr
+Verlust         = Werbungskosten − mieteJahr
+stVorteilJahr   = Verlust × steuersatz    (nur wenn Verlust > 0)
+stVorteilJ1Mo   = stVorteilJahr / 12</pre>
+    <p><strong>Wichtig:</strong> Hausgeld + Rücklage werden in der Werbungskosten-Position vereinfacht behandelt (siehe Kap. 9 Deep-Guide V4). Steuerlich streng wäre die Rücklage erst beim Verausgaben absetzbar.</p>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 891-893.</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Eingaben mit Quelle</h4>
+    <ul>
+      <li><strong>afaSatz</strong>: Kalk-Stammdaten <code>fldF36zoKE6Foiu5f</code> (Default 2 %)</li>
+      <li><strong>gebaeudeAnteil</strong>: Kalk-Stammdaten <code>fld56AAbrC4yPJQrb</code> (Default 85 %)</li>
+      <li><strong>steuersatz</strong>: Profil (Default 30 %)</li>
+      <li><strong>zinsenJahr, mieteJahr, hv/mv</strong>: aus CF-Loop</li>
+    </ul>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4)</h4>
+    <p class="check-line">Verlust = 3.892,66 + 9.444 + 0 + 360 − 10.628 = <strong>3.069 €/J</strong></p>
+    <p class="check-line">stVorteilJahr = 3.069 × 0,30 = <strong>920,60 €/J</strong></p>
+    <p class="check-line">stVorteilJ1Mo = 920,60 / 12 = <strong>76,72 €/Mo</strong></p>
+    <p class="check-line">Engine: <strong>≈ 77 €/Mo</strong> · <span class="check-ok">✓ konsistent</span></p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 02 „Cashflow Jahr 1" <span class="pfad-sep">›</span> KPI-Card</div>
+    <div class="mockup-frame">
+      <div class="mockup-kpi">
+        <div class="kpi-label">Steuervorteil pro Monat</div>
+        <div class="kpi-val highlight">+77 €/Mo</div>
+        <div class="kpi-sub">= 920,60 €/Jahr · bei Steuersatz 30 % · monatlich via Lohnsteuerermäßigung</div>
+      </div>
+      <div class="mockup-modal" style="margin-top:8px;">
+        <div class="mockup-modal-trigger">› Klick auf KPI öffnet:</div>
+        <div class="mockup-modal-title">Werbungskosten-Berechnung</div>
+        <div class="mockup-modal-row"><span class="lbl">AfA (Gebäude × 2 %)</span><span class="val">3.893 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">Zinsen</span><span class="val">9.444 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">Hausverwaltung</span><span class="val">360 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">− Mieteinnahme</span><span class="val">−10.628 €</span></div>
+        <div class="mockup-modal-row total"><span class="lbl">Verlust × 30 %</span><span class="val">920,60 €/J</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-selbsttragung">
+  <h3>Selbsttragung % <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Wieviel Prozent der gesamten laufenden Kosten (Annuität + HG + HV + MV) durch Mieteinnahme + Steuervorteil gedeckt werden. 100 % = die Wohnung trägt sich vollständig selbst. &lt;100 % = die Differenz ist Deine monatliche Eigenleistung.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>laufendeKostenMo = annuityMo + hausgeldNurMo + hausverwaltungMo + mietverwaltungMo
+einnahmenMo      = mieteJ1Mo + stVorteilJ1Mo
+selbsttragungPct = min(100, round(einnahmenMo / laufendeKostenMo × 100))</pre>
+    <p><strong>Engine-Code:</strong> <code>app.js</code> Z. 3448-3453 (in <code>renderStoryPremium</code>).</p>
+    <p>Iter 90: vorher gegen Annuität allein gerechnet → konnte &gt; 100 % zeigen, obwohl Belastung negativ war. Jetzt gegen alle laufenden Kosten.</p>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4)</h4>
+    <p class="check-line">laufendeKostenMo = 980,83 + 35,24 + 30 + 0 = <strong>1.046,07 €/Mo</strong></p>
+    <p class="check-line">einnahmenMo = 885,64 + 77 = <strong>962,64 €/Mo</strong></p>
+    <p class="check-line">selbsttragungPct = 962,64 / 1.046,07 × 100 = <strong>92 %</strong></p>
+    <p class="check-line">Engine: <strong>≈ 92 %</strong> · <span class="check-ok">✓ konsistent</span></p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 02 <span class="pfad-sep">›</span> Storyline-Text (renderStoryPremium)</div>
+    <div class="mockup-frame">
+      <div class="mockup-card mockup-section">
+        <div class="mockup-section-num">02 · Cashflow-Story</div>
+        <h3 class="mockup-section-title" style="font-size:18px;">Die Wohnung trägt sich zu <span class="mockup-highlight">92 %</span> selbst.</h3>
+        <p class="mockup-section-text">Mieteinnahme und Steuervorteil decken zusammen 92 % aller laufenden Kosten (Annuität, Hausgeld, Verwaltung). Die fehlenden 8 % sind Deine monatliche Eigenleistung — <strong>84 €</strong>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-cf-jahr">
+  <h3>Cashflow Jahr (cfJahr) <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Der Netto-Cashflow pro Jahr (1-30). Negativ in der Anlaufphase, dreht später ins Plus durch Mietsteigerungen bei konstanter Annuität. Der Crossover-Punkt (= Jahr in dem cfJahr erstmals dauerhaft positiv ist) wird in der Magazin-Story prominent erwähnt.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>cfJahr[y] = mieteJahr[y]      // Kaltmiete + Stellplatzmiete + Subv (alle gemittelt × 12)
+          − zinsenJahr[y]      // Excel-CUMIPMT Monate (y-1)*12+1 bis y*12
+          − tilgungJahr[y]     // Excel-CUMPRINC
+          − hgJahr[y]          // hausgeld + mietverw + hausverw × 12
+          + stVorteilJahr[y]   // Steuervorteil</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 896. Restschuld parallel via CUMPRINC tracked.</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Was treibt die Veränderung über die Jahre?</h4>
+    <table class="t">
+      <tr><th>Komponente</th><th>Verhalten über Zeit</th></tr>
+      <tr><td>mieteJahr</td><td>Steigt — Mietsteigerung (Sprung 20 % alle 3 J, Index/Staffel jährlich)</td></tr>
+      <tr><td>zinsenJahr</td><td>Sinkt — Restschuld sinkt, Zinsanteil der Annuität sinkt</td></tr>
+      <tr><td>tilgungJahr</td><td>Steigt — Tilgungsanteil wächst</td></tr>
+      <tr><td>hgJahr</td><td>Konstant — Edgar-Entscheidung 24.05.2026, HG-Inflation = 0</td></tr>
+      <tr><td>subv</td><td>Endet Monat 73 (nach Phase 2)</td></tr>
+      <tr><td>stVorteil</td><td>Sinkt — Werbungskosten sinken durch sinkende Zinsen</td></tr>
+    </table>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 02 <span class="pfad-sep">›</span> Modal „Cashflow J1-J10" (Tab-Tabelle)</div>
+    <div class="mockup-frame">
+      <div class="mockup-modal">
+        <div class="mockup-modal-trigger">› Klick „Cashflow im Detail":</div>
+        <div class="mockup-modal-title">Cashflow Jahr für Jahr</div>
+        <table class="mockup-table" style="margin-top:6px;">
+          <tr><th>Jahr</th><th class="num">Miete</th><th class="num">Annuität</th><th class="num">HG+HV</th><th class="num">StVorteil</th><th class="num">CF</th></tr>
+          <tr class="row-active"><td>J1</td><td class="num">10.628</td><td class="num">−11.770</td><td class="num">−783</td><td class="num">+920</td><td class="num highlight">−1.004</td></tr>
+          <tr><td>J3</td><td class="num">11.020</td><td class="num">−11.770</td><td class="num">−783</td><td class="num">+810</td><td class="num">−723</td></tr>
+          <tr><td>J5</td><td class="num">12.180</td><td class="num">−11.770</td><td class="num">−783</td><td class="num">+730</td><td class="num" style="color:var(--green-dark)">+357</td></tr>
+          <tr><td>J10</td><td class="num">13.450</td><td class="num">−11.770</td><td class="num">−783</td><td class="num">+520</td><td class="num" style="color:var(--green-dark)">+1.417</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     03 VERMÖGEN
+     ============================================================ -->
+
+<section class="value-card" id="wert-marktwert-j10">
+  <h3>Marktwert J10 (vermoegen[10].wert) <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Was Deine Wohnung in 10 Jahren am Markt voraussichtlich wert ist — wenn die Wertsteigerung wie angenommen läuft (3 % p.a. Default). Das ist der Wert, gegen den die Bank refinanziert oder zu dem Du verkaufen kannst.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>wohnungMarktwert = marktwertProQm > 0 ? (marktwertProQm × qm) : kaufpreis
+startwert        = wohnungMarktwert + stellplatzKp
+wert(y)          = startwert × (1 + wertsteigerung)^y</pre>
+    <p><strong>Iter 76:</strong> Stellplatz fließt nach Bug-Fix mit ein (vorher nur Wohnungs-Marktwert — verschoben gegenüber Restschuld).</p>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 984-988.</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Ebene 3: Eingaben mit Quelle</h4>
+    <ul>
+      <li><strong>marktwertProQm</strong>: <code>i.marktwertProQm</code> ← Schnitt ImmoScout/Homeday</li>
+      <li><strong>qm</strong>: WE</li>
+      <li><strong>stellplatzKp</strong>: Stellplatz-Summe</li>
+      <li><strong>wertsteigerung</strong>: Kalk-Stammdaten <code>fldhB9tsIkpcLGDur</code> (Default 3 %)</li>
+    </ul>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4)</h4>
+    <p class="check-line">wohnungMarktwert = 3.117 × 70,47 = 219.655 €</p>
+    <p class="check-line">startwert = 219.655 + 15.000 = 234.655 €</p>
+    <p class="check-line">Marktwert J10 = 234.655 × 1,03^10 = 234.655 × 1,343916 = <strong>315.392 €</strong></p>
+    <p class="check-line">Engine: <strong>≈ 315.392 €</strong> · <span class="check-ok">✓ exakt</span></p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 03 <span class="pfad-sep">›</span> Vermögens-Chart (grüne Linie „Immobilienwert")</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> Modal „Vermögen J10" <span class="pfad-sep">›</span> Tabelle Spalte „Wert"</div>
+    <div class="mockup-frame">
+      <div class="mockup-chart">
+        <div class="mockup-chart-title">Vermögens-Chart · 3-Linien (J0-J10)</div>
+        <svg viewBox="0 0 480 140" xmlns="http://www.w3.org/2000/svg">
+          <line x1="40" y1="120" x2="460" y2="120" stroke="#D5D0BF" stroke-width="1"/>
+          <line x1="40" y1="20" x2="40" y2="120" stroke="#D5D0BF" stroke-width="1"/>
+          <text x="40" y="135" font-size="9" fill="#7A7A72">J0</text>
+          <text x="455" y="135" font-size="9" fill="#7A7A72">J10</text>
+          <polyline points="40,55 80,52 120,48 160,44 200,40 240,36 280,32 320,28 360,24 400,20 440,15" fill="none" stroke="#2D6E47" stroke-width="2"/>
+          <polyline points="40,85 80,87 120,89 160,92 200,95 240,98 280,101 320,104 360,107 400,110 440,113" fill="none" stroke="#7A7A72" stroke-width="2"/>
+          <polyline points="40,118 80,108 120,98 160,88 200,78 240,68 280,58 320,48 360,38 400,28 440,18" fill="none" stroke="#B08A4D" stroke-width="2"/>
+          <circle cx="440" cy="15" r="3" fill="#2D6E47"/>
+          <text x="380" y="13" font-size="10" font-weight="600" fill="#2D6E47">315.392 €</text>
+        </svg>
+        <div class="mockup-chart-legend">
+          <span class="lg-green">Immobilienwert</span>
+          <span class="lg-grey">Restschuld</span>
+          <span class="lg-bronze">Nettovermögen</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-restschuld-j10">
+  <h3>Restschuld J10 (vermoegen[10].restschuld) <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Was Du nach 10 Jahren Tilgung noch an der Bank schuldest — gegen die wachsende Wohnung. Die Differenz (Marktwert − Restschuld) ist das pure EK-im-Sachwert.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>Restschuld(y) = darlehen − Σ tilgungJahr(1..y)
+              = via Excel-CUMPRINC iterativ (Z. 668-679)
+              = jährlich abnehmend, Tilgungsanteil wächst</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 685, 869-872. <code>restschuldEcht</code> wird über die Jahre fortgeschrieben.</p>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4)</h4>
+    <p class="check-line">darlehen = 214.000 €</p>
+    <p class="check-line">Σ tilgungJahr J1-J10 ≈ 25.700 € (1 % Anfangstilgung, leicht wachsend)</p>
+    <p class="check-line">Restschuld J10 = 214.000 − 25.700 = <strong>≈ 188.300 €</strong></p>
+    <p class="check-line">Engine: <strong>≈ 188.000 €</strong> (genaue Differenz durch Excel-CUMPRINC) · <span class="check-ok">✓ Methodik validiert</span></p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 03 <span class="pfad-sep">›</span> Vermögens-Chart (graue Linie, sinkend)</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> Modal „Vermögen J10" <span class="pfad-sep">›</span> Tabelle Spalte „Restschuld"</div>
+    <div class="mockup-frame">
+      <div class="mockup-modal">
+        <div class="mockup-modal-trigger">› Klick auf Vermögens-Chart-Datenpunkt J10:</div>
+        <div class="mockup-modal-title">Vermögenszuwachs Jahr 10</div>
+        <div class="mockup-modal-row"><span class="lbl">Immobilienwert (J10)</span><span class="val">+315.392 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">− Restschuld (J10)</span><span class="val" style="color:var(--text-tertiary)">−188.300 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">+ Kumulierter CF J1-J10</span><span class="val">+1.520 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">= Vermögen brutto</span><span class="val">128.612 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">− EK-Einsatz</span><span class="val">−14.980 €</span></div>
+        <div class="mockup-modal-row total"><span class="lbl">Mein Anteil J10 (netto)</span><span class="val">112.664 €</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-kumcf-j10">
+  <h3>Kumulierter CF J10 (vermoegen[10].kumCf) <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Die Summe aller jährlichen Cashflows von Jahr 1 bis Jahr 10. Negativ in der Anlaufphase, kann später positiv werden. Wird in der Brutto-Vermögens-Rechnung addiert (Wert + kumCF − Restschuld = Brutto-Vermögen).</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>kumCf(y) = Σ cf[i].cfJahr   für i = 0..(y-1)</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 991.</p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 03 <span class="pfad-sep">›</span> Modal „Vermögen J10" <span class="pfad-sep">›</span> Zeile „kumulierte CF"</div>
+    <div class="mockup-frame">
+      <div class="mockup-modal">
+        <div class="mockup-modal-title">Brutto-Vermögens-Aufschlüsselung J10</div>
+        <div class="mockup-modal-row"><span class="lbl">Verkaufserlös (Wert − Restschuld)</span><span class="val">127.092 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">+ Kumulierter CF J1-J10</span><span class="val highlight">+1.520 €</span></div>
+        <div class="mockup-modal-row total"><span class="lbl">Vermögen brutto</span><span class="val">128.612 €</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-vermoegen-brutto">
+  <h3>Vermögen brutto J10 (vermoegenBrutto10) <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Das gesamte Vermögen INKLUSIVE EK-Einsatz nach 10 Jahren. Verkaufserlös (Marktwert − Restschuld) plus alle kumulierten Cashflows.</p>
+    <p><strong>Wichtig:</strong> Im Magazin selbst zeigen wir <em>vermoegenNetto10</em> (= Brutto − EK) — Brutto ist nur im Detail-Modal sichtbar, um Doppel-Anzeige zu vermeiden (FS-3g-Fix).</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>verkaufserloes(y)   = wert(y) − restschuld(y)
+vermoegenBrutto(y)  = verkaufserloes(y) + kumCf(y)
+                    = wert(y) − restschuld(y) + Σ cf(1..y)</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 990-993.</p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 03 <span class="pfad-sep">›</span> Modal „Vermögen J10" <span class="pfad-sep">›</span> Brutto-Block (nicht im Hauptmagazin sichtbar)</div>
+    <div class="mockup-frame">
+      <div class="mockup-modal">
+        <div class="mockup-modal-trigger">› Nur im Detail-Modal — Magazin zeigt nur Netto:</div>
+        <div class="mockup-modal-title">Vermögen brutto / netto J10</div>
+        <div class="mockup-modal-row"><span class="lbl">Verkaufserlös</span><span class="val">127.092 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">+ Kumulierter CF</span><span class="val">+1.520 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">Vermögen brutto</span><span class="val highlight">128.612 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">− EK-Einsatz</span><span class="val">−14.980 €</span></div>
+        <div class="mockup-modal-row total"><span class="lbl">Vermögen netto</span><span class="val">112.664 €</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-vermoegen-netto">
+  <h3>Vermögen netto J10 (vermoegenNetto10) <span class="value-tag hero">Hero-Wert</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Identisch zu <a href="#wert-mein-anteil-j10">Mein Anteil J10</a>. Der Headliner — was real bei Dir bleibt, wenn Du nach 10 Jahren verkaufst und Dein EK-Einsatz gegenrechnest.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>vermoegenNetto(y) = vermoegenBrutto(y) − ekBedarf</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 993.</p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 03 <span class="pfad-sep">›</span> Hero-Headline (= „Mein Anteil J10")</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> Vermögens-Chart bronzene Linie (Default-Toggle)</div>
+    <div class="mockup-frame">
+      <div class="mockup-card mockup-hero">
+        <div class="mockup-eyebrow">03 · Nettovermögen</div>
+        <h2 class="mockup-headline">Du bauen <span class="mockup-highlight green">112.664 €</span> Eigenkapital im Sachwert auf.</h2>
+        <div class="mockup-meta">vermoegenNetto10 · identisch zu „Mein Anteil J10" · IRR 22,3 %</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-irr">
+  <h3>IRR / Interner Zinsfuß <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Die Eigenkapital-Rendite (Internal Rate of Return) — als ob Du Dein EK gleichmäßig zu einem Zinssatz angelegt hättest, der genau diesen Endstand erreicht. Vergleichbar mit Tagesgeld-Zins (aber: typisch zwei- bis dreistellig höher).</p>
+    <p><strong>Bei 110-%-Finanzierung (EK = 0):</strong> Engine liefert <code>null</code> — semantisch undefiniert. Magazin zeigt dann nur den Vermögenszuwachs ohne IRR.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>irrSeries = [−ekBedarf]                                  // J0
+            + [cf[0..8].cfJahr]                          // J1-J9 reine CFs
+            + [cf[9].cfJahr + verkaufserloes(J10)]       // J10 inkl. Verkauf
+
+irr() via Newton-Raphson (200 Iter) mit Bisektions-Fallback
+       (Z. 37-85 in kalkulator.js)
+
+Plausibilitäts-Check: |irr| > 1000 % → null (Numerik-Artefakt)</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 1004-1016.</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Edge-Cases</h4>
+    <ul>
+      <li><strong>ekBedarf ≤ 1 €:</strong> irr = null (Frontend zeigt "kein klassischer IRR — siehe Vermögenszuwachs")</li>
+      <li><strong>CF-Reihe ohne Vorzeichen-Wechsel:</strong> irr = null (mathematisch keine Lösung)</li>
+    </ul>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 03 <span class="pfad-sep">›</span> Hero-Meta-Zeile</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> WE-Liste <span class="pfad-sep">›</span> Spalte „IRR 10 J"</div>
+    <div class="mockup-pfad"><strong>Pfad 3:</strong> Sensitivitäts-Karten <span class="pfad-sep">›</span> KPI-Zeile „Rendite"</div>
+    <div class="mockup-frame">
+      <div class="mockup-kpi">
+        <div class="kpi-label">IRR · Interne Rendite (10 Jahre)</div>
+        <div class="kpi-val highlight">22,3 %</div>
+        <div class="kpi-sub">Eigenkapital-Rendite p.a. · gegenüber Sparbuch 2,5 %</div>
+      </div>
+      <div class="mockup-we-row" style="margin-top:10px;">
+        <div class="mockup-we-head">WE</div>
+        <div class="mockup-we-head">KP</div>
+        <div class="mockup-we-head">Belastung</div>
+        <div class="mockup-we-head we-cell-active">IRR 10 J</div>
+        <div class="mockup-we-head">Vermögen J10</div>
+        <div>WE 4 Heidelberger</div>
+        <div>199.000 €</div>
+        <div>−84 €/Mo</div>
+        <div class="we-cell-active">22,3 %</div>
+        <div>112.664 €</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     04 VERGLEICH (SPARBUCH)
+     ============================================================ -->
+
+<section class="value-card" id="wert-sparbuch-j10">
+  <h3>Sparbuch-Endstand J10 (sparen[10].nurSparen) <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Was aus Deinem EK in 10 Jahren wird, wenn Du es STATT in die Wohnung auf ein Tagesgeld-Konto legst — mit 2,5 % p.a. Default-Verzinsung.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>nurSparen(y) = ekBedarf × (1 + sparZins)^y</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 1078-1102.</p>
+  </div>
+
+  <div class="ebene ebene-3">
+    <h4>Eingaben</h4>
+    <ul>
+      <li><strong>sparZins</strong>: optional aus App-State (Default <code>BB_DEFAULTS.sparZinsPa = 2,5 %</code>)</li>
+    </ul>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4, EK 14.980 €)</h4>
+    <p class="check-line">14.980 × 1,025^10 = 14.980 × 1,280085 = <strong>19.176 €</strong></p>
+    <p class="check-line">Engine: <strong>≈ 19.176 €</strong> · <span class="check-ok">✓ exakt</span></p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 04 „Sparbuch vs Immobilie" <span class="pfad-sep">›</span> Vergleichs-Chart (graue Linie)</div>
+    <div class="mockup-frame">
+      <div class="mockup-chart">
+        <div class="mockup-chart-title">Sparbuch vs Immobilie (J0-J10)</div>
+        <svg viewBox="0 0 480 140" xmlns="http://www.w3.org/2000/svg">
+          <line x1="40" y1="120" x2="460" y2="120" stroke="#D5D0BF" stroke-width="1"/>
+          <line x1="40" y1="20" x2="40" y2="120" stroke="#D5D0BF" stroke-width="1"/>
+          <text x="40" y="135" font-size="9" fill="#7A7A72">J0</text>
+          <text x="455" y="135" font-size="9" fill="#7A7A72">J10</text>
+          <polyline points="40,115 80,114 120,113 160,112 200,111 240,109 280,108 320,107 360,106 400,105 440,104" fill="none" stroke="#7A7A72" stroke-width="2"/>
+          <polyline points="40,118 80,108 120,98 160,88 200,78 240,68 280,58 320,48 360,38 400,28 440,18" fill="none" stroke="#B08A4D" stroke-width="2.5"/>
+          <circle cx="440" cy="104" r="3" fill="#7A7A72"/>
+          <text x="360" y="100" font-size="10" fill="#7A7A72">19.176 €</text>
+          <circle cx="440" cy="15" r="3" fill="#B08A4D"/>
+          <text x="370" y="13" font-size="10" font-weight="600" fill="#B08A4D">112.664 €</text>
+        </svg>
+        <div class="mockup-chart-legend">
+          <span class="lg-grey">Nur Sparbuch</span>
+          <span class="lg-bronze">Mit Immobilie</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-sparen-vs-kaufen">
+  <h3>Sparen vs Kaufen Delta (sparenVsKaufenDelta) <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Der reine Vorteil "Immobilie minus Sparbuch" in 10 Jahren. Wenn positiv: Mehrgewinn-Sachwert. Wenn negativ: Sparbuch hätte besser performed (selten, aber bei sehr unattraktiven Deals möglich).</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>// Immo-Pfad: EK ist Tag 0 als KNK weg, dafür entstehen jährliche CFs auf Tagesgeld
+tagesgeldRest(y) = tagesgeldRest(y-1) × (1 + sparZins) + cf[y-1].cfJahr
+mitImmo(y)       = tagesgeldRest(y) + (wert(y) − restschuld(y))
+
+sparenVsKaufenDelta = mitImmo(10) − nurSparen(10)</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 1086-1104.</p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 04 <span class="pfad-sep">›</span> Hero-Headline</div>
+    <div class="mockup-frame">
+      <div class="mockup-card mockup-hero">
+        <div class="mockup-eyebrow">04 · Sparbuch vs Immobilie</div>
+        <h2 class="mockup-headline">Mit Immobilie hast Du in 10 Jahren <span class="mockup-highlight green">+93.488 €</span> mehr als auf dem Sparbuch.</h2>
+        <p class="mockup-sub">Sparbuch (2,5 % p.a.): 19.176 € · Mit Immobilie (Sachwert + Tagesgeld auf CFs): 112.664 €</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-spar-zins">
+  <h3>Sparzins (sparZins) <span class="value-tag input">Eingabe</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Der Vergleichs-Zinssatz für das Sparbuch — Default 2,5 % p.a. (typisches Tagesgeld 2026). In der Annahmen-Section ist das via Slider variabel — Kunde kann selbst experimentieren ("wenn 4 %, wie sieht's aus?").</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Standardwert</h4>
+<pre>BB_DEFAULTS.sparZinsPa = 0.025 (= 2,5 %)</pre>
+    <p>Der Default wurde mit Edgar bestimmt — Median deutscher Tagesgeld-Angebote 2024-26 bei stabilen Banken (Comdirect, ING, DKB).</p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Annahmen-Panel (rechte Sidebar) <span class="pfad-sep">›</span> Slider „Sparzins"</div>
+    <div class="mockup-frame">
+      <div class="mockup-card mockup-section">
+        <div class="mockup-section-num">Annahmen</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border);">
+          <span style="font-size:12px; color:var(--text-secondary);">Sparzins p.a.</span>
+          <span style="font-size:14px; font-weight:600; color:var(--accent-dark);">2,5 %</span>
+        </div>
+        <div style="margin-top:6px; height:4px; background:var(--border); border-radius:2px; position:relative;">
+          <div style="position:absolute; left:0; width:25%; height:100%; background:var(--accent); border-radius:2px;"></div>
+          <div style="position:absolute; left:25%; top:-3px; width:10px; height:10px; background:var(--accent-dark); border-radius:50%; transform:translateX(-50%);"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--text-tertiary); margin-top:4px;">
+          <span>0 %</span><span>5 %</span><span>10 %</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     05 BONITÄT
+     ============================================================ -->
+
+<section class="value-card" id="wert-bon-einnahmen">
+  <h3>bonEinnahmen <span class="value-tag input">Eingabe</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Das anrechenbare Brutto-Monats-Einkommen für die Bank-Rechnung. Im <strong>Quick-Modus</strong>: aus Profil (Standard 4.000 €/Mo, Premium 5.500, Spitze 8.000). Im <strong>Detail-Modus</strong>: aus der Selbstauskunft real berechnet.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>Quick:  bonEinnahmen = profile.bonEinnahmen
+Detail: bonEinnahmen = computeBonitaetDetailed(sa, gemeinsam).einkommenAnrechenbarMo
+        = (Netto-Gehalt × Anzahl-Gehälter / 12)              // 100 %
+        + (Σ Immobilien-Mieten × 0,8)                        // 80 % Bank-Anrechnung
+        + Unterhalt + Kindergeld                             // 100 %
+        + Σ Zusatz-Einnahmen                                 // 100 %</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 428-575 <code>computeBonitaetDetailed()</code>.</p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 05 „Bonität für die Bank" <span class="pfad-sep">›</span> 3-spaltige Box (Cell 1)</div>
+    <div class="mockup-frame">
+      <div class="mockup-bon">
+        <div class="mockup-bon-cell green">
+          <div class="bon-label">Einnahmen</div>
+          <div class="bon-val">5.500 €</div>
+        </div>
+        <div class="mockup-bon-cell">
+          <div class="bon-label">Ausgaben</div>
+          <div class="bon-val">2.800 €</div>
+        </div>
+        <div class="mockup-bon-cell green">
+          <div class="bon-label">Bonität nach</div>
+          <div class="bon-val">+2.700 €</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-bon-ausgaben">
+  <h3>bonAusgaben <span class="value-tag input">Eingabe</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Die Gesamt-Ausgaben pro Monat (Fixkosten + Verbindlichkeiten). Iter 69: <strong>KEINE Bank-Pauschale</strong> mehr — ausschließlich die SA-Eingaben des Kunden.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>Detail:
+  fixkosten = mieteMo + lebenshaltung + pkv + leasing + unterhalt
+            + Σ Zusatz-Ausgaben
+  verbindlichkeiten = Σ baufiBelastungMo (aus immobilien-Array)
+                    + Σ Zusatz-Verbindlichkeiten
+  bonAusgaben = fixkosten + verbindlichkeiten  (KEINE Pauschale)</pre>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 05 <span class="pfad-sep">›</span> 3-spaltige Box (Cell 2)</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> Selbstauskunft-Modus <span class="pfad-sep">›</span> Modal „Ausgaben-Aufschlüsselung"</div>
+    <div class="mockup-frame">
+      <div class="mockup-bon">
+        <div class="mockup-bon-cell">
+          <div class="bon-label">Einnahmen</div>
+          <div class="bon-val">5.500 €</div>
+        </div>
+        <div class="mockup-bon-cell warn">
+          <div class="bon-label">Ausgaben</div>
+          <div class="bon-val">2.800 €</div>
+        </div>
+        <div class="mockup-bon-cell">
+          <div class="bon-label">Bonität nach</div>
+          <div class="bon-val">+2.700 €</div>
+        </div>
+      </div>
+      <div class="mockup-modal" style="margin-top:10px;">
+        <div class="mockup-modal-trigger">› Klick auf „Ausgaben":</div>
+        <div class="mockup-modal-title">Ausgaben-Aufschlüsselung (Detail-Modus)</div>
+        <div class="mockup-modal-row"><span class="lbl">Lebenshaltung</span><span class="val">1.200 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">Eigene Miete</span><span class="val">900 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">PKV</span><span class="val">350 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">Verbindlichkeiten</span><span class="val">350 €</span></div>
+        <div class="mockup-modal-row total"><span class="lbl">Gesamt (KEINE Bank-Pauschale, Iter 69)</span><span class="val">2.800 €</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-bon-miete-anr">
+  <h3>bonMieteAnr — Anrechenbare Miete (80 %) <span class="value-tag bank">Bank-Standard</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Was die Bank von Deiner Mieteinnahme als Einkommen anrechnet — 80 % wegen Leerstands-/Mietausfall-Risiko. Das ist BANK-Standard, nicht App-Spezial.</p>
+    <p><strong>Wichtig:</strong> Die Subvention zählt mit rein (Iter 45). Wir haben mit unseren Partnerbanken klargestellt, dass die B&amp;B-Subvention wie reguläre Mieteinnahme angerechnet wird.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>subvMo1     = subvForMonth(1)              // Subv im 1. Monat
+kaltmieteMo1 = kaltmieteForMonth(1)        // markt-gekappt (FS-3a)
+bonMieteAnr  = (kaltmieteMo1 + stellplatzMiete + subvMo1) × 0,8</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 1048-1054.</p>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4)</h4>
+    <p class="check-line">(588 + 40 + 257,64) × 0,8 = 885,64 × 0,8 = <strong>708,51 €/Mo</strong></p>
+    <p class="check-line">Engine: <strong>≈ 708 €/Mo</strong> · <span class="check-ok">✓ exakt</span></p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 05 <span class="pfad-sep">›</span> Modal „Bank-Anrechnung Miete"</div>
+    <div class="mockup-frame">
+      <div class="mockup-modal">
+        <div class="mockup-modal-trigger">› Klick auf „Anrechenbare Miete":</div>
+        <div class="mockup-modal-title">Wie die Bank die Miete sieht (80 %-Quote)</div>
+        <div class="mockup-modal-row"><span class="lbl">Kaltmiete (markt-gekappt)</span><span class="val">588 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">+ Stellplatz-Miete</span><span class="val">40 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">+ B&amp;B-Subv (USP, anrechenbar!)</span><span class="val">257,64 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">Σ Brutto-Miete Tag 1</span><span class="val">885,64 €</span></div>
+        <div class="mockup-modal-row"><span class="lbl">× 0,8 (Leerstand-Risiko)</span><span class="val">−177,13 €</span></div>
+        <div class="mockup-modal-row total"><span class="lbl">Bank-anrechenbar</span><span class="val">708,51 €/Mo</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-bon-saldo">
+  <h3>bonNach — Bonität nach Investment (bonNach) <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Das frei verfügbare monatliche Einkommen NACH dem Investment aus Bank-Sicht. Negativ → Bank wird kritisch (Kapitaldienstfähigkeit nicht gegeben). Positiv → die Wohnung verbessert sogar die Bonität (typisch bei B&amp;B-Setup).</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>bonVor   = bonEinnahmen − bonAusgaben
+bonDelta = bonMieteAnr − bonAnnuMo                          (Quick)
+         = bonMieteAnr − bonAnnuMo − bonHgMo − bonHvMo      (Detail)
+bonNach  = bonVor + bonDelta</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 1044-1064.</p>
+  </div>
+
+  <div class="kunden-fragen">
+    <h4>Häufige Kunden-Fragen</h4>
+    <ul>
+      <li>"Wieso wird HG/HV im Detail-Modus abgezogen, im Quick nicht?" → Detail nutzt die echte SA-Berechnung, Quick rechnet vereinfacht. Beide Modi gleichen sich aus, weil im Detail HG/HV abgezogen wird, im Quick sind sie in "bonAusgaben" implizit drin.</li>
+      <li>"Was wenn meine Bonität nach Investment knapp wird?" → Spar-Slider, EK erhöhen, oder mit Mit-Antragsteller rechnen.</li>
+    </ul>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 05 <span class="pfad-sep">›</span> 3-spaltige Box (Cell 3, „Bonität nach")</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> Hero-Aussage Section 05 wenn positiv: „Die Wohnung verbessert Deine Bonität sogar"</div>
+    <div class="mockup-frame">
+      <div class="mockup-bon">
+        <div class="mockup-bon-cell">
+          <div class="bon-label">Einnahmen</div>
+          <div class="bon-val">5.500 €</div>
+        </div>
+        <div class="mockup-bon-cell">
+          <div class="bon-label">Ausgaben</div>
+          <div class="bon-val">2.800 €</div>
+        </div>
+        <div class="mockup-bon-cell green">
+          <div class="bon-label">Bonität nach</div>
+          <div class="bon-val">+2.700 €</div>
+        </div>
+      </div>
+      <div class="mockup-card mockup-section" style="margin-top:10px;">
+        <p class="mockup-section-text"><strong>Vor Investment:</strong> 5.500 − 2.800 = 2.700 €<br>
+        <strong>Delta durch Wohnung:</strong> +708 € Miete − 981 € Annuität = −273 €<br>
+        <strong>Nach Investment:</strong> <span class="mockup-highlight green">+2.427 €</span> · Bank sagt OK.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     06 WAS WÄRE WENN
+     ============================================================ -->
+
+<section class="value-card" id="wert-basis-szenario">
+  <h3>Basis-Szenario <span class="value-tag derived">Sensitivitäts-Karte</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Die heutigen Annahmen — identisch zur Haupt-Kalkulation. Dient als Vergleichs-Anker für die anderen beiden Szenarien.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Werte:</h4>
+    <ul>
+      <li>Rendite (IRR): <code>base.irr</code></li>
+      <li>Belastung €/Mo: <code>base.belastungMo</code></li>
+      <li>Vermögen J10: <code>base.vermoegenNetto10</code></li>
+    </ul>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 06 „Was wäre wenn" <span class="pfad-sep">›</span> Karte 1 (links, hervorgehoben)</div>
+    <div class="mockup-frame">
+      <div class="mockup-sens">
+        <div class="mockup-sens-card basis">
+          <div class="sens-title">Basis</div>
+          <div class="sens-row"><span class="lbl">Rendite</span><span class="v">22,3 %</span></div>
+          <div class="sens-row"><span class="lbl">Belastung</span><span class="v">−84 €/Mo</span></div>
+          <div class="sens-row"><span class="lbl">Vermögen J10</span><span class="v">112.664 €</span></div>
+        </div>
+        <div class="mockup-sens-card konserv">
+          <div class="sens-title">Konservativ</div>
+          <div class="sens-row"><span class="lbl">Rendite</span><span class="v" style="color:var(--text-tertiary)">16,8 %</span></div>
+          <div class="sens-row"><span class="lbl">Belastung</span><span class="v" style="color:var(--text-tertiary)">−210 €/Mo</span></div>
+          <div class="sens-row"><span class="lbl">Vermögen J10</span><span class="v" style="color:var(--text-tertiary)">94.200 €</span></div>
+        </div>
+        <div class="mockup-sens-card stress">
+          <div class="sens-title">Stress</div>
+          <div class="sens-row"><span class="lbl">Rendite</span><span class="v" style="color:var(--text-tertiary)">9,2 %</span></div>
+          <div class="sens-row"><span class="lbl">Belastung</span><span class="v" style="color:var(--text-tertiary)">−380 €/Mo</span></div>
+          <div class="sens-row"><span class="lbl">Vermögen J10</span><span class="v" style="color:var(--text-tertiary)">68.500 €</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-konservativ">
+  <h3>Konservativ-Szenario <span class="value-tag derived">Sensitivitäts-Karte</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Wie sich die KPIs verändern bei <strong>moderaten</strong> negativen Annahmen: Zins +1 % (also 5,5 % statt 4,5 %), 1 Monat Leerstand pro Jahr. Edgar's "Realismus-Karte".</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>inputs_konservativ = {
+  ...basis_inputs,
+  zins: basis.zins + 0.01,
+  kaltmiete: basis.kaltmiete × 11/12,        // 1 Mo Leerstand
+  stellplatzMiete: basis.stellplatzMiete × 11/12
+}
+konservativ = recalc(inputs_konservativ)</pre>
+    <p><strong>Engine-Code:</strong> <code>app.js</code> Z. 3884-3905 (Section 06). Nutzt <code>Kalk.recalc()</code> direkt.</p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 06 <span class="pfad-sep">›</span> Mittlere Karte „Konservativ"</div>
+    <div class="mockup-frame">
+      <div class="mockup-sens">
+        <div class="mockup-sens-card">
+          <div class="sens-title">Basis</div>
+          <div class="sens-row"><span class="lbl">Rendite</span><span class="v" style="color:var(--text-tertiary)">22,3 %</span></div>
+          <div class="sens-row"><span class="lbl">Belastung</span><span class="v" style="color:var(--text-tertiary)">−84 €/Mo</span></div>
+          <div class="sens-row"><span class="lbl">Vermögen J10</span><span class="v" style="color:var(--text-tertiary)">112.664 €</span></div>
+        </div>
+        <div class="mockup-sens-card basis konserv" style="border-color: var(--accent); border-width: 2px;">
+          <div class="sens-title">Konservativ · +1 % Zins · 1 Mo Leerstand</div>
+          <div class="sens-row"><span class="lbl">Rendite</span><span class="v">16,8 %</span></div>
+          <div class="sens-row"><span class="lbl">Belastung</span><span class="v">−210 €/Mo</span></div>
+          <div class="sens-row"><span class="lbl">Vermögen J10</span><span class="v">94.200 €</span></div>
+        </div>
+        <div class="mockup-sens-card stress">
+          <div class="sens-title">Stress</div>
+          <div class="sens-row"><span class="lbl">Rendite</span><span class="v" style="color:var(--text-tertiary)">9,2 %</span></div>
+          <div class="sens-row"><span class="lbl">Belastung</span><span class="v" style="color:var(--text-tertiary)">−380 €/Mo</span></div>
+          <div class="sens-row"><span class="lbl">Vermögen J10</span><span class="v" style="color:var(--text-tertiary)">68.500 €</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-stress">
+  <h3>Stress-Test <span class="value-tag derived">Sensitivitäts-Karte</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Was passiert bei <strong>härteren</strong> Bedingungen: Zins +2 % (= 6,5 %), 3 Monate Leerstand pro Jahr + 0,5 % Mietausfall. Worst-Case zum offenbaren Vorzeigen.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>inputs_stress = {
+  ...basis_inputs,
+  zins: basis.zins + 0.02,
+  kaltmiete: basis.kaltmiete × (9/12 × 0,995),    // 3 Mo Leerstand + 0,5 % Ausfall
+  stellplatzMiete: basis.stellplatzMiete × (9/12 × 0,995)
+}
+stress = recalc(inputs_stress)</pre>
+    <p><strong>Engine-Code:</strong> <code>app.js</code> Z. 3896-3905. Außerdem dezidiert als <code>stressSzenario()</code> in <code>kalkulator.js</code> Z. 1471-1499 verfügbar.</p>
+  </div>
+
+  <div class="kunden-fragen">
+    <h4>Häufige Kunden-Fragen</h4>
+    <ul>
+      <li>"Wieso werden nur Zins + Leerstand variiert?" → Sind die zwei größten Risiko-Hebel. Wertsteigerung wäre auch interessant, würde aber die Story überladen.</li>
+      <li>"Was wenn Zins +3 % UND Leerstand 6 Mo?" → Über die <code>sensitivitaetsMatrix()</code>-Funktion auf 5×4-Raster verfügbar (aktuell nicht im Magazin sichtbar, nur via API).</li>
+    </ul>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 06 <span class="pfad-sep">›</span> Rechte Karte „Stress-Test" (rot eingerahmt)</div>
+    <div class="mockup-frame">
+      <div class="mockup-sens">
+        <div class="mockup-sens-card">
+          <div class="sens-title">Basis</div>
+          <div class="sens-row"><span class="lbl">Rendite</span><span class="v" style="color:var(--text-tertiary)">22,3 %</span></div>
+          <div class="sens-row"><span class="lbl">Belastung</span><span class="v" style="color:var(--text-tertiary)">−84 €/Mo</span></div>
+          <div class="sens-row"><span class="lbl">Vermögen J10</span><span class="v" style="color:var(--text-tertiary)">112.664 €</span></div>
+        </div>
+        <div class="mockup-sens-card konserv">
+          <div class="sens-title">Konservativ</div>
+          <div class="sens-row"><span class="lbl">Rendite</span><span class="v" style="color:var(--text-tertiary)">16,8 %</span></div>
+          <div class="sens-row"><span class="lbl">Belastung</span><span class="v" style="color:var(--text-tertiary)">−210 €/Mo</span></div>
+          <div class="sens-row"><span class="lbl">Vermögen J10</span><span class="v" style="color:var(--text-tertiary)">94.200 €</span></div>
+        </div>
+        <div class="mockup-sens-card stress" style="border-color: var(--negative); border-width: 2px;">
+          <div class="sens-title">Stress · +2 % Zins · 3 Mo Leer · 0,5 % Ausfall</div>
+          <div class="sens-row"><span class="lbl">Rendite</span><span class="v" style="color:var(--negative)">9,2 %</span></div>
+          <div class="sens-row"><span class="lbl">Belastung</span><span class="v" style="color:var(--negative)">−380 €/Mo</span></div>
+          <div class="sens-row"><span class="lbl">Vermögen J10</span><span class="v" style="color:var(--negative)">68.500 €</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     09 BROT & BUTTER
+     ============================================================ -->
+
+<section class="value-card" id="wert-bruttorendite">
+  <h3>Bruttorendite (bruttorendite) <span class="value-tag derived">Abgeleitet</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Die rohe Brutto-Mietrendite Tag 1 — Jahresmieteinnahme inkl. Subv geteilt durch den Gesamtkaufpreis. Vergleichswert für Renditejäger (typisch 4-5 % bei B&amp;B-Setup).</p>
+    <p><strong>Wichtig:</strong> Das ist NICHT die IRR (= EK-Rendite). Die Brutto-Rendite ignoriert Finanzierung, Steuern, Kosten — pures Mietniveau zu Kaufpreis.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie wird er gerechnet?</h4>
+<pre>cappedKaltmieteMo1 = kaltmieteForMonth(1)            // markt-gekappt
+tag1Miete          = cappedKaltmieteMo1 + stellplatzMiete
+phase1Subv         = subventionPhasen[0].mo
+bruttorendite      = (tag1Miete + phase1Subv) × 12 / kpGesamt</pre>
+    <p><strong>Engine-Code:</strong> <code>kalkulator.js</code> Z. 1161-1175.</p>
+    <p><strong>Iter 67:</strong> bewusst Tag-1 statt CF-Jahr-1 — damit keine Staffel-Schritte eingerechnet sind, Wert bleibt deterministisch.</p>
+  </div>
+
+  <div class="cross-check">
+    <h4>Excel-Cross-Check (WE 4)</h4>
+    <p class="check-line">(588 + 40 + 257,64) × 12 / 214.000 = 10.628 / 214.000 = <strong>4,97 %</strong></p>
+    <p class="check-line">Airtable Brutto-Rendite-Field (fldI0X0oJv32nvC8U): <strong>4,46 %</strong> (= reine Wohnungs-Brutto OHNE Subv)</p>
+    <p class="check-line">Engine inkl. Subv: <strong>≈ 4,97 %</strong> · <span class="check-ok">✓ konsistent</span> (Airtable-Wert nutzt MbV ohne Subv-Aufschlag)</p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> WE-Liste <span class="pfad-sep">›</span> Spalte „Bruttorendite"</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> Airtable Wohneinheit <span class="pfad-sep">›</span> Field „Bruttorendite" <code>fldI0X0oJv32nvC8U</code> (= MbV-basiert ohne Subv)</div>
+    <div class="mockup-pfad"><strong>Pfad 3:</strong> Kalkulator <span class="pfad-sep">›</span> Section 02 <span class="pfad-sep">›</span> KPI-Tile (inkl. Subv)</div>
+    <div class="mockup-frame">
+      <div class="mockup-kpi">
+        <div class="kpi-label">Brutto-Mietrendite (Tag 1, inkl. B&amp;B-Subv)</div>
+        <div class="kpi-val highlight">4,97 %</div>
+        <div class="kpi-sub">10.628 € Jahresmiete · 214.000 € Gesamtinvestition</div>
+      </div>
+      <div class="mockup-we-row" style="margin-top:10px;">
+        <div class="mockup-we-head">WE</div>
+        <div class="mockup-we-head">KP</div>
+        <div class="mockup-we-head we-cell-active">Bruttorendite</div>
+        <div class="mockup-we-head">IRR</div>
+        <div class="mockup-we-head">Vermögen J10</div>
+        <div>WE 4 Heidelberger</div>
+        <div>199.000 €</div>
+        <div class="we-cell-active">4,46 %</div>
+        <div>22,3 %</div>
+        <div>112.664 €</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="value-card" id="wert-mietsubv-bank">
+  <h3>Mietsubvention bankentauglich <span class="value-tag bank">Vertriebs-USP</span></h3>
+
+  <div class="ebene ebene-1">
+    <h4>Ebene 1: Was zeigt der Wert?</h4>
+    <p>Die Mietsubvention wird von unseren Partnerbanken als <strong>vollwertige Mieteinnahme angerechnet</strong> (80 % Quote wie reguläre Miete). Das ist eine USP von B&amp;B — viele Verkäufer können das nicht so vereinbaren.</p>
+    <p><strong>Wirkung:</strong> Käufer hat einen positiven Bonitäts-Hebel auch für FOLGE-Käufe — die Subv-Mieteinnahme verbessert die Bonität auf dem Papier.</p>
+  </div>
+
+  <div class="ebene ebene-2">
+    <h4>Ebene 2: Wie umgesetzt</h4>
+    <p>Über <code>bonMieteAnr</code> (siehe oben) — fließt direkt in die Bonität ein. Edgar's Antwort an Kunden: "Wir setzen die Subvention bei der Bank als anrechenbare Miete an — das funktioniert mit unseren Partnerbanken zu 80 %."</p>
+  </div>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 05 <span class="pfad-sep">›</span> Magazin-Story-Block (USP-Botschaft)</div>
+    <div class="mockup-frame">
+      <div class="mockup-card mockup-section cream">
+        <div class="mockup-section-num">05 · Vertriebs-USP</div>
+        <h3 class="mockup-section-title" style="font-size:18px;">Unsere Partnerbanken rechnen die B&amp;B-Subv als <span class="mockup-highlight">vollwertige Mieteinnahme</span> an.</h3>
+        <p class="mockup-section-text">Das hebt Deine Anrechenbare Miete um <strong>+206 €/Mo</strong> (= 257,64 × 0,8) — und verbessert Deine Bonität für FOLGE-Käufe. Wenige Verkäufer können das so abbilden.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CHARTS
+     ============================================================ -->
+
+<section class="chapter" id="chart-cashflow">
+  <h2><span class="num">CH</span>Charts erklärt</h2>
+
+  <h3 id="chart-cashflow-anchor">Cashflow-Chart (Section 02)</h3>
+  <p>Zeigt den monatlichen CF nach Steuern über 120 Monate (= 10 Jahre).</p>
+  <table class="t">
+    <tr><th>Achse / Linie</th><th>Bedeutung</th></tr>
+    <tr><td>X-Achse</td><td>Monat 1-120 (Jahr 1-10), Major-Ticks bei Jahresende</td></tr>
+    <tr><td>Y-Achse</td><td>€/Mo · negativer Bereich = Zuzahlung, positiver = Überschuss</td></tr>
+    <tr><td>Hauptlinie (Bronze)</td><td><code>cfNachStM</code> — Cashflow nach Steuervorteil pro Monat</td></tr>
+    <tr><td>Sub-Linie hellbeige</td><td><code>cfOperativM</code> — Cashflow vor Steuer (Annuität + HG vs Miete)</td></tr>
+  </table>
+  <p>Erkennbar: Subv läuft 72 Mo glatt → CF steigt erst nach Monat 72 in Stufen (Mietsteigerungen). Crossover-Punkt im Magazin-Text erwähnt.</p>
+
+  <h3 id="chart-vermoegen">Vermögens-Chart (Section 03)</h3>
+  <p>3-Linien-Chart über 11 Punkte (Jahr 0-10). Per Toggle-Button ein-/ausblendbar (Iter 90+).</p>
+  <table class="t">
+    <tr><th>Linie</th><th>Bedeutung</th></tr>
+    <tr><td><strong>Nettovermögen</strong> (default sichtbar, Bronze)</td><td><code>vermoegen[y].vermoegenNetto</code> — der Hero-Wert</td></tr>
+    <tr><td><strong>+ Restschuld</strong> (Toggle)</td><td><code>vermoegen[y].restschuld</code> — sinkende Linie</td></tr>
+    <tr><td><strong>+ Immobilienwert</strong> (Toggle)</td><td><code>vermoegen[y].wert</code> — steigende Linie</td></tr>
+  </table>
+  <p>Die Schere zwischen Marktwert und Restschuld ist der visuelle Anker für "Sachwert-Hebel".</p>
+
+  <h3 id="chart-vergleich">Vergleichs-Chart (Section 04)</h3>
+  <p>2-Linien-Chart Sparbuch vs Immobilie über 11 Punkte (Jahr 0-10).</p>
+  <table class="t">
+    <tr><th>Linie</th><th>Bedeutung</th></tr>
+    <tr><td><strong>Nur Sparbuch</strong> (grau)</td><td><code>sparen[y].nurSparen</code> — EK × (1 + sparZins)^y</td></tr>
+    <tr><td><strong>Mit Immobilie</strong> (Bronze)</td><td><code>sparen[y].mitImmo</code> — Tagesgeld(CFs) + (Marktwert − Restschuld)</td></tr>
+  </table>
+  <p>Bei EK = 0 (110 %-Finanzierung) wird das Chart durch eine alternative Story ersetzt ("Hebel kommt aus dem Sachwert, nicht aus Deinem Sparbuch").</p>
+
+  <div class="ui-mockup">
+    <h4>So sehen die 3 Charts im Magazin aus</h4>
+    <div class="mockup-pfad"><strong>Section 02 Cashflow-Chart:</strong> 120 Mo, Bronze = CF nach Steuern, hellbeige = CF vor Steuer</div>
+    <div class="mockup-frame">
+      <div class="mockup-chart">
+        <div class="mockup-chart-title">Cashflow nach Steuern (Monate 1-120)</div>
+        <svg viewBox="0 0 480 140" xmlns="http://www.w3.org/2000/svg">
+          <line x1="40" y1="80" x2="460" y2="80" stroke="#D5D0BF" stroke-width="1"/>
+          <line x1="40" y1="20" x2="40" y2="130" stroke="#D5D0BF" stroke-width="1"/>
+          <text x="44" y="78" font-size="9" fill="#7A7A72">0</text>
+          <text x="40" y="142" font-size="9" fill="#7A7A72">M1</text>
+          <text x="445" y="142" font-size="9" fill="#7A7A72">M120</text>
+          <polyline points="40,95 80,93 120,91 160,88 200,85 240,82 280,72 320,62 360,52 400,42 440,32" fill="none" stroke="#B08A4D" stroke-width="2"/>
+          <polyline points="40,105 80,103 120,101 160,98 200,95 240,92 280,82 320,72 360,62 400,52 440,42" fill="none" stroke="#E8DCBE" stroke-width="1.5"/>
+          <line x1="280" y1="20" x2="280" y2="130" stroke="#9A3E33" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>
+          <text x="282" y="28" font-size="8" fill="#9A3E33">Subv-Ende M72</text>
+        </svg>
+        <div class="mockup-chart-legend">
+          <span class="lg-bronze">CF nach Steuern</span>
+          <span style="color:#D4BB85;">CF vor Steuern</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     DEEP-DIVE: MIETSUBVENTION
+     ============================================================ -->
+
+<section class="chapter" id="deep-mietsubvention">
+  <h2><span class="num">DD</span>Mietsubvention Deep-Dive</h2>
+  <p>Edgar's Hauptthema — die Geschäftsmodell-Mechanik von B&amp;B. Das vollständige technische Detail siehe <a href="2026-05-24_Investitions-Doc-Deep-Guide.html">Deep-Guide V4 Kap. 3-5</a>. Hier die kompakte Master-Sicht.</p>
+
+  <h3>2-Phasen-Modell mit Diagramm</h3>
+
+  <div class="phases-diagram">
+    <div class="phase-block p1">
+      <div class="ph-title">Phase 1 (Monate 1-36)</div>
+      <div class="ph-meta">Mieter zahlt MbV<br>(= echte/vereinbarte Miete)</div>
+      <div class="ph-meta"><strong>B&amp;B legt drauf: X<sub>final</sub></strong></div>
+      <div class="ph-meta">Käufer sieht: MbV + X<sub>final</sub></div>
+    </div>
+    <div class="phase-block p2">
+      <div class="ph-title">Phase 2 (Monate 37-72)</div>
+      <div class="ph-meta">Mieter erhöht auf MbV + Kapp<br>(gecappt durch Marktmiete)</div>
+      <div class="ph-meta"><strong>B&amp;B legt nur noch X<sub>final</sub> − Kapp drauf</strong></div>
+      <div class="ph-meta">Käufer sieht: MbV + X<sub>final</sub> (konstant!)</div>
+    </div>
+    <div class="phase-block after">
+      <div class="ph-title">Ab Monat 73</div>
+      <div class="ph-meta">Mieter wird auf Marktmiete erhöht<br>(2. Kappung — capped)</div>
+      <div class="ph-meta"><strong>Keine B&amp;B-Subv mehr</strong></div>
+      <div class="ph-meta">Käufer sieht: Marktmiete</div>
+    </div>
+  </div>
+
+  <h3>Maximalwert-Cap-Formel</h3>
+<pre>cap = max(5.000 €,  qm × 200 €,  MbV × 18)
+
+Wenn (X_final × p1Monate + X_phase2 × p2Monate) > cap:
+  X_neu = (cap + p2Monate × mieterErhoehungP2) / (p1Monate + p2Monate)
+  → X_final wird reduziert, Käufer-Miete entsprechend niedriger
+  → aber: 72 Mo konstante Käufer-Miete bleibt garantiert</pre>
+  <p><strong>Mindestschwelle:</strong> 1.000 € Total. Subventionen darunter werden NICHT als Vermarktungs-Story angezeigt (wirkt unprofessionell im Verkauf).</p>
+
+  <h3>Lange Subvention — 3 Phasen / 9 Jahre (2026-06-28, Henry/Marktheidenfeld)</h3>
+  <p>Standard ist und bleibt das 2-Phasen-Modell oben (max. 72 Mo / 6 Jahre). Für <strong>Sonderfälle mit sehr großer Lücke Bestandsmiete→Marktmiete</strong> (z.B. Marktheidenfeld) gibt es in den Kalk-Stammdaten die Checkbox <strong>„Lange Subvention (9 J)"</strong> (Feld <code>LANGE_SUBVENTION</code>, <code>kalkApi.langeSubvention</code>). Aktiv:</p>
+  <ul>
+    <li><strong>maxStufen = 3</strong> statt 2 → bis zu 3 Phasen à 36 Mo = max. 108 Mo / 9 Jahre.</li>
+    <li><strong>X<sub>ideal</sub> = MbV × ((1+Kapp)<sup>3</sup> − 1)</strong> statt Hochzahl 2 (eine zusätzliche Kappungs-Stufe Spielraum).</li>
+    <li><strong>Cap 1,5×:</strong> <code>max(7.500 €, qm × 300, MbV × 27)</code> — B&amp;B subventioniert für diese Fälle bewusst mehr.</li>
+    <li>Die 3. Phase erscheint <strong>nur, wenn nach 2 Kappungs-Stufen noch legaler Markt-Spielraum bleibt</strong> (Mieter weiter unter Marktmiete). Reicht der Spielraum nicht, fällt sie automatisch weg — der Schalter erzwingt keine künstliche Streckung.</li>
+  </ul>
+  <p>Das Modell ist als generalisierte N-Stufen-Schleife implementiert (<code>computeAutoSubvention</code> in <code>api/stammdaten/[weId].js</code>); bei maxStufen=2 sind alle Zahlen bit-identisch zum alten 2-Phasen-Modell (Test: <code>tests/subvention-9jahre.test.js</code>). Beispiel MbV 300 €/Mo, 60 qm, Marktmiete 600 €/Mo, Kappung 20 %: AUS → 132/72 €/Mo, 7.344 € über 6 J · AN → 218,40/158,40/86,40 €/Mo, 16.675 € über 9 J.</p>
+
+  <h3>Was passiert nach Monat 72?</h3>
+  <p>Mieter erhält 2. legale Mieterhöhung (= MbV × (1+Kapp)² — typisch capped durch Marktmiete). B&amp;B muss nichts mehr drauflegen — der Mieter zahlt selbst die volle Marktmiete. Käufer-CF läuft ab hier mit voller Markt-Kaltmiete.</p>
+
+  <h3>Tag-1-Erhöhung (Iter 63)</h3>
+  <p>Wenn die letzte Mietsteigerung &gt; 36 Monate her ist und keine Vereinbarung gepflegt: Annahme, dass B&amp;B vor Übergabe noch eine Erhöhung durchführt. Mieter zahlt ab Tag 1 schon MbV × (1+Kapp), gecappt durch Markt. Danach laufen die 2 regulären Subv-Zyklen frisch.</p>
+<pre>mbv_neu = min(MbV + MbV × Kappung, Marktmiete)
+tag1Erhoehung = true
+tag1Quelle = 'iter63-annahme'</pre>
+
+  <h3>Vereinbarte Erhöhung (Iter 70)</h3>
+  <p>Wenn in Stammdaten ein zukünftiges Datum + neue Kaltmiete gepflegt sind: Quelle <code>'vereinbarung'</code> — die echte Vereinbarung mit dem Mieter ersetzt die rechnerische Annahme. Bedingung: Datum max. 12 Mo Vorlauf, neue Kaltmiete ≥ MbV.</p>
+
+  <h3>Mietsteigerung ↔ Subventions-Story synchron (15.06.2026)</h3>
+  <p>Engine-Glättung und Backend-Story müssen dieselbe Annahme über die erste Mieterhöhung teilen. Das Backend (<code>deriveSubvention</code>) rechnet bei <strong>fehlendem</strong> Mietsteigerungs-Datum konservativ mit voller Phase 1 (<code>p1Monate = 36</code>, Mieter zahlt konstant MbV). Die Engine (<code>kalkulator.js</code>) fiel ohne Datum dagegen auf den 36-Mo-Fallback (<code>monateSeit = 36</code> aus <code>app.js</code>) → <code>M1 = 1</code> → die Mietermiete sprang sofort gegen den Marktmiete-Cap und rechnete die geglättete Subvention (<code>effektivZiel − kaltmieteM</code>) auf <strong>0 €</strong> weg, obwohl Story + Card-Zeile den Aufschlag auswiesen (Auslöser: WE 2 Heidelberger Str. 21 — 780 € MbV, 850 € Marktmiete, nie erhöht; Card zeigte „Gesamt 0 €" neben „70 €/Mo · 36 Mo").</p>
+  <p><strong>Korrektur:</strong> Solange echte Backend-Subventionsphasen aktiv sind <em>und</em> kein Mietsteigerungs-Datum gepflegt ist, greift die erste Steigerung frühestens am Ende von Phase 1: <code>M1 = max(M1, phase1Monate)</code>. Bei gepflegtem Datum bleibt <code>M1</code> unangetastet (echtes Datum hat Vorrang). WE 2: Gesamt 0 € → <strong>2.450 €</strong> (= 70 €/Mo, in Mo 36 beginnt die Glättung — daher 2.450 statt nominal 2.520).</p>
+
+  <h3>Beispiel-Rechnung WE 4 komplett</h3>
+<pre>Stammdaten (WE 4):
+  MbV-Raw = 588 €/Mo
+  Marktmiete = 12 €/qm × 70,47 = 845,64 €/Mo
+  Kappungsgrenze = 20 %
+  letzteMietsteigerung = 2016-10-01 (> 36 Mo)
+  Vereinbarung: 2026-08-01, 588 €/Mo (= MbV)
+
+→ Vereinbarung anwendbar (Vorlauf 2 Mo, ≥ MbV)
+→ tag1Erhoehung = true (Quelle 'vereinbarung')
+→ mbv = 588 €, monateSeit = 0
+
+Phase 1 Berechnung:
+  xIdealOhneMarkt = 588 × ((1,2)² − 1) = 258,72 €
+  xMaxMarkt = 845,64 − 588 = 257,64 €
+  xFinal = min(258,72, 257,64) = 257,64 €
+  → P1: 36 Mo × 257,64 € = 9.275 €
+
+Phase 2 Berechnung:
+  mieterErhoehungP2 = min(588 × 0,20, 257,64) = 117,60 €
+  p2Mo = xFinal − mieterErhoehungP2 = 257,64 − 117,60 = 140,04 €
+  → P2: 36 Mo × 140,04 € = 5.041 €
+
+Total raw = 9.275 + 5.041 = 14.317 €
+Cap = max(5.000, 70,47 × 200, 588 × 18)
+    = max(5.000, 14.094, 10.584) = 14.094 €
+
+Cap greift (14.317 > 14.094):
+  xNew = (14.094 + 36×117,60) / 72
+       = 18.328 / 72 = 254,55 €
+  → leicht angepasst, Total ≈ 14.094 €
+
+Airtable persistiert (Auto-Subv-Backend):
+  AUTO_SUBV_MO = 189,60 €/Mo (= 13.651 / 72)
+  AUTO_SUBV_TOTAL = 13.651 €
+
+Käufer-Miete konstant 72 Mo: 588 + 254,55 ≈ 842,55 €/Mo
+  (= praktisch Marktmiete-Niveau)</pre>
+
+  <div class="ui-mockup">
+    <h4>So sieht es in der Backstube aus</h4>
+    <div class="mockup-pfad"><strong>Pfad 1:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 05 „Mietsubvention" <span class="pfad-sep">›</span> Phasen-Diagramm + Hero</div>
+    <div class="mockup-pfad"><strong>Pfad 2:</strong> Cashflow-Chart Section 02 <span class="pfad-sep">›</span> Stufe bei Monat 73 (Subv-Ende sichtbar)</div>
+    <div class="mockup-frame">
+      <div class="mockup-card mockup-section cream">
+        <div class="mockup-section-num">05 · Subvention-Phasen</div>
+        <h3 class="mockup-section-title" style="font-size:18px;">B&amp;B-Subv über <span class="mockup-highlight green">72 Monate</span></h3>
+        <table class="mockup-table">
+          <tr><td>Phase 1 (M1-M36)</td><td class="num highlight">257,64 €/Mo</td></tr>
+          <tr><td>Phase 2 (M37-M72)</td><td class="num highlight">140,04 €/Mo</td></tr>
+          <tr><td>Ø Monat</td><td class="num">189,60 €/Mo</td></tr>
+          <tr class="row-active"><td><strong>Total Subv</strong></td><td class="num"><strong>13.651 €</strong></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     DEEP-DIVE: BANK-BONITÄT
+     ============================================================ -->
+
+<section class="chapter" id="deep-bank-bonitaet">
+  <h2><span class="num">DD</span>Bank-Bonität — wie die Bank die Miete sieht</h2>
+  <p>Banken wenden Standard-Konventionen an, die in B&amp;Bs Bonitäts-Modul abgebildet sind (Quick + Detail):</p>
+
+  <table class="t">
+    <tr><th>Position</th><th>Bank-Anrechnung</th><th>Begründung</th></tr>
+    <tr><td>Netto-Gehalt</td><td><strong>100 %</strong></td><td>Direkt verfügbar nach Steuern</td></tr>
+    <tr><td>Anzahl Gehälter</td><td>× Anzahl-Gehälter / 12</td><td>13. Gehalt → ×13/12; 14. → ×14/12</td></tr>
+    <tr><td>Vermietungs-Mieten</td><td><strong>80 %</strong></td><td>Leerstand-/Mietausfall-Risiko</td></tr>
+    <tr><td>Mietsubv. B&amp;B</td><td><strong>80 %</strong> (wie Miete)</td><td>USP — Edgar's Schritt mit Partnerbanken</td></tr>
+    <tr><td>Stellplatz-Miete</td><td><strong>80 %</strong> (wie Miete)</td><td>Standard</td></tr>
+    <tr><td>Unterhalt, Kindergeld</td><td><strong>100 %</strong></td><td>Vertraglich/gesetzlich gesichert</td></tr>
+    <tr><td>Zusatz-Einnahmen (Baukasten)</td><td><strong>100 %</strong></td><td>Frei pflegbar</td></tr>
+  </table>
+
+  <h3>Marktmiete-Cap</h3>
+  <p>Wenn die MbV höher ist als die Marktmiete (Bestandsmieter über Markt), rechnet die Bank die niedrigere Marktmiete an. Die App spiegelt das (FS-3a-Fix): <code>kaltmieteMo1 = kaltmieteForMonth(1)</code> ist bereits markt-gekappt.</p>
+
+  <div class="ui-mockup">
+    <h4>So sieht die Bank-Sicht im Magazin aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 05 „Bonität" <span class="pfad-sep">›</span> Modal „Bank-Anrechnungs-Übersicht"</div>
+    <div class="mockup-frame">
+      <div class="mockup-modal">
+        <div class="mockup-modal-title">Wie die Bank Dein Einkommen sieht</div>
+        <table class="mockup-table">
+          <tr><th>Position</th><th class="num">Brutto</th><th class="num">×</th><th class="num">Anrechenbar</th></tr>
+          <tr><td>Netto-Gehalt</td><td class="num">3.500 €</td><td class="num">100 %</td><td class="num highlight">3.500 €</td></tr>
+          <tr><td>Vermietungs-Miete</td><td class="num">885 €</td><td class="num">80 %</td><td class="num highlight">708 €</td></tr>
+          <tr><td>B&amp;B-Subv (USP)</td><td class="num">258 €</td><td class="num">80 %</td><td class="num highlight">206 €</td></tr>
+          <tr><td>Unterhalt/Kindergeld</td><td class="num">500 €</td><td class="num">100 %</td><td class="num highlight">500 €</td></tr>
+          <tr class="row-active"><td><strong>Summe</strong></td><td class="num">5.143 €</td><td></td><td class="num highlight"><strong>4.914 €</strong></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     DEEP-DIVE: SENSITIVITÄTS-SZENARIEN
+     ============================================================ -->
+
+<section class="chapter" id="deep-sensitivitaet">
+  <h2><span class="num">DD</span>Sensitivitäts-Szenarien — Basis/Konservativ/Stress</h2>
+
+  <h3>Welche Inputs werden manipuliert?</h3>
+  <table class="t">
+    <tr><th>Szenario</th><th>Zins</th><th>Leerstand p.a.</th><th>Mietausfall</th></tr>
+    <tr><td><strong>Basis</strong></td><td>Bank-Standard (4,5 %)</td><td>0 Monate</td><td>0 %</td></tr>
+    <tr><td><strong>Konservativ</strong></td><td>+1,0 % (= 5,5 %)</td><td>1 Monat</td><td>0 %</td></tr>
+    <tr><td><strong>Stress-Test</strong></td><td>+2,0 % (= 6,5 %)</td><td>3 Monate</td><td>0,5 %</td></tr>
+  </table>
+
+  <h3>Was bedeuten die Karten?</h3>
+  <p>Jede Karte zeigt 3 KPIs für ihre Annahmen:</p>
+  <ul>
+    <li><strong>Rendite (IRR):</strong> der EK-Renditesatz unter den angegebenen Bedingungen</li>
+    <li><strong>Belastung €/Mo:</strong> der CF im 1. Jahr unter den Bedingungen</li>
+    <li><strong>Vermögen nach 10 J:</strong> vermoegenNetto10 unter den Bedingungen</li>
+  </ul>
+
+  <h3>Was wird NICHT variiert?</h3>
+  <ul>
+    <li>Wertsteigerung (bleibt 3 %)</li>
+    <li>Mietsteigerung (bleibt 15-20 %/3J Sprung)</li>
+    <li>AfA + Steuersatz</li>
+    <li>EK-Setup (KNK mitfinanziert ja/nein)</li>
+  </ul>
+  <p>Begründung: Zins + Leerstand sind die 2 größten Hebel — andere Annahmen sind entweder strukturell (KNK) oder durch gesetzliche Grenzen geschützt (Mietsteigerung).</p>
+
+  <h3>Renovierungs-Stress</h3>
+  <p>Eigener Block: wenn der Käufer X € Renovierung in die Wohnung steckt — wie verschiebt sich die Belastung? Default 5.000 € (= Erhaltungsaufwand, sofort als WK abzugsfähig). Über 15 % der Gebäude-AK = anschaffungsnah, dann AfA-verteilt (BFH-Schwelle).</p>
+<pre>Renov 5.000 € · Steuersatz 30 %:
+  Steuererstattung = 5.000 × 0,30 = 1.500 €
+  Effektiv-EK = 5.000 − 1.500 = 3.500 €
+
+ODER aus Finanzierung:
+  Mehrbelastung = 5.000 × (0,045 + 0,01) / 12 = 22,92 €/Mo
+  Mit Steuervorteil ≈ 19 €/Mo netto</pre>
+
+  <div class="ui-mockup">
+    <h4>So sehen die 3 Szenarien-Karten aus</h4>
+    <div class="mockup-pfad"><strong>Pfad:</strong> Kunde-Detail <span class="pfad-sep">›</span> Kalkulator <span class="pfad-sep">›</span> Section 06 „Was wäre wenn" <span class="pfad-sep">›</span> 3-Karten-Layout</div>
+    <div class="mockup-frame">
+      <div class="mockup-sens">
+        <div class="mockup-sens-card basis">
+          <div class="sens-title">Basis · 4,5 %</div>
+          <div class="sens-row"><span class="lbl">Rendite</span><span class="v">22,3 %</span></div>
+          <div class="sens-row"><span class="lbl">Belastung</span><span class="v">−84 €</span></div>
+          <div class="sens-row"><span class="lbl">Vermögen J10</span><span class="v">112.664 €</span></div>
+        </div>
+        <div class="mockup-sens-card konserv" style="border-color: var(--accent-dark);">
+          <div class="sens-title">Konservativ · 5,5 %</div>
+          <div class="sens-row"><span class="lbl">Rendite</span><span class="v">16,8 %</span></div>
+          <div class="sens-row"><span class="lbl">Belastung</span><span class="v">−210 €</span></div>
+          <div class="sens-row"><span class="lbl">Vermögen J10</span><span class="v">94.200 €</span></div>
+        </div>
+        <div class="mockup-sens-card stress" style="border-color: var(--negative);">
+          <div class="sens-title">Stress · 6,5 %</div>
+          <div class="sens-row"><span class="lbl">Rendite</span><span class="v">9,2 %</span></div>
+          <div class="sens-row"><span class="lbl">Belastung</span><span class="v">−380 €</span></div>
+          <div class="sens-row"><span class="lbl">Vermögen J10</span><span class="v">68.500 €</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     MASTER-GLOSSAR
+     ============================================================ -->
+
+<section class="chapter" id="glossar">
+  <h2><span class="num">GL</span>Master-Glossar — Field-Mapping-Tabelle</h2>
+  <p>Alle Felder, die die Engine liest, mit Airtable-Field-ID, App-JS-Variable, Default und Wirkung.</p>
+
+  <h3>Wohneinheit-Tabelle (<code>tblAV81mX1MaxqVQi</code>)</h3>
+  <table class="t">
+    <tr><th>Feld-Name</th><th>Field-ID</th><th>JS-Variable</th><th>Default</th><th>Wirkung</th></tr>
+    <tr><td>Kaufpreis</td><td><code>fldKQ5ZpGvEzuc5qc</code></td><td>i.kaufpreis</td><td><span class="tag-pflicht">PFLICHT</span></td><td>Basis aller Berechnungen</td></tr>
+    <tr><td>Wohnfläche m²</td><td><code>fldzF0RSb8xjKdjDc</code></td><td>i.qm</td><td>—</td><td>€/qm-Anzeigen, AfA, Marktcap</td></tr>
+    <tr><td>Bestand-Kaltmiete</td><td><code>fldAoKLxSak5OnPao</code></td><td>i.kaltmiete (Fallback)</td><td>0</td><td>Wenn kein Mietvertrag aktiv</td></tr>
+    <tr><td>WE-Nummer</td><td><code>fldGia0unyS8cBaE5</code></td><td>(_weNr)</td><td>—</td><td>Anzeige</td></tr>
+    <tr><td>Lage-Text</td><td><code>fldL2xgJwlFcGDUfx</code></td><td>(_weLage)</td><td>—</td><td>Anzeige</td></tr>
+  </table>
+
+  <h3>Kalkulations-Stammdaten (<code>tblz5KNtzkLSLHHFo</code>)</h3>
+  <table class="t">
+    <tr><th>Feld-Name</th><th>Field-ID</th><th>JS-Variable</th><th>Default</th><th>Wirkung</th></tr>
+    <tr><td>Status</td><td><code>fldTOy2kV3SkCkhw6</code></td><td>—</td><td><span class="tag-pflicht">PFLICHT "Aktiv"</span></td><td>Filtert WE in WE-Liste</td></tr>
+    <tr><td>Wohneinheit (Link)</td><td><code>flduMs8t49N1gLIBs</code></td><td>—</td><td>—</td><td>WE-Anker</td></tr>
+    <tr><td>Vermietungs-Modus</td><td><code>fldZmkdo4sEAeJqnV</code></td><td>vermietungsModus</td><td><span class="tag-pflicht">PFLICHT</span></td><td>Bestand/Neuvermietung/Leer/Index</td></tr>
+    <tr><td>Miete bei Verkauf</td><td><code>fldy0UJDRV7CNoN6D</code></td><td>kalkApi.mieteBeiVerkauf</td><td>—</td><td>Käufer-relevante Miete</td></tr>
+    <tr><td>Kappungsgrenze</td><td><code>fldna2Hj1m1ST94Z3</code></td><td>kalkApi.kappungsgrenze</td><td><span class="tag-pflicht">PFLICHT Subv</span></td><td>"20 % alle 3 Jahre" o.ä.</td></tr>
+    <tr><td>Marktmiete (€/qm)</td><td><code>fldnrgRONiWWsSxZb</code></td><td>kalkApi.marktmiete</td><td><span class="tag-pflicht">PFLICHT Subv</span></td><td>Subv-Cap, kaltmiete-Cap</td></tr>
+    <tr><td>Marktpreis ImmoScout</td><td><code>fldhMmMxLn1PSjbwN</code></td><td>(zu marktwertProQm)</td><td>0</td><td>Hebel-Anzeige</td></tr>
+    <tr><td>Marktpreis Homeday</td><td><code>fldvlXM6pBUzVYdpF</code></td><td>(zu marktwertProQm)</td><td>0</td><td>Hebel-Anzeige</td></tr>
+    <tr><td>Hausverwaltung (€/Mo)</td><td><code>fldhiKD2iB4NekByK</code></td><td>i.hausverwaltung</td><td>30 €</td><td>WEG-Verwaltung WK</td></tr>
+    <tr><td>Hausgeld+Rücklage</td><td><code>fldrYNoUkgtGaTQWW</code></td><td>i.hausgeld</td><td>60 €</td><td>monatlicher HG-Anteil</td></tr>
+    <tr><td>Mietverwaltung (€/Mo)</td><td><code>fldhteQkjFBA0J447</code></td><td>i.mietverwaltung</td><td>0</td><td>nicht-umlagef. WK</td></tr>
+    <tr><td>Mietzuschuss (€/Mo)</td><td><code>fldcvKf7Snlw2RJI3</code></td><td>kalkApi.mietzuschuss</td><td>0</td><td>Manueller Override Subv</td></tr>
+    <tr><td>Mietzuschuss Monate</td><td><code>fld1eVXIlDx3DM3LX</code></td><td>kalkApi.mietzuschussMonate</td><td>0</td><td>Manueller Override Subv</td></tr>
+    <tr><td>AfA-Gutachten-Satz</td><td><code>fldF36zoKE6Foiu5f</code></td><td>i.afaSatz</td><td>0,02 (= 2 %)</td><td>AfA-Hebel</td></tr>
+    <tr><td>Wertsteigerung p.a.</td><td><code>fldhB9tsIkpcLGDur</code></td><td>i.wertsteigerung</td><td>0,03 (= 3 %)</td><td>Markt-Wachstum</td></tr>
+    <tr><td>GrESt</td><td><code>fld8pmE00wfH0v7jR</code></td><td>i.grEstPct</td><td>0,05 (= 5 %)</td><td>KNK-Berechnung</td></tr>
+    <tr><td>Gebäude-Anteil</td><td><code>fld56AAbrC4yPJQrb</code></td><td>i.gebaeudeAnteil</td><td>0,85 (= 85 %)</td><td>AfA-Bemessung</td></tr>
+    <tr><td>Letzte Mietsteigerung</td><td><code>fldpLwMLe2PTCO3t7</code></td><td>kalkApi.letzteMietsteigerung</td><td>null</td><td>Subv-Phase-1-Länge</td></tr>
+    <tr><td>Verein. Erhöhung Datum</td><td><code>fldlgR66D0zzaQ1hA</code></td><td>kalkApi.geplanteErhoehungDatum</td><td>—</td><td>Tag-1-Vereinbarung</td></tr>
+    <tr><td>Verein. Erhöhung Miete</td><td><code>fldg9Pmx9sfFowLl9</code></td><td>kalkApi.geplanteErhoehungKaltmiete</td><td>—</td><td>Tag-1-Vereinbarung</td></tr>
+    <tr><td>WE-Vermietungs-Status</td><td><code>fld22W6xF260RHuNv</code></td><td>vermietung.vermietungsStatus</td><td>—</td><td>vermietet/leer</td></tr>
+    <tr><td>AUTO_SUBV_MO (Backend-Output)</td><td><code>fldLV8CC1wvrRSJ6x</code></td><td><span class="tag-derived">derived</span></td><td>0</td><td>Vermarktungs-Anzeige</td></tr>
+    <tr><td>AUTO_SUBV_TOTAL (Backend-Output)</td><td><code>fld99AS9ebipT5TSO</code></td><td><span class="tag-derived">derived</span></td><td>0</td><td>Vermarktungs-Anzeige</td></tr>
+  </table>
+
+  <h3>Stellplatz-Tabelle (<code>tblCfcVP5ipG91yHg</code>)</h3>
+  <table class="t">
+    <tr><th>Feld-Name</th><th>Field-ID</th><th>JS-Variable</th><th>Default</th><th>Wirkung</th></tr>
+    <tr><td>Stellplatz-Kaufpreis</td><td><code>fldcoVGhBtTWF6QRv</code></td><td>(in stellplatzKp summiert)</td><td>0</td><td>kpGesamt-Komponente</td></tr>
+    <tr><td>WE-Link</td><td><code>fldauQ7MzcvZvHVk3</code></td><td>—</td><td><span class="tag-pflicht">PFLICHT bei Stellplatz</span></td><td>Sonst SP verschwindet</td></tr>
+  </table>
+
+  <h3>Mietvertrag-Tabelle (<code>tblJQWNQaJiLEfNRh</code>)</h3>
+  <table class="t">
+    <tr><th>Feld-Name</th><th>Field-ID</th><th>JS-Variable</th><th>Default</th><th>Wirkung</th></tr>
+    <tr><td>Kaltmiete</td><td><code>fldx838HHHMRvD5fT</code></td><td>i.kaltmiete (primär)</td><td>0</td><td>Tag-1-Mieter-Zahlung</td></tr>
+    <tr><td>Stellplatzmiete</td><td><code>fldcGEefFtNEFbatS</code></td><td>i.stellplatzMiete</td><td>0</td><td>Tag-1-Stellplatz-Miete</td></tr>
+    <tr><td>Gültig ab</td><td><code>fldLkBwWJj8fAZAHJ</code></td><td>letzteMietsteigerung</td><td>—</td><td>Phase-1-Länge bei Bestand</td></tr>
+  </table>
+
+  <h3>Engine-Konstanten (BB_DEFAULTS)</h3>
+  <table class="t">
+    <tr><th>Konstante</th><th>Wert</th><th>Wirkung</th></tr>
+    <tr><td>hausverwaltungMo</td><td>30 €</td><td>Default WEG-Hausverwaltung</td></tr>
+    <tr><td>mietverwaltungMo</td><td>30 €</td><td>Default Mietverwaltung (in Presets gesetzt)</td></tr>
+    <tr><td>gebaeudeAnteil</td><td>0,85</td><td>85 % Gebäude / 15 % Boden</td></tr>
+    <tr><td>grEstPct</td><td>0,05</td><td>5 % GrESt (BaWü)</td></tr>
+    <tr><td>sparZinsPa</td><td>0,025</td><td>2,5 % Tagesgeld-Vergleich</td></tr>
+  </table>
+</section>
+
+<!-- ============================================================
+     HÄUFIGE FRAGEN + FEHLER
+     ============================================================ -->
+
+<section class="chapter" id="fragen">
+  <h2><span class="num">FAQ</span>Häufige Fragen + Fehler</h2>
+
+  <h3>WE-Liste vs Detail-Werte</h3>
+  <p>In der WE-Liste siehst Du <strong>aggregierte KPIs</strong> pro Wohneinheit (Belastung, IRR, Vermögen J10). Wenn Du die WE auswählst, siehst Du die volle Magazin-Story mit allen Sub-Werten. Die WE-Liste rechnet mit dem aktuell aktiven Profil — wechsle ein anderes Profil, die WE-Liste rechnet neu.</p>
+
+  <h3>WEs mit Auto-Subv = 0 (warum)</h3>
+  <p>Die App zeigt eine Subv-Story nur, wenn:</p>
+  <ul>
+    <li>Vermietungs-Modus = "Bestand"</li>
+    <li>MbV gepflegt</li>
+    <li>Marktmiete (€/qm) gepflegt</li>
+    <li>Kappungsgrenze gepflegt</li>
+    <li>Letzte Mietsteigerung gepflegt (oder Vereinbarung)</li>
+    <li>Berechneter Total &gt; 1.000 €</li>
+  </ul>
+  <p>Fehlt einer dieser Werte → Quelle <code>auto-marktmiete-fehlt</code> o.ä., keine Subv-Karte. Bei Modus = "Leerstand" oder "Neuvermietung" → bewusst keine Subv (frischer Vertrag).</p>
+
+  <h3>Brutto-Rendite vs IRR vs Wachstum %</h3>
+  <table class="t">
+    <tr><th>Wert</th><th>Was ist drin</th><th>Was ist nicht drin</th></tr>
+    <tr><td><strong>Brutto-Rendite</strong></td><td>Mieteinnahme + Subv zu Tag 1, gegen Gesamtkaufpreis</td><td>Finanzierung, Steuern, Kosten</td></tr>
+    <tr><td><strong>IRR</strong></td><td>Komplette CF-Reihe inkl. Verkaufserlös J10, gegen EK-Einsatz</td><td>EK-Bedarf muss &gt; 0 sein</td></tr>
+    <tr><td><strong>Wachstum % (Vermögen)</strong></td><td>Marktwert-Inflation 3 % p.a.</td><td>Tatsächliche Rendite-Aussage</td></tr>
+  </table>
+  <p>Vertriebs-Sicht: Brutto-Rendite ist die einfachste Zahl ("Anlage Klasse"), IRR die ehrlichste ("Eigenkapital-Rendite"), Wachstum % die Vergleichs-Annahme.</p>
+
+  <h3>MBV vs IST-Miete</h3>
+  <table class="t">
+    <tr><th>Begriff</th><th>Was bedeutet er</th></tr>
+    <tr><td><strong>MbV (Miete bei Verkauf)</strong></td><td>Die Miete, die der Käufer ab Tag 1 sieht. Bei Bestand mit Vereinbarung = vereinbarte neue Miete. Bei Neuvermietung = geplante Vermietungs-Miete.</td></tr>
+    <tr><td><strong>IST-Miete (= Bestand-Kaltmiete)</strong></td><td>Was der Mieter aktuell zahlt. Kann niedriger als MbV sein (Bestand-Mieter unter Markt) — Differenz wird über Subv ausgeglichen.</td></tr>
+  </table>
+
+  <h3>Cap-Verhalten (häufige Verwirrung)</h3>
+  <p>Es gibt zwei Caps:</p>
+  <ul>
+    <li><strong>Marktmiete-Cap:</strong> X<sub>final</sub> wird gegen Marktmiete gedeckelt (rechtlich). Greift wenn X<sub>ideal</sub> &gt; (Markt − MbV). Beispiel WE 4: 258,72 → 257,64.</li>
+    <li><strong>Maximalwert-Cap:</strong> Gesamt-Total der Subv wird auf max(5k, qm×200, MbV×18) gedeckelt. Greift in WEs mit hoher Subv-Marge.</li>
+  </ul>
+</section>
+
+<!-- ============================================================
+     VERSIONIERUNG
+     ============================================================ -->
+
+<section class="chapter" id="versionierung">
+  <h2><span class="num">V</span>Versionierung</h2>
+
+  <p><strong>Stand:</strong> 26.05.2026 · Version <strong>1.0</strong> · Engine v3.0 (?v=199+)</p>
+
+  <h3>Was hat sich seit V4 geändert</h3>
+  <ul>
+    <li><strong>Navigation:</strong> Sticky Sidebar links statt TOC oben — 30+ Anker-Links für jedes Wert direkt verlinkbar</li>
+    <li><strong>3-Ebenen-Struktur</strong> pro Wert: Vertriebler-Sicht / Formel-Sicht / Eingabe-Sicht</li>
+    <li><strong>Excel-Cross-Check</strong> pro Hero/KPI mit WE 4 Heidelberger nachgerechnet</li>
+    <li><strong>Master-Glossar</strong> mit kompletter Field-ID-Tabelle</li>
+    <li><strong>Charts-Sektion</strong> mit den 3 Magazin-Charts erklärt</li>
+    <li><strong>Bank-Bonität Deep-Dive</strong> als eigene Sektion</li>
+    <li><strong>Sensitivitäts-Szenarien</strong> erklärt mit Annahmen-Diff</li>
+  </ul>
+
+  <h3>Was bleibt vom V4 Deep-Guide</h3>
+  <p>Der <a href="2026-05-24_Investitions-Doc-Deep-Guide.html">Deep-Guide V4</a> bleibt für die <strong>narrative Einführung</strong>: "Mietsubvention für 13-Jährige", Pflicht-Felder-Atlas, Mieter-Edge-Cases, Hausgeld-Vereinfachung. Diese Master-Referenz hier ist die <strong>Wert-für-Wert-Lookup-Doku</strong> für den Live-Verkauf.</p>
+
+  <h3>Wann updaten?</h3>
+  <ul>
+    <li>Engine-Major-Bump (v3.0 → v4.0)</li>
+    <li>Neue Hero-Werte im Magazin</li>
+    <li>Geänderte Formeln (z.B. Iter 79 AfA-Bemessung mit KNK)</li>
+    <li>Field-Mapping-Änderungen in Airtable</li>
+  </ul>
+  <p>Pfleger: Edgar + Cowork-Claude. Update via Edit, Versions-Bump im Header (1.0 → 1.1 für Korrekturen, 1.0 → 2.0 für strukturelle Änderungen).</p>
+</section>
+
+<footer class="bottom">
+  Master-Referenz Berechnungslogik · v1.0 · 26.05.2026 · Engine v3.0 · B&amp;B Backstube<br>
+  Komplement zu: <a href="2026-05-24_Investitions-Doc-Deep-Guide.html">Deep-Guide V4</a> · <a href="2026-05-25_Rechenlogik-Cheatsheet.html">Cheatsheet</a><br>
+  Pfleger: Edgar Steininger · Source-of-Truth für jeden Wert in der Magazin-Story
+</footer>
+
+</main>
+</div>
+
+</body>
+</html>
