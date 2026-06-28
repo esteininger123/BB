@@ -252,6 +252,11 @@ const KALK_STAMMDATEN_FIELDS = {
   MIETVERWALTUNG_DEF:    'fldhteQkjFBA0J447',
   MIETZUSCHUSS:          'fldcvKf7Snlw2RJI3',
   MIETZUSCHUSS_MONATE:   'fld1eVXIlDx3DM3LX',
+  // 2026-06-28 (Henry/Marktheidenfeld): Checkbox. Aktiv → Auto-Subvention darf bis zu
+  // 3 Phasen / 9 Jahre laufen (statt 2 Phasen / 6 J) und der €-Cap steigt auf 1,5×.
+  // Nur für Sonderfälle mit sehr großer Lücke Bestandsmiete→Marktmiete. Leer = unverändert.
+  // Input-Feld (Henry pflegt in Airtable) — keine Schreib-Richtung im Backend.
+  LANGE_SUBVENTION:      'fldwimu2zz2C8bdjb',
   AFA_GUTACHTEN:         'fldF36zoKE6Foiu5f',
   WERTSTEIGERUNG:        'fldhB9tsIkpcLGDur',
   VERMIETUNGS_MODUS:     'fldZmkdo4sEAeJqnV',

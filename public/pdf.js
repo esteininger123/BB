@@ -189,7 +189,9 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const istGeglaettet = (nominalSum > 0 && r.mietsubventionGesamt && Math.abs(r.mietsubventionGesamt - nominalSum) / nominalSum > 0.05);
   const glaettungsHinweis = istGeglaettet ? ' (über Phasen geglättet)' : '';
   if (phasen.length >= 2) {
-    subvText = `Phase 1 ${fmtMo(phasen[0].mo * _sfP)} × ${phasen[0].monate} Mo · Phase 2 ${fmtMo(phasen[1].mo * _sfP)} × ${phasen[1].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}${glaettungsHinweis}`;
+    // 2026-06-28: alle aktiven Phasen (2 oder 3 bei 9-Jahre-Schalter).
+    subvText = phasen.map((p, idx) => `Phase ${idx + 1} ${fmtMo(p.mo * _sfP)} × ${p.monate} Mo`).join(' · ')
+      + ` · gesamt ${fmt(r.mietsubventionGesamt || 0)}${glaettungsHinweis}`;
   } else if (phasen.length === 1) {
     subvText = `${fmtMo(phasen[0].mo * _sfP)} × ${phasen[0].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
   } else if (i.subventionMo > 0) {
@@ -518,6 +520,17 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <div class="pdf-c-section-num">01 · Das Objekt &amp; Der Plan</div>
       <h2 class="pdf-c-section-title">${belastungTag1Mo >= 0 ? `Diese Wohnung trägt sich ab Tag 1 selbst — Überschuss ${fmtMo(belastungTag1Mo)}.` : `Dein Plan: rund ${fmtMo(Math.abs(belastungTag1Mo))} Eigenleistung ab Tag 1 — und was daraus wird.`}</h2>
       <p class="pdf-c-lead" style="max-width:48ch">${i.qm ? 'Eine ' + i.qm.toString().replace('.', ',') + '-qm-Wohnung' : 'Eine Wohnung'}${(() => { const m = i.mietsteigerungsModus || 'sprung'; if (m === 'staffel') return ', neu vermietet mit Staffelmiete'; if (m === 'index') return ' mit Indexmietvertrag'; if (m === 'keine') return ''; return ' im Bestand'; })()}. ${belastungTag1Mo >= 0 ? 'Die Wohnung trägt sich bereits ab Tag 1 vollständig selbst.' : `Die Wohnung trägt sich zu rund ${selbsttragungPct} % selbst — die fehlenden ${100 - selbsttragungPct} % leistest Du als monatliche Eigenleistung von ${fmtMo(Math.abs(belastungTag1Mo))}, die mit jedem Jahr kleiner wird.`}</p>
+      ${(marktQm > 0 && (r.markteinkaufVorteil || 0) > 0) ? `
+      <div style="margin:4mm 0 1mm;padding:3.5mm 5mm;border:1.4px solid #8E6E3D;border-radius:2.5mm;background:#FBF7EF;display:flex;justify-content:space-between;align-items:center;gap:6mm;">
+        <div style="flex:1 1 auto;">
+          <div style="font-size:8pt;letter-spacing:.16em;text-transform:uppercase;color:#8E6E3D;font-weight:600;">Dein Markteinkauf-Vorteil</div>
+          <div style="font-size:10.5pt;color:#1A1A17;margin-top:1.5mm;line-height:1.4;">Du kaufst zu <strong>${Math.round(kpQm).toLocaleString('de-DE')} €/qm</strong> — der Marktpreis liegt bei <strong>${Math.round(marktQm).toLocaleString('de-DE')} €/qm</strong>. Der Vorteil steckt <strong>im Kaufpreis</strong> und macht Deinen Vermögensaufbau ab Tag 1 belastbar.</div>
+        </div>
+        <div style="text-align:right;flex:0 0 auto;">
+          <div style="font-size:7pt;letter-spacing:.12em;text-transform:uppercase;color:#7A7A72;">Vorteil ab Tag 1</div>
+          <div style="font-size:21pt;font-weight:300;color:#2E7D32;letter-spacing:-.01em;white-space:nowrap;">+ ${fmt(r.markteinkaufVorteil)}</div>
+        </div>
+      </div>` : ''}
       <div class="pdf-c-p2-grid">
         <div class="pdf-c-obj">
           <h4>Objekt</h4>

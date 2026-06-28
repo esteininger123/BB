@@ -1851,7 +1851,18 @@ function _steuersatzInfoBox(kunde, kontext) {
       <summary class="st-help-summary"><span class="st-help-i">i</span> Welcher Steuersatz? — Hilfe &amp; Vorschlag</summary>
       <div class="st-help-body">
         ${vorschlag}
-        <div class="st-help-sub">So schätzt Du den Grenzsteuersatz</div>
+        <div style="margin:10px 0;padding:10px;border:1px solid var(--border,#e5e5e0);border-radius:8px;background:var(--bg-cream-subtle,#fafaf6);">
+          <div class="st-help-sub">Exakt: aus dem zvE der letzten Steuererklärung</div>
+          <p class="st-help-p">Kennt der Kunde sein <strong>zu versteuerndes Einkommen (zvE)</strong> aus dem letzten Steuerbescheid, rechnen wir den Grenzsteuersatz <strong>exakt</strong> (Tarif 2026) statt zu schätzen.</p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0;">
+            <input type="text" inputmode="numeric" id="st-zve-${kontext}" placeholder="zvE €/Jahr, z.B. 55.000" style="flex:1 1 160px;min-width:140px;padding:6px 8px;border:1px solid var(--border,#ccc);border-radius:6px;">
+            <label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;"><input type="checkbox" id="st-zve-split-${kontext}"> verheiratet (Splitting)</label>
+            <button type="button" class="st-help-btn" onclick="window._zveSteuersatz('${kontext}')">Satz berechnen &amp; übernehmen</button>
+            <span id="st-zve-out-${kontext}" class="st-help-satz" style="font-weight:600;"></span>
+          </div>
+          <div class="st-help-disclaimer">zvE = Einkommen nach allen Abzügen (Werbungskosten, Sonderausgaben, Freibeträge) — steht im Steuerbescheid. Gegenprüfen mit dem <a href="https://www.bmf-steuerrechner.de/ekst/eingabeformekst.xhtml" target="_blank" rel="noopener">offiziellen BMF-Steuerrechner</a>.</div>
+        </div>
+        <div class="st-help-sub">Oder schätzen: So schätzt Du den Grenzsteuersatz</div>
         <p class="st-help-p">Gemeint ist der <strong>Grenzsteuersatz</strong> — was der Kunde auf den letzten Euro Einkommen zahlt. Je höher das Einkommen, desto höher.</p>
         <p class="st-help-p"><strong>1. Verheiratet?</strong> Bei gemeinsamer Veranlagung zählt das <strong>gemeinsame</strong> Brutto, und die Schwellen unten <strong>verdoppeln</strong> sich (Ehegatten-Splitting).</p>
         <p class="st-help-p"><strong>2. Grobe Faustregel</strong> nach Brutto-Jahreseinkommen (ledig):</p>
@@ -1881,6 +1892,22 @@ function _applySteuersatz(dez, kontext) {
   toast('Steuersatz ' + pct + ' % übernommen', 'success');
 }
 window._applySteuersatz = _applySteuersatz;
+
+// 2026-06-28 (Henry-Doc): exakter Grenzsteuersatz aus dem zvE der letzten Steuererklärung.
+// Liest das zvE-Feld + Splitting-Checkbox, rechnet via _grenzsteuersatz2026 (Tarif 2026)
+// und übernimmt den auf volle % gerundeten Satz ins passende Feld (Quelle: BMF-Tarif).
+function _zveSteuersatz(kontext) {
+  const inp = document.getElementById('st-zve-' + kontext);
+  const split = document.getElementById('st-zve-split-' + kontext);
+  const zvE = parseInt(((inp && inp.value) || '').replace(/[^\d]/g, ''), 10);
+  if (!isFinite(zvE) || zvE <= 0) { toast('Bitte zu versteuerndes Einkommen (zvE) eingeben', 'error'); return; }
+  const satzPct = Math.round(_grenzsteuersatz2026(zvE, !!(split && split.checked)));
+  const out = document.getElementById('st-zve-out-' + kontext);
+  if (out) out.textContent = '≈ ' + satzPct + ' %';
+  if (satzPct <= 0) { toast('zvE unter Grundfreibetrag → 0 % Grenzsteuersatz', 'info'); return; }
+  _applySteuersatz(satzPct / 100, kontext);
+}
+window._zveSteuersatz = _zveSteuersatz;
 
 // FS-2f BLOCKER (24.05.2026 Bug-Sweep BUG-9): EK + Einkommens-Eingaben aus
 // dem DOM einsammeln BEVOR sie durch _wpRender verschwinden. Sonst tippt
@@ -2849,7 +2876,7 @@ function kalkInputsThemenHtml(i) {
                 <div class="hint">${esc(erlaut || 'Stammdaten unvollständig.')}</div>
                 <ul>
                   <li>Fehlt: <strong>${esc(fehlend)}</strong> (Kalk-Stammdaten)</li>
-                  <li>Wirkung: Käufer sieht reine Bestandsmiete ohne B&amp;B-Aufschlag — kein konstanter Cashflow über 6 Jahre.</li>
+                  <li>Wirkung: Käufer sieht reine Bestandsmiete ohne B&amp;B-Aufschlag — kein konstanter Cashflow über die Subventionsphasen.</li>
                   <li>Fix in Airtable: <a href="${AIRTABLE_LINKS.KALK_STAMMDATEN}" target="_blank" rel="noopener">Stammdaten-Tabelle öffnen</a></li>
                 </ul>
               </div>`;
@@ -3991,9 +4018,12 @@ function renderStories(r) {
       <div class="story-explain">
         Die <strong>ehrliche monatliche Zahl</strong>, die Du einplanst (oder die Dir bleibt, wenn positiv).
         ${(() => {
-          // Mietsubvention 2-Phasen — Du-Form
+          // Mietsubvention 1–3 Phasen — Du-Form
           const phasen = Array.isArray(i.subventionPhasen) ? i.subventionPhasen : [];
           if (phasen.length === 0 && !i.subventionMonate) return '';
+          // 2026-06-28: Gesamt-Laufzeit dynamisch (72 Mo bei 2 Stufen, bis 108 bei 9-J-Schalter).
+          const gesamtMo = phasen.reduce((s, p) => s + (p.monate || 0), 0) || (i.subventionMonate || 0);
+          const gesamtJahre = Math.round(gesamtMo / 12 * 10) / 10;
           const totalEur = r.mietsubventionGesamt || 0;
           const capInfo = state.kalk._subventionCapGreift ? ` <span style="color:var(--badge-mittelphase-fg);">(Maximal-Subvention erreicht — max ${fmt(state.kalk._subventionCapEur)})</span>` : '';
           // Iter 62/63 (20.05.2026): Hinweis-Badges für Vertriebler — Tag-1-Erhöhung
@@ -4022,7 +4052,7 @@ function renderStories(r) {
               // Iter-Audit (22.05.2026): alte Miete im Badge sichtbar machen — der Sprung
               // wird konkret („von 706 auf 800") statt nur das Ziel zu zeigen.
               const altMiete = Math.round((state.kalk._subventionKaltmieteAdjustiert || 0) - (state.kalk._subventionTag1Anhebung || 0));
-              hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#d1e7dd;border-left:3px solid #198754;padding:6px 10px;margin-top:6px;color:#0f5132;font-size:13px;">✓ <strong>Vereinbarung mit Mieter${quelleSuffix}:</strong> Erhöhung von ${altMiete} €/Mo auf ${Math.round(state.kalk._subventionKaltmieteAdjustiert || 0)} €/Mo ab ${datumStr} (+${anhebung} €/Mo)${vorlauf}. Danach 2 reguläre Subv-Zyklen (72 Mo).</span>`);
+              hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#d1e7dd;border-left:3px solid #198754;padding:6px 10px;margin-top:6px;color:#0f5132;font-size:13px;">✓ <strong>Vereinbarung mit Mieter${quelleSuffix}:</strong> Erhöhung von ${altMiete} €/Mo auf ${Math.round(state.kalk._subventionKaltmieteAdjustiert || 0)} €/Mo ab ${datumStr} (+${anhebung} €/Mo)${vorlauf}. Danach laufen die regulären Subv-Zyklen über ${gesamtMo} Mo (${gesamtJahre} J).</span>`);
             } else {
               // Iter-Audit (22.05.2026): konkretes Datum + Monatszahl statt vage
               // „> 3 Jahre her" — das echte Vertrags-Datum ist in _letzteMietsteigerung.
@@ -4037,7 +4067,7 @@ function renderStories(r) {
                   dInfo = `war vor ${mo} Monaten (${monStr})`;
                 }
               }
-              hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#fff3cd;border-left:3px solid #d39e00;padding:6px 10px;margin-top:6px;color:#664d03;font-size:13px;">⚠ <strong>Tag-1-Erhöhung aktiv (rechnerisch):</strong> Die letzte echte Mietsteigerung ${dInfo}. Wir heben den Mieter vor Übergabe um ${anhebung} €/Mo an — Käufer bekommt die schon erhöhte Miete ab Tag 1, danach 2 reguläre Subv-Zyklen (72 Mo).</span>`);
+              hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#fff3cd;border-left:3px solid #d39e00;padding:6px 10px;margin-top:6px;color:#664d03;font-size:13px;">⚠ <strong>Tag-1-Erhöhung aktiv (rechnerisch):</strong> Die letzte echte Mietsteigerung ${dInfo}. Wir heben den Mieter vor Übergabe um ${anhebung} €/Mo an — Käufer bekommt die schon erhöhte Miete ab Tag 1, danach laufen die regulären Subv-Zyklen über ${gesamtMo} Mo (${gesamtJahre} J).</span>`);
             }
           } else if (state.kalk._vereinbarung && !state.kalk._vereinbarung.anwendbar) {
             // Iter 70: Vereinbarung gepflegt aber wegen Vorlaufzeit/Wert nicht angewendet.
@@ -4057,14 +4087,16 @@ function renderStories(r) {
             const mmText = (mmQm > 0 && qm > 0)
               ? ` (Marktmiete ${mmQm.toFixed(2).replace('.', ',')} €/qm × ${qm.toFixed(2).replace('.', ',')} qm = ${Math.round(mmAbs)} €/Mo)`
               : (mmAbs > 0 ? ` (Marktmiete ${Math.round(mmAbs)} €/Mo)` : '');
-            hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#cfe2ff;border-left:3px solid #0d6efd;padding:6px 10px;margin-top:6px;color:#084298;font-size:13px;">ℹ <strong>Marktmiete-Cap auf Phase 2:</strong> Die rechnerische 2. Mieterhöhung würde die Marktmiete überschreiten — wir cappen die Mieter-Erhöhung auf Marktmiete-Niveau${mmText}. Die Käufer-Miete bleibt trotzdem volle 72 Monate konstant.</span>`);
+            hinweise.push(`<span class="subv-hinweis" style="display:inline-block;background:#cfe2ff;border-left:3px solid #0d6efd;padding:6px 10px;margin-top:6px;color:#084298;font-size:13px;">ℹ <strong>Marktmiete-Cap:</strong> Eine rechnerische Mieterhöhung würde die Marktmiete überschreiten — wir cappen die Mieter-Erhöhung auf Marktmiete-Niveau${mmText}. Die Käufer-Miete bleibt trotzdem volle ${gesamtMo} Monate konstant.</span>`);
           }
           const hinweisHtml = hinweise.join('<br>');
           if (phasen.length >= 2) {
-            const p1 = phasen[0], p2 = phasen[1];
+            // 2026-06-28: alle aktiven Phasen auflisten (2 oder 3 bei 9-Jahre-Schalter).
+            const phasenZeilen = phasen.map((p, idx) =>
+              `· ${esc(p.label || ('Phase ' + (idx + 1)))}: <strong>${fmtEurMo(p.mo * _sfStory)}</strong> × ${p.monate} Mo = ${fmt(p.mo * _sfStory * p.monate)}`
+            ).join('<br>');
             return `<p><strong>Deine Mietsubvention gesamt: ${fmt(totalEur)}</strong>${capInfo}<br>
-              · Phase 1: <strong>${fmtEurMo(p1.mo * _sfStory)}</strong> × ${p1.monate} Mo = ${fmt(p1.mo * _sfStory * p1.monate)}<br>
-              · Phase 2: <strong>${fmtEurMo(p2.mo * _sfStory)}</strong> × ${p2.monate} Mo = ${fmt(p2.mo * _sfStory * p2.monate)}<br>
+              ${phasenZeilen}<br>
               ${state.kalk._subventionErlaeuterung ? `<span class="text-tertiary text-small">${esc(state.kalk._subventionErlaeuterung)}</span>` : ''}
               ${hinweisHtml}
             </p>`;
@@ -4467,7 +4499,7 @@ function renderStoryPremium(r) {
             <div class="kalk-c-einsatz-value kalk-c-accent-color">${Math.round(r.mietsubventionGesamt).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></div>
             <div class="kalk-c-einsatz-sub">${(() => {
               const p = Array.isArray(i.subventionPhasen) ? i.subventionPhasen : [];
-              if (p.length >= 2) return `${p[0].monate} + ${p[1].monate} Mo (2 Phasen)`;
+              if (p.length >= 2) return `${p.map(x => x.monate).join(' + ')} Mo (${p.length} Phasen)`;
               if (p.length === 1) return `${p[0].monate} Mo`;
               if (i.subventionMonate) return `${i.subventionMonate} Mo`;
               return 'wirkt in der Anlaufphase';
@@ -4540,6 +4572,8 @@ function renderStoryPremium(r) {
               : 'Die Wohnung trägt einen Teil der laufenden Kosten selbst. Die verbleibende monatliche Eigenleistung schrumpft Jahr für Jahr durch Mietsteigerung und Tilgung.')}
         </div>
       </div>
+      <details class="kalk-c-cf-collapse" ontoggle="window._onCfVerlaufToggle && window._onCfVerlaufToggle(this)">
+        <summary style="cursor:pointer;list-style:none;font-weight:600;color:var(--accent-dark,#8E6E3D);padding:10px 0;border-top:1px solid var(--border,#E8E6DD);"><span class="cf-verlauf-lbl">▸ Cashflow-Verlauf Jahr für Jahr anzeigen</span></summary>
       <div class="kalk-c-two-col">
         <div class="kalk-c-col-chart">
           <div class="kalk-c-chart-frame"><canvas id="chart-c-belastung"></canvas></div>
@@ -4555,6 +4589,7 @@ function renderStoryPremium(r) {
           <div class="kalk-c-meta-line">Annuität ${fmtEurMo(r.annuityMo)} · Steuervorteil ${fmtEurMo(_stVorteilTag0(r))}</div>
         </div>
       </div>
+      </details>
     </section>
     <hr class="kalk-c-rule" />
   `;
@@ -5001,7 +5036,9 @@ function renderStoryPremium(r) {
   // 2026-06-01: Phasen-Aufschlag mit Regler-Faktor mitskalieren (gesamt = echte Engine-Summe)
   const _sfP = (i.subventionFaktor != null && isFinite(i.subventionFaktor)) ? i.subventionFaktor : 1;
   if (phasen.length >= 2) {
-    subvText = `Phase 1: ${fmtEurMo(phasen[0].mo * _sfP)} × ${phasen[0].monate} Mo · Phase 2: ${fmtEurMo(phasen[1].mo * _sfP)} × ${phasen[1].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
+    // 2026-06-28: alle aktiven Phasen (2 oder 3 bei 9-Jahre-Schalter).
+    subvText = phasen.map((p, idx) => `Phase ${idx + 1}: ${fmtEurMo(p.mo * _sfP)} × ${p.monate} Mo`).join(' · ')
+      + ` · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
   } else if (phasen.length === 1) {
     subvText = `${fmtEurMo(phasen[0].mo * _sfP)} × ${phasen[0].monate} Mo · gesamt ${fmt(r.mietsubventionGesamt || 0)}`;
   } else if (i.subventionMo > 0) {
@@ -5160,6 +5197,20 @@ function _belastungSeries(mo, belTag0) {
   }
   return { points, events };
 }
+
+// 2026-06-28 (Henry-Doc): Cashflow-Verlauf standardmäßig eingeklappt ("erstmal minus" —
+// nicht zu früh zeigen). Beim Aufklappen voll neu zeichnen: das Canvas war im zugeklappten
+// <details> 0×0, Chart.js + die Event-Marker müssen mit echter Breite neu gerechnet werden.
+function _onCfVerlaufToggle(el) {
+  const lbl = el.querySelector('.cf-verlauf-lbl');
+  if (lbl) lbl.textContent = el.open
+    ? '▾ Cashflow-Verlauf ausblenden'
+    : '▸ Cashflow-Verlauf Jahr für Jahr anzeigen';
+  if (el.open && typeof state !== 'undefined' && state && state.kalkResult) {
+    requestAnimationFrame(() => { try { _drawCMagazinCharts(state.kalkResult); } catch (e) {} });
+  }
+}
+window._onCfVerlaufToggle = _onCfVerlaufToggle;
 
 function _drawCMagazinCharts(r) {
   if (!window.Chart) return;

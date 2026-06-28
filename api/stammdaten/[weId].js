@@ -385,6 +385,8 @@ function kalkStammRecordToApi(rec) {
     mietverwaltungDefault: num(f[KALK_STAMMDATEN_FIELDS.MIETVERWALTUNG_DEF]),
     mietzuschuss:          num(f[KALK_STAMMDATEN_FIELDS.MIETZUSCHUSS]),
     mietzuschussMonate:    num(f[KALK_STAMMDATEN_FIELDS.MIETZUSCHUSS_MONATE]),
+    // 2026-06-28: Schalter „9 Jahre subventionieren" für Sonderfälle (Marktheidenfeld).
+    langeSubvention:       !!f[KALK_STAMMDATEN_FIELDS.LANGE_SUBVENTION],
     afaGutachten:          num(f[KALK_STAMMDATEN_FIELDS.AFA_GUTACHTEN]),
     wertsteigerung:        num(f[KALK_STAMMDATEN_FIELDS.WERTSTEIGERUNG]),
     vermietungsModus,
@@ -701,12 +703,23 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     }
   }
 
-  const p1Monate = monateSeit !== null ? Math.max(0, 36 - monateSeit) : 36;
-  const p2Monate = 36;
+  // --- 2026-06-28 (Henry/Marktheidenfeld): generalisiertes N-Stufen-Subventionsmodell ---
+  // Standard: 2 Stufen / max. 72 Mo (6 J) — unverändert. Schalter „Lange Subvention (9 J)"
+  // in den Kalk-Stammdaten → 3 Stufen / max. 108 Mo (9 J) + €-Cap 1,5×. Nur für Sonderfälle
+  // mit sehr großer Lücke Bestandsmiete→Marktmiete sinnvoll: ohne genug Markt-Spielraum
+  // fällt die 3. Phase automatisch weg (kein künstliches Strecken). Bei maxStufen=2 sind
+  // alle Zahlen bit-identisch zum alten 2-Phasen-Modell (Backward-Compat verifiziert via Tests).
+  const langeSubvention = !!kalkApi.langeSubvention;
+  const maxStufen = langeSubvention ? 3 : 2;
 
-  // X_ideal = MbV × ((1+Kapp)² − 1)   (= 2 Erhöhungsstufen drauf)
+  const p1Monate = monateSeit !== null ? Math.max(0, 36 - monateSeit) : 36;
+  // Phase-Laufzeiten: Phase 1 = (36 − Mo seit letzter Erhöhung), Phasen 2..N = 36 Mo.
+  const phasenMonate = [p1Monate];
+  for (let k = 2; k <= maxStufen; k++) phasenMonate.push(36);
+
+  // X_ideal = MbV × ((1+Kapp)^maxStufen − 1)   (= maxStufen Erhöhungsstufen Spielraum).
   // Markt-Deckelung: X kann max. (Marktmiete − MbV) sein, sonst rechtl. nicht haltbar.
-  const xIdealOhneMarkt = mbv * ((1 + kappPct) * (1 + kappPct) - 1);
+  const xIdealOhneMarkt = mbv * (Math.pow(1 + kappPct, maxStufen) - 1);
   const xMaxMarkt = marktmiete > 0 ? Math.max(0, marktmiete - mbv) : xIdealOhneMarkt;
   let xFinal = Math.min(xIdealOhneMarkt, xMaxMarkt);
 
@@ -745,64 +758,80 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     });
   }
 
-  // Iter 62 (20.05.2026): Phase 2 läuft IMMER, solange es legalen Markt-Spielraum gibt
-  // (xMaxMarkt > 0). Die alte 10-%-Schwelle ist weg. Wenn die kapp-Erhöhung des Mieters
-  // in Phase 2 die Marktmiete übersteigen würde, wird der Mieter nur auf Marktmiete
-  // erhöht — die Subv in Phase 2 reduziert sich entsprechend, läuft aber volle 36 Monate.
-  const p2Aktiv = xMaxMarkt > 0.01;
+  // Mieter-Mietpfad über die Phasen: Phase 1 = MbV, danach pro Phase eine Kappungs-Stufe
+  // ×(1+Kapp), jeweils gedeckelt durch die Marktmiete (rechtliches Limit). `anhebungBeiPhase`
+  // liefert die kumulierte Mieter-Anhebung über MbV zu Beginn von Phase k (Phase 1 = 0).
+  // B&B-Subvention in Phase k = max(0, xFinal − Anhebung) → Käufer sieht konstant MbV + xFinal.
+  // (Bei maxStufen=2 reproduziert das exakt das alte mieterErhoehungP2-Modell.)
+  let marktStufeGekappt = false;
+  function anhebungBeiPhase(stufeIdx) {
+    let miete = mbv;
+    for (let s = 1; s <= stufeIdx; s++) {
+      const ideal = miete * (1 + kappPct);
+      const gedeckelt = marktmiete > 0 ? Math.min(ideal, marktmiete) : ideal;
+      if (marktmiete > 0 && gedeckelt < ideal - 0.01) marktStufeGekappt = true;
+      miete = gedeckelt;
+    }
+    return miete - mbv;
+  }
 
-  // Mieter-Erhöhung in Phase 2 — gedeckelt durch Marktmiete (rechtlich)
-  const mieterErhoehungP2 = p2Aktiv
-    ? Math.min(mbv * kappPct, marktmiete > 0 ? (marktmiete - mbv) : (mbv * kappPct))
-    : 0;
-  // Iter 62: marktCapGreift = wahr, sobald die Markt-Deckelung eine der beiden
-  // Größen reduziert: entweder den Käufer-Aufschlag X (xFinal < xIdealOhneMarkt)
-  // oder die Mieter-Erhöhung in Phase 2 (mieterErhoehungP2 < mbv * kappPct).
-  const marktCapGreift = p2Aktiv && marktmiete > 0 && (
-    xFinal < xIdealOhneMarkt - 0.01 ||
-    mieterErhoehungP2 < mbv * kappPct - 0.01
-  );
+  // Aktive Phasen + Total für ein gegebenes xFinal. Eine Phase ist aktiv, wenn Laufzeit > 0
+  // UND B&B-Subvention (xFinal − Anhebung) > 0. Anhebung steigt monoton → aktive Phasen sind
+  // immer ein Präfix (sobald eine Phase wegfällt, fallen alle späteren weg).
+  function phasenFuer(xF) {
+    const out = [];
+    let total = 0;
+    for (let idx = 0; idx < maxStufen; idx++) {
+      const monate = phasenMonate[idx];
+      const anhebung = anhebungBeiPhase(idx);
+      const mo = xF - anhebung;
+      if (monate > 0 && mo > 0.01) {
+        out.push({ idx, monate, anhebung, mo });
+        total += mo * monate;
+      } else {
+        break;
+      }
+    }
+    return { phasenRoh: out, total };
+  }
 
-  // Iter 47/48: Effektivmiete bleibt für den Käufer über alle Phasen konstant.
-  // Phase 1: B&B legt vollen Aufschlag (xFinal) drauf — Mieter zahlt noch MbV.
-  // Phase 2: Mieter wird auf MbV + mieterErhoehungP2 erhöht. B&B legt nur noch
-  //          (xFinal − mieterErhoehungP2) drauf — Käufer sieht weiter MbV + xFinal.
-  let p1Mo = xFinal;
-  let p2Mo = p2Aktiv ? Math.max(0, xFinal - mieterErhoehungP2) : 0;
+  let _pf = phasenFuer(xFinal);
+  let phasenRoh = _pf.phasenRoh;
+  let totalEurRaw = _pf.total;
 
-  let p1Eur = p1Mo * p1Monate;
-  let p2Eur = p2Aktiv ? p2Mo * p2Monate : 0;
-  let totalEurRaw = p1Eur + p2Eur;
-
-  // Cap auf den echten Subv-Abfluss
-  // Iter-4 (22.05.2026): Cap erweitert auf qm × 200 (vorher 150) + MbV × 18.
-  // Vorher deckelte qm × 150 die Subv-Story bei grossen WEs zu früh:
-  // z.B. WE10 (83,74 qm) hatte Cap 12.561 €, obwohl der rechtliche Markt-Spielraum
-  // 16.421 € hergegeben hätte. qm × 200 hebt den Cap auf 16.748 € → volle
-  // Story möglich. Bei kleinen WEs (53-66 qm) wirkt der Cap eh nicht, weil die
-  // Subv-Story dort schon natürlich klein ist (kein Cap-Bruch).
-  // MbV × 18 als zusätzliche Obergrenze für WEs mit hoher Miete + kleiner Fläche.
-  // Edgar-Bestätigung 22.05.2026.
-  const cap = Math.max(5000, (weQm || 0) * 200, mbvRaw * 18);
+  // €-Cap auf den echten Subv-Abfluss.
+  // Iter-4 (22.05.2026): Standard-Cap = max(5.000, qm×200, MbV×18). qm×200 statt 150,
+  // damit grosse WEs (z.B. WE10) ihre volle Subv-Story bekommen; MbV×18 als Obergrenze
+  // für WEs mit hoher Miete + kleiner Fläche. Edgar-Bestätigung 22.05.2026.
+  // 2026-06-28: Lange Subvention (9 J) → Cap 1,5× (max. 50 % mehr Phasen → bewusst mehr Spend).
+  const cap = langeSubvention
+    ? Math.max(7500, (weQm || 0) * 300, mbvRaw * 27)
+    : Math.max(5000, (weQm || 0) * 200, mbvRaw * 18);
   let capGreift = false;
   let capDetail = '';
 
   if (totalEurRaw > cap && cap > 0) {
     capGreift = true;
-    // Cap: X so kürzen, dass X×p1 + (X − mieterErhoehungP2)×p2 = Cap
-    // → X = (Cap + p2Monate × mieterErhoehungP2) / (p1Monate + p2Monate)
-    const denom = p1Monate + (p2Aktiv ? p2Monate : 0);
-    if (denom > 0) {
-      const xNew = (cap + (p2Aktiv ? p2Monate * mieterErhoehungP2 : 0)) / denom;
-      xFinal = Math.max(0, xNew);
-      p1Mo = xFinal;
-      p2Mo = p2Aktiv ? Math.max(0, xFinal - mieterErhoehungP2) : 0;
-      p1Eur = p1Mo * p1Monate;
-      p2Eur = p2Aktiv ? p2Mo * p2Monate : 0;
-      totalEurRaw = p1Eur + p2Eur;
-      capDetail = `Maximal-Subvention ${Math.round(cap).toLocaleString('de-DE')} € erreicht. Monatlicher Aufschlag auf ${Math.round(xFinal)} €/Mo angepasst.`;
+    // xFinal so kürzen, dass Σ (xFinal − Anhebung_k)×Monate_k = Cap über die aktiven Phasen.
+    // → xFinal = (Cap + Σ Anhebung_k×Monate_k) / Σ Monate_k. Nach dem Kürzen kann eine späte
+    //   Phase wegfallen (Subv ≤ 0) → neu bestimmen, bis die Phasenzahl stabil ist.
+    for (let runde = 0; runde < maxStufen; runde++) {
+      const denom = phasenRoh.reduce((s, p) => s + p.monate, 0);
+      if (denom <= 0) { xFinal = 0; phasenRoh = []; totalEurRaw = 0; break; }
+      const sumAnhebung = phasenRoh.reduce((s, p) => s + p.anhebung * p.monate, 0);
+      xFinal = Math.max(0, (cap + sumAnhebung) / denom);
+      const next = phasenFuer(xFinal);
+      const stabil = next.phasenRoh.length === phasenRoh.length;
+      phasenRoh = next.phasenRoh;
+      totalEurRaw = next.total;
+      if (stabil) break;
     }
+    capDetail = `Maximal-Subvention ${Math.round(cap).toLocaleString('de-DE')} € erreicht. Monatlicher Aufschlag auf ${Math.round(xFinal)} €/Mo angepasst.`;
   }
+
+  // marktCapGreift = wahr, sobald die Markt-Deckelung etwas reduziert: entweder den Käufer-
+  // Aufschlag X (xFinal < xIdealOhneMarkt) oder eine Mieter-Stufe (in anhebungBeiPhase gesetzt).
+  const marktCapGreift = marktmiete > 0 && (xFinal < xIdealOhneMarkt - 0.01 || marktStufeGekappt);
 
   // Iter-4 (22.05.2026, Henry/Edgar-Vorgabe): Mindestschwelle 1.000 € Total.
   // Subventionen unter 1.000 € werden NICHT als Vermarktungs-Story angezeigt —
@@ -827,21 +856,21 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     });
   }
 
-  const phasen = [];
-  if (p1Monate > 0 && p1Mo > 0) {
-    phasen.push({
-      mo: Math.round(p1Mo * 100) / 100,
-      monate: p1Monate,
-      label: 'Phase 1 (bis zur 1. Mieterhöhung)'
-    });
-  }
-  if (p2Aktiv && p2Monate > 0 && p2Mo > 0) {
-    phasen.push({
-      mo: Math.round(p2Mo * 100) / 100,
-      monate: p2Monate,
-      label: 'Phase 2 (nach 1. Mieterhöhung)'
-    });
-  }
+  // Phasen aus dem generalisierten Builder (1–3 aktive Phasen, je nach Markt-Spielraum + Schalter).
+  const PHASE_LABELS = [
+    'Phase 1 (bis zur 1. Mieterhöhung)',
+    'Phase 2 (nach 1. Mieterhöhung)',
+    'Phase 3 (nach 2. Mieterhöhung)',
+  ];
+  const phasen = phasenRoh.map(p => ({
+    mo: Math.round(p.mo * 100) / 100,
+    monate: p.monate,
+    label: PHASE_LABELS[p.idx] || `Phase ${p.idx + 1}`,
+  }));
+
+  // Gesamt-Laufzeit über alle aktiven Phasen — dynamisch (72 Mo bei 2 Stufen, bis 108 bei 3).
+  const gesamtMonate = phasen.reduce((s, p) => s + p.monate, 0);
+  const gesamtJahre = Math.round(gesamtMonate / 12 * 10) / 10;
 
   // Erläuterung an Dich (Du-Form, direkt an Endkunde).
   const hinweise = [];
@@ -856,9 +885,9 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
       const vorlaufHinweis = vereinbarungInfo.monateBisErhoehung > 1
         ? ` (greift in ${vereinbarungInfo.monateBisErhoehung} Mo — wir rechnen vereinfachend ab Tag 1 mit der neuen Miete)`
         : '';
-      hinweise.push(`Mit dem Mieter ist eine Mieterhöhung auf ${Math.round(mbv)} €/Mo ab ${datumStr} vereinbart${vorlaufHinweis}. Danach laufen die regulären 2 Subv-Zyklen über 72 Monate.`);
+      hinweise.push(`Mit dem Mieter ist eine Mieterhöhung auf ${Math.round(mbv)} €/Mo ab ${datumStr} vereinbart${vorlaufHinweis}. Danach laufen die regulären Subv-Zyklen über ${gesamtMonate} Monate (${gesamtJahre} Jahre).`);
     } else {
-      hinweise.push(`Letzte Mietsteigerung war ${monateSeitRaw} Monate her — wir heben die Miete vor Übergabe um ${Math.round(tag1Anhebung)} €/Mo auf ${Math.round(mbv)} €/Mo an. Danach laufen die regulären 2 Subv-Zyklen über 72 Monate.`);
+      hinweise.push(`Letzte Mietsteigerung war ${monateSeitRaw} Monate her — wir heben die Miete vor Übergabe um ${Math.round(tag1Anhebung)} €/Mo auf ${Math.round(mbv)} €/Mo an. Danach laufen die regulären Subv-Zyklen über ${gesamtMonate} Monate (${gesamtJahre} Jahre).`);
     }
   } else if (vereinbarungInfo && !vereinbarungInfo.anwendbar) {
     // Iter 70: Vereinbarung gepflegt aber nicht (mehr) anwendbar — als Notiz zeigen.
@@ -879,14 +908,12 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     const mmBasis = (marktmieteEurQm > 0 && weQm > 0)
       ? ` (${marktmieteEurQm.toFixed(2).replace('.', ',')} €/qm × ${weQm} qm = ${Math.round(marktmiete)} €/Mo)`
       : ` (${Math.round(marktmiete)} €/Mo)`;
-    hinweise.push(`Die rechnerische 2. Mieterhöhung würde die Marktmiete${mmBasis} überschreiten — wir cappen die Mieter-Erhöhung in Phase 2 auf Marktmiete-Niveau und halten die Käufer-Miete trotzdem über alle 72 Monate konstant.`);
+    hinweise.push(`Die rechnerische nächste Mieterhöhung würde die Marktmiete${mmBasis} überschreiten — wir cappen die Mieter-Erhöhung auf Marktmiete-Niveau und halten die Käufer-Miete trotzdem über alle ${gesamtMonate} Monate konstant.`);
   }
-  const gesamtMonate = p1Monate + (p2Aktiv ? p2Monate : 0);
-  const gesamtJahre = Math.round(gesamtMonate / 12 * 10) / 10;
-  if (p2Aktiv && phasen.length === 2) {
+  if (phasen.length >= 2) {
     hinweise.push(`Deine Mieteinnahme bleibt ${Math.round(mbv + xFinal)} €/Mo konstant über ${gesamtJahre} Jahre — auch wenn sich die Mietzahlung Deines Mieters durch die gesetzliche Erhöhung anpasst.`);
   } else if (phasen.length === 1) {
-    hinweise.push(`Wir stocken Deine Mieteinnahme um ${Math.round(p1Mo)} €/Mo auf, über ${p1Monate} Monate.`);
+    hinweise.push(`Wir stocken Deine Mieteinnahme um ${Math.round(phasen[0].mo)} €/Mo auf, über ${phasen[0].monate} Monate.`);
   }
   if (capDetail) hinweise.unshift(capDetail);
   const erlaeuterung = hinweise.join(' ');
@@ -902,7 +929,7 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   else if (tag1Quelle === 'vereinbarung') quelleLabel = 'auto-vereinbart';
   else if (tag1Erhoehung) quelleLabel = 'auto-tag1-erhoehung';
   else if (marktCapGreift) quelleLabel = 'auto-marktcap-p2';
-  else if (p2Aktiv) quelleLabel = 'auto-2-phasen';
+  else if (phasen.length >= 2) quelleLabel = `auto-${phasen.length}-phasen`;
   else quelleLabel = 'auto-1-phase';
 
   return {
@@ -926,6 +953,10 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     // Iter 70: Vereinbarte Mieterhöhung (für UI-Hinweis + Audit)
     tag1Quelle, // null | 'vereinbarung' | 'iter63-annahme'
     vereinbarung: vereinbarungInfo,
+    // 2026-06-28: 9-Jahre-Schalter + Gesamt-Laufzeit (für UI-Badge + Audit)
+    langeSubvention,
+    gesamtMonate,
+    gesamtJahre,
   };
 }
 
@@ -1108,6 +1139,10 @@ module.exports = async (req, res) => {
           // Iter 70 (21.05.2026): Vereinbarte Mieterhöhung
           subventionTag1Quelle:       subv.tag1Quelle || null, // null | 'vereinbarung' | 'iter63-annahme'
           vereinbarung:               subv.vereinbarung || null, // { datum, monateBisErhoehung, kaltmiete, anwendbar } | null
+          // 2026-06-28: 9-Jahre-Schalter + Gesamt-Laufzeit (für UI-Badge)
+          subventionLange:            subv.langeSubvention || false,
+          subventionGesamtMonate:     subv.gesamtMonate || 0,
+          subventionGesamtJahre:      subv.gesamtJahre || 0,
         },
       });
     }
