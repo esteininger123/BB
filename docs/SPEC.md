@@ -211,3 +211,13 @@ statt der internen Abgabepreise.
 - **Frontend:** Externe landen nach Login auf `#/start` (Erklärseite + Provisions-Slider,
   Nav-Link „Start & Provision", eigene 10-Schritte-Kurztour); Kalkulator-Picker und WE-Liste zeigen Provisions-Hinweise.
 - Bestehende Extern-Sperre bleibt: keine HubSpot-Lead-Suche (`api/hubspot/contacts.js`).
+
+## Marktwert-Quelle (06.07.2026)
+
+Der Marktwert €/qm einer WE ist der **höhere** Wert aus den Kalk-Stammdaten-Feldern
+Marktpreis ImmoScout / Marktpreis Homeday (vorher: Schnitt). Quelle der Wahrheit:
+`computeMarktpreisGemittelt()` in `api/stammdaten/[weId].js` (Name historisch),
+`derived.marktpreisGemitteltQuelle` = `'immoscout' | 'homeday' | 'keine'`.
+Die UI (Kalkulator, Annahmen-Tooltip, Markteinkauf-Story, PDFs) zeigt hinter dem
+Wert „(laut ImmoScout)" bzw. „(laut Homeday)" — Label-Helfer `marktQuelleLabel()`
+in `public/app.js`.

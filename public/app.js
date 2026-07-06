@@ -141,6 +141,20 @@ function stplMieteQuelleLabel(q) {
     'keine':                    '—',
   })[q] || q || '';
 }
+// 06.07.2026 (Henry): Marktwert = HÖHERER Wert aus ImmoScout/Homeday (vorher Schnitt).
+// Label fürs UI — steht überall hinter dem Marktwert. Alte Quellen-Werte
+// ('schnitt'/'nur-is'/'nur-hd', z.B. aus gespeicherten Snapshots) werden mit gemappt.
+function marktQuelleLabel(src) {
+  return ({
+    immoscout: 'laut ImmoScout',
+    homeday:   'laut Homeday',
+    'nur-is':  'laut ImmoScout',
+    'nur-hd':  'laut Homeday',
+    schnitt:   'Ø ImmoScout+Homeday',
+  })[src] || '';
+}
+window.marktQuelleLabel = marktQuelleLabel;
+
 function phaseBadgeClass(phase) {
   if (!phase) return '';
   const p = phase.toLowerCase();
@@ -2747,7 +2761,7 @@ function kalkInputsPaketHtml(i) {
     <details class="kalk-section" ${sec('pmarkt')} data-sec="pmarkt" ontoggle="toggleKalkSection('pmarkt', this)">
       <summary>1 · Marktpreis &amp; Wertentwicklung</summary>
       <div class="grid-1">
-        ${sliderEur('Marktpreis €/qm (Ø ImmoScout + Homeday aus Airtable)', 'marktwertProQm', 0, 8000, 50, '€/qm')}
+        ${sliderEur('Marktpreis €/qm (höherer Wert ImmoScout/Homeday aus Airtable)', 'marktwertProQm', 0, 8000, 50, '€/qm')}
         ${slider('Wertsteigerung p.a.', 'wertsteigerung', 0, 6, 0.25)}
       </div>
       <div style="padding: 4px 14px 14px;">
@@ -2847,7 +2861,7 @@ function kalkInputsThemenHtml(i) {
         ${sliderEur('Kaufpreis Wohnung', 'kaufpreis', 30000, 500000, 500)}
         ${sliderEur('Stellplatz / Garage KP', 'stellplatzKp', 0, 30000, 500)}
         ${sliderEur('Quadratmeter', 'qm', 20, 200, 0.5, 'm²')}
-        ${sliderEur('Marktwert €/qm (Ø ImmoScout + Homeday aus Airtable)', 'marktwertProQm', 0, 8000, 50, '€/qm')}
+        ${sliderEur('Marktwert €/qm (höherer Wert ImmoScout/Homeday aus Airtable)', 'marktwertProQm', 0, 8000, 50, '€/qm')}
         ${slider('Inflation / Wertsteigerung p.a.', 'wertsteigerung', 0, 6, 0.25)}
       </div>
     </details>
@@ -3989,17 +4003,18 @@ function renderStories(r) {
     </div>
   ` : '';
 
-  // Markt-Schnitt-Hinweis (Iter 41.9): IS + HD Werte transparent ausweisen
+  // Markt-Quellen-Hinweis (Iter 41.9 / 06.07.2026 Henry): IS + HD transparent
+  // ausweisen — verwendet wird der HÖHERE der beiden Werte.
   const isPrice = state.kalk._marktpreisIS;
   const hdPrice = state.kalk._marktpreisHD;
   const marktSrc = state.kalk._marktpreisQuelle;
   const marktQuellenHinweis = (isPrice || hdPrice) ? `
     <div class="text-tertiary text-small" style="margin-top:8px;">
-      Markt-Schnitt aus
+      Marktwert-Quellen:
       ${isPrice ? `<strong>ImmoScout ${Math.round(isPrice).toLocaleString('de-DE')} €/qm</strong>` : 'ImmoScout —'}
       ${' · '}
       ${hdPrice ? `<strong>Homeday ${Math.round(hdPrice).toLocaleString('de-DE')} €/qm</strong>` : 'Homeday —'}
-      ${marktSrc === 'schnitt' ? ' (Schnitt beider)' : (marktSrc === 'nur-is' ? ' (nur IS verfügbar)' : (marktSrc === 'nur-hd' ? ' (nur HD verfügbar)' : ''))}
+      ${marktQuelleLabel(marktSrc) ? ` — verwendet wird der höhere Wert (${marktQuelleLabel(marktSrc)})` : ''}
     </div>
   ` : '';
 
@@ -4015,7 +4030,7 @@ function renderStories(r) {
     <div class="story-grid">
       <table class="story-table">
         <tr><td>Dein Kaufpreis / qm</td><td class="num">${Math.round(kpQm).toLocaleString('de-DE')} €/qm</td></tr>
-        <tr><td>Marktpreis / qm</td><td class="num">${Math.round(marktQm).toLocaleString('de-DE')} €/qm</td></tr>
+        <tr><td>Marktpreis / qm${marktQuelleLabel(state.kalk._marktpreisQuelle) ? ` <span class="text-tertiary">(${marktQuelleLabel(state.kalk._marktpreisQuelle)})</span>` : ''}</td><td class="num">${Math.round(marktQm).toLocaleString('de-DE')} €/qm</td></tr>
         <tr><td>Wohnfläche</td><td class="num">${(i.qm || 0).toLocaleString('de-DE')} qm</td></tr>
         <tr><td><strong>${_meVorteilLabel}</strong></td><td class="num ${_vorteilPositiv ? 'pos' : 'neg'}"><strong>${fmt(r.markteinkaufVorteil)}</strong></td></tr>
       </table>
@@ -4503,9 +4518,9 @@ function renderStoryPremium(r) {
             const parts = [];
             if (is) parts.push('ImmoScout: ' + Math.round(is).toLocaleString('de-DE') + ' €/qm');
             if (hd) parts.push('Homeday: ' + Math.round(hd).toLocaleString('de-DE') + ' €/qm');
-            const srcText = src === 'schnitt' ? ' · Anzeige: Schnitt beider' : src === 'nur-is' ? ' · Anzeige: nur ImmoScout' : src === 'nur-hd' ? ' · Anzeige: nur Homeday' : '';
+            const srcText = marktQuelleLabel(src) ? ' · verwendet: höherer Wert (' + marktQuelleLabel(src) + ')' : '';
             return parts.length ? parts.join(' · ') + srcText : 'Marktpreis aus Stammdaten';
-          })()}"><span class="kalk-c-k">Marktpreis je qm</span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') : '—'}<span class="kalk-c-unit">€</span></span></div>
+          })()}"><span class="kalk-c-k">Marktpreis je qm${marktQuelleLabel(state.kalk._marktpreisQuelle) ? ` <span class="text-tertiary">(${marktQuelleLabel(state.kalk._marktpreisQuelle)})</span>` : ''}</span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') : '—'}<span class="kalk-c-unit">€</span></span></div>
           ${r.markteinkaufVorteil ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">${r.markteinkaufVorteil > 0 ? 'Markteinkauf-Vorteil' : 'Markt-Aufschlag'}</span><span class="kalk-c-v ${r.markteinkaufVorteil > 0 ? '' : 'kalk-c-neg'}">${fmt(Math.abs(r.markteinkaufVorteil))}${r.markteinkaufVorteil > 0 ? '' : ' über Markt'}</span></div>` : ''}
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaltmiete</span><span class="kalk-c-v">${Math.round(i.kaltmiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>
           ${i.stellplatzMiete > 0 ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">Stellplatz-Miete</span><span class="kalk-c-v">${Math.round(i.stellplatzMiete).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>` : ''}
@@ -8974,14 +8989,13 @@ function _renderWeListeContent() {
         monateSeit = Math.max(0, Math.round((now - lastDate) / (1000*60*60*24*30.44)));
       }
 
-      // Marktpreis-Schnitt aus derived (sicher) oder selbst rechnen
+      // Marktwert aus derived (sicher) oder selbst rechnen — 06.07.2026 (Henry):
+      // höherer Wert von ImmoScout/Homeday statt Schnitt.
       let marktwertProQm = (derived && derived.marktpreisGemittelt) || 0;
       if (!marktwertProQm) {
         const isP = detailKalk.marktpreisImmoscout || sd.marktpreisImmoscout || 0;
         const hdP = detailKalk.marktpreisHomeday || sd.marktpreisHomeday || 0;
-        if (isP > 0 && hdP > 0) marktwertProQm = (isP + hdP) / 2;
-        else if (isP > 0) marktwertProQm = isP;
-        else if (hdP > 0) marktwertProQm = hdP;
+        marktwertProQm = Math.max(isP, hdP);
       }
 
       // Marktmiete €/qm aus derived (mit Tag-1-Logik) oder Stammdaten
@@ -9370,11 +9384,10 @@ function _renderWeVergleichModal() {
       // Markt-Schnitt
       let marktwertProQm = (derived && derived.marktpreisGemittelt) || 0;
       if (!marktwertProQm) {
+        // 06.07.2026 (Henry): höherer Wert von ImmoScout/Homeday statt Schnitt.
         const isP = sd.marktpreisImmoscout || 0;
         const hdP = sd.marktpreisHomeday || 0;
-        if (isP > 0 && hdP > 0) marktwertProQm = (isP + hdP) / 2;
-        else if (isP > 0) marktwertProQm = isP;
-        else if (hdP > 0) marktwertProQm = hdP;
+        marktwertProQm = Math.max(isP, hdP);
       }
       const marktmieteEurQm = (derived && derived.marktmieteEurQm) || sd.marktmiete || 0;
 

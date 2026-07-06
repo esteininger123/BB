@@ -173,6 +173,10 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
   const belastungTag1Mo = _mieteTag1Disp + _stVorteilTag1Disp - _annuTag1Disp - _rueckVerwTag1Disp;
   const marktQm = parseFloat(i.marktwertProQm) || 0;
   const kpQm = r.kaufpreisProQm || 0;
+  // 06.07.2026 (Henry): Marktwert = höherer Wert ImmoScout/Homeday — Quelle hinter
+  // dem Wert ausweisen. Label-Helfer lebt in app.js (window.marktQuelleLabel).
+  const _marktSrcLabel = (typeof window !== 'undefined' && typeof window.marktQuelleLabel === 'function' && window.state && window.state.kalk)
+    ? window.marktQuelleLabel(window.state.kalk._marktpreisQuelle) : '';
 
   // Subv-Phasen-Text
   // QA-Fix 2026-05-23 (Audit-R1): Engine glättet die Effektivmiete über alle
@@ -524,7 +528,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
       <div style="margin:4mm 0 1mm;padding:3.5mm 5mm;border:1.4px solid #8E6E3D;border-radius:2.5mm;background:#FBF7EF;display:flex;justify-content:space-between;align-items:center;gap:6mm;">
         <div style="flex:1 1 auto;">
           <div style="font-size:8pt;letter-spacing:.16em;text-transform:uppercase;color:#8E6E3D;font-weight:600;">Dein Markteinkauf-Vorteil</div>
-          <div style="font-size:10.5pt;color:#1A1A17;margin-top:1.5mm;line-height:1.4;">Du kaufst zu <strong>${Math.round(kpQm).toLocaleString('de-DE')} €/qm</strong> — der Marktpreis liegt bei <strong>${Math.round(marktQm).toLocaleString('de-DE')} €/qm</strong>. Der Vorteil steckt <strong>im Kaufpreis</strong> und macht Deinen Vermögensaufbau ab Tag 1 belastbar.</div>
+          <div style="font-size:10.5pt;color:#1A1A17;margin-top:1.5mm;line-height:1.4;">Du kaufst zu <strong>${Math.round(kpQm).toLocaleString('de-DE')} €/qm</strong> — der Marktpreis liegt bei <strong>${Math.round(marktQm).toLocaleString('de-DE')} €/qm</strong>${_marktSrcLabel ? ' <span style="color:#7A7A72;">(' + _marktSrcLabel + ')</span>' : ''}. Der Vorteil steckt <strong>im Kaufpreis</strong> und macht Deinen Vermögensaufbau ab Tag 1 belastbar.</div>
         </div>
         <div style="text-align:right;flex:0 0 auto;">
           <div style="font-size:7pt;letter-spacing:.12em;text-transform:uppercase;color:#7A7A72;">Vorteil ab Tag 1</div>
@@ -545,7 +549,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           ${i.stellplatzKp > 0 ? `<div class="pdf-c-obj-row"><span class="k">Stellplatz</span><span class="v">${Math.round(i.stellplatzKp).toLocaleString('de-DE')}<span class="unit">€</span></span></div>` : ''}
           <div class="pdf-c-obj-row"><span class="k">Gesamt</span><span class="v">${Math.round(r.kpGesamt).toLocaleString('de-DE')}<span class="unit">€</span></span></div>
           <div class="pdf-c-obj-row"><span class="k">KP je qm</span><span class="v">${Math.round(kpQm).toLocaleString('de-DE')}<span class="unit">€</span></span></div>
-          ${marktQm > 0 ? `<div class="pdf-c-obj-row"><span class="k">Markt je qm</span><span class="v">${Math.round(marktQm).toLocaleString('de-DE')}<span class="unit">€</span></span></div>` : ''}
+          ${marktQm > 0 ? `<div class="pdf-c-obj-row"><span class="k">Markt je qm${_marktSrcLabel ? ' (' + _marktSrcLabel + ')' : ''}</span><span class="v">${Math.round(marktQm).toLocaleString('de-DE')}<span class="unit">€</span></span></div>` : ''}
 
           <h4>Dein Einsatz</h4>
           <div class="pdf-c-obj-row"><span class="k">Kaufnebenkosten</span><span class="v">${Math.round(knk).toLocaleString('de-DE')}<span class="unit">€${i.knkMitfinanziert ? ' · mitfinanziert' : ''}</span></span></div>

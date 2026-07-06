@@ -963,16 +963,20 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   };
 }
 
-// --- Iter 41.9: Markteinkauf-Hebel Schnitt aus IS+HD ---
+// --- Iter 41.9: Markteinkauf-Hebel aus IS+HD ---
+// 06.07.2026 (Henry): statt Schnitt jetzt der HÖHERE der beiden Portal-Werte.
+// quelle sagt, welches Portal gewonnen hat — die UI zeigt „(laut ImmoScout)"
+// bzw. „(laut Homeday)" hinter dem Marktwert. Bei Gleichstand: ImmoScout.
+// (Funktionsname bleibt wegen Export/Callern — Semantik siehe Kommentar.)
 function computeMarktpreisGemittelt(kalkApi) {
   if (!kalkApi) return { wert: 0, quelle: 'keine' };
   const is = kalkApi.marktpreisImmoscout;
   const hd = kalkApi.marktpreisHomeday;
   const hasIs = is != null && is > 0;
   const hasHd = hd != null && hd > 0;
-  if (hasIs && hasHd) return { wert: Math.round((is + hd) / 2), quelle: 'schnitt' };
-  if (hasIs) return { wert: is, quelle: 'nur-is' };
-  if (hasHd) return { wert: hd, quelle: 'nur-hd' };
+  if (hasIs && hasHd) return (hd > is) ? { wert: hd, quelle: 'homeday' } : { wert: is, quelle: 'immoscout' };
+  if (hasIs) return { wert: is, quelle: 'immoscout' };
+  if (hasHd) return { wert: hd, quelle: 'homeday' };
   return { wert: 0, quelle: 'keine' };
 }
 
