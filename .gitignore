@@ -19,3 +19,5 @@ scripts/.drive-token.txt
 portal-preview*.png
 package-lock.json
 backups/
+.vercel
+.env*
