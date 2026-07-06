@@ -7,14 +7,16 @@
 // Frontend-Stellen (Picker, WE-Liste, Kalkulator, PDF, Snapshots) automatisch konsistent.
 //
 // Formel (Henry, 06.07.2026):
-//   Basis      = Wohnungs-KP + Stellplatz/Garagen-KP   ← Provision rechnet auf den GESAMT-Abgabepreis
-//   Aufschlag  = Satz × Basis                          ← landet aber NUR auf dem Wohnungspreis,
-//                                                        Stellplätze/Garagen sind marktüblich eingepreist
-//   Kundenpreis Wohnung = Wohnungs-KP + Aufschlag
-//   Beispiel: Wohnung 100.000 + Stellplatz 10.000, 7 % → 7 % von 110.000 = 7.700
-//             → Wohnung 107.700, Stellplatz bleibt 10.000.
-// (Der frühere 1-%-Verhandlungsspielraum wurde am 06.07.2026 auf Henrys Wunsch
-//  komplett entfernt — „verwirrt nur".)
+//   Extern-Abgabepreis Wohnung = interner Wohnungs-KP × (1 − 2 %)   ← Externe kaufen 2 % günstiger ein
+//                                                                     (Stellplätze/Garagen bleiben unrabattiert)
+//   Basis      = Extern-Abgabepreis + Stellplatz/Garagen-KP          ← Provision rechnet auf den GESAMT-Abgabepreis
+//   Aufschlag  = Satz × Basis                                        ← landet aber NUR auf dem Wohnungspreis
+//   Kundenpreis Wohnung = Extern-Abgabepreis + Aufschlag
+//   Beispiel: Wohnung intern 100.000 + Stellplatz 10.000, 7 %:
+//             Extern-Abgabepreis 98.000 → 7 % von 108.000 = 7.560 → Wohnung 105.560, Stellplatz bleibt 10.000.
+// Der 2-%-Rabatt ist rein serverseitig — Externe sehen immer nur IHREN Abgabepreis,
+// nie den internen. (Der frühere 1-%-Verhandlungsspielraum wurde am 06.07.2026 auf
+// Henrys Wunsch komplett entfernt — „verwirrt nur".)
 
 const { airtable, listAll } = require('./airtable');
 const { TABLES, VERTRIEBLER_FIELDS, STELLPLATZ_FIELDS, MIETVERTRAG_FIELDS } = require('./tables');
@@ -22,6 +24,7 @@ const { isExtern } = require('./auth');
 const { linkIds, dedupe } = require('./stellplatz');
 
 const PROVISION_MAX = 0.07;   // 7 % — Obergrenze, hart serverseitig
+const EXTERN_RABATT = 0.02;   // 06.07.2026 (Henry): Abgabepreis Wohnung für Externe 2 % unter intern
 
 // Normalisiert einen Provisionssatz: Dezimalwert 0…0.07, auf 4 Nachkommastellen
 // (= 0,01-%-Punkte) gerundet. Ungültiges → 0 (= Abgabepreis, sicherster Fall).
@@ -32,16 +35,18 @@ function clampProvision(v) {
 }
 
 // Rechnet den Extern-Kundenpreis für eine WE. Reine Funktion, keine IO.
+// kpWohnung = INTERNER Abgabepreis der Wohnung — der 2-%-Extern-Rabatt wird hier abgezogen.
 function externPreis(kpWohnung, stellplatzKp, provisionPct) {
-  const kp   = (typeof kpWohnung === 'number' && isFinite(kpWohnung)) ? kpWohnung : 0;
+  const kpIntern = (typeof kpWohnung === 'number' && isFinite(kpWohnung)) ? kpWohnung : 0;
   const stpl = (typeof stellplatzKp === 'number' && isFinite(stellplatzKp)) ? stellplatzKp : 0;
   const prov = clampProvision(provisionPct);
-  const basis = kp + stpl;
+  const kpExtern = Math.round(kpIntern * (1 - EXTERN_RABATT)); // Abgabepreis für Externe (Stellplatz unrabattiert)
+  const basis = kpExtern + stpl;
   const aufschlag = Math.round(prov * basis);      // = Brutto-Provision des Externen in €
   return {
     provisionPct: prov,
     aufschlag,
-    kp: kp + aufschlag,                            // Kundenpreis NUR Wohnung
+    kp: kpExtern + aufschlag,                      // Kundenpreis NUR Wohnung
   };
 }
 
@@ -104,4 +109,4 @@ async function ladeStellplatzKpSummen() {
   return summen;
 }
 
-module.exports = { PROVISION_MAX, clampProvision, externPreis, loadProvisionPct, ladeStellplatzKpSummen };
+module.exports = { PROVISION_MAX, EXTERN_RABATT, clampProvision, externPreis, loadProvisionPct, ladeStellplatzKpSummen };

@@ -1,13 +1,15 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { clampProvision, externPreis, PROVISION_MAX } = require('../api/_lib/extern');
+const { clampProvision, externPreis, PROVISION_MAX, EXTERN_RABATT } = require('../api/_lib/extern');
 
-// 06.07.2026 (Henry): Externe Vertriebler verkaufen zum Kundenpreis =
-// Wohnungs-KP + Satz × (Wohnungs-KP + Stellplatz-KP). Der Aufschlag landet nur
-// auf der Wohnung. (1-%-Spielraum am 06.07.2026 wieder entfernt — verwirrt nur.)
+// 06.07.2026 (Henry): Externe Vertriebler kaufen die Wohnung 2 % unter dem internen
+// Abgabepreis ein (Stellplatz unrabattiert). Kundenpreis = Extern-Abgabepreis +
+// Satz × (Extern-Abgabepreis + Stellplatz-KP), Aufschlag nur auf der Wohnung.
+// (1-%-Spielraum am 06.07.2026 wieder entfernt — verwirrt nur.)
 
-test('Konstante: max 7 %', () => {
+test('Konstanten: max 7 % Provision, 2 % Extern-Rabatt', () => {
   assert.strictEqual(PROVISION_MAX, 0.07);
+  assert.strictEqual(EXTERN_RABATT, 0.02);
 });
 
 test('clampProvision: gültige Werte bleiben, Runden auf 4 Dezimalstellen', () => {
@@ -26,32 +28,30 @@ test('clampProvision: kappt auf 7 %, negativ/ungültig → 0', () => {
   assert.strictEqual(clampProvision(NaN), 0);
 });
 
-test('externPreis: Henrys Beispiel — Wohnung 100k + Stellplatz 10k @ 7 %', () => {
-  // 7 % von 110.000 = 7.700 → Wohnung 107.700.
+test('externPreis: 2 % Rabatt auf die Wohnung — 0 % Provision → 98 % des internen KP', () => {
+  const e = externPreis(100000, 10000, 0);
+  assert.strictEqual(e.aufschlag, 0);
+  assert.strictEqual(e.kp, 98000); // Stellplatz bleibt unrabattiert (separat)
+});
+
+test('externPreis: Henrys Beispiel — intern 100k + Stellplatz 10k @ 7 %', () => {
+  // Extern-Abgabepreis 98.000 → 7 % von (98.000 + 10.000) = 7.560 → Wohnung 105.560.
   const e = externPreis(100000, 10000, 0.07);
-  assert.strictEqual(e.aufschlag, 7700);
-  assert.strictEqual(e.kp, 107700);
+  assert.strictEqual(e.aufschlag, 7560);
+  assert.strictEqual(e.kp, 105560);
   assert.strictEqual(e.provisionPct, 0.07);
 });
 
-test('externPreis: 0 % → Abgabepreis unverändert', () => {
-  const e = externPreis(100000, 10000, 0);
-  assert.strictEqual(e.aufschlag, 0);
-  assert.strictEqual(e.kp, 100000);
-});
-
-test('externPreis: ohne Stellplatz rechnet die Basis nur mit der Wohnung', () => {
+test('externPreis: ohne Stellplatz rechnet die Basis nur mit der (rabattierten) Wohnung', () => {
   const e = externPreis(100000, 0, 0.05);
-  assert.strictEqual(e.aufschlag, 5000);
-  assert.strictEqual(e.kp, 105000);
+  assert.strictEqual(e.aufschlag, 4900); // 5 % von 98.000
+  assert.strictEqual(e.kp, 102900);
 });
 
-test('externPreis: Stellplatz erhöht die Basis, nicht den Stellplatzpreis', () => {
-  // Der Rückgabewert enthält nur den Wohnungs-Kundenpreis — der Stellplatz-KP
-  // wird in den Endpoints unverändert weitergereicht.
+test('externPreis: Stellplatz erhöht die Provisions-Basis UNrabattiert', () => {
   const mit = externPreis(100000, 20000, 0.05);
   const ohne = externPreis(100000, 0, 0.05);
-  assert.strictEqual(mit.aufschlag - ohne.aufschlag, 1000); // 5 % von 20.000
+  assert.strictEqual(mit.aufschlag - ohne.aufschlag, 1000); // 5 % von vollen 20.000
 });
 
 test('externPreis: defensiv bei kaputten Inputs', () => {
@@ -63,5 +63,5 @@ test('externPreis: defensiv bei kaputten Inputs', () => {
 test('externPreis: Satz über Max wird serverseitig gekappt', () => {
   const e = externPreis(100000, 0, 0.5);
   assert.strictEqual(e.provisionPct, 0.07);
-  assert.strictEqual(e.kp, 107000);
+  assert.strictEqual(e.kp, 98000 + Math.round(0.07 * 98000)); // 98.000 + 6.860 = 104.860
 });

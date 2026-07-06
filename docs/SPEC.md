@@ -201,8 +201,9 @@ statt der internen Abgabepreise.
   selbst über die Startseite (`#/start`) → `PATCH /api/me { provisionPct }`
   (nur eigenes Record, nur Rolle Extern, Server kappt hart auf 7 %).
 - **Preisformel** (`api/_lib/extern.js`, Tests in `tests/extern-preis.test.js`):
-  `Aufschlag = Satz × (Wohnungs-KP + Stellplatz/Garagen-KP)`; der Aufschlag landet
-  **nur auf dem Wohnungspreis**, Stellplätze bleiben unverändert (marktüblich eingepreist).
+  `Extern-Abgabepreis = Wohnungs-KP × 0.98` (2 % unter intern, Stellplatz unrabattiert);
+  `Aufschlag = Satz × (Extern-Abgabepreis + Stellplatz/Garagen-KP)`; der Aufschlag landet
+  **nur auf dem Wohnungspreis**. Externe sehen nie den internen Abgabepreis.
   (Der 1-%-Verhandlungsspielraum wurde am 06.07.2026 wieder entfernt.)
 - **Transformierte Endpoints** (nur bei `isExtern(session)`, jeweils `Cache-Control: no-store`):
   `GET /api/wohneinheiten` (lädt dafür Stellplatz-KP-Summen nach),
