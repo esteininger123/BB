@@ -2166,7 +2166,42 @@ function renderTabUebersicht() {
       </div>
     </div>`;
 
-  el.innerHTML = renderKavCockpit(k) + finUebergabeCard + berateneWECard + aktivitaetenCard + notizenCard + renderWunschProfilCard(k) + stammCard;
+  // 06.07.2026 (Henry): Extern-Reservierung sichtbar machen — Status-Karte direkt
+  // unter dem Cockpit (nur wenn der Kunde eine Extern-Reservierung hat). Interne
+  // Vertriebler/Admins sehen hier Unterschrifts-Status + Dokument; die Daten liegen
+  // eingefroren in kunde.saJson.reservierungExtern.
+  const externReservCard = (() => {
+    let sa = k.saJson;
+    if (typeof sa === 'string') { try { sa = JSON.parse(sa); } catch (e) { sa = null; } }
+    const rv = sa && sa.reservierungExtern;
+    if (!rv || !rv.doc) return '';
+    const signiert = rv.signiert && rv.signiert.am;
+    const fmtD = (iso) => { try { return new Date(iso).toLocaleDateString('de-DE'); } catch (e) { return iso || '—'; } };
+    return `
+      <div class="card mt-16" style="border-left:3px solid ${signiert ? 'var(--positive,#2D6E47)' : '#B08A4D'};">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+          <span>Reservierung (Externer Vertrieb)</span>
+          <span style="font-size:12px;font-weight:600;color:${signiert ? 'var(--positive,#2D6E47)' : '#B08A4D'};">
+            ${signiert ? '✍️ Unterschrieben am ' + fmtD(rv.signiert.am) : '⏳ Wartet auf Unterschrift des Kunden'}
+          </span>
+        </div>
+        <div class="text-small" style="line-height:1.7;">
+          ${esc(rv.doc.projektName ? rv.doc.projektName + ' — ' : '')}${esc(rv.doc.lage || '')}${rv.doc.weNr ? ' · WE ' + esc(rv.doc.weNr) : ''}<br>
+          Gesamtkaufpreis <strong>${Math.round(rv.doc.kpGesamt || 0).toLocaleString('de-DE')} €</strong>
+          (Wohnung ${Math.round(rv.doc.kpWohnung || 0).toLocaleString('de-DE')} €${rv.doc.stellplatzKp > 0 ? ' + Stellplatz/Garage ' + Math.round(rv.doc.stellplatzKp).toLocaleString('de-DE') + ' €' : ''})
+          · Reservierung bis <strong>${esc(rv.reservBis || '—')}</strong><br>
+          Erstellt ${fmtD(rv.erstelltAm)} von ${esc(rv.vertrieblerName || '—')} · Käufer: ${esc(rv.kaeufer || '—')}
+        </div>
+        ${signiert && rv.signiert.png ? `<img src="${rv.signiert.png}" alt="Unterschrift Kunde" style="height:44px;margin-top:8px;border-bottom:1px solid var(--border);">` : ''}
+        ${signiert ? `<div class="text-small" style="margin-top:8px;color:#B08A4D;"><strong>→ Kurz-Selbstauskunft prüfen</strong> — 12-Stunden-Vorbehalt läuft ab Unterschrift.</div>` : ''}
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="secondary" style="font-size:12px;" onclick="window._openExternReservDoc()">Dokument öffnen</button>
+          <button class="secondary" style="font-size:12px;" onclick="window._copyExternReservLink()">Kunden-Link kopieren</button>
+        </div>
+      </div>`;
+  })();
+
+  el.innerHTML = renderKavCockpit(k) + externReservCard + finUebergabeCard + berateneWECard + aktivitaetenCard + notizenCard + renderWunschProfilCard(k) + stammCard;
   // Iter 68 (21.05.2026): Auto-Save für Stammdaten — gleiche Logik wie SA-Auto-Save.
   //   Bei jedem `input` wird state.kunde lokal aktualisiert, debounced 600 ms später
   //   das PUT abgesetzt. saveStammdaten ruft syncStammdatenInSa auf, damit die
@@ -6450,6 +6485,29 @@ function openKurzSaModal(sa) {
   });
 }
 window.ensureKurzSelbstauskunft = ensureKurzSelbstauskunft;
+
+// 06.07.2026 (Henry): Extern-Reservierung aus der Kunden-Übersicht öffnen /
+// Link neu kopieren (frischer 14-Tage-Token via /api/reservierung/view-link).
+async function _openExternReservDoc() {
+  try {
+    const resp = await api.post('/api/reservierung/view-link', { kundeId: state.kundeId });
+    window.open(resp.url, '_blank', 'noopener');
+  } catch (e) {
+    toast('Dokument konnte nicht geöffnet werden: ' + (e.message || 'unbekannt'), 'error');
+  }
+}
+window._openExternReservDoc = _openExternReservDoc;
+
+async function _copyExternReservLink() {
+  try {
+    const resp = await api.post('/api/reservierung/view-link', { kundeId: state.kundeId });
+    try { await navigator.clipboard.writeText(resp.url); toast('Link kopiert (14 Tage gültig)', 'success'); }
+    catch (e) { window.prompt('Link manuell kopieren:', resp.url); }
+  } catch (e) {
+    toast('Link konnte nicht erzeugt werden: ' + (e.message || 'unbekannt'), 'error');
+  }
+}
+window._copyExternReservLink = _copyExternReservLink;
 
 // 06.07.2026 (Henry): Extern-Reservierung — Muster + Unterschriften-Link statt
 // PandaDoc. Fragt die Kundenadresse (Pflicht fürs Dokument) und optional einen
