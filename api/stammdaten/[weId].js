@@ -1108,14 +1108,14 @@ module.exports = async (req, res) => {
       // 06.07.2026 (Henry) — Externer Vertrieb: Kundenpreis statt Abgabepreis.
       // Aufschlag = Satz × (Wohnung + Stellplatz), landet nur auf we.kp; das
       // Stellplatz-Aggregat bleibt unverändert (marktüblich eingepreist). Der
-      // extern-Block versorgt die UI (Provision in €, Mindestpreis mit 1-%-Spielraum).
+      // extern-Block versorgt die UI (Provisionssatz + Provision in €).
       let externInfo = null;
       if (isExtern(session)) {
         const prov = await loadProvisionPct(session);
         const e = externPreis(we.kp, stpKaufpreisSumme, prov);
         we.kp = e.kp;
         if (we.qm > 0) we.qmPreis = Math.round((e.kp / we.qm) * 100) / 100;
-        externInfo = { provisionPct: e.provisionPct, aufschlag: e.aufschlag, kpMin: e.kpMin, spielraum: e.spielraum };
+        externInfo = { provisionPct: e.provisionPct, aufschlag: e.aufschlag };
       }
 
       return res.status(200).json({

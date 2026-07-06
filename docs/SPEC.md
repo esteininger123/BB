@@ -203,11 +203,11 @@ statt der internen Abgabepreise.
 - **Preisformel** (`api/_lib/extern.js`, Tests in `tests/extern-preis.test.js`):
   `Aufschlag = Satz × (Wohnungs-KP + Stellplatz/Garagen-KP)`; der Aufschlag landet
   **nur auf dem Wohnungspreis**, Stellplätze bleiben unverändert (marktüblich eingepreist).
-  Zusätzlich immer 1 % der Basis als Verhandlungsspielraum nach unten (`kpMin`).
+  (Der 1-%-Verhandlungsspielraum wurde am 06.07.2026 wieder entfernt.)
 - **Transformierte Endpoints** (nur bei `isExtern(session)`, jeweils `Cache-Control: no-store`):
   `GET /api/wohneinheiten` (lädt dafür Stellplatz-KP-Summen nach),
   `GET /api/stammdaten` (Zeile bekommt `extern`-Block),
-  `GET /api/stammdaten/[weId]` (Response-Feld `extern: {provisionPct, aufschlag, kpMin, spielraum}`).
+  `GET /api/stammdaten/[weId]` (Response-Feld `extern: {provisionPct, aufschlag}`).
 - **Frontend:** Externe landen nach Login auf `#/start` (Erklärseite + Provisions-Slider,
-  Nav-Link „Start & Provision"); Kalkulator-Picker und WE-Liste zeigen Provisions-/Mindestpreis-Hinweise.
+  Nav-Link „Start & Provision", eigene 10-Schritte-Kurztour); Kalkulator-Picker und WE-Liste zeigen Provisions-Hinweise.
 - Bestehende Extern-Sperre bleibt: keine HubSpot-Lead-Suche (`api/hubspot/contacts.js`).

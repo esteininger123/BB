@@ -302,7 +302,7 @@ module.exports = async (req, res) => {
         const e = externPreis(row.we.kp, row.stellplaetze.kaufpreisSumme, prov);
         row.we.kp = e.kp;
         if (row.we.qm > 0) row.we.qmPreis = Math.round((e.kp / row.we.qm) * 100) / 100;
-        row.extern = { provisionPct: e.provisionPct, aufschlag: e.aufschlag, kpMin: e.kpMin, spielraum: e.spielraum };
+        row.extern = { provisionPct: e.provisionPct, aufschlag: e.aufschlag };
       });
       // Preis hängt am jederzeit änderbaren Provisionssatz → 60s-Browser-Cache wäre
       // nach einer Satz-Änderung falsch.

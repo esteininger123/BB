@@ -2502,9 +2502,9 @@ function renderTabKalkulator() {
               ${state.user && state.user.rolle === 'Extern' && i._externInfo ? `
                 <div class="we-extern-info text-small" style="margin-top:6px;padding:6px 10px;border-left:3px solid var(--accent);">
                   ${i._externInfo.provisionPct > 0
-                    ? `Kundenpreis enthält deine Provision: <strong>${(i._externInfo.provisionPct * 100).toLocaleString('de-DE')} % = ${Math.round(i._externInfo.aufschlag).toLocaleString('de-DE')} €</strong><br>`
-                    : `Provisionssatz 0 % — du verkaufst zum Abgabepreis (keine Provision).<br>`}
-                  Verhandlungsspielraum: Mindestpreis <strong>${Math.round(i._externInfo.kpMin).toLocaleString('de-DE')} €</strong> (−1 % der Basis, siehe <a href="#/start">Start &amp; Provision</a>)
+                    ? `Kundenpreis enthält deine Provision: <strong>${(i._externInfo.provisionPct * 100).toLocaleString('de-DE')} % = ${Math.round(i._externInfo.aufschlag).toLocaleString('de-DE')} €</strong>`
+                    : `Provisionssatz 0 % — du verkaufst zum Abgabepreis (keine Provision).`}
+                  · Satz ändern: <a href="#/start">Start &amp; Provision</a>
                 </div>
               ` : ''}
               ${(() => {
@@ -6287,6 +6287,73 @@ function sendInvestDocMail() {
 }
 window.sendInvestDocMail = sendInvestDocMail;
 
+// 06.07.2026 (Henry): E-Mail-Nachtrag im Reservierungs-Flow. Wurde der Kunde ohne
+// E-Mail angelegt, fragt dieses Modal sie ab, speichert sie am Kunden-Record
+// (PUT /api/kunden/[id]) und gibt sie zurück — null bei Abbruch. So ist die
+// digitale Reservierung nie durch eine fehlende E-Mail blockiert.
+function openKundeEmailModal() {
+  return new Promise((resolve) => {
+    const existing = document.getElementById('bbk-kunde-email-modal');
+    if (existing) existing.remove();
+    const kundeName = (((state.kunde && state.kunde.vorname) || '') + ' ' + ((state.kunde && state.kunde.nachname) || '')).trim() || 'diesen Kunden';
+    const ov = document.createElement('div');
+    ov.id = 'bbk-kunde-email-modal';
+    ov.setAttribute('role', 'dialog');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9998;background:rgba(26,26,23,0.5);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit;';
+    ov.innerHTML = `
+      <div style="background:#FBFAF7;border-radius:14px;max-width:520px;width:100%;padding:28px 32px;box-shadow:0 30px 80px rgba(0,0,0,0.25);border:1px solid #C9A572;">
+        <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#8E6E3D;font-weight:600;margin-bottom:8px;">Reservierung digital senden</div>
+        <h3 style="font-size:20px;font-weight:300;letter-spacing:-.01em;margin:0 0 10px 0;color:#1A1A17;">E-Mail-Adresse für ${esc(kundeName)} fehlt noch</h3>
+        <p style="font-size:13px;color:#6B6B64;margin:0 0 16px 0;line-height:1.5;">Die Reservierung geht zur digitalen Unterschrift an den Kunden. Trag seine E-Mail-Adresse ein — sie wird direkt am Kunden gespeichert.</p>
+        <input id="bbk-kunde-email-input" type="email" placeholder="kunde@beispiel.de" autocomplete="off"
+               style="width:100%;padding:10px 12px;font-size:14px;border:1px solid #D8D4CB;border-radius:6px;background:#fff;color:#1A1A17;margin-bottom:6px;">
+        <div id="bbk-kunde-email-error" style="font-size:12px;color:#9A3E33;min-height:16px;margin-bottom:10px;"></div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <button type="button" id="bbk-kunde-email-cancel" class="secondary">Abbrechen</button>
+          <button type="button" id="bbk-kunde-email-save">Speichern &amp; senden</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+    const input = ov.querySelector('#bbk-kunde-email-input');
+    const errEl = ov.querySelector('#bbk-kunde-email-error');
+    const btnSave = ov.querySelector('#bbk-kunde-email-save');
+    const btnCancel = ov.querySelector('#bbk-kunde-email-cancel');
+    const close = (val) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') close(null);
+      if (e.key === 'Enter') btnSave.click();
+    };
+    document.addEventListener('keydown', onKey);
+    btnCancel.addEventListener('click', () => close(null));
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(null); });
+    btnSave.addEventListener('click', async () => {
+      const email = (input.value || '').trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+        errEl.textContent = 'Bitte eine gültige E-Mail-Adresse eingeben.';
+        input.focus();
+        return;
+      }
+      btnSave.disabled = true;
+      btnSave.textContent = 'Speichere …';
+      try {
+        await api.put('/api/kunden/' + state.kundeId, { email });
+        if (state.kunde) state.kunde.email = email;
+        const inListe = (state.kunden || []).find(k => k.id === state.kundeId);
+        if (inListe) inListe.email = email;
+        toast('E-Mail-Adresse am Kunden gespeichert', 'success');
+        close(email);
+      } catch (e2) {
+        errEl.textContent = 'Speichern fehlgeschlagen: ' + (e2.message || 'unbekannt');
+        btnSave.disabled = false;
+        btnSave.textContent = 'Speichern & senden';
+      }
+    });
+    setTimeout(() => input.focus(), 50);
+  });
+}
+window.openKundeEmailModal = openKundeEmailModal;
+
 // QA-Fix 2026-05-23 (Audit-X4): Doppelklick-Schutz. Vorher erzeugte ein versehentlicher
 // 2. Klick einen zweiten PandaDoc-Vorgang → 2 Docs, doppelte Reservierung, Verwirrung
 // beim Kunden. Jetzt: bool-Lock + Button-Disable für die Dauer des Calls.
@@ -6310,10 +6377,12 @@ async function sendReservierungForSignature() {
     toast('Pakete werden bei der digitalen Reservierung noch nicht unterstützt — bitte einzelne WE auswählen', 'error');
     return;
   }
-  const kundeEmail = state.kunde && state.kunde.email;
+  // 06.07.2026 (Henry): Fehlende Kunden-E-Mail ist kein Blocker mehr — sie wird
+  // direkt hier abgefragt, am Kunden gespeichert und der Versand läuft weiter.
+  let kundeEmail = state.kunde && state.kunde.email;
   if (!kundeEmail) {
-    toast('Kunde hat keine E-Mail-Adresse in Airtable — bitte ergänzen', 'error');
-    return;
+    kundeEmail = await openKundeEmailModal();
+    if (!kundeEmail) return; // abgebrochen — kein Versand
   }
 
   // Kontext für Modal
@@ -9542,12 +9611,11 @@ window._weListeOpenWe = _weListeOpenWe;
 
 // ===== MODUL: views/extern-start (Startseite externer Vertrieb, 06.07.2026 Henry) =====
 // Erklärt Externen das Preismodell (Abgabepreis bei 0 %, Provisionsaufschlag auf den
-// Wohnungspreis, 1-%-Spielraum) und lässt sie ihren Provisionssatz (0–7 %) einstellen.
+// Wohnungspreis) und lässt sie ihren Provisionssatz (0–7 %) einstellen.
 // Die Preistransformation selbst passiert serverseitig (api/_lib/extern.js) — nach dem
 // Speichern werden alle Daten neu geladen, damit überall der neue Kundenpreis steht.
 
 const EXTERN_PROVISION_MAX_PCT = 7;   // muss zu PROVISION_MAX (0.07) im Backend passen
-const EXTERN_SPIELRAUM_PCT = 1;       // 1 % der Basis, nur Anzeige — Quelle: Backend
 
 function _externFmtEur(v) {
   return Math.round(v).toLocaleString('de-DE') + ' €';
@@ -9558,7 +9626,7 @@ function _externBeispiel(provPct) {
   const kp = 100000, stpl = 10000;
   const basis = kp + stpl;
   const aufschlag = Math.round((provPct / 100) * basis);
-  return { kp, stpl, basis, aufschlag, kundenpreis: kp + aufschlag, spielraum: Math.round(basis * EXTERN_SPIELRAUM_PCT / 100) };
+  return { kp, stpl, basis, aufschlag, kundenpreis: kp + aufschlag };
 }
 
 function _externUpdatePreview() {
@@ -9575,7 +9643,6 @@ function _externUpdatePreview() {
       <tr><td>Stellplatz/Garage (bleibt fix)</td><td style="text-align:right;">${_externFmtEur(b.stpl)}</td></tr>
       <tr><td>Deine Provision: ${p.toLocaleString('de-DE')} % von ${_externFmtEur(b.basis)}</td><td style="text-align:right;"><strong>+ ${_externFmtEur(b.aufschlag)}</strong></td></tr>
       <tr style="border-top:1px solid var(--border);"><td><strong>Kundenpreis Wohnung</strong></td><td style="text-align:right;"><strong>${_externFmtEur(b.kundenpreis)}</strong></td></tr>
-      <tr><td class="text-tertiary">Verhandlungsspielraum (−1 % der Basis)</td><td style="text-align:right;" class="text-tertiary">bis ${_externFmtEur(b.kundenpreis - b.spielraum)}</td></tr>
     `;
   }
 }
@@ -9628,11 +9695,6 @@ function renderExternStart() {
         </table>
       </div>
 
-      <div class="card" id="extern-spielraum-card" style="margin-bottom:16px;">
-        <div class="card-title">3 · Dein Verhandlungsspielraum: 1 %</div>
-        <p style="margin:0;line-height:1.55;">Unabhängig davon, welchen Provisionssatz du wählst, hast du immer <strong>1&nbsp;% des Gesamt-Abgabepreises als Spielraum nach unten</strong> — um dem Kunden entgegenzukommen oder den Abschluss rundzumachen. Den Mindestpreis pro Wohnung zeigt dir der Kalkulator direkt an. Tiefer als dieser Mindestpreis geht es nicht.</p>
-      </div>
-
       <div class="card" id="extern-prov-card" style="margin-bottom:16px;border-left:3px solid var(--accent);">
         <div class="card-title">Deine Provision einstellen</div>
         <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:8px 0 4px;">
@@ -9671,7 +9733,7 @@ function render() {
   else if (state.view === 'extern-start') {
     renderExternStart();
     // Extern-Kurztour startet automatisch beim ersten Login — auf der Startseite,
-    // wo Schritt 0-2 (Provision + Spielraum) zuhause sind.
+    // wo Schritt 0-1 (Willkommen + Provision) zuhause sind.
     if (typeof maybeStartTourOnFirstLogin === 'function') {
       try { maybeStartTourOnFirstLogin(); } catch {}
     }
@@ -10122,29 +10184,22 @@ const EXTERN_TOUR_STEPS = [
     needsView: 'extern-start',
   },
   {
-    title: 'Schritt 2 — Dein 1-%-Spielraum',
-    action: 'Merken: Unabhängig vom gewählten Satz darfst du immer bis zu 1 % des Gesamt-Abgabepreises unter den angezeigten Preis gehen, um dem Kunden entgegenzukommen.',
-    tip: 'Den konkreten Mindestpreis pro Wohnung zeigt dir später der Kalkulator direkt an — tiefer geht es nicht.',
-    target: '#extern-spielraum-card',
-    needsView: 'extern-start',
-  },
-  {
-    title: 'Schritt 3 — Die Wohnungsliste',
+    title: 'Schritt 2 — Die Wohnungsliste',
     action: 'Geh oben auf „Wohnungen". Hier siehst du alle Einheiten im Verkauf mit Kennzahlen — alle Kaufpreise sind bereits DEINE Kundenpreise inklusive deiner Provision.',
     tip: 'Reservierte Einheiten und Notartermine sind markiert. Klick auf eine Zeile öffnet direkt die Kalkulation.',
     target: 'a[href="#/we-liste"]',
     needsView: 'we-liste',
   },
   {
-    title: 'Schritt 4 — Kunden anlegen',
+    title: 'Schritt 3 — Kunden anlegen',
     action: 'Geh auf „Meine Kunden" und klick „+ Neuer Kunde". Zum Ausprobieren kannst du dich selbst mit deiner echten E-Mail-Adresse anlegen.',
-    tip: 'Pflichtfelder: Vorname, Nachname, E-Mail. Deine Kunden siehst nur du.',
+    tip: 'Deine Kunden siehst nur du. Die E-Mail brauchst du spätestens für die digitale Reservierung — du kannst sie aber auch dann noch nachtragen.',
     target: 'button[onclick*="createNewKunde"]',
     needsView: 'dashboard',
     detectCompleted: () => !!state.kundeId,
   },
   {
-    title: 'Schritt 5 — Kalkulator öffnen',
+    title: 'Schritt 4 — Kalkulator öffnen',
     action: 'Wechsle beim Kunden in den Tab „Kalkulator" und wähle oben Projekt und Wohneinheit.',
     tip: 'Der Kalkulator rechnet die komplette Kapitalanlage durch: Finanzierung, Cashflow, Steuer, Vermögensaufbau.',
     target: '#projekt-select',
@@ -10153,15 +10208,15 @@ const EXTERN_TOUR_STEPS = [
     detectCompleted: () => !!(state.kalk && state.kalk._weId),
   },
   {
-    title: 'Schritt 6 — Dein Kundenpreis im Detail',
-    action: 'Direkt unter der Wohnungsauswahl steht deine Provisions-Info: wie viel Provision im Preis steckt (in €) und der Mindestpreis mit deinem 1-%-Spielraum.',
+    title: 'Schritt 5 — Dein Kundenpreis im Detail',
+    action: 'Direkt unter der Wohnungsauswahl steht deine Provisions-Info: wie viel Provision (in €) in deinem Kundenpreis steckt.',
     tip: 'Der Kaufpreis in der Kalkulation ist immer schon der Kundenpreis — du musst nichts selbst aufschlagen.',
     target: '.we-extern-info',
     needsView: 'kunde',
     needsTab: 'kalkulator',
   },
   {
-    title: 'Schritt 7 — Die wichtigste Zahl',
+    title: 'Schritt 6 — Die wichtigste Zahl',
     action: 'Scroll zur großen Headline: der monatliche Eigenaufwand des Kunden. Darunter folgen Cashflow-Verlauf, Steuerersparnis und Vermögensaufbau.',
     tip: 'Über „Annahmen" siehst du jederzeit, mit welchen Werten gerechnet wird.',
     target: '.kalk-c-hero-headline',
@@ -10169,7 +10224,7 @@ const EXTERN_TOUR_STEPS = [
     needsTab: 'kalkulator',
   },
   {
-    title: 'Schritt 8 — Investitionsrechnung als PDF',
+    title: 'Schritt 7 — Investitionsrechnung als PDF',
     action: 'Über die Toolbar erzeugst du die Investitionsrechnung als PDF — fertig fürs Kundengespräch oder zum Mailen.',
     tip: 'Das PDF zeigt selbstverständlich deine Kundenpreise.',
     target: '.toolbar button[onclick*="openInvestDocModal"]',
@@ -10177,8 +10232,16 @@ const EXTERN_TOUR_STEPS = [
     needsTab: 'kalkulator',
   },
   {
-    title: '🎉 Schritt 9 — Reservierung & los geht\'s',
-    action: 'Will dein Kunde kaufen, sendest du ihm die Reservierung direkt aus der App zur digitalen Unterschrift. Danach läuft die Abwicklung gemeinsam mit B&B. Du bist startklar!',
+    title: 'Schritt 8 — Reservierung digital senden',
+    action: 'Will dein Kunde kaufen: Klick in der Toolbar auf „Reservierung digital senden". Die Reservierung geht zur digitalen Unterschrift an die E-Mail des Kunden.',
+    tip: 'Fehlt die E-Mail des Kunden noch, fragt die App sie an dieser Stelle einfach ab und speichert sie am Kunden.',
+    target: 'button[onclick*="sendReservierungForSignature"]',
+    needsView: 'kunde',
+    needsTab: 'kalkulator',
+  },
+  {
+    title: '🎉 Schritt 9 — Du bist startklar',
+    action: 'Das war\'s: Provision einstellen → Wohnung wählen → Kalkulation zeigen → PDF senden → digital reservieren. Nach der Reservierung läuft die Abwicklung gemeinsam mit B&B.',
     tip: 'Provision ändern: jederzeit unter „Start & Provision". Tour neu starten: „?" oben rechts. Bei Fragen → dein B&B-Kontakt.',
     target: null,
     needsView: null,
@@ -10453,6 +10516,14 @@ function _renderTour() {
 
   const targetEl = (viewMatches && tabMatches && step.target) ? document.querySelector(step.target) : null;
 
+  // 06.07.2026 (Henry, Extern-Tour Schritt „Kundenpreis"): Wenn die View stimmt,
+  // aber das Target noch fehlt (z.B. Provisions-Info erscheint erst NACH dem
+  // asynchronen Laden der Wohneinheit), kurz nachschauen bis es da ist. Sonst
+  // bleibt die Tour auf einem veralteten „Element nicht sichtbar"-Stand hängen.
+  if (viewMatches && tabMatches && step.target && !targetEl) {
+    setTimeout(() => _tourRerender(), 600);
+  }
+
   // Bei View-Mismatch: klarer Block + Auto-Hinbringen
   let viewMismatchBlock = '';
   if (!viewMatches && last) {
@@ -10543,9 +10614,13 @@ function _renderTour() {
     ov.className = 'bbk-tour-overlay';
     document.body.appendChild(ov);
   }
-  // Bei nicht-passender View ODER ohne Target: kompletter dunkler Backdrop
-  // (kein Spotlight möglich, also den ganzen Screen abdunkeln).
-  ov.classList.toggle('bbk-tour-overlay-full', !targetEl);
+  // Dunkler Backdrop NUR bei falscher View/Tab („Hinbringen"-Situation).
+  // 06.07.2026 (Henry): Vorher wurde auch bei fehlendem Target abgedunkelt —
+  // dann wirkte die App blockiert, obwohl der User gerade die vom Step
+  // geforderte Aktion ausführen soll (z.B. Wohneinheit wählen, damit die
+  // Provisions-Info erscheint). Bei passender View bleibt die App jetzt
+  // immer voll sicht- und bedienbar.
+  ov.classList.toggle('bbk-tour-overlay-full', !viewMatches || !tabMatches);
 
   // Spotlight + Scroll
   if (targetEl) {

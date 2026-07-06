@@ -13,8 +13,8 @@
 //   Kundenpreis Wohnung = Wohnungs-KP + Aufschlag
 //   Beispiel: Wohnung 100.000 + Stellplatz 10.000, 7 % → 7 % von 110.000 = 7.700
 //             → Wohnung 107.700, Stellplatz bleibt 10.000.
-// Zusätzlich hat jeder Externe — unabhängig vom Satz — 1 % der Basis als
-// Verhandlungsspielraum nach unten (kpMin), um dem Kunden entgegenzukommen.
+// (Der frühere 1-%-Verhandlungsspielraum wurde am 06.07.2026 auf Henrys Wunsch
+//  komplett entfernt — „verwirrt nur".)
 
 const { airtable, listAll } = require('./airtable');
 const { TABLES, VERTRIEBLER_FIELDS, STELLPLATZ_FIELDS, MIETVERTRAG_FIELDS } = require('./tables');
@@ -22,7 +22,6 @@ const { isExtern } = require('./auth');
 const { linkIds, dedupe } = require('./stellplatz');
 
 const PROVISION_MAX = 0.07;   // 7 % — Obergrenze, hart serverseitig
-const SPIELRAUM_PCT = 0.01;   // 1 % der Basis als Verhandlungsspielraum nach unten
 
 // Normalisiert einen Provisionssatz: Dezimalwert 0…0.07, auf 4 Nachkommastellen
 // (= 0,01-%-Punkte) gerundet. Ungültiges → 0 (= Abgabepreis, sicherster Fall).
@@ -39,14 +38,10 @@ function externPreis(kpWohnung, stellplatzKp, provisionPct) {
   const prov = clampProvision(provisionPct);
   const basis = kp + stpl;
   const aufschlag = Math.round(prov * basis);      // = Brutto-Provision des Externen in €
-  const kpExtern = kp + aufschlag;                 // Kundenpreis NUR Wohnung
-  const spielraum = Math.round(SPIELRAUM_PCT * basis);
   return {
     provisionPct: prov,
     aufschlag,
-    kp: kpExtern,
-    kpMin: Math.max(kpExtern - spielraum, 0),      // Untergrenze mit 1-%-Spielraum
-    spielraum,
+    kp: kp + aufschlag,                            // Kundenpreis NUR Wohnung
   };
 }
 
@@ -109,4 +104,4 @@ async function ladeStellplatzKpSummen() {
   return summen;
 }
 
-module.exports = { PROVISION_MAX, SPIELRAUM_PCT, clampProvision, externPreis, loadProvisionPct, ladeStellplatzKpSummen };
+module.exports = { PROVISION_MAX, clampProvision, externPreis, loadProvisionPct, ladeStellplatzKpSummen };

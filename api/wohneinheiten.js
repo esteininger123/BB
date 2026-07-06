@@ -286,7 +286,7 @@ module.exports = async (req, res) => {
         const e = externPreis(w.kp, stplKpByWe[w.id] || 0, prov);
         w.kp = e.kp;
         if (w.qm > 0) w.qmPreis = Math.round((e.kp / w.qm) * 100) / 100;
-        w.extern = { provisionPct: e.provisionPct, aufschlag: e.aufschlag, kpMin: e.kpMin, spielraum: e.spielraum };
+        w.extern = { provisionPct: e.provisionPct, aufschlag: e.aufschlag };
       });
       // Preis hängt am jederzeit änderbaren Provisionssatz → nicht cachen.
       res.setHeader('Cache-Control', 'no-store');
