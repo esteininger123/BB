@@ -221,3 +221,21 @@ Marktpreis ImmoScout / Marktpreis Homeday (vorher: Schnitt). Quelle der Wahrheit
 Die UI (Kalkulator, Annahmen-Tooltip, Markteinkauf-Story, PDFs) zeigt hinter dem
 Wert „(laut ImmoScout)" bzw. „(laut Homeday)" — Label-Helfer `marktQuelleLabel()`
 in `public/app.js`.
+
+## Extern-Reservierung ohne PandaDoc (06.07.2026)
+
+Externe Vertriebler reservieren über einen eigenen Muster-Flow:
+- `POST /api/reservierung/extern-link` (nur Rolle Extern, Owner-Check): friert die
+  „Kaufabsichtserklärung und Reservierungsvereinbarung" in `kunde.saJson.reservierungExtern`
+  ein (Preise rechnet der SERVER: Abgabepreis + Provisionsaufschlag; Subvention/RenoBudget
+  aus dem Kalkulator-State des Externen), speichert die Kundenadresse in
+  `saJson.antragsteller.{strasse,plz,ort}` und liefert einen 14-Tage-JWT-Link
+  (`kind: 'reserv-sign'`) auf `/reservierung?token=…`.
+- `public/reservierung.html`: kundenseitige Seite (kein Login) — vorausgefülltes Dokument
+  (Wohnungs-/Stellplatzpreis, Gesamtkaufpreis, Mietsubvention je Phase, RenoBudget,
+  Exposé-Prämisse: Zustand bei Besichtigung am Notartermin-Tag muss dem Exposé entsprechen)
+  + Canvas-Unterschrift. Verkäufer-Signatur: `public/assets/unterschrift-hw.png`.
+- `GET/POST /api/reservierung/portal/[token]`: Daten lesen / Unterschrift (PNG-data-URL)
+  einmalig speichern → `saJson.reservierungExtern.signiert` + Aktivitäts-Zeile am Kunden.
+- Frontend-Flow (nur Extern): Kurz-SA-Pflicht → Adress-Modal → Link-Modal (kopieren/mailto).
+  KEIN Snapshot-Zwang, KEIN PandaDoc. Reservierungsfrist: heute + RESERV_FRIST_TAGE (14).

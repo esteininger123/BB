@@ -6451,6 +6451,135 @@ function openKurzSaModal(sa) {
 }
 window.ensureKurzSelbstauskunft = ensureKurzSelbstauskunft;
 
+// 06.07.2026 (Henry): Extern-Reservierung — Muster + Unterschriften-Link statt
+// PandaDoc. Fragt die Kundenadresse (Pflicht fürs Dokument) und optional einen
+// zweiten Käufer ab, friert die Kalkulationswerte serverseitig ein
+// (POST /api/reservierung/extern-link) und zeigt den Link zum Weitergeben.
+async function externReservierungFlow(weId) {
+  const w = (state.wohneinheiten || []).find(x => x.id === weId);
+  const weLabel = (w && ((w.projektName ? w.projektName + ' — ' : '') + (w.lageText || w.lage || ('WE ' + w.weNr)))) || 'die ausgewählte Wohnung';
+  let sa = state.kunde && state.kunde.saJson;
+  if (typeof sa === 'string') { try { sa = JSON.parse(sa); } catch (e) { sa = null; } }
+  const a = (sa && sa.antragsteller) || {};
+  const eingaben = await openExternReservModal({ weLabel, strasse: a.strasse || '', plz: a.plz || '', ort: a.ort || '' });
+  if (!eingaben) return;
+
+  const i = state.kalk;
+  const r = state.kalkResult || {};
+  const _sf = (i.subventionFaktor != null && isFinite(i.subventionFaktor)) ? i.subventionFaktor : 1;
+  const doc = {
+    subvPhasen: Array.isArray(i.subventionPhasen) ? i.subventionPhasen.map(p => ({ mo: Math.round((p.mo || 0) * _sf), monate: p.monate || 0 })) : [],
+    subvMo: Math.round((i.subventionMo || 0) * _sf),
+    subvMonate: i.subventionMonate || 0,
+    subvGesamt: Math.round(r.mietsubventionGesamt || 0),
+    renoBudget: Math.round(r.renovierungsbonus || 0),
+    qm: i.qm || 0,
+    weNr: i._weNr || '',
+    lage: i._weLage || '',
+    projektName: i._projektName || '',
+  };
+  try {
+    const resp = await api.post('/api/reservierung/extern-link', {
+      kundeId: state.kundeId,
+      weId,
+      adresse: { strasse: eingaben.strasse, plz: eingaben.plz, ort: eingaben.ort },
+      kaeufer2: eingaben.kaeufer2,
+      doc,
+    });
+    await openExternReservLinkModal({ url: resp.url, reservBis: resp.reservBis, kundeEmail: (state.kunde && state.kunde.email) || '' });
+  } catch (e) {
+    toast('Reservierungs-Link konnte nicht erstellt werden: ' + (e.message || 'unbekannt'), 'error');
+  }
+}
+
+function openExternReservModal(vorgaben) {
+  return new Promise((resolve) => {
+    const existing = document.getElementById('bbk-extreserv-modal');
+    if (existing) existing.remove();
+    const kundeName = (((state.kunde && state.kunde.vorname) || '') + ' ' + ((state.kunde && state.kunde.nachname) || '')).trim() || 'Kunde';
+    const feld = (id, label, ph, val) => `
+      <label style="display:block;font-size:12px;color:#6B6B64;margin-bottom:10px;">
+        ${label}
+        <input id="${id}" type="text" placeholder="${ph}" value="${esc(val || '')}" autocomplete="off"
+               style="display:block;width:100%;margin-top:4px;padding:9px 11px;font-size:14px;border:1px solid #D8D4CB;border-radius:6px;background:#fff;color:#1A1A17;">
+      </label>`;
+    const ov = document.createElement('div');
+    ov.id = 'bbk-extreserv-modal';
+    ov.setAttribute('role', 'dialog');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9998;background:rgba(26,26,23,0.5);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit;';
+    ov.innerHTML = `
+      <div style="background:#FBFAF7;border-radius:14px;max-width:560px;width:100%;padding:28px 32px;box-shadow:0 30px 80px rgba(0,0,0,0.25);border:1px solid #C9A572;">
+        <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#8E6E3D;font-weight:600;margin-bottom:8px;">Reservierung vorbereiten</div>
+        <h3 style="font-size:20px;font-weight:300;letter-spacing:-.01em;margin:0 0 6px 0;color:#1A1A17;">${esc(kundeName)} · ${esc(vorgaben.weLabel)}</h3>
+        <p style="font-size:12.5px;color:#6B6B64;margin:0 0 16px;line-height:1.5;">Es wird eine vorausgefüllte <strong>Kaufabsichtserklärung &amp; Reservierungsvereinbarung</strong> erstellt (Kaufpreise, Mietsubvention, Reservierungsfrist). Dein Kunde bekommt einen Link und unterschreibt direkt online. Für das Dokument brauchen wir seine Anschrift:</p>
+        ${feld('extreserv-strasse', 'Straße & Hausnummer *', 'z.B. Carl-Benz-Str. 4', vorgaben.strasse)}
+        <div style="display:grid;grid-template-columns:130px 1fr;gap:0 12px;">
+          ${feld('extreserv-plz', 'PLZ *', '76689', vorgaben.plz)}
+          ${feld('extreserv-ort', 'Ort *', 'Karlsdorf-Neuthard', vorgaben.ort)}
+        </div>
+        ${feld('extreserv-k2', 'Zweite/r Käufer/in (optional, voller Name)', 'z.B. Benno Baumgärtner', '')}
+        <div id="extreserv-error" style="font-size:12px;color:#9A3E33;min-height:16px;margin-bottom:8px;"></div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <button type="button" id="extreserv-cancel" class="secondary">Abbrechen</button>
+          <button type="button" id="extreserv-ok">Dokument &amp; Link erstellen</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+    const $id = (x) => ov.querySelector('#' + x);
+    const close = (val) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+    const onKey = (e) => { if (e.key === 'Escape') close(null); };
+    document.addEventListener('keydown', onKey);
+    $id('extreserv-cancel').addEventListener('click', () => close(null));
+    $id('extreserv-ok').addEventListener('click', () => {
+      const strasse = ($id('extreserv-strasse').value || '').trim();
+      const plz = ($id('extreserv-plz').value || '').trim();
+      const ort = ($id('extreserv-ort').value || '').trim();
+      if (!strasse || !plz || !ort) {
+        $id('extreserv-error').textContent = 'Bitte Straße, PLZ und Ort des Kunden angeben.';
+        return;
+      }
+      close({ strasse, plz, ort, kaeufer2: ($id('extreserv-k2').value || '').trim() });
+    });
+    setTimeout(() => { const f = $id('extreserv-strasse'); if (f) f.focus(); }, 50);
+  });
+}
+
+function openExternReservLinkModal(info) {
+  return new Promise((resolve) => {
+    const existing = document.getElementById('bbk-extreservlink-modal');
+    if (existing) existing.remove();
+    const mailBody = encodeURIComponent('Guten Tag,\n\nanbei der Link zu Ihrer Reservierungsvereinbarung — bitte prüfen und direkt online unterschreiben:\n\n' + info.url + '\n\nDer Link ist bis zum ' + info.reservBis + ' gültig.\n\nViele Grüße');
+    const ov = document.createElement('div');
+    ov.id = 'bbk-extreservlink-modal';
+    ov.setAttribute('role', 'dialog');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9998;background:rgba(26,26,23,0.5);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit;';
+    ov.innerHTML = `
+      <div style="background:#FBFAF7;border-radius:14px;max-width:560px;width:100%;padding:28px 32px;box-shadow:0 30px 80px rgba(0,0,0,0.25);border:1px solid #C9A572;">
+        <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#2D6E47;font-weight:600;margin-bottom:8px;">✓ Reservierungsdokument erstellt</div>
+        <h3 style="font-size:20px;font-weight:300;letter-spacing:-.01em;margin:0 0 10px 0;color:#1A1A17;">Unterschriften-Link für deinen Kunden</h3>
+        <p style="font-size:12.5px;color:#6B6B64;margin:0 0 14px;line-height:1.5;">Das Dokument ist komplett vorausgefüllt (Kaufpreise, Mietsubvention, Frist bis <strong>${esc(info.reservBis)}</strong>). Dein Kunde öffnet den Link, prüft und unterschreibt direkt online — du siehst die Unterschrift danach in der Kunden-Aktivität.</p>
+        <input id="extreservlink-url" type="text" readonly value="${esc(info.url)}"
+               style="width:100%;padding:9px 11px;font-size:12.5px;border:1px solid #D8D4CB;border-radius:6px;background:#fff;color:#1A1A17;margin-bottom:10px;">
+        <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;">
+          <button type="button" class="secondary" id="extreservlink-copy">Link kopieren</button>
+          ${info.kundeEmail ? `<a href="mailto:${esc(info.kundeEmail)}?subject=${encodeURIComponent('Ihre Reservierungsvereinbarung — Brot & Butter Immobilien')}&body=${mailBody}" style="text-decoration:none;"><button type="button" class="secondary">Per E-Mail senden</button></a>` : ''}
+          <button type="button" id="extreservlink-done">Fertig</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+    const close = () => { ov.remove(); resolve(true); };
+    ov.querySelector('#extreservlink-done').addEventListener('click', close);
+    ov.querySelector('#extreservlink-copy').addEventListener('click', async () => {
+      const inp = ov.querySelector('#extreservlink-url');
+      inp.select();
+      try { await navigator.clipboard.writeText(info.url); toast('Link kopiert', 'success'); }
+      catch (e) { try { document.execCommand('copy'); toast('Link kopiert', 'success'); } catch (e2) { toast('Bitte manuell kopieren (Strg+C)', 'info'); } }
+    });
+  });
+}
+
 // 06.07.2026 (Henry): E-Mail-Nachtrag im Reservierungs-Flow. Wurde der Kunde ohne
 // E-Mail angelegt, fragt dieses Modal sie ab, speichert sie am Kunden-Record
 // (PUT /api/kunden/[id]) und gibt sie zurück — null bei Abbruch. So ist die
@@ -6549,11 +6678,14 @@ async function sendReservierungForSignature() {
     if (!kundeEmail) return; // abgebrochen — kein Versand
   }
 
-  // 06.07.2026 (Henry) — Externe: Pflicht-Kurz-Selbstauskunft VOR der Reservierung
-  // (inkl. 12-Stunden-Prüfvorbehalt). Abbruch → kein Versand.
+  // 06.07.2026 (Henry) — Externe: Pflicht-Kurz-Selbstauskunft, dann eigener
+  // Reservierungs-Weg OHNE PandaDoc und OHNE Snapshot-Zwang: Adresse abfragen,
+  // vorausgefülltes Muster einfrieren, Unterschriften-Link für den Kunden erzeugen.
   if (state.user && state.user.rolle === 'Extern') {
     const kurzSaOk = await ensureKurzSelbstauskunft();
     if (!kurzSaOk) return;
+    await externReservierungFlow(weId);
+    return;
   }
 
   // Kontext für Modal
@@ -10450,8 +10582,8 @@ const EXTERN_TOUR_STEPS = [
   },
   {
     title: 'Schritt 8 — Reservierung digital senden',
-    action: 'Will dein Kunde kaufen: Klick in der Toolbar auf „Reservierung digital senden". Vorher füllst du einmalig eine Kurz-Selbstauskunft aus, dann geht die Reservierung zur digitalen Unterschrift an die E-Mail des Kunden.',
-    tip: 'B&B prüft die Kurz-Selbstauskunft: Ist die Finanzierbarkeit unwahrscheinlich, wird die Reservierung innerhalb von 12 Stunden wieder aufgehoben — also nur reservieren, wenn wirklich finanzierbar. Fehlt die Kunden-E-Mail, fragt die App sie einfach ab.',
+    action: 'Will dein Kunde kaufen: Klick in der Toolbar auf „Reservierung digital senden". Du füllst einmalig eine Kurz-Selbstauskunft aus und gibst die Anschrift des Kunden an — dann bekommst du einen Link zur fertigen Reservierungsvereinbarung, die dein Kunde direkt online unterschreibt.',
+    tip: 'B&B prüft die Kurz-Selbstauskunft: Ist die Finanzierbarkeit unwahrscheinlich, wird die Reservierung innerhalb von 12 Stunden wieder aufgehoben — also nur reservieren, wenn wirklich finanzierbar.',
     target: 'button[onclick*="sendReservierungForSignature"]',
     needsView: 'kunde',
     needsTab: 'kalkulator',
