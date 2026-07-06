@@ -9628,12 +9628,12 @@ function renderExternStart() {
         </table>
       </div>
 
-      <div class="card" style="margin-bottom:16px;">
+      <div class="card" id="extern-spielraum-card" style="margin-bottom:16px;">
         <div class="card-title">3 · Dein Verhandlungsspielraum: 1 %</div>
         <p style="margin:0;line-height:1.55;">Unabhängig davon, welchen Provisionssatz du wählst, hast du immer <strong>1&nbsp;% des Gesamt-Abgabepreises als Spielraum nach unten</strong> — um dem Kunden entgegenzukommen oder den Abschluss rundzumachen. Den Mindestpreis pro Wohnung zeigt dir der Kalkulator direkt an. Tiefer als dieser Mindestpreis geht es nicht.</p>
       </div>
 
-      <div class="card" style="margin-bottom:16px;border-left:3px solid var(--accent);">
+      <div class="card" id="extern-prov-card" style="margin-bottom:16px;border-left:3px solid var(--accent);">
         <div class="card-title">Deine Provision einstellen</div>
         <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:8px 0 4px;">
           <input type="range" id="extern-prov-slider" min="0" max="${EXTERN_PROVISION_MAX_PCT}" step="0.25" value="${aktuellPct}"
@@ -9668,7 +9668,14 @@ function render() {
   else if (state.view === 'kunde') renderKunde();
   else if (state.view === 'admin') renderAdmin();
   else if (state.view === 'we-liste') renderWeListe();
-  else if (state.view === 'extern-start') renderExternStart();
+  else if (state.view === 'extern-start') {
+    renderExternStart();
+    // Extern-Kurztour startet automatisch beim ersten Login — auf der Startseite,
+    // wo Schritt 0-2 (Provision + Spielraum) zuhause sind.
+    if (typeof maybeStartTourOnFirstLogin === 'function') {
+      try { maybeStartTourOnFirstLogin(); } catch {}
+    }
+  }
 }
 
 /* ============================== BOOT ============================== */
@@ -9693,6 +9700,14 @@ window.addEventListener('load', async () => {
     await loadInitialData();
   } catch (e) {
     state.user = null;
+  }
+  // 06.07.2026 (Henry) — Externe landen bei JEDEM Seiten-Load zuverlässig auf
+  // „Start & Provision", auch wenn noch ein altes #/dashboard in der URL klebt.
+  // Deep-Links (z.B. #/kunde/…) bleiben unangetastet; Navigation innerhalb der
+  // Session sowieso (dieser Block läuft nur einmal pro Page-Load).
+  if (state.user && state.user.rolle === 'Extern') {
+    const h = (window.location.hash || '').replace(/^#/, '');
+    if (h === '' || h === '/' || h === '/dashboard') window.location.hash = '#/start';
   }
   route();
   render();
@@ -9785,7 +9800,11 @@ const TOUR_LOOM_URL = 'https://www.loom.com/share/cac666dbd7bb4d2ca4244baa40f6ec
 // Funktion statt const, weil state.user beim Modul-Laden noch nicht da ist.
 function tourStorageKey() {
   const email = (state && state.user && state.user.email) || 'anon';
-  return 'bbk_tour_' + TOUR_VERSION + '_' + email + '_seen';
+  // 06.07.2026: Externe haben eine eigene Kurztour (EXTERN_TOUR_STEPS) mit eigenem
+  // Key — so sieht ein Extern-Account die neue Tour auch dann, wenn er die interne
+  // schon mal weggeklickt hatte (und umgekehrt).
+  const variante = (state && state.user && state.user.rolle === 'Extern') ? 'ext-v1' : TOUR_VERSION;
+  return 'bbk_tour_' + variante + '_' + email + '_seen';
 }
 
 // Jeder Schritt:
@@ -10083,6 +10102,94 @@ const TOUR_STEPS = [
   },
 ];
 
+// 06.07.2026 (Henry) — Eigene, stark vereinfachte Tour für EXTERNE Vertriebler:
+// genau 10 Schritte, kein Loom, Fokus auf Provisionsmodell + Kernablauf
+// (Wohnung → Kunde → Kalkulation → PDF). Die interne 31-Schritte-Tour bleibt
+// unverändert; welche Tour läuft, entscheidet tourSteps() anhand der Rolle.
+const EXTERN_TOUR_STEPS = [
+  {
+    title: 'Willkommen bei der B&B Backstube 🥨',
+    action: 'Dein Werkzeug für den Verkauf von B&B-Kapitalanlagen: Wohnungen ansehen, Kunden anlegen, Rendite kalkulieren, PDF fürs Kundengespräch erzeugen, digital reservieren. Diese Tour zeigt dir in 10 kurzen Schritten alles Wichtige — inklusive, wie deine Provision funktioniert.',
+    tip: 'Dauer: ca. 5 Minuten. Jederzeit über das „?" oben rechts neu startbar.',
+    target: null,
+    needsView: 'extern-start',
+  },
+  {
+    title: 'Schritt 1 — Deine Provision einstellen',
+    action: 'Stell mit dem Regler deinen Provisionssatz ein (0 bis 7 %) und klick „Provisionssatz speichern". Die Provision wird vom Gesamt-Abgabepreis (Wohnung + Stellplatz/Garage) berechnet und nur auf den Wohnungspreis aufgeschlagen.',
+    tip: 'Je niedriger dein Satz, desto besser der Preis für deinen Kunden — und desto weniger verdienst du. Diesen Hebel hast du selbst in der Hand; ändern geht jederzeit hier.',
+    target: '#extern-prov-card',
+    needsView: 'extern-start',
+  },
+  {
+    title: 'Schritt 2 — Dein 1-%-Spielraum',
+    action: 'Merken: Unabhängig vom gewählten Satz darfst du immer bis zu 1 % des Gesamt-Abgabepreises unter den angezeigten Preis gehen, um dem Kunden entgegenzukommen.',
+    tip: 'Den konkreten Mindestpreis pro Wohnung zeigt dir später der Kalkulator direkt an — tiefer geht es nicht.',
+    target: '#extern-spielraum-card',
+    needsView: 'extern-start',
+  },
+  {
+    title: 'Schritt 3 — Die Wohnungsliste',
+    action: 'Geh oben auf „Wohnungen". Hier siehst du alle Einheiten im Verkauf mit Kennzahlen — alle Kaufpreise sind bereits DEINE Kundenpreise inklusive deiner Provision.',
+    tip: 'Reservierte Einheiten und Notartermine sind markiert. Klick auf eine Zeile öffnet direkt die Kalkulation.',
+    target: 'a[href="#/we-liste"]',
+    needsView: 'we-liste',
+  },
+  {
+    title: 'Schritt 4 — Kunden anlegen',
+    action: 'Geh auf „Meine Kunden" und klick „+ Neuer Kunde". Zum Ausprobieren kannst du dich selbst mit deiner echten E-Mail-Adresse anlegen.',
+    tip: 'Pflichtfelder: Vorname, Nachname, E-Mail. Deine Kunden siehst nur du.',
+    target: 'button[onclick*="createNewKunde"]',
+    needsView: 'dashboard',
+    detectCompleted: () => !!state.kundeId,
+  },
+  {
+    title: 'Schritt 5 — Kalkulator öffnen',
+    action: 'Wechsle beim Kunden in den Tab „Kalkulator" und wähle oben Projekt und Wohneinheit.',
+    tip: 'Der Kalkulator rechnet die komplette Kapitalanlage durch: Finanzierung, Cashflow, Steuer, Vermögensaufbau.',
+    target: '#projekt-select',
+    needsView: 'kunde',
+    needsTab: 'kalkulator',
+    detectCompleted: () => !!(state.kalk && state.kalk._weId),
+  },
+  {
+    title: 'Schritt 6 — Dein Kundenpreis im Detail',
+    action: 'Direkt unter der Wohnungsauswahl steht deine Provisions-Info: wie viel Provision im Preis steckt (in €) und der Mindestpreis mit deinem 1-%-Spielraum.',
+    tip: 'Der Kaufpreis in der Kalkulation ist immer schon der Kundenpreis — du musst nichts selbst aufschlagen.',
+    target: '.we-extern-info',
+    needsView: 'kunde',
+    needsTab: 'kalkulator',
+  },
+  {
+    title: 'Schritt 7 — Die wichtigste Zahl',
+    action: 'Scroll zur großen Headline: der monatliche Eigenaufwand des Kunden. Darunter folgen Cashflow-Verlauf, Steuerersparnis und Vermögensaufbau.',
+    tip: 'Über „Annahmen" siehst du jederzeit, mit welchen Werten gerechnet wird.',
+    target: '.kalk-c-hero-headline',
+    needsView: 'kunde',
+    needsTab: 'kalkulator',
+  },
+  {
+    title: 'Schritt 8 — Investitionsrechnung als PDF',
+    action: 'Über die Toolbar erzeugst du die Investitionsrechnung als PDF — fertig fürs Kundengespräch oder zum Mailen.',
+    tip: 'Das PDF zeigt selbstverständlich deine Kundenpreise.',
+    target: '.toolbar button[onclick*="openInvestDocModal"]',
+    needsView: 'kunde',
+    needsTab: 'kalkulator',
+  },
+  {
+    title: '🎉 Schritt 9 — Reservierung & los geht\'s',
+    action: 'Will dein Kunde kaufen, sendest du ihm die Reservierung direkt aus der App zur digitalen Unterschrift. Danach läuft die Abwicklung gemeinsam mit B&B. Du bist startklar!',
+    tip: 'Provision ändern: jederzeit unter „Start & Provision". Tour neu starten: „?" oben rechts. Bei Fragen → dein B&B-Kontakt.',
+    target: null,
+    needsView: null,
+  },
+];
+
+// Welche Tour läuft, hängt an der Rolle — Externe bekommen die 10-Schritte-Kurztour.
+function tourSteps() {
+  return (state.user && state.user.rolle === 'Extern') ? EXTERN_TOUR_STEPS : TOUR_STEPS;
+}
+
 let _tourActive = false;
 let _tourStep = 0;
 // QA-Fix 2026-05-23 (Audit R-5): _tourStartedAt verhindert stilles Auto-
@@ -10202,7 +10309,7 @@ function _tourKeyHandler(e) {
 }
 
 function _tourNext() {
-  if (_tourStep < TOUR_STEPS.length - 1) {
+  if (_tourStep < tourSteps().length - 1) {
     _tourStep++;
     _renderTour();
   } else {
@@ -10220,7 +10327,7 @@ function _tourPrev() {
 // QA-Fix 2026-05-23 (Audit-UW-2/UW-4): Direkt zu spezifischem Step springen.
 function _tourGotoStep(idx) {
   if (!_tourActive) return;
-  if (idx < 0 || idx >= TOUR_STEPS.length) return;
+  if (idx < 0 || idx >= tourSteps().length) return;
   _tourStep = idx;
   _renderTour();
 }
@@ -10281,8 +10388,8 @@ function _renderTour() {
     if (ovShow) ovShow.style.display = '';
   }
 
-  const step = TOUR_STEPS[_tourStep];
-  const last = _tourStep === TOUR_STEPS.length - 1;
+  const step = tourSteps()[_tourStep];
+  const last = _tourStep === tourSteps().length - 1;
   const first = _tourStep === 0;
 
   // View-Check: aktuelle state.view passt zur needsView?
@@ -10302,8 +10409,8 @@ function _renderTour() {
   // WICHTIG: nur auto-advance wenn nextStep EXPLIZIT needsView/needsTab hat
   // und es matched — sonst skippen wir Steps mit needsView:null (die immer
   // matchen würden).
-  if ((!viewMatches || !tabMatches) && _tourStep < TOUR_STEPS.length - 1) {
-    const nextStep = TOUR_STEPS[_tourStep + 1];
+  if ((!viewMatches || !tabMatches) && _tourStep < tourSteps().length - 1) {
+    const nextStep = tourSteps()[_tourStep + 1];
     const nextHasExplicit = !!(nextStep.needsView || nextStep.needsTab);
     const nextViewMatches = !nextStep.needsView || state.view === nextStep.needsView;
     const nextTabMatches  = !nextStep.needsTab  || state.tab  === nextStep.needsTab;
@@ -10331,7 +10438,7 @@ function _renderTour() {
       }
       // Auto-Advance NUR wenn beim Step-Eintritt false war und JETZT true
       // (= User hat den Step aktiv abgeschlossen)
-      if (_tourStep < TOUR_STEPS.length - 1
+      if (_tourStep < tourSteps().length - 1
           && completed
           && _tourStepEnteredStates[stepKey] === false) {
         _tourStep++;
@@ -10340,8 +10447,8 @@ function _renderTour() {
       }
     } catch (e) { /* detectCompleted darf nicht crashen — Tour läuft normal weiter */ }
   }
-  const viewLabel = { dashboard: 'Meine Kunden', kunde: 'Kunde-Detail-Seite', 'we-liste': 'Wohnungen', admin: 'Admin' }[needsView] || needsView;
-  const viewHref = { dashboard: '#/dashboard', kunde: state.kundeId ? ('#/kunde/' + state.kundeId) : '#/dashboard', 'we-liste': '#/we-liste', admin: '#/admin' }[needsView] || '#/dashboard';
+  const viewLabel = { dashboard: 'Meine Kunden', kunde: 'Kunde-Detail-Seite', 'we-liste': 'Wohnungen', admin: 'Admin', 'extern-start': 'Start & Provision' }[needsView] || needsView;
+  const viewHref = { dashboard: '#/dashboard', kunde: state.kundeId ? ('#/kunde/' + state.kundeId) : '#/dashboard', 'we-liste': '#/we-liste', admin: '#/admin', 'extern-start': '#/start' }[needsView] || '#/dashboard';
   const tabLabel = { uebersicht: 'Übersicht', kalkulator: 'Kalkulator', selbstauskunft: 'Selbstauskunft', snapshots: 'Snapshots' }[needsTab] || needsTab;
 
   const targetEl = (viewMatches && tabMatches && step.target) ? document.querySelector(step.target) : null;
@@ -10409,7 +10516,7 @@ function _renderTour() {
   card.innerHTML = `
     <div class="bbk-tour-card-inner">
       <div class="bbk-tour-card-head">
-        <span class="bbk-tour-eyebrow">Tour — Schritt ${_tourStep + 1} / ${TOUR_STEPS.length}</span>
+        <span class="bbk-tour-eyebrow">Tour — Schritt ${_tourStep + 1} / ${tourSteps().length}</span>
         <button type="button" class="bbk-tour-skip" onclick="endTour(true)">Überspringen ×</button>
       </div>
       <h3 class="bbk-tour-title">${esc(step.title)}</h3>
@@ -10420,7 +10527,7 @@ function _renderTour() {
       <div class="bbk-tour-foot">
         <button type="button" class="bbk-tour-nav-btn bbk-tour-prev" onclick="window._tourPrev()" ${first ? 'disabled' : ''}>← Zurück</button>
         <div class="bbk-tour-dots">
-          ${TOUR_STEPS.map((_, idx) => `<span class="bbk-tour-dot${idx === _tourStep ? ' active' : ''}"></span>`).join('')}
+          ${tourSteps().map((_, idx) => `<span class="bbk-tour-dot${idx === _tourStep ? ' active' : ''}"></span>`).join('')}
         </div>
         <button type="button" class="bbk-tour-nav-btn bbk-tour-next" onclick="window._tourNext()">${last ? 'Fertig ✓' : 'Weiter →'}</button>
       </div>
