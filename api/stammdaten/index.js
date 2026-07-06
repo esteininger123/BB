@@ -2,7 +2,8 @@
 //   Liefert pro WE: WE-Basisdaten + Kalk-Stammdaten + Stellplatz-Aggregat +
 //   Vermietungs-Info in einem Response. Nur Admin.
 
-const { verifySession } = require('../_lib/auth');
+const { verifySession, isExtern } = require('../_lib/auth');
+const { externPreis, loadProvisionPct } = require('../_lib/extern');
 const { airtable, listAll } = require('../_lib/airtable');
 const { methodNotAllowed, sendError } = require('../_lib/http');
 const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
@@ -291,7 +292,24 @@ module.exports = async (req, res) => {
     // private (kein CDN-Cache) ist wichtig, weil die Response Owner-spezifisch sein
     // kann (Admin sieht andere Daten als Vertriebler — aktuell sehen sie das gleiche,
     // aber wir wollen das nicht in einen geteilten Cache packen).
-    res.setHeader('Cache-Control', 'private, max-age=60, must-revalidate');
+    //
+    // 06.07.2026 (Henry) — Externer Vertrieb: Kundenpreis statt Abgabepreis. Der
+    // Provisionsaufschlag (Satz × [Wohnung + Stellplatz]) landet nur auf we.kp;
+    // stellplaetze.kaufpreisSumme bleibt unverändert (marktüblich eingepreist).
+    if (isExtern(session)) {
+      const prov = await loadProvisionPct(session);
+      audit.forEach(row => {
+        const e = externPreis(row.we.kp, row.stellplaetze.kaufpreisSumme, prov);
+        row.we.kp = e.kp;
+        if (row.we.qm > 0) row.we.qmPreis = Math.round((e.kp / row.we.qm) * 100) / 100;
+        row.extern = { provisionPct: e.provisionPct, aufschlag: e.aufschlag, kpMin: e.kpMin, spielraum: e.spielraum };
+      });
+      // Preis hängt am jederzeit änderbaren Provisionssatz → 60s-Browser-Cache wäre
+      // nach einer Satz-Änderung falsch.
+      res.setHeader('Cache-Control', 'no-store');
+    } else {
+      res.setHeader('Cache-Control', 'private, max-age=60, must-revalidate');
+    }
     return res.status(200).json(audit);
   } catch (e) {
     return sendError(res, e);

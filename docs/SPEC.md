@@ -189,3 +189,25 @@ PDF-Templates wie V1, aber mit Vertriebler-Footer.
 - Font: Inter (Google Fonts CDN)
 - B&B-Logo oben links
 - Vertriebler-Info im Header rechts (Name + Dropdown mit Logout)
+
+## Externer Vertrieb (Rolle 'Extern') — 06.07.2026
+
+Externe Vertriebspartner loggen sich wie interne ein (Whitelist Kalk-Vertriebler,
+Rolle-Choice **Extern**), sehen aber serverseitig transformierte **Kundenpreise**
+statt der internen Abgabepreise.
+
+- **Provisionssatz:** Feld `Provision Extern` (`fldSlpQyhjrxfPbm8`, percent) auf
+  Kalk-Vertriebler (`tblXG135L28XocpeY`). Dezimalwert 0–0.07. Gepflegt vom Externen
+  selbst über die Startseite (`#/start`) → `PATCH /api/me { provisionPct }`
+  (nur eigenes Record, nur Rolle Extern, Server kappt hart auf 7 %).
+- **Preisformel** (`api/_lib/extern.js`, Tests in `tests/extern-preis.test.js`):
+  `Aufschlag = Satz × (Wohnungs-KP + Stellplatz/Garagen-KP)`; der Aufschlag landet
+  **nur auf dem Wohnungspreis**, Stellplätze bleiben unverändert (marktüblich eingepreist).
+  Zusätzlich immer 1 % der Basis als Verhandlungsspielraum nach unten (`kpMin`).
+- **Transformierte Endpoints** (nur bei `isExtern(session)`, jeweils `Cache-Control: no-store`):
+  `GET /api/wohneinheiten` (lädt dafür Stellplatz-KP-Summen nach),
+  `GET /api/stammdaten` (Zeile bekommt `extern`-Block),
+  `GET /api/stammdaten/[weId]` (Response-Feld `extern: {provisionPct, aufschlag, kpMin, spielraum}`).
+- **Frontend:** Externe landen nach Login auf `#/start` (Erklärseite + Provisions-Slider,
+  Nav-Link „Start & Provision"); Kalkulator-Picker und WE-Liste zeigen Provisions-/Mindestpreis-Hinweise.
+- Bestehende Extern-Sperre bleibt: keine HubSpot-Lead-Suche (`api/hubspot/contacts.js`).

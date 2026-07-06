@@ -73,7 +73,11 @@ function route() {
   const hash = (window.location.hash || '#/').replace(/^#/, '');
   if (!state.user) { state.view = 'login'; return; }
   if (hash === '/' || hash === '/dashboard' || hash === '') {
-    state.view = 'dashboard';
+    // 06.07.2026 (Henry) — Externe landen standardmäßig auf der Erklär-/Provisions-Seite,
+    // explizites #/dashboard bleibt erreichbar.
+    state.view = (state.user.rolle === 'Extern' && hash !== '/dashboard') ? 'extern-start' : 'dashboard';
+  } else if (hash === '/start') {
+    state.view = (state.user.rolle === 'Extern') ? 'extern-start' : 'dashboard';
   } else if (hash.startsWith('/kunde/')) {
     state.view = 'kunde';
     const parts = hash.split('/').filter(Boolean); // kunde, :id, [tab]
@@ -177,6 +181,7 @@ function renderHeader() {
   // wo er ist (Dashboard vs Aktive WEs vs Admin).
   const active = (view) => state.view === view ? ' nav-link-active' : '';
   um.innerHTML = `
+    ${state.user.rolle === 'Extern' ? `<a href="#/start" class="nav-link${active('extern-start')}" title="So funktioniert der externe Vertrieb — Provisionssatz einstellen">Start &amp; Provision</a>` : ''}
     <a href="#/dashboard" class="nav-link${active('dashboard')}" title="Deine Kunden + Pipeline">Meine Kunden</a>
     <a href="#/we-liste" class="nav-link${active('we-liste')}" title="Alle Wohnungen in aktiver Vermarktung mit Kennzahlen">Wohnungen</a>
     ${isAdmin ? `<a href="#/admin" class="nav-link${active('admin')}">Admin</a>` : ''}
@@ -279,7 +284,8 @@ window.__onGoogleAuth = async function(response) {
     state.user = result.vertriebler;
     state.lastError = null;
     await loadInitialData();
-    go('/dashboard');
+    // 06.07.2026 — Externe starten auf der Erklär-/Provisions-Seite.
+    go(state.user && state.user.rolle === 'Extern' ? '/start' : '/dashboard');
     render();
   } catch (e) {
     state.lastError = (e.body && e.body.error) || 'Login fehlgeschlagen. Bist du in der Vertriebler-Liste?';
@@ -2433,9 +2439,13 @@ function renderTabKalkulator() {
           <label>Objekt</label>
           <select id="projekt-select">
             <option value="">Projekt wählen</option>
-            ${projektNames.map(p => `
-              <option value="${esc(p)}" ${aktivesProjekt === p ? 'selected' : ''}>${esc(p)} · ${wesByProjekt[p].length} WE</option>
-            `).join('')}
+            ${projektNames.map(p => {
+              const _total = wesByProjekt[p].length;
+              // 28.06.2026 (Henry): freie WEs = sichtbare minus Reserviert/Notartermin,
+              // damit man pro Objekt direkt die Restverfügbarkeit sieht (z.B. "6 WE / 1 frei").
+              const _frei = wesByProjekt[p].filter(w => w.status !== 'Reserviert' && w.status !== 'Notartermin').length;
+              return `<option value="${esc(p)}" ${aktivesProjekt === p ? 'selected' : ''}>${esc(p)} · ${_total} WE / ${_frei} frei</option>`;
+            }).join('')}
           </select>
           <div class="we-picker-hint">${projektNames.length} ${projektNames.length === 1 ? 'Projekt' : 'Projekte'} aktuell in Vermarktung</div>
         </div>
@@ -2487,6 +2497,14 @@ function renderTabKalkulator() {
                   })()}</strong>
                   ${i._stellplatzKp > 0 ? ' · KP ' + Math.round(i._stellplatzKp).toLocaleString('de-DE') + ' €' : ''}
                   ${i._stellplatzMiete > 0 ? ' · Miete ' + Math.round(i._stellplatzMiete) + ' €/Mo (' + esc(stplMieteQuelleLabel(i._stellplatzMieteQuelle)) + ')' : ''}
+                </div>
+              ` : ''}
+              ${state.user && state.user.rolle === 'Extern' && i._externInfo ? `
+                <div class="we-extern-info text-small" style="margin-top:6px;padding:6px 10px;border-left:3px solid var(--accent);">
+                  ${i._externInfo.provisionPct > 0
+                    ? `Kundenpreis enthält deine Provision: <strong>${(i._externInfo.provisionPct * 100).toLocaleString('de-DE')} % = ${Math.round(i._externInfo.aufschlag).toLocaleString('de-DE')} €</strong><br>`
+                    : `Provisionssatz 0 % — du verkaufst zum Abgabepreis (keine Provision).<br>`}
+                  Verhandlungsspielraum: Mindestpreis <strong>${Math.round(i._externInfo.kpMin).toLocaleString('de-DE')} €</strong> (−1 % der Basis, siehe <a href="#/start">Start &amp; Provision</a>)
                 </div>
               ` : ''}
               ${(() => {
@@ -3390,6 +3408,7 @@ async function loadWeIntoKalk(weId) {
 
   // 1) WE-Metadata immer aus Airtable (Lage-Text, Projekt-Name, Objektvorstellungs-Link)
   state.kalk._weId = weId;
+  state.kalk._externInfo = null; // 06.07.2026 — wird aus /api/stammdaten/[weId] befüllt (nur Extern)
   state.kalk._weLage = w.lageText || w.lage || w.weNr || '';
   state.kalk._weNr = w.weNr || '';
   state.kalk._projektName = w.projektName || '';
@@ -3443,6 +3462,9 @@ async function loadWeIntoKalk(weId) {
       // Wohnungs-Kaltmiete (ohne Stellplatz) — wird für Mietsteigerungs-Logik gebraucht
       state.kalk._wohnungsKaltmiete = resp.we.kaltmiete || 0;
     }
+    // 06.07.2026 (Henry) — Externer Vertrieb: kp kommt vom Server bereits als Kundenpreis
+    // (inkl. Provision); der extern-Block liefert Provision in € + Mindestpreis fürs UI.
+    state.kalk._externInfo = (resp && resp.extern) || null;
     // Vermietungs-Status + letzte Mietsteigerung
     if (resp && resp.vermietung) {
       state.kalk._vermietungsStatus = resp.vermietung.status;            // 'vermietet' | 'leer'
@@ -8661,6 +8683,9 @@ async function renderWeListe() {
         <div>
           <h1 class="page-title" style="margin:0 0 6px;">Wohneinheiten im Verkauf</h1>
           <div class="text-tertiary text-small">Live-Liste: Vermarktung + reservierte + Notartermin-Einheiten (reservierte/Notartermin sind markiert) — pro Projekt sortiert. Klick auf eine WE öffnet die Kalkulation.</div>
+          ${state.user && state.user.rolle === 'Extern' ? `
+            <div class="text-small" style="margin-top:6px;padding:5px 10px;border-left:3px solid var(--accent);">Alle Kaufpreise enthalten bereits deinen Provisionssatz von <strong>${(((state.user.provisionPct) || 0) * 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %</strong> — ändern unter <a href="#/start">Start &amp; Provision</a>.</div>
+          ` : ''}
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
           <label class="text-tertiary text-small" for="we-liste-profil" style="white-space:nowrap;">Kennzahlen für Profil</label>
@@ -9515,6 +9540,119 @@ function _weListeOpenWe(weId) {
 }
 window._weListeOpenWe = _weListeOpenWe;
 
+// ===== MODUL: views/extern-start (Startseite externer Vertrieb, 06.07.2026 Henry) =====
+// Erklärt Externen das Preismodell (Abgabepreis bei 0 %, Provisionsaufschlag auf den
+// Wohnungspreis, 1-%-Spielraum) und lässt sie ihren Provisionssatz (0–7 %) einstellen.
+// Die Preistransformation selbst passiert serverseitig (api/_lib/extern.js) — nach dem
+// Speichern werden alle Daten neu geladen, damit überall der neue Kundenpreis steht.
+
+const EXTERN_PROVISION_MAX_PCT = 7;   // muss zu PROVISION_MAX (0.07) im Backend passen
+const EXTERN_SPIELRAUM_PCT = 1;       // 1 % der Basis, nur Anzeige — Quelle: Backend
+
+function _externFmtEur(v) {
+  return Math.round(v).toLocaleString('de-DE') + ' €';
+}
+
+// Spiegel der Server-Formel für das Live-Beispiel (Anzeige, nicht autoritativ).
+function _externBeispiel(provPct) {
+  const kp = 100000, stpl = 10000;
+  const basis = kp + stpl;
+  const aufschlag = Math.round((provPct / 100) * basis);
+  return { kp, stpl, basis, aufschlag, kundenpreis: kp + aufschlag, spielraum: Math.round(basis * EXTERN_SPIELRAUM_PCT / 100) };
+}
+
+function _externUpdatePreview() {
+  const slider = document.getElementById('extern-prov-slider');
+  const out = document.getElementById('extern-prov-wert');
+  const bsp = document.getElementById('extern-beispiel');
+  if (!slider || !out) return;
+  const p = parseFloat(slider.value) || 0;
+  out.textContent = p.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %';
+  if (bsp) {
+    const b = _externBeispiel(p);
+    bsp.innerHTML = `
+      <tr><td>Wohnung (Abgabepreis)</td><td style="text-align:right;">${_externFmtEur(b.kp)}</td></tr>
+      <tr><td>Stellplatz/Garage (bleibt fix)</td><td style="text-align:right;">${_externFmtEur(b.stpl)}</td></tr>
+      <tr><td>Deine Provision: ${p.toLocaleString('de-DE')} % von ${_externFmtEur(b.basis)}</td><td style="text-align:right;"><strong>+ ${_externFmtEur(b.aufschlag)}</strong></td></tr>
+      <tr style="border-top:1px solid var(--border);"><td><strong>Kundenpreis Wohnung</strong></td><td style="text-align:right;"><strong>${_externFmtEur(b.kundenpreis)}</strong></td></tr>
+      <tr><td class="text-tertiary">Verhandlungsspielraum (−1 % der Basis)</td><td style="text-align:right;" class="text-tertiary">bis ${_externFmtEur(b.kundenpreis - b.spielraum)}</td></tr>
+    `;
+  }
+}
+window._externUpdatePreview = _externUpdatePreview;
+
+async function _externProvSave() {
+  const slider = document.getElementById('extern-prov-slider');
+  const btn = document.getElementById('extern-prov-save');
+  if (!slider) return;
+  const p = parseFloat(slider.value);
+  if (!isFinite(p) || p < 0 || p > EXTERN_PROVISION_MAX_PCT) {
+    toast('Provisionssatz muss zwischen 0 und ' + EXTERN_PROVISION_MAX_PCT + ' % liegen', 'error');
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Speichere …'; }
+  try {
+    const resp = await api.patch('/api/me', { provisionPct: p / 100 });
+    state.user.provisionPct = (resp && typeof resp.provisionPct === 'number') ? resp.provisionPct : p / 100;
+    // Alle Preis-Caches invalidieren — der Server rechnet ab jetzt mit dem neuen Satz.
+    _weListeCache = null;
+    await loadInitialData();
+    toast('Provisionssatz gespeichert — alle Preise sind aktualisiert', 'success');
+    render();
+  } catch (e) {
+    toast('Speichern fehlgeschlagen: ' + (e.message || 'unbekannt'), 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Provisionssatz speichern'; }
+  }
+}
+window._externProvSave = _externProvSave;
+
+function renderExternStart() {
+  const app = document.getElementById('app');
+  const aktuellPct = ((state.user && state.user.provisionPct) || 0) * 100;
+  app.innerHTML = `
+    <div class="main" style="max-width:860px;margin:0 auto;">
+      <h1 class="page-title" style="margin:18px 0 6px;">Willkommen bei der B&amp;B Backstube</h1>
+      <div class="text-tertiary" style="margin-bottom:22px;">So funktioniert der Verkauf als externer Vertriebspartner — einmal lesen, Provision einstellen, loslegen.</div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">1 · Der Abgabepreis</div>
+        <p style="margin:0;line-height:1.55;">Jede Wohneinheit hat einen von B&amp;B fest kalkulierten <strong>Abgabepreis</strong>. Das ist der Preis, zu dem du verkaufst, wenn du <strong>0&nbsp;% Provision</strong> einstellst — dann verdienst du allerdings auch nichts.</p>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">2 · Deine Provision (0–7 %)</div>
+        <p style="margin:0 0 10px;line-height:1.55;">Du bestimmst deinen Provisionssatz selbst — bis maximal <strong>7&nbsp;%</strong>. Berechnet wird die Provision vom <strong>Gesamt-Abgabepreis</strong> (Wohnung <em>plus</em> Stellplätze/Garagen). Aufgeschlagen wird sie aber <strong>nur auf den Wohnungspreis</strong> — Stellplätze und Garagen sind bereits marktüblich eingepreist und bleiben unverändert.</p>
+        <p style="margin:0 0 10px;line-height:1.55;">Im Kalkulator und in der Wohnungsliste siehst du immer schon <strong>deine Kundenpreise</strong> inklusive deiner Provision. Wichtig zu verstehen: <strong>je niedriger dein Satz, desto besser der Preis für deinen Kunden</strong> — und desto weniger verdienst du. Diesen Hebel hast du selbst in der Hand.</p>
+        <table class="table" style="width:100%;max-width:460px;font-size:13px;" aria-label="Rechenbeispiel">
+          <tbody id="extern-beispiel"></tbody>
+        </table>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">3 · Dein Verhandlungsspielraum: 1 %</div>
+        <p style="margin:0;line-height:1.55;">Unabhängig davon, welchen Provisionssatz du wählst, hast du immer <strong>1&nbsp;% des Gesamt-Abgabepreises als Spielraum nach unten</strong> — um dem Kunden entgegenzukommen oder den Abschluss rundzumachen. Den Mindestpreis pro Wohnung zeigt dir der Kalkulator direkt an. Tiefer als dieser Mindestpreis geht es nicht.</p>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;border-left:3px solid var(--accent);">
+        <div class="card-title">Deine Provision einstellen</div>
+        <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:8px 0 4px;">
+          <input type="range" id="extern-prov-slider" min="0" max="${EXTERN_PROVISION_MAX_PCT}" step="0.25" value="${aktuellPct}"
+                 oninput="window._externUpdatePreview()" style="flex:1;min-width:220px;">
+          <div id="extern-prov-wert" style="font-size:22px;font-weight:600;min-width:90px;text-align:right;">0,00 %</div>
+          <button id="extern-prov-save" onclick="window._externProvSave()">Provisionssatz speichern</button>
+        </div>
+        <div class="text-tertiary text-small">Gespeichert ist aktuell: <strong>${aktuellPct.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %</strong>. Du kannst den Satz hier jederzeit ändern — alle Preise in der App passen sich sofort an. Für laufende Beratungen gilt: Preis beim Kunden nennen, dann Satz nicht mehr wechseln.</div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:32px;">
+        <button onclick="go('/we-liste')">Zu den Wohnungen</button>
+        <button class="secondary" onclick="go('/dashboard')">Zu meinen Kunden</button>
+      </div>
+    </div>
+  `;
+  _externUpdatePreview();
+}
+
 function render() {
   renderHeader();
   if (state.view === 'login') renderLogin();
@@ -9530,6 +9668,7 @@ function render() {
   else if (state.view === 'kunde') renderKunde();
   else if (state.view === 'admin') renderAdmin();
   else if (state.view === 'we-liste') renderWeListe();
+  else if (state.view === 'extern-start') renderExternStart();
 }
 
 /* ============================== BOOT ============================== */

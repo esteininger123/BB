@@ -53,7 +53,11 @@ const VERTRIEBLER_FIELDS = {
   FOTO:    'fldunwY4YtlhTvmX5',
   ROLLE:   'fldl1WRDwDUCKQhHP',
   STATUS:  'fldVE2h9Yz2Xv598K',
-  CREATED: 'fldeI8pitl1I2O12d'
+  CREATED: 'fldeI8pitl1I2O12d',
+  // 06.07.2026 (Henry) — Provisionssatz externer Vertriebler (percent, Dezimal: 0.07 = 7 %).
+  // Wird auf der Extern-Startseite gepflegt (PATCH /api/me) und serverseitig auf die
+  // WE-Preise aufgeschlagen — siehe api/_lib/extern.js.
+  PROVISION_EXTERN: 'fldSlpQyhjrxfPbm8'
 };
 
 const KUNDEN_FIELDS = {

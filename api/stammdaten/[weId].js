@@ -14,7 +14,8 @@
 //     gesetzt (Schutz vor Doppel-Aktiv).
 //   - Nur Admins dürfen schreiben.
 
-const { verifySession, requireSafeOrigin } = require('../_lib/auth');
+const { verifySession, requireSafeOrigin, isExtern } = require('../_lib/auth');
+const { externPreis, loadProvisionPct } = require('../_lib/extern');
 const { airtable, listAll } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
@@ -1104,7 +1105,21 @@ module.exports = async (req, res) => {
       // Formel-Vorlage in §IT-4 der Doku).
       maybeWriteBackAutoSubv(kalkApi, subv);
 
+      // 06.07.2026 (Henry) — Externer Vertrieb: Kundenpreis statt Abgabepreis.
+      // Aufschlag = Satz × (Wohnung + Stellplatz), landet nur auf we.kp; das
+      // Stellplatz-Aggregat bleibt unverändert (marktüblich eingepreist). Der
+      // extern-Block versorgt die UI (Provision in €, Mindestpreis mit 1-%-Spielraum).
+      let externInfo = null;
+      if (isExtern(session)) {
+        const prov = await loadProvisionPct(session);
+        const e = externPreis(we.kp, stpKaufpreisSumme, prov);
+        we.kp = e.kp;
+        if (we.qm > 0) we.qmPreis = Math.round((e.kp / we.qm) * 100) / 100;
+        externInfo = { provisionPct: e.provisionPct, aufschlag: e.aufschlag, kpMin: e.kpMin, spielraum: e.spielraum };
+      }
+
       return res.status(200).json({
+        extern: externInfo,
         we,
         stellplaetze: {
           anzahl:        stpAgg.anzahl,

@@ -2,7 +2,8 @@
 //
 // Filter: {Status} = 'Vermarktung / Im Verkauf' UND {Maklerfirma} = 'B&B Immo GmbH'
 
-const { verifySession } = require('./_lib/auth');
+const { verifySession, isExtern } = require('./_lib/auth');
+const { externPreis, loadProvisionPct, ladeStellplatzKpSummen } = require('./_lib/extern');
 const { airtable, listAll } = require('./_lib/airtable');
 const { methodNotAllowed, sendError } = require('./_lib/http');
 const {
@@ -272,6 +273,24 @@ module.exports = async (req, res) => {
       mapped.status = (st && typeof st === 'object') ? st.name : (st || null);
       return mapped;
     });
+
+    // 06.07.2026 (Henry) — Externer Vertrieb: Kundenpreis statt Abgabepreis.
+    // Die Liste selbst lädt keine Stellplätze, die Provisions-Basis ist aber
+    // Wohnung + Stellplatz → KP-Summen separat holen (nur für Extern-Sessions).
+    if (isExtern(session)) {
+      const [prov, stplKpByWe] = await Promise.all([
+        loadProvisionPct(session),
+        ladeStellplatzKpSummen(),
+      ]);
+      out.forEach(w => {
+        const e = externPreis(w.kp, stplKpByWe[w.id] || 0, prov);
+        w.kp = e.kp;
+        if (w.qm > 0) w.qmPreis = Math.round((e.kp / w.qm) * 100) / 100;
+        w.extern = { provisionPct: e.provisionPct, aufschlag: e.aufschlag, kpMin: e.kpMin, spielraum: e.spielraum };
+      });
+      // Preis hängt am jederzeit änderbaren Provisionssatz → nicht cachen.
+      res.setHeader('Cache-Control', 'no-store');
+    }
     return res.status(200).json(out);
   } catch (e) {
     return sendError(res, e);

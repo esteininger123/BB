@@ -3,6 +3,7 @@
 // Validiert Google-Token, prüft Whitelist in Kalk-Vertriebler, setzt Session-Cookie.
 
 const { verifyGoogleToken, signSession, setSessionCookie } = require('../_lib/auth');
+const { clampProvision } = require('../_lib/extern');
 const { airtable, escapeFormulaString } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { TABLES, VERTRIEBLER_FIELDS } = require('../_lib/tables');
@@ -44,7 +45,9 @@ module.exports = async (req, res) => {
       email:   f[VERTRIEBLER_FIELDS.EMAIL]   || googleUser.email,
       telefon: f[VERTRIEBLER_FIELDS.TELEFON] || '',
       rolle:   f[VERTRIEBLER_FIELDS.ROLLE]   || 'Vertriebler',
-      fotoUrl: f[VERTRIEBLER_FIELDS.FOTO]    || googleUser.picture || ''
+      fotoUrl: f[VERTRIEBLER_FIELDS.FOTO]    || googleUser.picture || '',
+      // 06.07.2026 — Provisionssatz externer Vertriebler (Dezimal, nur für Rolle 'Extern').
+      provisionPct: clampProvision(f[VERTRIEBLER_FIELDS.PROVISION_EXTERN])
     };
 
     const sessionToken = signSession({
