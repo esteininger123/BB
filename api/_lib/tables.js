@@ -57,7 +57,10 @@ const VERTRIEBLER_FIELDS = {
   // 06.07.2026 (Henry) — Provisionssatz externer Vertriebler (percent, Dezimal: 0.07 = 7 %).
   // Wird auf der Extern-Startseite gepflegt (PATCH /api/me) und serverseitig auf die
   // WE-Preise aufgeschlagen — siehe api/_lib/extern.js.
-  PROVISION_EXTERN: 'fldSlpQyhjrxfPbm8'
+  PROVISION_EXTERN: 'fldSlpQyhjrxfPbm8',
+  // 06.07.2026 (Henry) — scrypt-Hash für E-Mail+Passwort-Login (s2$salt$hash, NIE Klartext,
+  // NIE in API-Responses). Leer = nur Google-Login. Siehe api/_lib/passwort.js.
+  PASSWORT_HASH: 'fld3uZFjzlQs5unhc'
 };
 
 const KUNDEN_FIELDS = {

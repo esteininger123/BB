@@ -253,3 +253,16 @@ Externe Vertriebler reservieren über einen eigenen Muster-Flow:
 - Kunden-Übersicht-Tab: Karte „Reservierung (Externer Vertrieb)" mit Status,
   Unterschrift, „Dokument öffnen"/„Kunden-Link kopieren"
   (`POST /api/reservierung/view-link`, Owner oder Admin).
+
+## E-Mail+Passwort-Login (06.07.2026)
+
+Zusätzlich zu Google (v.a. für Externe ohne Google-Konto):
+- Feld `Passwort Hash` (`fld3uZFjzlQs5unhc`) auf Kalk-Vertriebler — scrypt
+  `s2$salt$hash` (api/_lib/passwort.js), nie in Responses, leer = nur Google.
+- `POST /api/auth/passwort { email, passwort }` — gleiche Whitelist (Status=Aktiv),
+  gleiche Session/Cookie wie Google; generische Fehlermeldung + 400ms-Bremse.
+- Passwort setzen: Admin via `POST /api/admin/passwort { vertrieblerId, passwort }`
+  (requireAdminVerified; UI: Admin → Externer Vertrieb → Login-Zugänge) ODER selbst
+  via `PATCH /api/me { passwortNeu, passwortAlt? }` (passwortAlt Pflicht, sobald
+  eines existiert; UI für Externe: Start & Provision → Login & Passwort).
+- Login-Formular unter dem Google-Button (renderLogin), min. 8 Zeichen.

@@ -248,6 +248,22 @@ function renderLogin() {
           <div class="text-tertiary text-small">Google-Sign-In wird geladen…</div>
         </div>
 
+        <!-- 06.07.2026 (Henry): E-Mail+Passwort-Login zusätzlich zu Google — v.a. für
+             externe Vertriebler ohne Google-Konto. Passwort vergibt der Admin
+             (Admin-Bereich → Externer Vertrieb → Login-Zugänge). -->
+        <div style="display:flex;align-items:center;gap:10px;margin:18px 0 14px;color:var(--text-tertiary);font-size:11px;letter-spacing:.08em;text-transform:uppercase;">
+          <span style="flex:1;border-top:1px solid var(--border);"></span>oder<span style="flex:1;border-top:1px solid var(--border);"></span>
+        </div>
+        <form onsubmit="doPasswortLogin(event)" style="text-align:left;">
+          <label style="font-size:12px;color:var(--text-tertiary);">E-Mail
+            <input id="login-email" type="email" autocomplete="username" style="width:100%;margin:4px 0 10px;" placeholder="name@firma.de">
+          </label>
+          <label style="font-size:12px;color:var(--text-tertiary);">Passwort
+            <input id="login-passwort" type="password" autocomplete="current-password" style="width:100%;margin:4px 0 12px;">
+          </label>
+          <button type="submit" id="login-pw-btn" style="width:100%;">Anmelden</button>
+        </form>
+
         <div class="footer-note">
           Nur freigeschaltete Vertriebler haben Zugriff.<br>
           Fragen? <a href="mailto:e.steininger@immo-stein.de">Edgar Steininger</a>
@@ -266,6 +282,28 @@ function renderLogin() {
     initGoogleButton(clientId);
   });
 }
+
+// 06.07.2026 (Henry): Login per E-Mail+Passwort — gleicher Erfolgs-Pfad wie Google.
+async function doPasswortLogin(ev) {
+  if (ev) ev.preventDefault();
+  const email = (document.getElementById('login-email').value || '').trim();
+  const pw = document.getElementById('login-passwort').value || '';
+  if (!email || !pw) { state.lastError = 'Bitte E-Mail und Passwort eingeben.'; renderLogin(); return; }
+  const btn = document.getElementById('login-pw-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Anmelden …'; }
+  try {
+    const result = await api.post('/api/auth/passwort', { email, passwort: pw });
+    state.user = result.vertriebler;
+    state.lastError = null;
+    await loadInitialData();
+    go(state.user && state.user.rolle === 'Extern' ? '/start' : '/dashboard');
+    render();
+  } catch (e) {
+    state.lastError = (e.body && e.body.error) || 'Login fehlgeschlagen.';
+    renderLogin();
+  }
+}
+window.doPasswortLogin = doPasswortLogin;
 
 function initGoogleButton(clientId) {
   // GSI wartet asynchron — Polling
@@ -6501,6 +6539,19 @@ async function _adminExternFreigabe(weId, checked) {
 }
 window._adminExternFreigabe = _adminExternFreigabe;
 
+async function _adminPasswortSetzen(vertrieblerId, name) {
+  const pw = window.prompt('Neues Login-Passwort für ' + name + ' (mindestens 8 Zeichen):');
+  if (pw === null) return;
+  if ((pw || '').trim().length < 8) { toast('Passwort muss mindestens 8 Zeichen haben', 'error'); return; }
+  try {
+    await api.post('/api/admin/passwort', { vertrieblerId, passwort: pw });
+    toast('Passwort für ' + name + ' gesetzt — bitte sicher übermitteln', 'success');
+  } catch (e) {
+    toast('Passwort setzen fehlgeschlagen: ' + (e.message || 'unbekannt'), 'error');
+  }
+}
+window._adminPasswortSetzen = _adminPasswortSetzen;
+
 async function _adminOpenExternReservDoc(kundeId) {
   try {
     const resp = await api.post('/api/reservierung/view-link', { kundeId });
@@ -8793,6 +8844,16 @@ async function renderAdmin() {
                 </tbody>
               </table>
             </div>`}
+            <div class="card-title" style="font-size:13px;">Login-Zugänge (E-Mail + Passwort) <span class="text-tertiary text-small" style="font-weight:normal;">— zusätzlich zu Google, v.a. für Externe ohne Google-Konto</span></div>
+            <div style="margin-bottom:18px;">
+              ${(s.vertriebler || []).map(v => `
+                <div style="display:flex;align-items:center;gap:10px;padding:4px 0;font-size:13px;border-bottom:1px solid var(--border);">
+                  <span>${esc(v.name)}</span>
+                  <span class="text-tertiary text-small">${esc(v.rolle || 'Vertriebler')}</span>
+                  <button class="secondary" style="font-size:11px;padding:3px 10px;margin-left:auto;" onclick="window._adminPasswortSetzen('${esc(v.id)}', '${esc(v.name)}')">Passwort setzen</button>
+                </div>`).join('')}
+              <div class="text-tertiary text-small" style="margin-top:6px;">Das Passwort sicher übermitteln (Telefon/Signal) — der Nutzer kann es danach selbst ändern (Externe: unter „Start &amp; Provision").</div>
+            </div>
             <div class="card-title" style="font-size:13px;">WE-Freigaben für Externe <span class="text-tertiary text-small" style="font-weight:normal;">— nur angehakte Einheiten sind für die Rolle „Extern" sichtbar</span></div>
             ${freigabeRows.length === 0 ? '<div class="text-tertiary text-small">Keine aktiven Einheiten.</div>' : `
             <div style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;padding:6px 12px;">
@@ -10190,6 +10251,20 @@ function renderExternStart() {
         <div class="text-tertiary text-small">Gespeichert ist aktuell: <strong>${aktuellPct.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %</strong>. Du kannst den Satz hier jederzeit ändern — alle Preise in der App passen sich sofort an. Für laufende Beratungen gilt: Preis beim Kunden nennen, dann Satz nicht mehr wechseln. Tipp: Die Provisions-Zeile im Kalkulator blendest du mit dem × aus (wenn der Kunde mitschaut) — das ⓘ holt sie zurück.</div>
       </div>
 
+      <details class="card" style="margin-bottom:16px;">
+        <summary style="cursor:pointer;font-weight:600;font-size:13px;">Login &amp; Passwort</summary>
+        <p class="text-small" style="margin:10px 0;line-height:1.5;color:var(--text-tertiary);">Du kannst dich mit Google oder mit E-Mail + Passwort anmelden. Hier setzt oder änderst du dein Passwort (mind. 8 Zeichen).</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px;max-width:520px;">
+          <label class="text-small" style="color:var(--text-tertiary);">Aktuelles Passwort <span style="font-weight:normal;">(leer lassen, falls noch keins)</span>
+            <input id="extern-pw-alt" type="password" autocomplete="current-password" style="width:100%;margin:4px 0 10px;">
+          </label>
+          <label class="text-small" style="color:var(--text-tertiary);">Neues Passwort
+            <input id="extern-pw-neu" type="password" autocomplete="new-password" style="width:100%;margin:4px 0 10px;">
+          </label>
+        </div>
+        <button class="secondary" style="font-size:12px;" onclick="window._externPasswortSave()">Passwort speichern</button>
+      </details>
+
       <div style="display:flex;gap:10px;margin-bottom:32px;">
         <button onclick="go('/we-liste')">Zu den Wohnungen</button>
         <button class="secondary" onclick="go('/dashboard')">Zu meinen Kunden</button>
@@ -10198,6 +10273,22 @@ function renderExternStart() {
   `;
   _externUpdatePreview();
 }
+
+// 06.07.2026 (Henry): eigenes Login-Passwort setzen/ändern (PATCH /api/me).
+async function _externPasswortSave() {
+  const alt = (document.getElementById('extern-pw-alt') || {}).value || '';
+  const neu = (document.getElementById('extern-pw-neu') || {}).value || '';
+  if (neu.trim().length < 8) { toast('Neues Passwort: mindestens 8 Zeichen', 'error'); return; }
+  try {
+    await api.patch('/api/me', { passwortNeu: neu, passwortAlt: alt });
+    toast('Passwort gespeichert — du kannst dich jetzt mit E-Mail + Passwort anmelden', 'success');
+    const a = document.getElementById('extern-pw-alt'); if (a) a.value = '';
+    const n = document.getElementById('extern-pw-neu'); if (n) n.value = '';
+  } catch (e) {
+    toast('Speichern fehlgeschlagen: ' + (e.message || 'unbekannt'), 'error');
+  }
+}
+window._externPasswortSave = _externPasswortSave;
 
 function render() {
   renderHeader();

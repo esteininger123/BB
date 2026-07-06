@@ -1,9 +1,12 @@
 // GET   /api/me — Vertriebler-Profil des eingeloggten Users.
-// PATCH /api/me — 06.07.2026 (Henry): Externe pflegen hier ihren Provisionssatz
-//                 (0–7 %, Dezimalwert). Nur das eigene Record, nur Rolle 'Extern'.
+// PATCH /api/me — 06.07.2026 (Henry): Selbst-Pflege des eigenen Records:
+//   { provisionPct }              — Provisionssatz 0–7 % (nur Rolle 'Extern')
+//   { passwortNeu, passwortAlt? } — eigenes Login-Passwort setzen/ändern (alle Rollen;
+//                                   passwortAlt Pflicht, sobald schon eins existiert)
 
 const { verifySession, requireSafeOrigin, isExtern } = require('./_lib/auth');
 const { clampProvision, PROVISION_MAX } = require('./_lib/extern');
+const { hashPasswort, verifyPasswort, passwortRegelFehler } = require('./_lib/passwort');
 const { airtable } = require('./_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('./_lib/http');
 const { TABLES, VERTRIEBLER_FIELDS } = require('./_lib/tables');
@@ -18,22 +21,46 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === 'PATCH') {
-      // Nur Externe haben einen Provisionssatz — für alle anderen ist der Endpoint gesperrt.
-      if (!isExtern(session)) {
-        return res.status(403).json({ error: 'Provisionssatz gibt es nur für externe Vertriebler.' });
-      }
       const body = await readBody(req);
-      const raw = body && body.provisionPct;
-      const n = typeof raw === 'number' ? raw : parseFloat(raw);
-      if (!isFinite(n) || n < 0 || n > PROVISION_MAX + 1e-9) {
-        return res.status(400).json({ error: `provisionPct muss zwischen 0 und ${PROVISION_MAX} (= ${PROVISION_MAX * 100} %) liegen.` });
+      const fields = {};
+      const out = { ok: true };
+
+      // --- Provisionssatz (nur Extern) ---
+      if (body && body.provisionPct !== undefined) {
+        if (!isExtern(session)) {
+          return res.status(403).json({ error: 'Provisionssatz gibt es nur für externe Vertriebler.' });
+        }
+        const n = typeof body.provisionPct === 'number' ? body.provisionPct : parseFloat(body.provisionPct);
+        if (!isFinite(n) || n < 0 || n > PROVISION_MAX + 1e-9) {
+          return res.status(400).json({ error: `provisionPct muss zwischen 0 und ${PROVISION_MAX} (= ${PROVISION_MAX * 100} %) liegen.` });
+        }
+        const pct = clampProvision(n);
+        fields[VERTRIEBLER_FIELDS.PROVISION_EXTERN] = pct;
+        out.provisionPct = pct;
       }
-      const pct = clampProvision(n);
+
+      // --- Eigenes Passwort setzen/ändern (alle Rollen) — 06.07.2026 ---
+      if (body && body.passwortNeu !== undefined) {
+        const regelFehler = passwortRegelFehler(body.passwortNeu);
+        if (regelFehler) return res.status(400).json({ error: regelFehler });
+        const rec = await airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId });
+        const vorhanden = rec && rec.fields && rec.fields[VERTRIEBLER_FIELDS.PASSWORT_HASH];
+        // Existiert schon ein Passwort → altes Pflicht (Schutz bei offener Session).
+        if (vorhanden && !verifyPasswort(String(body.passwortAlt || ''), vorhanden)) {
+          return res.status(403).json({ error: 'Aktuelles Passwort falsch.' });
+        }
+        fields[VERTRIEBLER_FIELDS.PASSWORT_HASH] = hashPasswort(String(body.passwortNeu));
+        out.passwortGesetzt = true;
+      }
+
+      if (Object.keys(fields).length === 0) {
+        return res.status(400).json({ error: 'Nichts zu ändern (provisionPct oder passwortNeu angeben).' });
+      }
       await airtable('update', TABLES.VERTRIEBLER, {
         recordId: session.vertrieblerId,
-        fields: { [VERTRIEBLER_FIELDS.PROVISION_EXTERN]: pct },
+        fields,
       });
-      return res.status(200).json({ ok: true, provisionPct: pct });
+      return res.status(200).json(out);
     }
 
     const rec = await airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId });
