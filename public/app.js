@@ -2499,14 +2499,23 @@ function renderTabKalkulator() {
                   ${i._stellplatzMiete > 0 ? ' · Miete ' + Math.round(i._stellplatzMiete) + ' €/Mo (' + esc(stplMieteQuelleLabel(i._stellplatzMieteQuelle)) + ')' : ''}
                 </div>
               ` : ''}
-              ${state.user && state.user.rolle === 'Extern' && i._externInfo ? `
-                <div class="we-extern-info text-small" style="margin-top:6px;padding:6px 10px;border-left:3px solid var(--accent);">
-                  ${i._externInfo.provisionPct > 0
-                    ? `Kundenpreis enthält deine Provision: <strong>${(i._externInfo.provisionPct * 100).toLocaleString('de-DE')} % = ${Math.round(i._externInfo.aufschlag).toLocaleString('de-DE')} €</strong>`
-                    : `Provisionssatz 0 % — du verkaufst zum Abgabepreis (keine Provision).`}
-                  · Satz ändern: <a href="#/start">Start &amp; Provision</a>
-                </div>
-              ` : ''}
+              ${state.user && state.user.rolle === 'Extern' && i._externInfo ? (
+                // 06.07.2026 (Henry): ausblendbar — der Vertriebler sitzt mit dem
+                // Kunden vorm Bildschirm. × versteckt die Zeile (persistent),
+                // zurück holt sie das dezente ⓘ an derselben Stelle.
+                _externInfoHidden() ? `
+                  <button type="button" id="extern-info-reveal" onclick="window._externInfoToggle(true)" title="Provisions-Info einblenden" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:13px;line-height:1;padding:2px 4px;margin-top:4px;">ⓘ</button>
+                ` : `
+                  <div class="we-extern-info text-small" style="margin-top:6px;padding:6px 10px;border-left:3px solid var(--accent);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+                    <span>
+                      ${i._externInfo.provisionPct > 0
+                        ? `Kundenpreis enthält deine Provision: <strong>${(i._externInfo.provisionPct * 100).toLocaleString('de-DE')} % = ${Math.round(i._externInfo.aufschlag).toLocaleString('de-DE')} €</strong>`
+                        : `Provisionssatz 0 % — du verkaufst zum Abgabepreis (keine Provision).`}
+                      · Satz ändern: <a href="#/start">Start &amp; Provision</a>
+                    </span>
+                    <button type="button" onclick="window._externInfoToggle(false)" title="Ausblenden — z.B. wenn der Kunde mitschaut (ⓘ holt die Info zurück)" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:15px;line-height:1;padding:0;flex-shrink:0;">×</button>
+                  </div>
+                `) : ''}
               ${(() => {
                 // Iter 67 (20.05.2026): €/qm-Anker für den Vertriebler — sieht KP/qm, Miete/qm
                 // und Subv/qm auf einen Blick, damit er die Wohnung schnell ins Markt-Niveau
@@ -9617,6 +9626,24 @@ window._weListeOpenWe = _weListeOpenWe;
 
 const EXTERN_PROVISION_MAX_PCT = 7;   // muss zu PROVISION_MAX (0.07) im Backend passen
 
+// 06.07.2026 (Henry): Die Provisions-Zeile im Kalkulator muss der Vertriebler
+// ausblenden können (Kunde schaut mit). Persistent pro User via localStorage —
+// reine UI-Präferenz, keine Session-Daten.
+function _externInfoKey() {
+  return 'bbk_extern_info_hidden_' + ((state.user && state.user.email) || 'anon');
+}
+function _externInfoHidden() {
+  try { return localStorage.getItem(_externInfoKey()) === '1'; } catch (e) { return false; }
+}
+function _externInfoToggle(show) {
+  try {
+    if (show) localStorage.removeItem(_externInfoKey());
+    else localStorage.setItem(_externInfoKey(), '1');
+  } catch (e) {}
+  renderTabKalkulator();
+}
+window._externInfoToggle = _externInfoToggle;
+
 function _externFmtEur(v) {
   return Math.round(v).toLocaleString('de-DE') + ' €';
 }
@@ -9703,7 +9730,7 @@ function renderExternStart() {
           <div id="extern-prov-wert" style="font-size:22px;font-weight:600;min-width:90px;text-align:right;">0,00 %</div>
           <button id="extern-prov-save" onclick="window._externProvSave()">Provisionssatz speichern</button>
         </div>
-        <div class="text-tertiary text-small">Gespeichert ist aktuell: <strong>${aktuellPct.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %</strong>. Du kannst den Satz hier jederzeit ändern — alle Preise in der App passen sich sofort an. Für laufende Beratungen gilt: Preis beim Kunden nennen, dann Satz nicht mehr wechseln.</div>
+        <div class="text-tertiary text-small">Gespeichert ist aktuell: <strong>${aktuellPct.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %</strong>. Du kannst den Satz hier jederzeit ändern — alle Preise in der App passen sich sofort an. Für laufende Beratungen gilt: Preis beim Kunden nennen, dann Satz nicht mehr wechseln. Tipp: Die Provisions-Zeile im Kalkulator blendest du mit dem × aus (wenn der Kunde mitschaut) — das ⓘ holt sie zurück.</div>
       </div>
 
       <div style="display:flex;gap:10px;margin-bottom:32px;">
@@ -10210,8 +10237,8 @@ const EXTERN_TOUR_STEPS = [
   {
     title: 'Schritt 5 — Dein Kundenpreis im Detail',
     action: 'Direkt unter der Wohnungsauswahl steht deine Provisions-Info: wie viel Provision (in €) in deinem Kundenpreis steckt.',
-    tip: 'Der Kaufpreis in der Kalkulation ist immer schon der Kundenpreis — du musst nichts selbst aufschlagen.',
-    target: '.we-extern-info',
+    tip: 'Der Kaufpreis in der Kalkulation ist immer schon der Kundenpreis. Wichtig fürs Kundengespräch: Mit dem × blendest du die Zeile aus, wenn der Kunde mitschaut — das kleine ⓘ holt sie zurück.',
+    target: '.we-extern-info, #extern-info-reveal',
     needsView: 'kunde',
     needsTab: 'kalkulator',
   },
