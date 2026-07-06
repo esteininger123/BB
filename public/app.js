@@ -82,7 +82,9 @@ function route() {
     state.view = 'kunde';
     const parts = hash.split('/').filter(Boolean); // kunde, :id, [tab]
     state.kundeId = parts[1] || null;
-    state.tab = parts[2] || 'uebersicht';
+    // 06.07.2026 (Henry) — Externe sehen beim Kunden NUR den Kalkulator
+    // (keine Übersicht/SA/Snapshots-Tabs, auch nicht per Deep-Link).
+    state.tab = (state.user.rolle === 'Extern') ? 'kalkulator' : (parts[2] || 'uebersicht');
   } else if (hash === '/admin') {
     state.view = (state.user.rolle === 'Admin') ? 'admin' : 'dashboard';
   } else if (hash === '/we-liste' || hash === '/aktive-we' || hash === '/vertrieb') {
@@ -1552,6 +1554,7 @@ async function renderKunde() {
         </div>
       </div>
 
+      ${state.user.rolle === 'Extern' ? '' : `
       <div class="tabs">
         ${['uebersicht','kalkulator','selbstauskunft','snapshots'].map(t => `
           <button class="tab ${state.tab === t ? 'active' : ''}" data-tab="${t}"
@@ -1561,7 +1564,7 @@ async function renderKunde() {
               t === 'selbstauskunft' ? 'Selbstauskunft' : 'SA-Snapshots'}
           </button>
         `).join('')}
-      </div>
+      </div>`}
 
       <div id="tab-content"></div>
     </div>
@@ -1591,6 +1594,8 @@ function setTab(t) {
   // destroyen, sonst halten die toten Charts ihre Canvas-Refs und sammeln sich
   // an (Memory-Leak nach 20+ Tab-Wechseln).
   _destroyAllKalkCharts();
+  // 06.07.2026 (Henry) — Externe: nur der Kalkulator-Tab existiert.
+  if (state.user && state.user.rolle === 'Extern') t = 'kalkulator';
   state.tab = t;
   history.replaceState(null, '', '#/kunde/' + state.kundeId + '/' + t);
   renderKunde();
@@ -1652,6 +1657,8 @@ async function unarchiveKunde() {
 window.unarchiveKunde = unarchiveKunde;
 
 function renderTab() {
+  // 06.07.2026 (Henry) — Externe: immer Kalkulator, egal was in state.tab steht.
+  if (state.user && state.user.rolle === 'Extern') { state.tab = 'kalkulator'; renderTabKalkulator(); return; }
   if (state.tab === 'uebersicht') renderTabUebersicht();
   else if (state.tab === 'kalkulator') renderTabKalkulator();
   else if (state.tab === 'selbstauskunft') renderTabSelbstauskunft();
@@ -2566,6 +2573,7 @@ function renderTabKalkulator() {
             ` : ''}
           `}
         </div>
+        ${state.user.rolle === 'Extern' ? '' : `
         <div class="we-picker-step">
           <span class="we-picker-step-num">03</span>
           <label>Bonitäts-Quelle</label>
@@ -2579,10 +2587,11 @@ function renderTabKalkulator() {
             </button>
           </div>
           <div class="we-picker-hint">${i.bonModus === 'detail' ? 'Aus Selbstauskunft' : 'Schnell-Eingabe ohne SA'}</div>
-        </div>
+        </div>`}
       </div>
     </div>
 
+    <div id="extern-baseline-warn"></div>
     ${(!isPaket && !i._weId) ? `
     <div class="card mt-16">
       <div class="empty-state" style="padding: 24px; text-align: center;">
@@ -3115,7 +3124,13 @@ function kalkInputsThemenHtml(i) {
       <summary>3 · Rücklage &amp; Verwaltung</summary>
       <div class="grid-1">
         ${sliderEur('Rücklage', 'hausgeld', 0, 500, 5, '€/Mo')}
-        ${sliderEur('Mietverwaltung (SEV)', 'mietverwaltung', 0, 100, 5, '€/Mo')}
+        ${state.user.rolle === 'Extern' ? `
+        <div class="kalk-extern-sev" style="padding:6px 0;">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin:0;font-size:13px;">
+            <input type="checkbox" ${(parseFloat(i.mietverwaltung) || 0) > 0 ? 'checked' : ''} onchange="window._externSevToggle(this.checked)" style="width:16px;height:16px;flex-shrink:0;">
+            <span>Mietverwaltung (SEV) — <strong>${(parseFloat(i.mietverwaltung) || 0) > 0 ? Math.round(i.mietverwaltung) : 30} €/Mo</strong></span>
+          </label>
+        </div>` : sliderEur('Mietverwaltung (SEV)', 'mietverwaltung', 0, 100, 5, '€/Mo')}
         ${sliderEur('Hausverwaltung (WEG)', 'hausverwaltung', 0, 100, 1, '€/Mo')}
       </div>
     </details>
@@ -3124,7 +3139,7 @@ function kalkInputsThemenHtml(i) {
       <summary>4 · Steuern &amp; AfA</summary>
       <div class="grid-1">
         ${slider('Gebäude-Anteil', 'gebaeudeAnteil', 60, 95, 1)}
-        ${slider('AfA-Satz (frei wählbar)', 'afaSatz', 1, 6, 0.05)}
+        ${slider('AfA-Satz', 'afaSatz', 1, 6, 0.05)}
       </div>
     </details>
 
@@ -3143,7 +3158,14 @@ function kalkInputsThemenHtml(i) {
       </div>
     </details>
 
-    ${isQuick ? `
+    ${state.user.rolle === 'Extern' ? `
+    <details class="kalk-section" ${sec('bon')} data-sec="bon" ontoggle="toggleKalkSection('bon', this)">
+      <summary>6 · Persönlicher Steuersatz</summary>
+      <div class="grid-1">
+        ${slider('Persönlicher Steuersatz', 'steuersatz', 25, 50, 1)}
+      </div>
+    </details>
+    ` : isQuick ? `
     <details class="kalk-section" ${sec('bon')} data-sec="bon" ontoggle="toggleKalkSection('bon', this)">
       <summary>6 · Persönliche Bonität (Quick)</summary>
       <div class="text-tertiary text-small mb-12">Direkt eingeben. Für Banken: Selbstauskunft-Tab + Bonität auf "Detail".</div>
@@ -3433,6 +3455,7 @@ async function loadWeIntoKalk(weId) {
   // 1) WE-Metadata immer aus Airtable (Lage-Text, Projekt-Name, Objektvorstellungs-Link)
   state.kalk._weId = weId;
   state.kalk._externInfo = null; // 06.07.2026 — wird aus /api/stammdaten/[weId] befüllt (nur Extern)
+  state.kalk._airtableBaseline = null; // 06.07.2026 — Referenz für die Abweichungs-Warnung (Extern)
   state.kalk._weLage = w.lageText || w.lage || w.weNr || '';
   state.kalk._weNr = w.weNr || '';
   state.kalk._projektName = w.projektName || '';
@@ -3694,6 +3717,10 @@ async function loadWeIntoKalk(weId) {
   if (myToken !== _loadWeToken) return;
   // Zins+Tilgung band-aware aus der Konditionen-Matrix für den Kaufpreis dieser WE.
   syncKonditionen();
+  // 06.07.2026 (Henry) — Extern: hinterlegte Objektdaten als Referenz einfrieren.
+  // Weicht später ein Wert ab, zeigt _externBaselineWarnUpdate() die Warnung.
+  state.kalk._airtableBaseline = {};
+  EXTERN_BASELINE_KEYS.concat(['mietverwaltung']).forEach(k => { state.kalk._airtableBaseline[k] = state.kalk[k]; });
   renderTabKalkulator();
   // FS-1 (24.05.2026, Vertriebler B1): nach WE-Wechsel scrollTo top, damit
   // im Screen-Share-Termin der Käufer den Header der neuen WE sieht statt
@@ -3763,6 +3790,8 @@ window.resetSubvTradeoff = resetSubvTradeoff;
 let chartV = null, chartC = null, chartS = null;
 
 function recalcAndRender() {
+  // 06.07.2026 (Henry) — Extern: Abweichungs-Warnung live aktualisieren.
+  if (typeof _externBaselineWarnUpdate === 'function') { try { _externBaselineWarnUpdate(); } catch {} }
   // Wenn Bonitäts-Modus = 'detail' → Selbstauskunft aus dem Kunden ziehen.
   if (state.kalk && state.kalk.bonModus === 'detail' && state.kunde) {
     let sa = state.kunde.saJson;
@@ -6312,6 +6341,116 @@ function sendInvestDocMail() {
 }
 window.sendInvestDocMail = sendInvestDocMail;
 
+// 06.07.2026 (Henry): Pflicht-Kurz-Selbstauskunft für EXTERNE vor der Reservierung.
+// Ohne ausgefüllte Kurz-SA geht keine digitale Reservierung raus. Die Antworten
+// landen in kunde.saJson (antragsteller.*-Keys der großen SA, damit das interne
+// Team sie im Selbstauskunft-Tab sieht) + Marker sa.kurzSa. Einmal ausgefüllt
+// (kurzSa.erledigt) wird nicht erneut gefragt.
+function ensureKurzSelbstauskunft() {
+  let sa = state.kunde && state.kunde.saJson;
+  if (typeof sa === 'string') { try { sa = JSON.parse(sa); } catch (e) { sa = null; } }
+  if (!sa || typeof sa !== 'object') sa = {};
+  if (sa.kurzSa && sa.kurzSa.erledigt) return Promise.resolve(true);
+  return openKurzSaModal(sa);
+}
+
+function openKurzSaModal(sa) {
+  return new Promise((resolve) => {
+    const existing = document.getElementById('bbk-kurzsa-modal');
+    if (existing) existing.remove();
+    const a = sa.antragsteller || {};
+    const kundeName = (((state.kunde && state.kunde.vorname) || '') + ' ' + ((state.kunde && state.kunde.nachname) || '')).trim() || 'den Kunden';
+    const feld = (id, label, ph, val, typ) => `
+      <label style="display:block;font-size:12px;color:#6B6B64;margin-bottom:10px;">
+        ${label}
+        <input id="${id}" type="${typ || 'text'}" placeholder="${ph}" value="${esc(val || '')}" autocomplete="off"
+               style="display:block;width:100%;margin-top:4px;padding:9px 11px;font-size:14px;border:1px solid #D8D4CB;border-radius:6px;background:#fff;color:#1A1A17;">
+      </label>`;
+    const ov = document.createElement('div');
+    ov.id = 'bbk-kurzsa-modal';
+    ov.setAttribute('role', 'dialog');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9998;background:rgba(26,26,23,0.5);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit;overflow-y:auto;';
+    ov.innerHTML = `
+      <div style="background:#FBFAF7;border-radius:14px;max-width:600px;width:100%;padding:28px 32px;box-shadow:0 30px 80px rgba(0,0,0,0.25);border:1px solid #C9A572;max-height:calc(100vh - 48px);overflow-y:auto;">
+        <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#8E6E3D;font-weight:600;margin-bottom:8px;">Reservierung · Pflichtschritt</div>
+        <h3 style="font-size:20px;font-weight:300;letter-spacing:-.01em;margin:0 0 10px 0;color:#1A1A17;">Kurz-Selbstauskunft für ${esc(kundeName)}</h3>
+        <div style="background:#F4EDE1;border-left:3px solid #B08A4D;padding:10px 14px;font-size:12.5px;line-height:1.5;color:#1A1A17;margin-bottom:18px;border-radius:0 6px 6px 0;">
+          <strong>Wichtig:</strong> B&amp;B prüft diese Selbstauskunft nach Eingang der Reservierung.
+          Ist die Finanzierbarkeit unwahrscheinlich, wird die Reservierung <strong>innerhalb von
+          12 Stunden wieder aufgehoben</strong>. Bitte nur reservieren, wenn die Finanzierung
+          realistisch darstellbar ist.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;">
+          ${feld('kurzsa-beruf', 'Beruf / Tätigkeit *', 'z.B. Elektriker, angestellt', a.beruf)}
+          ${feld('kurzsa-firma', 'Arbeitgeber', 'Firma', a.firma)}
+          ${feld('kurzsa-netto', 'Monatl. Nettoeinkommen (€) *', 'z.B. 3200', a.nettoMo, 'number')}
+          ${feld('kurzsa-miete', 'Aktuelle Miete (€/Mo)', 'z.B. 950', a.mieteMo, 'number')}
+          ${feld('kurzsa-kredite', 'Laufende Kreditraten (€/Mo)', '0 wenn keine', '', 'number')}
+          ${feld('kurzsa-ek', 'Verfügbares Eigenkapital (€) *', 'z.B. 30000', a.bankguthaben, 'number')}
+        </div>
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:#1A1A17;margin:6px 0 4px;cursor:pointer;">
+          <input id="kurzsa-bestaetigt" type="checkbox" style="width:15px;height:15px;margin-top:2px;flex-shrink:0;">
+          <span>Ich habe die Angaben mit dem Kunden besprochen und nach bestem Wissen korrekt erfasst. Der 12-Stunden-Prüfvorbehalt ist dem Kunden bekannt. *</span>
+        </label>
+        <div id="kurzsa-error" style="font-size:12px;color:#9A3E33;min-height:16px;margin-bottom:10px;"></div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <button type="button" id="kurzsa-cancel" class="secondary">Abbrechen</button>
+          <button type="button" id="kurzsa-save">Speichern &amp; Reservierung starten</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+    const $id = (x) => ov.querySelector('#' + x);
+    const errEl = $id('kurzsa-error');
+    const btnSave = $id('kurzsa-save');
+    const close = (val) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+    const onKey = (e) => { if (e.key === 'Escape') close(false); };
+    document.addEventListener('keydown', onKey);
+    $id('kurzsa-cancel').addEventListener('click', () => close(false));
+    btnSave.addEventListener('click', async () => {
+      const beruf = ($id('kurzsa-beruf').value || '').trim();
+      const netto = parseFloat($id('kurzsa-netto').value);
+      const ek = parseFloat($id('kurzsa-ek').value);
+      const miete = parseFloat($id('kurzsa-miete').value);
+      const kredite = parseFloat($id('kurzsa-kredite').value);
+      if (!beruf) { errEl.textContent = 'Bitte Beruf / Tätigkeit angeben.'; return; }
+      if (!isFinite(netto) || netto <= 0) { errEl.textContent = 'Bitte das monatliche Nettoeinkommen angeben.'; return; }
+      if (!isFinite(ek) || ek < 0) { errEl.textContent = 'Bitte das verfügbare Eigenkapital angeben (0 ist erlaubt).'; return; }
+      if (!$id('kurzsa-bestaetigt').checked) { errEl.textContent = 'Bitte die Bestätigung anhaken.'; return; }
+      btnSave.disabled = true;
+      btnSave.textContent = 'Speichere …';
+      try {
+        sa.antragsteller = sa.antragsteller || {};
+        const A = sa.antragsteller;
+        A.beruf = beruf;
+        const firma = ($id('kurzsa-firma').value || '').trim();
+        if (firma) A.firma = firma;
+        A.nettoMo = netto;
+        if (isFinite(miete) && miete > 0) A.mieteMo = miete;
+        A.bankguthaben = ek;
+        if (isFinite(kredite) && kredite > 0) {
+          A.zusatzVerbindlichkeiten = Array.isArray(A.zusatzVerbindlichkeiten) ? A.zusatzVerbindlichkeiten : [];
+          const titel = 'Laufende Kreditraten (Kurz-SA)';
+          const vorhanden = A.zusatzVerbindlichkeiten.find(z => z && z.titel === titel);
+          if (vorhanden) vorhanden.mo = kredite;
+          else A.zusatzVerbindlichkeiten.push({ titel, mo: kredite, wert: 0 });
+        }
+        sa.kurzSa = { erledigt: true, am: new Date().toISOString(), von: (state.user && state.user.email) || '' };
+        await api.put('/api/kunden/' + state.kundeId, { saJson: sa });
+        if (state.kunde) state.kunde.saJson = sa;
+        toast('Kurz-Selbstauskunft gespeichert', 'success');
+        close(true);
+      } catch (e2) {
+        errEl.textContent = 'Speichern fehlgeschlagen: ' + (e2.message || 'unbekannt');
+        btnSave.disabled = false;
+        btnSave.textContent = 'Speichern & Reservierung starten';
+      }
+    });
+    setTimeout(() => { const f = $id('kurzsa-beruf'); if (f) f.focus(); }, 50);
+  });
+}
+window.ensureKurzSelbstauskunft = ensureKurzSelbstauskunft;
+
 // 06.07.2026 (Henry): E-Mail-Nachtrag im Reservierungs-Flow. Wurde der Kunde ohne
 // E-Mail angelegt, fragt dieses Modal sie ab, speichert sie am Kunden-Record
 // (PUT /api/kunden/[id]) und gibt sie zurück — null bei Abbruch. So ist die
@@ -6408,6 +6547,13 @@ async function sendReservierungForSignature() {
   if (!kundeEmail) {
     kundeEmail = await openKundeEmailModal();
     if (!kundeEmail) return; // abgebrochen — kein Versand
+  }
+
+  // 06.07.2026 (Henry) — Externe: Pflicht-Kurz-Selbstauskunft VOR der Reservierung
+  // (inkl. 12-Stunden-Prüfvorbehalt). Abbruch → kein Versand.
+  if (state.user && state.user.rolle === 'Extern') {
+    const kurzSaOk = await ensureKurzSelbstauskunft();
+    if (!kurzSaOk) return;
   }
 
   // Kontext für Modal
@@ -9658,6 +9804,36 @@ function _externInfoToggle(show) {
 }
 window._externInfoToggle = _externInfoToggle;
 
+// 06.07.2026 (Henry): Externe togglen die Mietverwaltung (SEV) nur an/aus —
+// an = hinterlegter Objektwert (sonst 30 €/Mo), aus = 0. Kein freier Slider.
+function _externSevToggle(checked) {
+  const basis = (state.kalk && state.kalk._airtableBaseline && parseFloat(state.kalk._airtableBaseline.mietverwaltung)) || 0;
+  state.kalk.mietverwaltung = checked ? (basis > 0 ? basis : 30) : 0;
+  renderTabKalkulator();
+}
+window._externSevToggle = _externSevToggle;
+
+// 06.07.2026 (Henry): Warnung für Externe, sobald ein Kalkulations-Wert von den
+// hinterlegten Objektdaten (Airtable-Baseline aus loadWeIntoKalk) abweicht.
+// mietverwaltung ist bewusst NICHT dabei — das SEV-Häkchen ist ein legitimer Toggle.
+// Wird bei jedem recalcAndRender() aufgerufen und patcht nur den Banner-Container.
+const EXTERN_BASELINE_KEYS = ['kaufpreis', 'stellplatzKp', 'qm', 'kaltmiete', 'stellplatzMiete', 'hausgeld', 'hausverwaltung', 'afaSatz', 'gebaeudeAnteil', 'wertsteigerung', 'marktwertProQm'];
+function _externBaselineWarnUpdate() {
+  const el = document.getElementById('extern-baseline-warn');
+  if (!el) return;
+  if (!state.user || state.user.rolle !== 'Extern' || !state.kalk || !state.kalk._weId || !state.kalk._airtableBaseline) {
+    el.innerHTML = '';
+    return;
+  }
+  const b = state.kalk._airtableBaseline;
+  const weicht = EXTERN_BASELINE_KEYS.some(k => Math.abs((parseFloat(state.kalk[k]) || 0) - (parseFloat(b[k]) || 0)) > 0.0001);
+  el.innerHTML = weicht ? `
+    <div class="card" style="margin-top:16px;border-left:3px solid var(--negative,#9A3E33);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div class="text-small"><strong>⚠ Vorsicht:</strong> Du hast Werte verändert — die Kalkulation stimmt nicht mehr mit den real hinterlegten Objektdaten überein.</div>
+      <button class="secondary" style="font-size:12px;flex-shrink:0;" onclick="loadWeIntoKalk(state.kalk._weId)">Auf Objektdaten zurücksetzen</button>
+    </div>` : '';
+}
+
 function _externFmtEur(v) {
   return Math.round(v).toLocaleString('de-DE') + ' €';
 }
@@ -10274,8 +10450,8 @@ const EXTERN_TOUR_STEPS = [
   },
   {
     title: 'Schritt 8 — Reservierung digital senden',
-    action: 'Will dein Kunde kaufen: Klick in der Toolbar auf „Reservierung digital senden". Die Reservierung geht zur digitalen Unterschrift an die E-Mail des Kunden.',
-    tip: 'Fehlt die E-Mail des Kunden noch, fragt die App sie an dieser Stelle einfach ab und speichert sie am Kunden.',
+    action: 'Will dein Kunde kaufen: Klick in der Toolbar auf „Reservierung digital senden". Vorher füllst du einmalig eine Kurz-Selbstauskunft aus, dann geht die Reservierung zur digitalen Unterschrift an die E-Mail des Kunden.',
+    tip: 'B&B prüft die Kurz-Selbstauskunft: Ist die Finanzierbarkeit unwahrscheinlich, wird die Reservierung innerhalb von 12 Stunden wieder aufgehoben — also nur reservieren, wenn wirklich finanzierbar. Fehlt die Kunden-E-Mail, fragt die App sie einfach ab.',
     target: 'button[onclick*="sendReservierungForSignature"]',
     needsView: 'kunde',
     needsTab: 'kalkulator',
