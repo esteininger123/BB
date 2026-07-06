@@ -130,7 +130,7 @@ module.exports = async (req, res) => {
     });
 
     // 3) Aggregat pro WE
-    const audit = weRecs.map(weRec => {
+    let audit = weRecs.map(weRec => {
       const wf = weRec.fields || {};
       const titel = (Array.isArray(wf[WE_FIELDS.LAGE_BEZ]) ? wf[WE_FIELDS.LAGE_BEZ][0] : wf[WE_FIELDS.LAGE_BEZ]) || '';
       const we = {
@@ -270,6 +270,8 @@ module.exports = async (req, res) => {
           // Iter 41.9
           mieteBeiVerkauf:       num(sf[KALK_STAMMDATEN_FIELDS.MIETE_BEI_VERKAUF]),
           stellplatzMieteBeiVerkauf: num(sf[KALK_STAMMDATEN_FIELDS.STELLPLATZ_MIETE_BEI_VERKAUF]),
+          // 06.07.2026 (Henry) — WE für externe Vertriebler freigegeben (Admin-Toggle)
+          externFreigabe:        !!sf[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE],
           marktpreisImmoscout:   num(sf[KALK_STAMMDATEN_FIELDS.MARKTPREIS_IS]),
           marktpreisHomeday:     num(sf[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]),
           marktmiete:            num(sf[KALK_STAMMDATEN_FIELDS.MARKTMIETE]),
@@ -297,6 +299,8 @@ module.exports = async (req, res) => {
     // Provisionsaufschlag (Satz × [Wohnung + Stellplatz]) landet nur auf we.kp;
     // stellplaetze.kaufpreisSumme bleibt unverändert (marktüblich eingepreist).
     if (isExtern(session)) {
+      // 06.07.2026 (Henry): Externe sehen nur explizit freigegebene Einheiten.
+      audit = audit.filter(row => row.stammdaten && row.stammdaten.externFreigabe);
       const prov = await loadProvisionPct(session);
       audit.forEach(row => {
         const e = externPreis(row.we.kp, row.stellplaetze.kaufpreisSumme, prov);

@@ -239,3 +239,17 @@ Externe Vertriebler reservieren über einen eigenen Muster-Flow:
   einmalig speichern → `saJson.reservierungExtern.signiert` + Aktivitäts-Zeile am Kunden.
 - Frontend-Flow (nur Extern): Kurz-SA-Pflicht → Adress-Modal → Link-Modal (kopieren/mailto).
   KEIN Snapshot-Zwang, KEIN PandaDoc. Reservierungsfrist: heute + RESERV_FRIST_TAGE (14).
+
+## Extern-Freigabe pro WE + Admin-Cockpit (06.07.2026)
+
+- Checkbox **Extern freigegeben** (`fldQ4pMt1KnVXx8Fw`) auf Kalk-Stammdaten: Opt-in,
+  welche Einheiten die Rolle Extern sieht. Gefiltert in `/api/wohneinheiten`,
+  `/api/stammdaten` (Liste), `/api/stammdaten/[weId]` (404) und
+  `/api/reservierung/extern-link` (403). Toggle via `PUT /api/stammdaten/[weId]
+  { externFreigabe }` (Admin).
+- Admin-Bereich → Block „🤝 Externer Vertrieb": alle Extern-Reservierungen
+  (`GET /api/reservierung/extern-liste`, Admin-only; unterschriebene zuerst) mit
+  Kunde-Link + Dokument-Button, darunter die WE-Freigabe-Checkboxen.
+- Kunden-Übersicht-Tab: Karte „Reservierung (Externer Vertrieb)" mit Status,
+  Unterschrift, „Dokument öffnen"/„Kunden-Link kopieren"
+  (`POST /api/reservierung/view-link`, Owner oder Admin).

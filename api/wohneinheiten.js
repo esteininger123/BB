@@ -192,12 +192,15 @@ module.exports = async (req, res) => {
     const showAll = (req.query && (req.query.all === '1' || req.query.all === 'true')) && session.rolle === 'Admin';
     const stammdatenRecords = await listAll(TABLES.KALK_STAMMDATEN, {
       filterByFormula: `{${KALK_STAMMDATEN_FIELDS.STATUS}}='${KALK_STATUS_AKTIV}'`,
-      fields: [KALK_STAMMDATEN_FIELDS.WOHNEINHEIT],
+      fields: [KALK_STAMMDATEN_FIELDS.WOHNEINHEIT, KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE],
       pageSize: 100
     }, 1000);
 
     const aktiveWeIds = new Set();
     stammdatenRecords.forEach(r => {
+      // 06.07.2026 (Henry): Externe sehen nur explizit freigegebene Einheiten
+      // (Checkbox „Extern freigegeben" in den Kalk-Stammdaten, Admin-Bereich).
+      if (isExtern(session) && !(r.fields || {})[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE]) return;
       const links = (r.fields || {})[KALK_STAMMDATEN_FIELDS.WOHNEINHEIT] || [];
       if (!Array.isArray(links)) return;
       links.forEach(link => {

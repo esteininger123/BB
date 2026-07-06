@@ -388,6 +388,8 @@ function kalkStammRecordToApi(rec) {
     mietzuschussMonate:    num(f[KALK_STAMMDATEN_FIELDS.MIETZUSCHUSS_MONATE]),
     // 2026-06-28: Schalter „9 Jahre subventionieren" für Sonderfälle (Marktheidenfeld).
     langeSubvention:       !!f[KALK_STAMMDATEN_FIELDS.LANGE_SUBVENTION],
+    // 06.07.2026 (Henry) — WE für externe Vertriebler freigegeben (Opt-in).
+    externFreigabe:        !!f[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE],
     afaGutachten:          num(f[KALK_STAMMDATEN_FIELDS.AFA_GUTACHTEN]),
     wertsteigerung:        num(f[KALK_STAMMDATEN_FIELDS.WERTSTEIGERUNG]),
     vermietungsModus,
@@ -1022,6 +1024,13 @@ module.exports = async (req, res) => {
       // Kalk-Stammdaten. Sonst Heuristik „Vertrag vorhanden" (kaltmiete>0 ist unzuverlässig
       // bei Leerstand — Audit-Fix Iter 49: nur ein echter Mietvertrag gilt als Vermietungs-Beweis).
       const kalkApi = kalkStammRecordToApi(kalkRec);
+
+      // 06.07.2026 (Henry): Externe sehen NUR explizit freigegebene Einheiten —
+      // auch per Deep-Link/Direktaufruf nicht mehr.
+      if (isExtern(session) && !(kalkApi && kalkApi.externFreigabe)) {
+        return res.status(404).json({ error: 'Diese Einheit ist für den externen Vertrieb nicht freigegeben.' });
+      }
+
       const statusVomLookup = resolveVermietungsstatusFromLookup(kalkApi && kalkApi.weVermietungsstatusRaw);
       let statusFinal, statusQuelle;
       if (statusVomLookup) {
@@ -1258,6 +1267,8 @@ module.exports = async (req, res) => {
       if (body.marktpreisHomeday !== undefined)     fields[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]        = num(body.marktpreisHomeday);
       // Iter 41.10
       if (body.marktmiete !== undefined)            fields[KALK_STAMMDATEN_FIELDS.MARKTMIETE]           = num(body.marktmiete);
+      // 06.07.2026 (Henry) — Extern-Freigabe (Checkbox, Admin-Bereich „Externer Vertrieb")
+      if (body.externFreigabe !== undefined)        fields[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE]      = !!body.externFreigabe;
 
       // Iter 41.16 (Audit-Fix #14): Pflichtfeld-Validierung beim Aktiv-Setzen.
       // Eine WE darf nur dann auf Status=Aktiv gesetzt werden, wenn die für den

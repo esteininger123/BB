@@ -6486,6 +6486,31 @@ function openKurzSaModal(sa) {
 }
 window.ensureKurzSelbstauskunft = ensureKurzSelbstauskunft;
 
+// 06.07.2026 (Henry): Admin-Block „Externer Vertrieb" — WE-Freigabe togglen +
+// Reservierungsdokument beliebiger Kunden öffnen.
+async function _adminExternFreigabe(weId, checked) {
+  try {
+    await api.put('/api/stammdaten/' + encodeURIComponent(weId), { externFreigabe: checked });
+    const row = (state.adminStammAudit || []).find(r => r.we && r.we.id === weId);
+    if (row && row.stammdaten) row.stammdaten.externFreigabe = checked;
+    toast(checked ? 'Für externen Vertrieb freigegeben' : 'Extern-Freigabe entfernt', 'success');
+  } catch (e) {
+    toast('Freigabe fehlgeschlagen: ' + (e.message || 'unbekannt'), 'error');
+    renderAdmin(); // Checkbox-Zustand zurückdrehen
+  }
+}
+window._adminExternFreigabe = _adminExternFreigabe;
+
+async function _adminOpenExternReservDoc(kundeId) {
+  try {
+    const resp = await api.post('/api/reservierung/view-link', { kundeId });
+    window.open(resp.url, '_blank', 'noopener');
+  } catch (e) {
+    toast('Dokument konnte nicht geöffnet werden: ' + (e.message || 'unbekannt'), 'error');
+  }
+}
+window._adminOpenExternReservDoc = _adminOpenExternReservDoc;
+
 // 06.07.2026 (Henry): Extern-Reservierung aus der Kunden-Übersicht öffnen /
 // Link neu kopieren (frischer 14-Tage-Token via /api/reservierung/view-link).
 async function _openExternReservDoc() {
@@ -8657,14 +8682,16 @@ async function renderAdmin() {
   try {
     // Stats + Wohneinheiten (alle Vermarktung, auch nicht-aktiv) + Stammdaten-Audit parallel
     // Iter 53: Admin sieht mit ?all=1 auch potenziell aktivierbare WEs
-    const [stats, wohneinheiten, audit] = await Promise.all([
+    const [stats, wohneinheiten, audit, externReservListe] = await Promise.all([
       api.get('/api/admin/stats'),
       api.get('/api/wohneinheiten?all=1'),
       api.get('/api/stammdaten').catch(() => []),
+      api.get('/api/reservierung/extern-liste').catch(() => []),
     ]);
     state.adminStats = stats;
     state.adminWohneinheiten = wohneinheiten || [];
     state.adminStammAudit = Array.isArray(audit) ? audit : [];
+    state.adminExternReserv = Array.isArray(externReservListe) ? externReservListe : [];
   } catch (e) {
     app.innerHTML = `<div class="main"><div class="error-banner">${esc(e.message)}</div></div>`;
     return;
@@ -8729,6 +8756,56 @@ async function renderAdmin() {
         <div class="kpi positive"><div class="label">Bestandskäufer</div><div class="value">${bestandskaeufer.length}</div></div>
         <div class="kpi"><div class="label">Vertriebler</div><div class="value">${vertrieblerCount}</div></div>
       </div>
+
+      ${(() => {
+        // 06.07.2026 (Henry): Admin-Block „Externer Vertrieb" — zentrale Übersicht
+        // aller Extern-Reservierungen (12-h-Prüfvorbehalt!) + Freigabe-Schalter,
+        // welche Einheiten die Rolle „Extern" überhaupt sieht (Opt-in-Checkbox
+        // in den Kalk-Stammdaten).
+        const externReserv = state.adminExternReserv || [];
+        const freigabeRows = (state.adminStammAudit || [])
+          .filter(r => r.stammdaten && r.stammdaten.status === 'Aktiv')
+          .sort((a, b) => (a.we.titel || '').localeCompare(b.we.titel || ''));
+        const freiCount = freigabeRows.filter(r => r.stammdaten.externFreigabe).length;
+        return `
+        <details class="card mt-16" ${externReserv.some(r => r.signiertAm) ? 'open' : ''} style="border-left:3px solid #B08A4D;">
+          <summary style="cursor:pointer;font-weight:600;">🤝 Externer Vertrieb
+            <span class="text-tertiary text-small" style="font-weight:normal;">— ${externReserv.length} Reservierung${externReserv.length === 1 ? '' : 'en'} · ${freiCount}/${freigabeRows.length} WEs freigegeben</span>
+          </summary>
+          <div style="margin-top:14px;">
+            <div class="card-title" style="font-size:13px;">Reservierungen (Extern)</div>
+            ${externReserv.length === 0 ? '<div class="text-tertiary text-small" style="margin-bottom:14px;">Noch keine Extern-Reservierungen.</div>' : `
+            <div style="overflow-x:auto;margin-bottom:18px;">
+              <table class="table">
+                <thead><tr><th>Status</th><th>Kunde</th><th>Käufer</th><th>Objekt</th><th class="num">Gesamt-KP</th><th>Frist</th><th>Vertriebler</th><th></th></tr></thead>
+                <tbody>
+                  ${externReserv.map(r => `
+                    <tr>
+                      <td style="white-space:nowrap;">${r.signiertAm ? '<span style="color:var(--positive,#2D6E47);font-weight:600;">✍️ ' + new Date(r.signiertAm).toLocaleDateString('de-DE') + '</span>' : '<span style="color:#B08A4D;">⏳ offen</span>'}</td>
+                      <td><a href="#/kunde/${esc(r.kundeId)}">${esc(r.kundeName)}</a></td>
+                      <td>${esc(r.kaeufer)}</td>
+                      <td>${esc((r.projektName ? r.projektName + ' — ' : '') + (r.lage || ''))}${r.weNr ? ' · WE ' + esc(r.weNr) : ''}</td>
+                      <td class="num">${eur(r.kpGesamt)}</td>
+                      <td>${esc(r.reservBis)}</td>
+                      <td>${esc(r.vertrieblerName)}</td>
+                      <td><button class="secondary" style="font-size:11px;padding:4px 10px;" onclick="window._adminOpenExternReservDoc('${esc(r.kundeId)}')">Dokument</button></td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>`}
+            <div class="card-title" style="font-size:13px;">WE-Freigaben für Externe <span class="text-tertiary text-small" style="font-weight:normal;">— nur angehakte Einheiten sind für die Rolle „Extern" sichtbar</span></div>
+            ${freigabeRows.length === 0 ? '<div class="text-tertiary text-small">Keine aktiven Einheiten.</div>' : `
+            <div style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;padding:6px 12px;">
+              ${freigabeRows.map(r => `
+                <label style="display:flex;align-items:center;gap:10px;padding:5px 0;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);margin:0;">
+                  <input type="checkbox" ${r.stammdaten.externFreigabe ? 'checked' : ''} onchange="window._adminExternFreigabe('${esc(r.we.id)}', this.checked)" style="width:15px;height:15px;flex-shrink:0;">
+                  <span>${esc(r.we.titel || r.we.id)}${r.we.weNr ? ' · WE ' + esc(r.we.weNr) : ''}</span>
+                  <span class="text-tertiary text-small" style="margin-left:auto;">${eur(r.we.kp)}</span>
+                </label>`).join('')}
+            </div>`}
+          </div>
+        </details>`;
+      })()}
 
       ${festhaengend.length > 0 ? `
         <details class="card mt-16" style="border-left:3px solid var(--negative, #c0392b);" open>

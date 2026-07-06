@@ -286,6 +286,9 @@ const KALK_STAMMDATEN_FIELDS = {
   STELLPLATZ_MIETE_BEI_VERKAUF: 'fldbCBygfUhPObiXf', // Currency €/Mo
   MARKTPREIS_IS:         'fldhMmMxLn1PSjbwN', // Currency €/m² — ImmoScout-Marktpreis
   MARKTPREIS_HD:         'fldvlXM6pBUzVYdpF', // Currency €/m² — Homeday-Marktpreis
+  // 06.07.2026 (Henry) — Checkbox: WE ist für EXTERNE Vertriebler freigegeben (Opt-in).
+  // Gesteuert im Admin-Bereich → „Externer Vertrieb". Ohne Haken sehen Externe die WE nicht.
+  EXTERN_FREIGABE:       'fldQ4pMt1KnVXx8Fw',
   // Iter 41.10 — Mietsubvention 2-Phasen-Modell:
   MARKTMIETE:            'fldnrgRONiWWsSxZb', // Currency €/qm — Markt-Kaltmiete pro qm (Iter 65, 20.05.2026: vorher €/Mo, jetzt €/qm zur Projekt-Pflege). Backend multipliziert beim Bedarf mit WE.qm.
   // Iter 41.17 (18.05.2026) — Edgar-Fix: Vermietungs-Status der WE als Lookup in

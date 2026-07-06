@@ -18,9 +18,9 @@ const jwt = require('jsonwebtoken');
 const { verifySession, requireSafeOrigin, isExtern } = require('../_lib/auth');
 const { externPreis, loadProvisionPct, ladeStellplatzKpSummen } = require('../_lib/extern');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
-const { airtable } = require('../_lib/airtable');
+const { airtable, listAll } = require('../_lib/airtable');
 const { appendActivityZeile } = require('../_lib/notizen');
-const { TABLES, KUNDEN_FIELDS, VERTRIEBLER_FIELDS, WE_FIELDS } = require('../_lib/tables');
+const { TABLES, KUNDEN_FIELDS, VERTRIEBLER_FIELDS, WE_FIELDS, KALK_STAMMDATEN_FIELDS, KALK_STATUS_AKTIV } = require('../_lib/tables');
 
 const TOKEN_KIND = 'reserv-sign';
 const TOKEN_TAGE = 14;
@@ -73,6 +73,22 @@ module.exports = async (req, res) => {
     }
     const kaeuferName = (((kf[KUNDEN_FIELDS.VORNAME] || '') + ' ' + (kf[KUNDEN_FIELDS.NACHNAME] || '')).trim())
       || kf[KUNDEN_FIELDS.NAME] || 'Kaufinteressent';
+
+    // --- Freigabe-Check (06.07.2026): nur explizit für Extern freigegebene
+    // Einheiten sind reservierbar — auch gegen manipulierte Requests. ---
+    const stammRecs = await listAll(TABLES.KALK_STAMMDATEN, {
+      filterByFormula: `{${KALK_STAMMDATEN_FIELDS.STATUS}}='${KALK_STATUS_AKTIV}'`,
+      fields: [KALK_STAMMDATEN_FIELDS.WOHNEINHEIT, KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE],
+    }, 1000);
+    const freigegeben = stammRecs.some(r => {
+      const f = r.fields || {};
+      if (!f[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE]) return false;
+      const links = f[KALK_STAMMDATEN_FIELDS.WOHNEINHEIT] || [];
+      return Array.isArray(links) && links.some(x => ((x && typeof x === 'object' && x.id) ? x.id : x) === weId);
+    });
+    if (!freigegeben) {
+      return res.status(403).json({ error: 'Diese Einheit ist für den externen Vertrieb nicht freigegeben.' });
+    }
 
     // --- Preise SERVERSEITIG (Abgabepreis + Provision des Externen) ---
     const [weRec, vertrieblerRec, prov, stplKpByWe] = await Promise.all([
