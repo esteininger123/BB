@@ -52,7 +52,8 @@
       ['Mietverwaltung', eurMo(i.mietverwaltung), 'lfd. Bewirtschaftung'],
       ['Hausverwaltung (sonst.)', eurMo(i.hausverwaltung), 'optional'],
       ['Marktmiete', qm(i.marktmieteEurQm), 'realistisch erzielbare Miete (eigene Einschätzung)'],
-      ['Marktwert', qm(i.marktwertProQm), 'für Vermögensbasis'],
+      // 08.07.2026 (Henry) — WG-Konzept: kein qm-Vergleichsmarktwert; Vermögensbasis = Kaufpreis.
+      ...(i._wgKonzept ? [] : [['Marktwert', qm(i.marktwertProQm), 'für Vermögensbasis']]),
     ];
 
     const investition = [
@@ -82,7 +83,8 @@
       ['Miete €/m²', qm(r.mieteWohnungProQm), 'Kaltmiete / m²'],
       ['Vermögen brutto Jahr 10', eur(r.vermoegenBrutto10), 'Immobilienwert − Restschuld + kum. CF'],
       ['Vermögen netto Jahr 10', eur(r.vermoegenNetto10), 'nach fiktiven Verkaufskosten'],
-      ['Markteinkaufsvorteil', eur(r.markteinkaufVorteil), 'Marktwert − Kaufpreis'],
+      // 08.07.2026 (Henry) — WG-Konzept: kein Marktwert-Vergleich → Zeile raus.
+      ...(i._wgKonzept ? [] : [['Markteinkaufsvorteil', eur(r.markteinkaufVorteil), 'Marktwert − Kaufpreis']]),
     ];
 
     // 10-Jahres-Projektion: Zeilen mit Werte-Array

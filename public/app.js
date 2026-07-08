@@ -2844,12 +2844,12 @@ function kalkInputsPaketHtml(i) {
     <details class="kalk-section" ${sec('pmarkt')} data-sec="pmarkt" ontoggle="toggleKalkSection('pmarkt', this)">
       <summary>1 · Marktpreis &amp; Wertentwicklung</summary>
       <div class="grid-1">
-        ${sliderEur('Marktwert €/qm' + (marktQuelleLabel(state.kalk._marktpreisQuelle) ? ' (' + marktQuelleLabel(state.kalk._marktpreisQuelle) + ')' : ' (ImmoScout/Homeday)'), 'marktwertProQm', 0, 8000, 50, '€/qm')}
+        ${state.kalk._wgKonzept ? '' : sliderEur('Marktwert €/qm' + (marktQuelleLabel(state.kalk._marktpreisQuelle) ? ' (' + marktQuelleLabel(state.kalk._marktpreisQuelle) + ')' : ' (ImmoScout/Homeday)'), 'marktwertProQm', 0, 8000, 50, '€/qm')}
         ${slider('Wertsteigerung p.a.', 'wertsteigerung', 0, 6, 0.25)}
       </div>
-      <div style="padding: 4px 14px 14px;">
+      ${state.kalk._wgKonzept ? '' : `<div style="padding: 4px 14px 14px;">
         <p class="text-tertiary text-small">Marktpreis gilt für <strong>alle WEs im Paket</strong> — der Markteinkauf-Vorteil wird aggregiert berechnet (Σ Marktpreis × qm − Σ Kaufpreise).</p>
-      </div>
+      </div>`}
     </details>
     <details class="kalk-section" ${sec('pfin')} data-sec="pfin" ontoggle="toggleKalkSection('pfin', this)">
       <summary>2 · Finanzierung</summary>
@@ -2944,7 +2944,7 @@ function kalkInputsThemenHtml(i) {
         ${sliderEur('Kaufpreis Wohnung', 'kaufpreis', 30000, 500000, 500)}
         ${sliderEur('Stellplatz / Garage KP', 'stellplatzKp', 0, 30000, 500)}
         ${sliderEur('Quadratmeter', 'qm', 20, 200, 0.5, 'm²')}
-        ${sliderEur('Marktwert €/qm' + (marktQuelleLabel(state.kalk._marktpreisQuelle) ? ' (' + marktQuelleLabel(state.kalk._marktpreisQuelle) + ')' : ' (ImmoScout/Homeday)'), 'marktwertProQm', 0, 8000, 50, '€/qm')}
+        ${state.kalk._wgKonzept ? '' : sliderEur('Marktwert €/qm' + (marktQuelleLabel(state.kalk._marktpreisQuelle) ? ' (' + marktQuelleLabel(state.kalk._marktpreisQuelle) + ')' : ' (ImmoScout/Homeday)'), 'marktwertProQm', 0, 8000, 50, '€/qm')}
         ${slider('Inflation / Wertsteigerung p.a.', 'wertsteigerung', 0, 6, 0.25)}
       </div>
     </details>
@@ -5302,7 +5302,7 @@ function renderStoryPremium(r) {
           <div class="kalk-c-ass-row"><span class="kalk-c-k">AfA-Satz<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('afa')}</span></span><span class="kalk-c-v">${fmtPct(i.afaSatz || 0.02)} linear</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Mietsubvention<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('subv')}</span></span><span class="kalk-c-v">${subvText}</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Sparbuch-Vergleich<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('spar')}</span></span><span class="kalk-c-v"><span id="spar-zins-val" style="display:inline-block;min-width:48px;text-align:right;">${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} %</span> p.a.</span></div>
-          <div class="kalk-c-ass-row"><span class="kalk-c-k">Marktpreis je qm Ref.<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('markt')}</span></span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') + ' €' : '—'}</span></div>
+          ${wgKonzept ? '' : `<div class="kalk-c-ass-row"><span class="kalk-c-k">Marktpreis je qm Ref.<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('markt')}</span></span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') + ' €' : '—'}</span></div>`}
         </div>
         <div style="margin-top:18px;padding:14px 16px;background:rgba(176,138,77,.07);border-radius:6px;font-size:12px;color:var(--text-secondary);line-height:1.55;">
           <strong style="color:var(--text-primary);">Berechnet mit Engine v${(window.Kalk && window.Kalk.ENGINE_VERSION) || '?'} · Stand: ${new Date().toLocaleDateString('de-DE')}.</strong><br>
