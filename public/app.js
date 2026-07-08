@@ -3700,8 +3700,16 @@ async function loadWeIntoKalk(weId) {
         state.kalk.letzteMietsteigerung = vereinbDatum || new Date().toISOString().slice(0, 10);
         state.kalk.monateSeitMieterhoehung = 0;
       }
+      // 08.07.2026 (Henry) — WG-/Rendite-Objekt. Backend liefert dann marktpreisGemittelt=0
+      // (Vergleichsmarktpreis aus den Daten genommen) → wir ankern die Vermögensrechnung auf
+      // den Kaufpreis. marktwertProQm hart auf 0 setzen, damit kein Rest aus Presets/vorheriger
+      // WE hängen bleibt. _wgKonzept steuert die WG-Ansicht in renderStoryPremium.
+      state.kalk._wgKonzept = !!sd.wgKonzept;
       // Iter 41.9 — Markt-Schnitt (IS + HD)
-      if (derived.marktpreisGemittelt && derived.marktpreisGemittelt > 0) {
+      if (sd.wgKonzept) {
+        state.kalk.marktwertProQm = 0;
+        state.kalk._marktpreisQuelle = null;
+      } else if (derived.marktpreisGemittelt && derived.marktpreisGemittelt > 0) {
         state.kalk.marktwertProQm = derived.marktpreisGemittelt;
         state.kalk._marktpreisQuelle = derived.marktpreisGemitteltQuelle;
       }
@@ -4471,6 +4479,9 @@ function renderStoryPremium(r) {
   const sparen10 = r.sparen[10] || {};
   const kpQm = r.kaufpreisProQm || 0;
   const marktQm = parseFloat(i.marktwertProQm) || 0;
+  // 08.07.2026 (Henry) — WG-/Rendite-Objekt: keine Marktwert-/Markteinkauf-Zeile, stattdessen
+  // Erstvermietungsgarantie-Block + AfA-Sektion. Anker liegt (via marktwertProQm=0) auf dem Kaufpreis.
+  const wgKonzept = !!(state.kalk._wgKonzept);
   const heute = new Date().toLocaleDateString('de-DE');
 
   // Personalisierung
@@ -4614,6 +4625,10 @@ function renderStoryPremium(r) {
         </div>
         <div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaufpreis je qm</span><span class="kalk-c-v">${Math.round(kpQm).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></span></div>
+          ${wgKonzept ? `
+          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Vermietung</span><span class="kalk-c-v">Wohngemeinschaft</span></div>
+          <div class="kalk-c-objekt-row"><span class="kalk-c-k">Erstvermietungsgarantie</span><span class="kalk-c-v" style="color:var(--positive)">B&amp;B</span></div>
+          ` : `
           <div class="kalk-c-objekt-row" title="${(() => {
             const is = state.kalk._marktpreisIS;
             const hd = state.kalk._marktpreisHD;
@@ -4625,6 +4640,7 @@ function renderStoryPremium(r) {
             return parts.length ? parts.join(' · ') + srcText : 'Marktpreis aus Stammdaten';
           })()}"><span class="kalk-c-k">Marktwert${marktQuelleLabel(state.kalk._marktpreisQuelle) ? ' ' + marktQuelleLabel(state.kalk._marktpreisQuelle) : ''} je qm</span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') : '—'}<span class="kalk-c-unit">€</span></span></div>
           ${r.markteinkaufVorteil ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">${r.markteinkaufVorteil > 0 ? 'Markteinkauf-Vorteil' : 'Markt-Aufschlag'}</span><span class="kalk-c-v ${r.markteinkaufVorteil > 0 ? '' : 'kalk-c-neg'}">${fmt(Math.abs(r.markteinkaufVorteil))}${r.markteinkaufVorteil > 0 ? '' : ' über Markt'}</span></div>` : ''}
+          `}
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaltmiete</span><span class="kalk-c-v">${Math.round(i.kaltmiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>
           ${i.stellplatzMiete > 0 ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">Stellplatz-Miete</span><span class="kalk-c-v">${Math.round(i.stellplatzMiete).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></span></div>` : ''}
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Rücklage · HV · MV</span><span class="kalk-c-v">${Math.round(i.hausgeld || 0)} / ${Math.round(i.hausverwaltung || 0)} / ${Math.round(i.mietverwaltung || 0)}<span class="kalk-c-unit">€/Mo</span></span></div>
@@ -4650,9 +4666,34 @@ function renderStoryPremium(r) {
           </div>
         </div>
         <p class="kalk-c-einsatz-note">
-          Die Kaufnebenkosten — Grunderwerbsteuer, Notar, Grundbuch — fallen einmalig an. Sie gehen nicht in den Marktwert ein und kommen beim späteren Verkauf nicht zurück.
+          Die Kaufnebenkosten — Grunderwerbsteuer, Notar, Grundbuch — fallen einmalig an. Sie kommen beim späteren Verkauf nicht zurück.
         </p>
       </div>
+
+      ${wgKonzept ? `
+      <div class="kalk-c-einsatz-block" style="margin-top:24px;background:var(--positive-bg);">
+        <div class="kalk-c-einsatz-head">Erstvermietungsgarantie</div>
+        <div class="kalk-c-einsatz-grid">
+          <div class="kalk-c-einsatz-cell">
+            <div class="kalk-c-einsatz-label">Garantierte Kaltmiete</div>
+            <div class="kalk-c-einsatz-value" style="color:var(--positive)">${Math.round(i.kaltmiete || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€/Mo</span></div>
+            <div class="kalk-c-einsatz-sub">B&amp;B garantiert die erste Vermietung</div>
+          </div>
+          <div class="kalk-c-einsatz-cell">
+            <div class="kalk-c-einsatz-label">Mieteinnahme</div>
+            <div class="kalk-c-einsatz-value" style="color:var(--positive)">ab Tag 1</div>
+            <div class="kalk-c-einsatz-sub">gesichert, auch während die WG anläuft</div>
+          </div>
+          <div class="kalk-c-einsatz-cell">
+            <div class="kalk-c-einsatz-label">Dein Leerstand-Risiko</div>
+            <div class="kalk-c-einsatz-value">0<span class="kalk-c-unit">€</span></div>
+            <div class="kalk-c-einsatz-sub">die Anlaufphase trägt der Verkäufer</div>
+          </div>
+        </div>
+        <p class="kalk-c-einsatz-note">
+          Du startest ohne Vermietungsrisiko: B&amp;B garantiert Dir die kalkulierte Kaltmiete von ${Math.round(i.kaltmiete || 0).toLocaleString('de-DE')} €/Mo ab dem ersten Tag — auch wenn die WG-Zimmer noch nicht alle belegt sind. Deine Mieteinnahme steht damit von Anfang an fest.
+        </p>
+      </div>` : ''}
 
       ${(r.mietsubventionGesamt && r.mietsubventionGesamt > 0) ? `
       <div class="kalk-c-einsatz-block" style="margin-top:24px;background:var(--positive-bg);">
@@ -5281,15 +5322,74 @@ function renderStoryPremium(r) {
     </div>
   `;
 
+  // 08.07.2026 (Henry) — WG-Konzept: AfA-Sektion mit RND-Gutachten-Beleg + ehrlicher
+  // Worst-Case-Rechnung (nur 2 % Standard-AfA). Zeigt nur bei WG-Objekten MIT erhöhter
+  // AfA aus Gutachten (afaSatz > 2 %). Worst Case wird live per recalc() gerechnet.
+  const SECTION_AFA = (() => {
+    if (!wgKonzept) return '';
+    const afaSatz = parseFloat(i.afaSatz) || 0;
+    if (!(afaSatz > 0.021)) return ''; // nur bei erhöhter AfA aus RND-Gutachten
+    if (!window.Kalk || !window.Kalk.recalc || !r.inputs) return '';
+    let rWorst;
+    try { rWorst = window.Kalk.recalc(Object.assign({}, r.inputs, { afaSatz: 0.02 })); } catch (e) { return ''; }
+    if (!rWorst) return '';
+    const cfMo = (rr) => Math.round(((rr.cf && rr.cf[0]) ? rr.cf[0].cfJahr : 0) / 12);
+    const cfStr = (n) => (n > 0 ? '+' : '') + Math.round(n).toLocaleString('de-DE') + ' €';
+    const afaPct = (afaSatz * 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const thCol = 'text-align:right;padding:0 0 14px;font-size:11px;letter-spacing:.04em;color:var(--text-primary);font-weight:600;line-height:1.4;';
+    const td0 = 'padding:11px 0;border-bottom:1px solid var(--border);color:var(--text-tertiary);font-size:13px;';
+    const tdV = 'padding:11px 0;border-bottom:1px solid var(--border);text-align:right;font-size:16px;font-weight:500;color:var(--text-primary);font-variant-numeric:tabular-nums;';
+    const tdP = tdV + 'color:var(--positive);';
+    return `
+    <section class="kalk-c-section">
+      <div class="kalk-c-section-head">
+        <div class="kalk-c-left">
+          <div class="kalk-c-section-num">Steuer · Die Abschreibung</div>
+          <h2 class="kalk-c-section-title">Deine AfA steht auf sicherem Grund.</h2>
+        </div>
+        <div class="kalk-c-right">Die hohe Abschreibung ist der Hebel hinter Deinem Steuervorteil — rechtlich gut abgesichert, und selbst im schlechtesten Fall bleibt die Rechnung im Plus.</div>
+      </div>
+      <div style="max-width:64ch">
+        <p class="kalk-c-lead">Deine Abschreibung von ${afaPct} % kommt aus einem Restnutzungsdauer-Gutachten — nicht aus einer Schätzung.</p>
+        <p>Das Gutachten wurde erstellt, <strong>bevor die Modernisierungsmaßnahmen abgeschlossen waren</strong>, und hält die tatsächliche wirtschaftliche Restnutzungsdauer der Altbausubstanz fest. Auch nach den weiteren Arbeiten bleibt es die Grundlage für die AfA — die ${afaPct} % statt der pauschalen 2 % sind der Hebel hinter Deinem monatlichen Überschuss.</p>
+        <p>Nach aktueller höchstrichterlicher Rechtsprechung genügt dafür der Nachweis der <strong>wirtschaftlichen</strong> Restnutzungsdauer über ein Modell-Gutachten nach der ImmoWertV — eine bauteilgenaue Substanzprüfung darf das Finanzamt nicht verlangen. Das früher restriktive BMF-Schreiben von 2023 ist inzwischen aufgehoben.</p>
+        <div style="margin-top:20px;padding:14px 18px;background:var(--bg-cream-subtle);border-left:2px solid var(--accent);font-size:12.5px;line-height:1.7;color:var(--text-secondary);">
+          📎 <strong>BFH, Urteil vom 23.01.2024 – IX R 14/23</strong> zu § 7 Abs. 4 Satz 2 EStG: die kürzere Nutzungsdauer darf modellhaft nach § 4 Abs. 3 ImmoWertV (wirtschaftliche Restnutzungsdauer) nachgewiesen werden; ein Bausubstanz-Gutachten ist nicht erforderlich. Das einschränkende BMF-Schreiben v. 22.02.2023 wurde zwischenzeitlich aufgehoben. <span style="color:var(--text-tertiary)">Kein Ersatz für steuerliche Beratung — den Ansatz mit Deinem Steuerberater final abstimmen.</span>
+        </div>
+      </div>
+      <div class="kalk-c-einsatz-block" style="margin-top:32px;">
+        <div class="kalk-c-einsatz-head">Und wenn das Finanzamt trotzdem nur 2 % ansetzt?</div>
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr>
+            <th style="${thCol}text-align:left;">&nbsp;</th>
+            <th style="${thCol}">Mit RND-Gutachten<br><span style="color:var(--accent-dark);font-weight:500;">${afaPct} % AfA</span></th>
+            <th style="${thCol}">Worst Case<br><span style="color:var(--text-tertiary);font-weight:500;">2 % Standard-AfA</span></th>
+          </tr></thead>
+          <tbody>
+            <tr><td style="${td0}">Cashflow / Monat</td><td style="${tdP}">${cfStr(cfMo(r))}</td><td style="${tdP}">${cfStr(cfMo(rWorst))}</td></tr>
+            <tr><td style="${td0}">Steuervorteil / Monat</td><td style="${tdV}">${fmtEurMo(Math.round(r.stVorteilJ1Mo || 0))}</td><td style="${tdV}">${fmtEurMo(Math.round(rWorst.stVorteilJ1Mo || 0))}</td></tr>
+            <tr><td style="${td0}">EK-Rendite (IRR) 10 J.</td><td style="${tdV}">${fmtPct(r.irr)}</td><td style="${tdV}">${fmtPct(rWorst.irr)}</td></tr>
+            <tr><td style="${td0}border-bottom:none;">Vermögen 10 J.</td><td style="${tdV}border-bottom:none;">${fmt(r.vermoegenNetto10)}</td><td style="${tdV}border-bottom:none;">${fmt(rWorst.vermoegenNetto10)}</td></tr>
+          </tbody>
+        </table>
+        <p class="kalk-c-einsatz-note">Ehrlich gerechnet: Selbst wenn die AfA komplett auf die pauschalen 2 % zurückfiele, bliebe Deine Wohnung im Plus — <strong>${cfStr(cfMo(rWorst))}/Mo</strong> Überschuss und <strong>${fmtPct(rWorst.irr)}</strong> Eigenkapital-Rendite. Der Gutachten-Fall ist das erwartete Szenario, die 2 % sind die Absicherung nach unten.</p>
+      </div>
+    </section>
+    <hr class="kalk-c-rule" />
+    `;
+  })();
+
   // FS-2g (24.05.2026, Edgar 14:30 + Story-Architekt):
   // Chronologie: 1 Objekt → 2 Cashflow → 3 Vermögen → 4 Vergleich → 5 Detail
   // → 6 Was-wäre-wenn (vor Aktionsmodus) → 7 Wie weitergeht → 8 Nach Notartermin
   // → 9 Brot & Butter (am Ende). Identische Chronologie in PDF.
+  // 08.07.2026 (Henry): SECTION_AFA (WG-Konzept) direkt nach dem Vermögens-Aufbau.
   el.innerHTML = '<div class="kalk-c-magazine">'
     + HERO
     + SECTION_01_OBJEKT   // 01 Objekt
     + SECTION_02_CASHFLOW   // 02 Cashflow J1
     + SECTION_03_VERMOEGEN   // 03 Vermögen J10
+    + SECTION_AFA   // (WG-Konzept) AfA-Sicherheit + Worst-Case
     + SECTION_04_VERGLEICH   // 04 Vergleich (Sparbuch/Hebel)
     + SECTION_05_DETAIL   // 05 Im Detail
     // 06 "Was wäre wenn" (Szenarien + Renovierung) auf Edgar-Wunsch entfernt (2026-06-01)
@@ -9467,7 +9567,8 @@ function _renderWeListeContent() {
       // Marktwert aus derived (sicher) oder selbst rechnen — 06.07.2026 (Henry):
       // höherer Wert von ImmoScout/Homeday statt Schnitt.
       let marktwertProQm = (derived && derived.marktpreisGemittelt) || 0;
-      if (!marktwertProQm) {
+      // 08.07.2026 (Henry) — WG-Konzept: Vergleichsmarktpreis aus den Daten nehmen → Kaufpreis-Anker.
+      if (!marktwertProQm && !((detailKalk && detailKalk.wgKonzept) || (sd && sd.wgKonzept))) {
         const isP = detailKalk.marktpreisImmoscout || sd.marktpreisImmoscout || 0;
         const hdP = detailKalk.marktpreisHomeday || sd.marktpreisHomeday || 0;
         marktwertProQm = Math.max(isP, hdP);
@@ -9858,8 +9959,9 @@ function _renderWeVergleichModal() {
 
       // Markt-Schnitt
       let marktwertProQm = (derived && derived.marktpreisGemittelt) || 0;
-      if (!marktwertProQm) {
+      if (!marktwertProQm && !(sd && sd.wgKonzept)) {
         // 06.07.2026 (Henry): höherer Wert von ImmoScout/Homeday statt Schnitt.
+        // 08.07.2026 (Henry): bei WG-Konzept bewusst 0 lassen (Kaufpreis-Anker).
         const isP = sd.marktpreisImmoscout || 0;
         const hdP = sd.marktpreisHomeday || 0;
         marktwertProQm = Math.max(isP, hdP);

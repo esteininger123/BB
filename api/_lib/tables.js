@@ -292,6 +292,12 @@ const KALK_STAMMDATEN_FIELDS = {
   // 06.07.2026 (Henry) — Checkbox: WE ist für EXTERNE Vertriebler freigegeben (Opt-in).
   // Gesteuert im Admin-Bereich → „Externer Vertrieb". Ohne Haken sehen Externe die WE nicht.
   EXTERN_FREIGABE:       'fldQ4pMt1KnVXx8Fw',
+  // 08.07.2026 (Henry) — Checkbox: WG-/Rendite-Objekt (z.B. Offenburg August-Hund-Str. 4).
+  // Wenn gesetzt: Backstube ankert die Vermögensrechnung auf den Kaufpreis statt den
+  // ImmoScout/Homeday-Vergleichsmarktpreis (dieser wird für WG-Einheiten aus den Daten
+  // genommen → computeMarktpreisGemittelt liefert 0) und zeigt Erstvermietungsgarantie +
+  // AfA-Sektion statt Markt-Aufschlag. Nur Einheiten mit Haken sind betroffen.
+  WG_KONZEPT:            'flduLdy2DCYruxiow',
   // Iter 41.10 — Mietsubvention 2-Phasen-Modell:
   MARKTMIETE:            'fldnrgRONiWWsSxZb', // Currency €/qm — Markt-Kaltmiete pro qm (Iter 65, 20.05.2026: vorher €/Mo, jetzt €/qm zur Projekt-Pflege). Backend multipliziert beim Bedarf mit WE.qm.
   // Iter 41.17 (18.05.2026) — Edgar-Fix: Vermietungs-Status der WE als Lookup in

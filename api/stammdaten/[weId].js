@@ -390,6 +390,9 @@ function kalkStammRecordToApi(rec) {
     langeSubvention:       !!f[KALK_STAMMDATEN_FIELDS.LANGE_SUBVENTION],
     // 06.07.2026 (Henry) — WE für externe Vertriebler freigegeben (Opt-in).
     externFreigabe:        !!f[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE],
+    // 08.07.2026 (Henry) — WG-/Rendite-Objekt. Steuert die WG-Ansicht + Kaufpreis-Anker
+    // (siehe computeMarktpreisGemittelt: bei wgKonzept fällt der Vergleichsmarktpreis raus).
+    wgKonzept:             !!f[KALK_STAMMDATEN_FIELDS.WG_KONZEPT],
     afaGutachten:          num(f[KALK_STAMMDATEN_FIELDS.AFA_GUTACHTEN]),
     wertsteigerung:        num(f[KALK_STAMMDATEN_FIELDS.WERTSTEIGERUNG]),
     vermietungsModus,
@@ -972,6 +975,12 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
 // (Funktionsname bleibt wegen Export/Callern — Semantik siehe Kommentar.)
 function computeMarktpreisGemittelt(kalkApi) {
   if (!kalkApi) return { wert: 0, quelle: 'keine' };
+  // 08.07.2026 (Henry) — WG-Konzept: Der ImmoScout/Homeday-Vergleichsmarktpreis wird für
+  // WG-/Rendite-Einheiten bewusst NICHT als Vermögens-Anker verwendet (der Preis liegt
+  // über dem qm-Vergleichswert, getragen von der WG-Mietkraft). Wir nehmen ihn hier aus
+  // den Daten → marktwertProQm bleibt 0 → kalkulator.js ankert auf den Kaufpreis und
+  // markteinkaufVorteil wird 0. Gilt für alle 3 Preis-Endpoint-Konsumenten dieser Funktion.
+  if (kalkApi.wgKonzept) return { wert: 0, quelle: 'wg-konzept' };
   const is = kalkApi.marktpreisImmoscout;
   const hd = kalkApi.marktpreisHomeday;
   const hasIs = is != null && is > 0;
