@@ -14,6 +14,16 @@
 //   Straße.Hausnummer.PLZ.Ort, Kaufinteressent.Vorname.Nachname
 // Standard Recipient-Variablen (Kaufinteressent.FirstName/LastName/Email/...) werden
 // automatisch aus dem recipients-Array ausgefüllt — kein extra Mapping nötig.
+//
+// NEUER STANDARD-WORTLAUT (Henry, 16.07.2026) — zwei zusätzliche Tokens:
+//   [Kaufpreis.Zusammensetzung]   = "163.000 € + 15.000 € Garage und 3.470 € Mietsubvention"
+//                                   (Wohnung + jeder Stellplatz einzeln + Subvention, nur was existiert)
+//   [Reservierung.Standardtext]   = kompletter 5-Absatz-Standardtext (Frist, Notartermin-
+//                                   Beauftragung inkl. Absagekosten, Objekt-Block, ortsnaher
+//                                   Notar, Besichtigungs-Vorbehalt) — Template kann auf diesen
+//                                   einen Token reduziert werden.
+// Die alten Tokens (Kaufpreis, Mietsubvention.Block, …) bleiben unverändert bestehen,
+// damit das Template in jedem Zwischenstand funktioniert.
 
 const { verifySession, requireSafeOrigin } = require('../_lib/auth');
 const { airtable, listAll } = require('../_lib/airtable');
@@ -217,10 +227,23 @@ module.exports = async (req, res) => {
     // Zentrale B&B-Mailbox als Verkäufer-Recipient-Mail (siehe Kommentar bei Recipients)
     const verkaeuferEmail = 'info@bub-immo.de';
 
+    // --- 5b. Neuer Standard-Wortlaut (Henry 16.07.2026)
+    const kaufpreisZusammensetzung = composeKaufpreisZusammensetzung(
+      wohnungsPreis, stellplaetze, snapKalk && snapKalk.kaufpreis, mietsubventionTotal
+    );
+    const reservierungStandardtext = composeStandardtext({
+      ablaufStr,
+      adresse: objektAdresse || 'Adresse beim Notar nachzutragen',
+      qm, weNr,
+      kaufpreisZusammensetzung,
+    });
+
     const tokens = [
       // --- Custom-Variables im Doc-Body (aus dem Template) ---
       { name: 'Ablauffrist.Reservierung',         value: ablaufStr },
       { name: 'Kaufpreis',                        value: composeKaufpreis(wohnungsPreis, stellplaetze, snapKalk && snapKalk.kaufpreis) },
+      { name: 'Kaufpreis.Zusammensetzung',        value: kaufpreisZusammensetzung },
+      { name: 'Reservierung.Standardtext',        value: reservierungStandardtext },
       { name: 'QmAnzahl.Wohnungsnummer',          value: composeQmWeNr(qm, weNr, stellplaetze) },
       { name: 'Straße.Hausnummer.PLZ.Ort',        value: objektAdresse || 'Adresse beim Notar nachzutragen' },
       { name: 'Kaufinteressent.Vorname.Nachname', value: `${vorname} ${nachname}`.trim() },
@@ -451,3 +474,69 @@ function composeKaufpreis(wohnungsPreis, stellplaetze, snapKaufpreis) {
   const stplLabel = stellplaetze.length === 1 ? (stellplaetze[0].typ || 'Stellplatz') : 'Stellplätze';
   return `${formatEUR(whgPreis)} (Wohnung) + ${formatEUR(stellplatzPreis)} (${stplLabel}) = ${formatEUR(gesamt)}`;
 }
+
+// Kunden-lesbares Typ-Label für die Kaufpreis-Zusammensetzung. Airtable-Typ
+// "Fläche" ist Intern-Sprech für offenen Außenstellplatz — im Vertragstext
+// sagen wir "Stellplatz".
+function stellplatzLabel(typ) {
+  const t = String(typ || '').trim();
+  if (t === 'Fläche' || t === '') return 'Stellplatz';
+  if (t === 'Tiefgarage') return 'TG-Stellplatz';
+  return t; // "Garage", "Carport"
+}
+
+// Neuer Standard (Henry 16.07.2026): Kaufpreis-Zusammensetzung als ein Satzteil,
+// z.B. "163.000 € + 15.000 € Garage + 8.000 € Stellplatz und 3.470 € Mietsubvention".
+// Nur vorhandene Bestandteile erscheinen; ohne Stellplatz/Subvention bleibt es
+// beim reinen Wohnungspreis. Snapshot-Preis (eingefroren) hat wie überall Vorrang.
+function composeKaufpreisZusammensetzung(wohnungsPreis, stellplaetze, snapKaufpreis, mietsubventionTotal) {
+  const whgPreis = (snapKaufpreis && snapKaufpreis > 0) ? snapKaufpreis : (wohnungsPreis || 0);
+  const teile = [formatEUR(whgPreis)];
+  for (const s of (stellplaetze || [])) {
+    if (s && s.preis > 0) teile.push(`${formatEUR(s.preis)} ${stellplatzLabel(s.typ)}`);
+  }
+  let text = teile.join(' + ');
+  if (mietsubventionTotal > 0) {
+    text += ` und ${formatEUR(mietsubventionTotal)} Mietsubvention`;
+  }
+  return text;
+}
+
+// Deutsche qm-Formatierung: 60.72 → "60,72"
+function formatQm(qm) {
+  const num = parseFloat(qm);
+  if (!isFinite(num)) return String(qm || '');
+  return num.toLocaleString('de-DE', { maximumFractionDigits: 2 });
+}
+
+// Kompletter Standardtext der Reservierung (Henry 16.07.2026). Wird als Token
+// [Reservierung.Standardtext] mitgeschickt — das Template kann seinen Fließtext
+// komplett durch diesen einen Token ersetzen, dann pflegt der Code den Wortlaut.
+function composeStandardtext({ ablaufStr, adresse, qm, weNr, kaufpreisZusammensetzung }) {
+  const objektTeile = [adresse];
+  const mitTeile = [];
+  if (qm) mitTeile.push(`${formatQm(qm)} m²`);
+  if (weNr) mitTeile.push(`Wohnungs-Nr. ${weNr}`);
+  if (mitTeile.length > 0) objektTeile.push(`mit ${mitTeile.join(', ')}`);
+  const objektZeile = `${objektTeile.join(' ')} zum Kaufpreis von ${kaufpreisZusammensetzung}.`;
+
+  return [
+    `Die Vertragsparteien vereinbaren die Reservierung des Objekts bis zum ${ablaufStr}.`,
+    'Innerhalb dieser Zeit wird ein Notartermin festgelegt. Die Kaufinteressenten beauftragen hiermit ausdrücklich diesen Notartermin und tragen dementsprechend alle Kosten, die mit einer Absage verbunden wären.',
+    '',
+    'Objekt:',
+    objektZeile,
+    '',
+    'Die Vertragsparteien sind sich einig, einen notariellen Kaufvertrag gemäß den oben genannten Angaben und den persönlichen Daten bei einem ortsnahen Notar zu erstellen.',
+    '',
+    'Reservierung unter dem Vorbehalt einer Besichtigung, bei der der Zustand dem Exposé entspricht.',
+  ].join('\n');
+}
+
+// Helper für Tests exportieren (Vercel-Pattern wie in api/stammdaten/[weId].js:
+// module.exports bleibt die Handler-Function, Helper hängen als Properties dran).
+module.exports.composeKaufpreis                = composeKaufpreis;
+module.exports.composeKaufpreisZusammensetzung = composeKaufpreisZusammensetzung;
+module.exports.composeStandardtext             = composeStandardtext;
+module.exports.composeQmWeNr                   = composeQmWeNr;
+module.exports.stellplatzLabel                 = stellplatzLabel;
