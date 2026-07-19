@@ -10353,6 +10353,29 @@ function renderExternStart() {
         <div class="text-tertiary text-small">Gespeichert ist aktuell: <strong>${aktuellPct.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %</strong>. Du kannst den Satz hier jederzeit ändern — alle Preise in der App passen sich sofort an. Für laufende Beratungen gilt: Preis beim Kunden nennen, dann Satz nicht mehr wechseln. Tipp: Die Provisions-Zeile im Kalkulator blendest du mit dem × aus (wenn der Kunde mitschaut) — das ⓘ holt sie zurück.</div>
       </div>
 
+      <!-- 16.07.2026 (Henry): Ablauf & Nachbetreuung für externe Partner — der
+           B&B-Standard vom Reservieren bis nach dem Notartermin. Reihenfolge = Deal-Lifecycle. -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">3 · Ablauf &amp; Nachbetreuung — so läuft dein Deal</div>
+        <p style="margin:0 0 14px;line-height:1.55;" class="text-small">Von der Reservierung bis zur Betreuung nach dem Notartermin — das ist der B&amp;B-Standard, damit dein Kunde sich durchgehend gut aufgehoben fühlt und du genau weißt, was wann passiert.</p>
+        ${[
+          ['📲', 'Deine Vertriebsgruppe (einmalig)', 'Für jeden Vertriebspartner gibt es eine gemeinsame WhatsApp-Vertriebsgruppe mit B&amp;B — darüber läuft die ganze Terminabstimmung. Noch keine Gruppe? Bei deiner <strong>ersten Reservierung einfach Henry schreiben</strong>, dann wird sie eingerichtet.'],
+          ['🗓️', 'Notartermin sofort nach Reservierung', 'Sobald die Reservierung steht, machen wir <strong>sofort einen Notartermin</strong> aus — selbstverständlich in Absprache mit dir, wann dein Kunde Zeit hat.'],
+          ['🏠', 'Besichtigung + Notar am selben Tag', 'Wir zielen immer darauf ab, <strong>Besichtigung und Notartermin auf denselben Tag</strong> zu legen — wenn irgendwie möglich mit Mieter. Ein <strong>Unterschriftsberechtigter von B&amp;B kommt mit</strong> — zur Besichtigung und zum Notartermin.'],
+          ['🏦', 'Finanzierung', 'Um die Finanzierung kümmerst du dich mit deinem Kunden selbst. Eine Regel gibt es: In die <strong>WhatsApp-Gruppe mit dem Finanzierer</strong> wird immer <strong>jemand aus der B&amp;B-Geschäftsführung</strong> aufgenommen — so haben alle die Timeline im Blick.'],
+          ['🤝', 'Nachbetreuung ab Notartermin', 'Für jeden Käufer — egal, über wen er kauft — erstellen wir nach dem Notartermin eine <strong>WhatsApp-Gruppe zur Nachbetreuung</strong>. Dort wird u.&nbsp;a. das <strong>Restnutzungsdauer-Gutachten (RNG)</strong> geteilt.'],
+          ['🧾', 'Steuer-Anträge', 'Lohnsteuerermäßigungsantrag &amp; Co. wickelst <strong>du als Vertriebler</strong> mit deinem Kunden ab — oder ihr nutzt unsere <strong>Steuerberaterin für 200&nbsp;€ netto pro Antrag</strong>.'],
+          ['🔑', 'Mietverwaltung (SEV)', 'Muss dein Kunde <strong>nicht</strong> dazunehmen — wir bieten sie aber <strong>immer aktiv mit an</strong> (im Kalkulator als Option enthalten).'],
+        ].map(([icon, titel, text], i) => `
+          <div style="display:flex;gap:12px;align-items:flex-start;padding:9px 0;${i > 0 ? 'border-top:1px solid var(--border, rgba(128,128,128,.18));' : ''}">
+            <div style="flex:0 0 34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;" aria-hidden="true">${icon}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;font-size:13px;margin-bottom:2px;">${i + 1}. ${titel}</div>
+              <div class="text-small" style="line-height:1.55;color:var(--text-secondary, inherit);">${text}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+
       <details class="card" style="margin-bottom:16px;">
         <summary style="cursor:pointer;font-weight:600;font-size:13px;">Login &amp; Passwort</summary>
         <p class="text-small" style="margin:10px 0;line-height:1.5;color:var(--text-tertiary);">Du kannst dich mit Google oder mit E-Mail + Passwort anmelden. Hier setzt oder änderst du dein Passwort (mind. 8 Zeichen).</p>
