@@ -10388,6 +10388,18 @@ function renderExternStart() {
         </div>
       </div>
 
+      <!-- 19.07.2026 (Henry): Keine Exklusivität — die angezeigten Wohnungen werden
+           parallel vertrieben; Sonderregelungen nur direkt über Henry. -->
+      <div class="card" style="margin-bottom:16px;border-left:3px solid var(--accent);">
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <div style="font-size:26px;line-height:1;" aria-hidden="true">ℹ️</div>
+          <div>
+            <div class="card-title" style="margin-bottom:4px;">Keine Exklusivität</div>
+            <p style="margin:0;line-height:1.6;" class="text-small">Die in der Backstube angezeigten Wohnungen sind <strong>nicht exklusiv</strong> für dich reserviert — sie werden parallel auch über andere Vertriebspartner und Kanäle vertrieben. Es gilt: <strong>Wer zuerst reserviert, bekommt die Einheit.</strong> Exklusive Regelungen (z.&nbsp;B. für einzelne Objekte oder Kontingente) sind grundsätzlich möglich — dafür bitte direkt <strong>Henry kontaktieren</strong>.</p>
+          </div>
+        </div>
+      </div>
+
       <!-- 16.07.2026 (Henry): Ablauf & Nachbetreuung für externe Partner — der
            B&B-Standard vom Reservieren bis nach dem Notartermin. Reihenfolge = Deal-Lifecycle. -->
       <div class="card" style="margin-bottom:16px;">
