@@ -377,9 +377,13 @@ function kalkStammRecordToApi(rec) {
   const vermietungsModus = vermObj && typeof vermObj === 'object' ? vermObj.name : vermObj || null;
   const kappObj = f[KALK_STAMMDATEN_FIELDS.KAPPUNGSGRENZE];
   const kappungsgrenze = kappObj && typeof kappObj === 'object' ? kappObj.name : kappObj || null;
+  // 19.07.2026 (Henry): Zustand read-only für den Extern-Rechner (Musterberechnung-Zeile)
+  const zustObj = f[KALK_STAMMDATEN_FIELDS.ZUSTAND];
+  const zustand = zustObj && typeof zustObj === 'object' ? zustObj.name : zustObj || null;
   return {
     id: rec.id,
     status,
+    zustand,
     bezeichnung:           f[KALK_STAMMDATEN_FIELDS.BEZEICHNUNG] || null,
     hausverwaltung:        num(f[KALK_STAMMDATEN_FIELDS.HAUSVERWALTUNG]),
     hausgeldRuecklage:     num(f[KALK_STAMMDATEN_FIELDS.HAUSGELD_RUECKLAGE]),

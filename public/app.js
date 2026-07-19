@@ -10502,9 +10502,15 @@ function _rechnerBasis(d) {
   const knkNotar  = gesamtKp * RECHNER_NOTAR_PCT;
   const knk       = knkGrest + knkNotar;
   const anschaffung = gesamtKp + knk;
-  return { ks, der, stp, kpWohnung, stpKp, gesamtKp, grEstPct, kaltmiete, stpMiete,
-           phasen, subvMo1, subvTotal, hv, ruecklage, gebAnteil, afaSatz,
-           knkGrest, knkNotar, knk, anschaffung };
+  // Garage-/Stellplatz-Split wie in der Musterberechnung: Garagen (auch TG/Carport)
+  // schreiben mit 1/19 = 5,26 % ab, offene Stellplätze mit dem Gebäude-AfA-Satz.
+  const details = Array.isArray(stp.details) ? stp.details : [];
+  const istGarage = (t) => /garage|carport/i.test(String(t || ''));
+  const garageKp  = details.reduce((s, x) => s + (istGarage(x.typ) ? (x.kaufpreis || 0) : 0), 0);
+  const flaecheKp = Math.max(0, stpKp - garageKp);
+  return { ks, der, stp, details, istGarage, kpWohnung, stpKp, garageKp, flaecheKp,
+           gesamtKp, grEstPct, kaltmiete, stpMiete, phasen, subvMo1, subvTotal,
+           hv, ruecklage, gebAnteil, afaSatz, knkGrest, knkNotar, knk, anschaffung };
 }
 
 // Rechenkern — Formeln 1:1 aus der Musterberechnung (Jahr-1-Betrachtung,
@@ -10523,15 +10529,20 @@ function _rechnerCalc(d, inp) {
   const nettoMo     = einnahmenMo - kostenMo;
   const vorSteuerMo = nettoMo - rateMo;
   const einnahmenJahr  = (b.kaltmiete + b.stpMiete) * 12;
-  const afaJahr        = (b.kpWohnung + b.knk) * b.gebAnteil * b.afaSatz + b.stpKp * b.afaSatz;
+  const afaGebJahr     = (b.kpWohnung + b.knk) * b.gebAnteil * b.afaSatz;
+  const afaGarageJahr  = b.garageKp * 0.0526;   // Nutzungsdauer Garage 19 Jahre (Musterberechnung)
+  const afaStpJahr     = b.flaecheKp * b.afaSatz; // identisch zum Gebäudeanteil (Musterberechnung)
+  const afaJahr        = afaGebJahr + afaGarageJahr + afaStpJahr;
   const zinsenJahr     = finBetrag * zins;
   const verwaltungJahr = (b.hv + sevMo) * 12;
-  const ergebnisJahr   = einnahmenJahr - (afaJahr + zinsenJahr + verwaltungJahr);
+  const ausgabenJahr   = afaJahr + zinsenJahr + verwaltungJahr;
+  const ergebnisJahr   = einnahmenJahr - ausgabenJahr;
   const ersparnisJahr  = -(ergebnisJahr * steuer);
   const ersparnisMo    = ersparnisJahr / 12;
   const nachSteuerMo   = vorSteuerMo + ersparnisMo;
   return Object.assign(b, { ek, finBetrag, rateMo, einnahmenMo, kostenMo, nettoMo,
-    vorSteuerMo, einnahmenJahr, afaJahr, zinsenJahr, verwaltungJahr, ergebnisJahr,
+    vorSteuerMo, einnahmenJahr, afaGebJahr, afaGarageJahr, afaStpJahr, afaJahr,
+    zinsenJahr, verwaltungJahr, ausgabenJahr, ergebnisJahr,
     ersparnisJahr, ersparnisMo, nachSteuerMo, sevMo });
 }
 
@@ -10577,6 +10588,10 @@ function _rechnerEnsureStyles() {
     .rc-seg input:checked+span{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
     .rc-cta{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;align-items:center;}
     .rc-cta .rc-go{font-size:14.5px;padding:12px 24px;}
+    .rc-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;}
+    .rc-disclaimer{font-size:11.5px;font-style:italic;color:var(--text-tertiary);background:var(--bg-cream-subtle);border:1px dashed var(--border-strong);border-radius:10px;padding:11px 14px;margin-bottom:12px;line-height:1.55;}
+    .rc-sub{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);padding:9px 0 2px;}
+    @media(max-width:860px){.rc-cols{grid-template-columns:1fr;}}
     @media(max-width:640px){.rc-title{font-size:20px;}.rc-kpi .v{font-size:16px;}}
   `;
   document.head.appendChild(s);
@@ -10608,24 +10623,141 @@ function _rechnerRenderContent() {
     '<div class="rc-row"><div class="l">' + label + '</div>' +
     '<div class="v"><input id="' + id + '" class="rc-input" type="number" step="' + (step || '0.1') + '" value="' + val + '" oninput="window._rechnerRecalc()"> ' + suffix + '</div></div>';
 
-  const stpZeilen = (c.stp.details && c.stp.details.length)
-    ? c.stp.details.filter(s => (s.kaufpreis || 0) > 0).map(s =>
-        zeile('Kaufpreis ' + (s.typ === 'Fläche' ? 'Stellplatz' : (s.typ || 'Stellplatz')), fE(s.kaufpreis), { fix: true })).join('')
-    : (c.stpKp > 0 ? zeile('Kaufpreis Stellplätze/Garagen', fE(c.stpKp), { fix: true }) : '');
+  // --- Objektdaten wie im Kopf der Musterberechnung ---
+  // Adresse aus dem vollen WE-Namen ("WE: 14 (SR5A), 1.OG Rechts, Südring 5A, 97828 Marktheidenfeld")
+  const lageParts = String((d.we && d.we.lage) || '').split(',').map(s => s.trim()).filter(Boolean);
+  const adresse = lageParts.length >= 3 ? lageParts.slice(-2).join(', ') : ((d.we && d.we.lage) || '');
+  const lageText = (d.we && d.we.lageText) || '';
+  const etage = lageText.split(/\s+/)[0] || '–';
+  const lageSeite = lageText.split(/\s+/).slice(1).join(' ') || '–';
+  const stplNr = (t) => { const m = String(t || '').match(/StPl:\s*\d+,\s*([^,]+?)\s*,/); return m ? m[1].trim() : ''; };
+  const garagenNrn = c.details.filter(x => c.istGarage(x.typ)).map(x => stplNr(x.titel)).filter(Boolean).join(', ');
+  const flaechenNrn = c.details.filter(x => !c.istGarage(x.typ)).map(x => stplNr(x.titel)).filter(Boolean).join(', ');
+  const rndJahre = c.afaSatz > 0 ? Math.round(1 / c.afaSatz) : 0;
+
+  const stpZeilen = (c.details.length
+    ? c.details.filter(s => (s.kaufpreis || 0) > 0).map(s =>
+        zeile('Kaufpreis ' + (s.typ === 'Fläche' ? 'Stellplatz' : (s.typ || 'Stellplatz')) + ':', fE(s.kaufpreis), { fix: true })).join('')
+    : (c.stpKp > 0 ? zeile('Kaufpreis Stellplätze/Garagen:', fE(c.stpKp), { fix: true }) : ''));
 
   const subvZeilen = c.phasen.length
-    ? c.phasen.map((p, i) => zeile('Mietsubvention Phase ' + (i + 1) + ' (' + (p.monate || 0) + ' Monate)', fEM(p.mo || 0) + '/Mo', { fix: true })).join('') +
+    ? c.phasen.map((p, i) => zeile('Mntl. Mietsubvention Phase ' + (i + 1) + ' (' + (p.monate || 0) + ' Monate)', fEM(p.mo || 0) + '/Mo', { fix: true })).join('') +
       zeile('Einmalbetrag der Mietsubvention', fE(c.subvTotal), { fix: true, sum: true })
     : zeile('Mietsubvention', 'keine — Miete liegt auf Marktniveau', { fix: true });
+
+  // ============ LINKE SPALTE (Spalten B/C der Musterberechnung) ============
+  const spalteLinks = [
+    sektion('Objektdaten', [
+      zeile('Objektadresse', esc(adresse), { fix: true }),
+      zeile('Wohnungsnummer', esc(String((d.we && d.we.weNr) || '–')), { fix: true }),
+      zeile('Fläche in m²', qm ? qm.toLocaleString('de-DE') + ' m²' : '–', { fix: true }),
+      (flaechenNrn ? zeile('Stellplatznummer', esc(flaechenNrn), { fix: true }) : ''),
+      (garagenNrn ? zeile('Garage-Nummer', esc(garagenNrn), { fix: true }) : ''),
+      zeile('Etage', esc(etage), { fix: true }),
+      zeile('Lage', esc(lageSeite), { fix: true }),
+      zeile('Zustand der Wohnung', esc((c.ks.zustand || 'Bestand')), { fix: true }),
+      zeile('Restnutzungsdauer der Wohnung', (rndJahre ? rndJahre + ' Jahre' : '–'), { fix: true }),
+      zeile('Gebäudeanteil vom Kaufpreis', fP(c.gebAnteil), { fix: true }),
+    ].join('')),
+
+    sektion('Kaufpreis', [
+      zeile('Kaufpreis Wohnung', fE(c.kpWohnung), { fix: true }),
+      stpZeilen,
+      zeile('Gesamtkaufpreis', fE(c.gesamtKp), { fix: true, sum: true }),
+    ].join(''), 'dein Kundenpreis inkl. Provision'),
+
+    sektion('Kaufnebenkosten', [
+      zeile('Grunderwerbsteuer (' + fP(c.grEstPct) + ')', fE(c.knkGrest), { fix: true }),
+      zeile('Notarkosten &amp; Grundbuchkosten (' + fP(RECHNER_NOTAR_PCT) + ')', fE(c.knkNotar), { fix: true }),
+      zeile('Gesamte Kaufnebenkosten', fE(c.knk), { fix: true, sum: true }),
+      zeile('Anschaffungskosten der Immobilie', fE(c.anschaffung), { fix: true, sum: true }),
+    ].join('')),
+
+    sektion('Mietsituation der Wohnung', [
+      zeile('Kaltmiete der Wohnung' + (c.der.subventionKaltmieteAdjustiert ? ' (nach Erhöhung durch den Verkäufer)' : ''), fEM(c.kaltmiete) + '/Mo', { fix: true }),
+      (c.stpMiete > 0 ? zeile('Kaltmiete Garage/Stellplatz', fEM(c.stpMiete) + '/Mo', { fix: true }) : ''),
+      zeile('Gesamte Kaltmiete', fEM(c.kaltmiete + c.stpMiete) + '/Mo', { fix: true, sum: true }),
+      subvZeilen,
+      zeile('Gesamte Einnahmen inkl. Mietsubvention', fEM(c.einnahmenMo) + '/Mo', { sum: true }),
+    ].join('')),
+
+    sektion('Nichtumlagefähige Nebenkosten', [
+      zeile('WEG-Verwaltergebühr', fEM(c.hv) + '/Mo', { fix: true }),
+      '<div class="rc-row"><label class="l" style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input id="rc-sev" type="checkbox" ' + (state._rechnerInputs.sev ? 'checked' : '') + ' onchange="window._rechnerRecalc()" style="width:14px;height:14px;">SE-Verwaltergebühr — Mietverwaltung (SEV), optional</label><div class="v">' + RECHNER_SEV_MO + ',00 €/Mo</div></div>',
+      zeile('Instandhaltungsrücklage', fEM(c.ruecklage) + '/Mo', { fix: true }),
+      zeile('Gesamte nichtumlagefähige Nebenkosten', '<span id="rcv-kostenMo">' + fEM(c.kostenMo) + '</span>/Mo', { sum: true }),
+    ].join('')),
+
+    sektion('Einnahmen abzüglich der Kosten', [
+      zeile('Gesamte Einnahmen inkl. Mietsubvention', fEM(c.einnahmenMo) + '/Mo'),
+      zeile('Nichtumlagefähige Nebenkosten', '<span id="rcv-kostenMo2">' + fEM(c.kostenMo) + '</span>/Mo'),
+      zeile('Netto Einnahmen', '<span id="rcv-nettoMo">' + fEM(c.nettoMo) + '</span>/Mo', { sum: true }),
+    ].join('')),
+
+    sektion('Monatliche Cashflow-Betrachtung', [
+      zeile('Nettoeinnahmen monatlich', '<span id="rcv-nettoMo2">' + fEM(c.nettoMo) + '</span>/Mo'),
+      zeile('Bankrate Immobilienfinanzierung', '<span id="rcv-rateMo2">' + fEM(c.rateMo) + '</span>/Mo'),
+      zeile('Monatliche Belastung ohne Steuervorteil', '<span id="rcv-vorSteuerMo">' + fEM(c.vorSteuerMo) + '</span>/Mo', { sum: true, big: true }),
+      zeile('Einnahmen aus Steuerersparnis monatlich', '<span id="rcv-ersparnisMo">' + fEM(c.ersparnisMo) + '</span>/Mo'),
+      zeile('Monatliche Belastung inkl. Steuervorteil', '<span id="rcv-nachSteuerMo">' + fEM(c.nachSteuerMo) + '</span>/Mo', { sum: true, big: true }),
+    ].join('')),
+
+    ((!wg && marktQm > 0) ? sektion('Marktpreisvergleich', [
+      zeile('Marktpreis pro m² laut ' + esc(marktQuelleLabelRechner(c.der.marktpreisGemitteltQuelle)), fE(marktQm), { fix: true }),
+      zeile('Einkaufspreis pro m²', fE((d.we && d.we.qmPreis) || 0), { fix: true }),
+      zeile('Differenz pro m²', fE(Math.max(0, marktQm - ((d.we && d.we.qmPreis) || 0))), { fix: true }),
+      zeile('Einkaufspreis unter Marktwert in Summe', fE(Math.max(0, (marktQm - ((d.we && d.we.qmPreis) || 0)) * qm)), { fix: true, sum: true }),
+    ].join('')) : ''),
+  ].join('');
+
+  // ============ RECHTE SPALTE (Spalten F/G/H der Musterberechnung) ============
+  const spalteRechts = [
+    '<div class="rc-disclaimer">Die hier aufgeführte Berechnung ist unverbindlich, freibleibend und ohne Gewähr.</div>',
+
+    sektion('Immobilienfinanzierung', [
+      zeile('Kaufpreis der Immobilie (inkl. Nebenkosten)', fE(c.anschaffung), { fix: true }),
+      // Schnellwahl (Henry 19.07.2026): 107 % = Vollfinanzierung inkl. KNK (EK 0),
+      // 100 % = Kunde zahlt die KNK aus Eigenkapital, Individuell = EK frei tippen.
+      '<div class="rc-seg">' + [
+        ['107', 'Vollfinanzierung inkl. Nebenkosten (≈107 %)'],
+        ['100', '100 % — Nebenkosten aus Eigenkapital'],
+        ['custom', 'Individuell'],
+      ].map(([v, l]) => '<label><input type="radio" name="rc-finmodus" value="' + v + '"' + (state._rechnerInputs.finModus === v ? ' checked' : '') + ' onchange="window._rechnerFinModus(\'' + v + '\')"><span>' + l + '</span></label>').join('') + '</div>',
+      inputFeld('rc-ek', 'Eigenkapitaleinsatz', state._rechnerInputs.ek, '€', '1000').replace('window._rechnerRecalc()', 'window._rechnerEkManual()'),
+      zeile('Finanzierungsbetrag', '<span id="rcv-finBetrag">' + fE(c.finBetrag) + '</span>', { sum: true }),
+      inputFeld('rc-zins', 'Zins', state._rechnerInputs.zinsPct, '%', '0.05'),
+      inputFeld('rc-tilgung', 'Tilgung', state._rechnerInputs.tilgungPct, '%', '0.1'),
+      zeile('Annuität / Bankrate', '<span id="rcv-ratePct">' + (state._rechnerInputs.zinsPct + state._rechnerInputs.tilgungPct).toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' %</span> · <span id="rcv-rateMo">' + fEM(c.rateMo) + '</span>/Mo', { sum: true }),
+    ].join(''), 'deine Annahmen — frei anpassbar'),
+
+    sektion('Steuerliche Betrachtung (Jahr 1)', [
+      inputFeld('rc-steuer', 'Persönlicher Grenzsteuersatz', state._rechnerInputs.steuerPct, '%', '1'),
+      '<div class="rc-sub">Ausgaben</div>',
+      zeile('AfA Gebäudeanteil (RND ' + rndJahre + ' J., ' + fP(c.afaSatz) + ')', fE(c.afaGebJahr) + '/Jahr', { fix: true }),
+      (c.garageKp > 0 ? zeile('AfA Garage (19 J., 5,26 %)', fE(c.afaGarageJahr) + '/Jahr', { fix: true }) : ''),
+      (c.flaecheKp > 0 ? zeile('AfA Stellplatz (' + fP(c.afaSatz) + ')', fE(c.afaStpJahr) + '/Jahr', { fix: true }) : ''),
+      zeile('Zinsen Immobilienfinanzierung', '<span id="rcv-zinsenJahr">' + fE(c.zinsenJahr) + '</span>/Jahr'),
+      zeile('Verwaltergebühren (WEG + SE)', '<span id="rcv-verwaltungJahr">' + fE(c.verwaltungJahr) + '</span>/Jahr'),
+      zeile('Summe Ausgaben', '<span id="rcv-ausgabenJahr">' + fE(c.ausgabenJahr) + '</span>/Jahr', { sum: true }),
+      '<div class="rc-sub">Einnahmen</div>',
+      zeile('Jährliche Kaltmiete Wohnung', fE(c.kaltmiete * 12) + '/Jahr', { fix: true }),
+      (c.stpMiete > 0 ? zeile('Jährliche Kaltmiete Garage/Stellplatz', fE(c.stpMiete * 12) + '/Jahr', { fix: true }) : ''),
+      zeile('Summe Einnahmen', fE(c.einnahmenJahr) + '/Jahr', { fix: true, sum: true }),
+      '<div class="rc-sub">Verlust-/Gewinnermittlung</div>',
+      zeile('Gewinn / Verlust', '<span id="rcv-ergebnisJahr">' + fE(c.ergebnisJahr) + '</span>/Jahr', { sum: true }),
+      zeile('Steuerersparnis p.a. (mit Grenzsteuersatz)', '<span id="rcv-ersparnisJahr">' + fE(c.ersparnisJahr) + '</span>/Jahr', { sum: true }),
+      zeile('Steuerersparnis pro Monat', '<span id="rcv-ersparnisMo2">' + fEM(c.ersparnisMo) + '</span>/Mo', { sum: true, big: true }),
+    ].join('')),
+  ].join('');
 
   app.innerHTML = `
     <div class="main rc-wrap">
       <a href="#/we-liste" class="rc-back">← Zurück zu den Wohnungen</a>
       <div class="rc-hero">
         <div>
-          <div class="rc-kicker">B&amp;B Kapitalanlage · Dein Kundenpreis inkl. Provision</div>
+          <div class="rc-kicker">B&amp;B Kapitalanlage · Musterberechnung</div>
           <h1 class="rc-title">${esc(weTitel)}</h1>
-          <div class="rc-meta">${qm ? qm.toLocaleString('de-DE') + ' m²' : ''}${(d.we && d.we.weNr) ? ' · Wohnungs-Nr. ' + esc(String(d.we.weNr)) : ''} · Alle Werte mit <span class="rc-lock">🔒</span> sind verbindliche B&amp;B-Angaben</div>
+          <div class="rc-meta">Alle Werte mit <span class="rc-lock">🔒</span> sind verbindliche B&amp;B-Angaben — dein Kundenpreis inkl. Provision ist bereits eingerechnet.</div>
         </div>
         ${exposeLink ? `<a class="rc-expose" href="${esc(exposeLink)}" target="_blank" rel="noopener">Exposé ansehen ↗</a>` : ''}
       </div>
@@ -10637,70 +10769,10 @@ function _rechnerRenderContent() {
         <div class="rc-kpi rc-kpi-hl"><div class="l">Belastung nach Steuer</div><div class="v" id="rcv-topNachSteuer">${fEM(c.nachSteuerMo)}/Mo</div></div>
       </div>
 
-      ${sektion('Kaufpreis', [
-        zeile('Kaufpreis Wohnung (dein Kundenpreis)', fE(c.kpWohnung), { fix: true }),
-        stpZeilen,
-        zeile('Gesamtkaufpreis', fE(c.gesamtKp), { fix: true, sum: true }),
-      ].join(''))}
-
-      ${sektion('Kaufnebenkosten', [
-        zeile('Grunderwerbsteuer (' + fP(c.grEstPct) + ')', fE(c.knkGrest), { fix: true }),
-        zeile('Notar &amp; Grundbuch (' + fP(RECHNER_NOTAR_PCT) + ')', fE(c.knkNotar), { fix: true }),
-        zeile('Anschaffungskosten gesamt', fE(c.anschaffung), { fix: true, sum: true }),
-      ].join(''))}
-
-      ${sektion('Mieteinnahmen', [
-        zeile('Kaltmiete Wohnung' + (c.der.subventionKaltmieteAdjustiert ? ' (nach Erhöhung)' : ''), fEM(c.kaltmiete) + '/Mo', { fix: true }),
-        (c.stpMiete > 0 ? zeile('Miete Stellplatz/Garage', fEM(c.stpMiete) + '/Mo', { fix: true }) : ''),
-        subvZeilen,
-        zeile('Gesamte Einnahme inkl. Subvention', fEM(c.einnahmenMo) + '/Mo', { sum: true }),
-      ].join(''))}
-
-      ${sektion('Nicht umlagefähige Kosten', [
-        zeile('Hausverwaltung (WEG)', fEM(c.hv) + '/Mo', { fix: true }),
-        zeile('Instandhaltungsrücklage', fEM(c.ruecklage) + '/Mo', { fix: true }),
-        '<div class="rc-row"><label class="l" style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input id="rc-sev" type="checkbox" ' + (state._rechnerInputs.sev ? 'checked' : '') + ' onchange="window._rechnerRecalc()" style="width:14px;height:14px;">Mietverwaltung (SEV) dazunehmen — optional</label><div class="v">' + RECHNER_SEV_MO + ',00 €/Mo</div></div>',
-        zeile('Kosten gesamt', '<span id="rcv-kostenMo">' + fEM(c.kostenMo) + '</span>/Mo', { sum: true }),
-      ].join(''))}
-
-      ${sektion('Finanzierung', [
-        // Schnellwahl (Henry 19.07.2026): 107 % = Vollfinanzierung inkl. KNK (EK 0),
-        // 100 % = Kunde zahlt die KNK aus Eigenkapital, Individuell = EK frei tippen.
-        '<div class="rc-seg">' + [
-          ['107', 'Vollfinanzierung inkl. Nebenkosten (≈107 %)'],
-          ['100', '100 % — Nebenkosten aus Eigenkapital'],
-          ['custom', 'Individuell'],
-        ].map(([v, l]) => '<label><input type="radio" name="rc-finmodus" value="' + v + '"' + (state._rechnerInputs.finModus === v ? ' checked' : '') + ' onchange="window._rechnerFinModus(\'' + v + '\')"><span>' + l + '</span></label>').join('') + '</div>',
-        inputFeld('rc-ek', 'Eigenkapitaleinsatz', state._rechnerInputs.ek, '€', '1000').replace('window._rechnerRecalc()', 'window._rechnerEkManual()'),
-        inputFeld('rc-zins', 'Zins p.a.', state._rechnerInputs.zinsPct, '%', '0.05'),
-        inputFeld('rc-tilgung', 'Tilgung p.a.', state._rechnerInputs.tilgungPct, '%', '0.1'),
-        zeile('Finanzierungsbetrag', '<span id="rcv-finBetrag">' + fE(c.finBetrag) + '</span>'),
-        zeile('Bankrate', '<span id="rcv-rateMo">' + fEM(c.rateMo) + '</span>/Mo', { sum: true }),
-      ].join(''), 'deine Annahmen — frei anpassbar')}
-
-      ${sektion('Monatliche Betrachtung', [
-        zeile('Einnahmen inkl. Subvention', fEM(c.einnahmenMo) + '/Mo'),
-        zeile('− nicht umlagefähige Kosten', '<span id="rcv-kostenMo2">' + fEM(c.kostenMo) + '</span>/Mo'),
-        zeile('− Bankrate', '<span id="rcv-rateMo2">' + fEM(c.rateMo) + '</span>/Mo'),
-        zeile('Belastung vor Steuervorteil', '<span id="rcv-vorSteuerMo">' + fEM(c.vorSteuerMo) + '</span>/Mo', { sum: true, big: true }),
-        zeile('+ Steuerersparnis', '<span id="rcv-ersparnisMo">' + fEM(c.ersparnisMo) + '</span>/Mo'),
-        zeile('Monatliche Belastung inkl. Steuervorteil', '<span id="rcv-nachSteuerMo">' + fEM(c.nachSteuerMo) + '</span>/Mo', { sum: true, big: true }),
-      ].join(''))}
-
-      ${sektion('Steuerliche Betrachtung (Jahr 1)', [
-        inputFeld('rc-steuer', 'Persönlicher Grenzsteuersatz', state._rechnerInputs.steuerPct, '%', '1'),
-        zeile('AfA (verkürzte Restnutzungsdauer, ' + fP(c.afaSatz) + ')', '<span id="rcv-afaJahr">' + fE(c.afaJahr) + '</span>/Jahr', { fix: true }),
-        zeile('Zinsen', '<span id="rcv-zinsenJahr">' + fE(c.zinsenJahr) + '</span>/Jahr'),
-        zeile('Verwaltung', '<span id="rcv-verwaltungJahr">' + fE(c.verwaltungJahr) + '</span>/Jahr'),
-        zeile('Steuerliches Ergebnis', '<span id="rcv-ergebnisJahr">' + fE(c.ergebnisJahr) + '</span>/Jahr', { sum: true }),
-        zeile('Steuerersparnis', '<span id="rcv-ersparnisJahr">' + fE(c.ersparnisJahr) + '</span>/Jahr', { sum: true }),
-      ].join(''))}
-
-      ${(!wg && marktQm > 0) ? sektion('Marktvergleich', [
-        zeile('Marktpreis pro m² (' + esc((c.der.marktpreisGemitteltQuelle || '').replace('marktpreis-', '')) + ')', fE(marktQm), { fix: true }),
-        zeile('Dein Einkaufspreis pro m²', fE((d.we && d.we.qmPreis) || 0), { fix: true }),
-        zeile('Einkauf unter Marktwert', fE(Math.max(0, (marktQm - ((d.we && d.we.qmPreis) || 0)) * qm)), { fix: true, sum: true }),
-      ].join('')) : ''}
+      <div class="rc-cols">
+        <div>${spalteLinks}</div>
+        <div>${spalteRechts}</div>
+      </div>
 
       <div class="rc-cta">
         <button class="rc-go" onclick="window._rechnerReservieren()">Reservierung digital senden</button>
@@ -10709,6 +10781,14 @@ function _rechnerRenderContent() {
       </div>
     </div>
   `;
+}
+
+// Quelle-Label für den Marktpreisvergleich ("marktpreis-immoscout" → "ImmoScout24")
+function marktQuelleLabelRechner(quelle) {
+  const q = String(quelle || '');
+  if (q.includes('immoscout')) return 'ImmoScout24';
+  if (q.includes('homeday')) return 'Homeday';
+  return 'Marktdaten';
 }
 
 // Live-Neuberechnung ohne Full-Rerender (Inputs behalten den Fokus)
@@ -10730,16 +10810,20 @@ function _rechnerRecalc() {
   set('rcv-finBetrag', fE(c.finBetrag));
   set('rcv-rateMo', fEM(c.rateMo));
   set('rcv-rateMo2', fEM(c.rateMo));
+  set('rcv-ratePct', ((inp.zinsPct || 0) + (inp.tilgungPct || 0)).toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' %');
   set('rcv-kostenMo', fEM(c.kostenMo));
   set('rcv-kostenMo2', fEM(c.kostenMo));
+  set('rcv-nettoMo', fEM(c.nettoMo));
+  set('rcv-nettoMo2', fEM(c.nettoMo));
   set('rcv-vorSteuerMo', fEM(c.vorSteuerMo));
   set('rcv-ersparnisMo', fEM(c.ersparnisMo));
+  set('rcv-ersparnisMo2', fEM(c.ersparnisMo));
   set('rcv-nachSteuerMo', fEM(c.nachSteuerMo));
   set('rcv-topVorSteuer', fEM(c.vorSteuerMo) + '/Mo');
   set('rcv-topNachSteuer', fEM(c.nachSteuerMo) + '/Mo');
-  set('rcv-afaJahr', fE(c.afaJahr));
   set('rcv-zinsenJahr', fE(c.zinsenJahr));
   set('rcv-verwaltungJahr', fE(c.verwaltungJahr));
+  set('rcv-ausgabenJahr', fE(c.ausgabenJahr));
   set('rcv-ergebnisJahr', fE(c.ergebnisJahr));
   set('rcv-ersparnisJahr', fE(c.ersparnisJahr));
 }

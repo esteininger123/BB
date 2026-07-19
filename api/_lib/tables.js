@@ -289,6 +289,9 @@ const KALK_STAMMDATEN_FIELDS = {
   STELLPLATZ_MIETE_BEI_VERKAUF: 'fldbCBygfUhPObiXf', // Currency €/Mo
   MARKTPREIS_IS:         'fldhMmMxLn1PSjbwN', // Currency €/m² — ImmoScout-Marktpreis
   MARKTPREIS_HD:         'fldvlXM6pBUzVYdpF', // Currency €/m² — Homeday-Marktpreis
+  // 19.07.2026 (Henry) — Zustand der Wohnung (singleSelect, z.B. "Kernsaniert (+6 %)").
+  // Read-only für den Extern-Rechner (Zeile "Zustand der Wohnung" wie in der Musterberechnung).
+  ZUSTAND:               'fldcB9Q4vmoLYWCjr',
   // 06.07.2026 (Henry) — Checkbox: WE ist für EXTERNE Vertriebler freigegeben (Opt-in).
   // Gesteuert im Admin-Bereich → „Externer Vertrieb". Ohne Haken sehen Externe die WE nicht.
   EXTERN_FREIGABE:       'fldQ4pMt1KnVXx8Fw',
