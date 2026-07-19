@@ -10360,7 +10360,8 @@ function renderExternStart() {
           <div style="font-size:26px;line-height:1;" aria-hidden="true">🛡️</div>
           <div>
             <div class="card-title" style="margin-bottom:4px;">Alle Angaben sind verbindlich</div>
-            <p style="margin:0;line-height:1.6;">Auf sämtliche Angaben in der Backstube kannst du dich <strong>zu 100&nbsp;% verlassen</strong> — Restnutzungsdauer, Kaltmiete, Kaufpreis, Mietsubvention, Stellplatz-Preise. Die Werte sind von B&amp;B geprüft und <strong>verbindlich</strong>: Was du hier siehst und deinem Kunden verkaufst, ist genau so auch Vertragsgrundlage.</p>
+            <p style="margin:0 0 8px;line-height:1.6;">Auf sämtliche Angaben in der Backstube kannst du dich <strong>zu 100&nbsp;% verlassen</strong> — Restnutzungsdauer, Kaltmiete, Kaufpreis, Mietsubvention, Stellplatz-Preise. Die Werte sind von B&amp;B geprüft und <strong>verbindlich</strong>: Was du hier siehst und deinem Kunden verkaufst, ist genau so auch Vertragsgrundlage.</p>
+            <p style="margin:0;line-height:1.6;" class="text-small">Und falls uns doch mal ein Fehler passiert: Im Zweifel gleicht B&amp;B die Differenz aus und <strong>subventioniert sie dem Kunden quer</strong> — dein Verkauf bleibt so, wie du ihn zugesagt hast.</p>
           </div>
         </div>
       </div>
