@@ -10461,6 +10461,11 @@ window._externPasswortSave = _externPasswortSave;
 
 const RECHNER_NOTAR_PCT = 0.023;  // Notar & Grundbuch — Satz aus der Musterberechnung
 const RECHNER_SEV_MO    = 30;     // Mietverwaltung (SEV) €/Mo — B&B-Angebots-Standard
+// B&B-Standard (Henry 19.07.2026): Garagen-AfA nach amtlicher AfA-Tabelle = 20 Jahre / 5 % p.a.
+// (eigenständige Garage als selbständiges Wirtschaftsgut; die alten 19 J./5,26 % aus der
+// Ur-Excel waren unbelegt). Tiefgaragen/Gebäudeteil-Garagen laufen über die Gebäude-AfA.
+const RECHNER_GARAGE_AFA = 0.05;
+const RECHNER_GARAGE_JAHRE = 20;
 
 function renderExternRechner() {
   const app = document.getElementById('app');
@@ -10535,7 +10540,7 @@ function _rechnerCalc(d, inp) {
   const vorSteuerMo = nettoMo - rateMo;
   const einnahmenJahr  = (b.kaltmiete + b.stpMiete) * 12;
   const afaGebJahr     = (b.kpWohnung + b.knk) * b.gebAnteil * b.afaSatz;
-  const afaGarageJahr  = b.garageKp * 0.0526;   // Nutzungsdauer Garage 19 Jahre (Musterberechnung)
+  const afaGarageJahr  = b.garageKp * RECHNER_GARAGE_AFA; // B&B-Standard: 20 Jahre / 5 % (AfA-Tabelle)
   const afaStpJahr     = b.flaecheKp * b.afaSatz; // identisch zum Gebäudeanteil (Musterberechnung)
   const afaJahr        = afaGebJahr + afaGarageJahr + afaStpJahr;
   const zinsenJahr     = finBetrag * zins;
@@ -10750,7 +10755,7 @@ function _rechnerRenderContent() {
       (c.garageKp > 0 ? [
         '<div class="rc-sub" style="font-weight:500;text-transform:none;letter-spacing:0;">Abschreibungsbetrag Garage</div>',
         zeile('Kaufpreis Garage', fE(c.garageKp), { fix: true }),
-        zeile('Nutzungsdauer einer Garage', '5,26 % (19 Jahre)', { fix: true }),
+        zeile('Nutzungsdauer einer Garage', fP(RECHNER_GARAGE_AFA) + ' (' + RECHNER_GARAGE_JAHRE + ' Jahre)', { fix: true }),
         zeile('Abschreibungsbetrag Garage p.a.', fE(c.afaGarageJahr), { fix: true, sum: true }),
       ].join('') : ''),
       (c.flaecheKp > 0 ? [
