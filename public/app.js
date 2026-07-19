@@ -10353,6 +10353,18 @@ function renderExternStart() {
         <div class="text-tertiary text-small">Gespeichert ist aktuell: <strong>${aktuellPct.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %</strong>. Du kannst den Satz hier jederzeit ändern — alle Preise in der App passen sich sofort an. Für laufende Beratungen gilt: Preis beim Kunden nennen, dann Satz nicht mehr wechseln. Tipp: Die Provisions-Zeile im Kalkulator blendest du mit dem × aus (wenn der Kunde mitschaut) — das ⓘ holt sie zurück.</div>
       </div>
 
+      <!-- 19.07.2026 (Henry): Verbindlichkeits-Zusage — Vertriebler soll wissen:
+           was in der Backstube steht, gilt. Bewusst als eigener Hingucker-Block. -->
+      <div class="card" style="margin-bottom:16px;border-left:3px solid #2e9e5b;background:rgba(46,158,91,.06);">
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <div style="font-size:26px;line-height:1;" aria-hidden="true">🛡️</div>
+          <div>
+            <div class="card-title" style="margin-bottom:4px;">Alle Angaben sind verbindlich</div>
+            <p style="margin:0;line-height:1.6;">Auf sämtliche Angaben in der Backstube kannst du dich <strong>zu 100&nbsp;% verlassen</strong> — Restnutzungsdauer, Kaltmiete, Kaufpreis, Mietsubvention, Stellplatz-Preise. Die Werte sind von B&amp;B geprüft und <strong>verbindlich</strong>: Was du hier siehst und deinem Kunden verkaufst, ist genau so auch Vertragsgrundlage.</p>
+          </div>
+        </div>
+      </div>
+
       <!-- 16.07.2026 (Henry): Ablauf & Nachbetreuung für externe Partner — der
            B&B-Standard vom Reservieren bis nach dem Notartermin. Reihenfolge = Deal-Lifecycle. -->
       <div class="card" style="margin-bottom:16px;">
