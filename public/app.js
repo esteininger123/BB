@@ -10358,7 +10358,7 @@ function renderExternStart() {
       <div class="card" style="margin-bottom:16px;">
         <div class="card-title">2 · Deine Provision (0–7 %)</div>
         <p style="margin:0 0 10px;line-height:1.55;">Du bestimmst deinen Provisionssatz selbst — bis maximal <strong>7&nbsp;%</strong>. Berechnet wird die Provision vom <strong>Gesamt-Abgabepreis</strong> (Wohnung <em>plus</em> Stellplätze/Garagen). Aufgeschlagen wird sie aber <strong>nur auf den Wohnungspreis</strong> — Stellplätze und Garagen sind bereits marktüblich eingepreist und bleiben unverändert.</p>
-        <p style="margin:0 0 10px;line-height:1.55;">Im Kalkulator und in der Wohnungsliste siehst du immer schon <strong>deine Kundenpreise</strong> inklusive deiner Provision. Wichtig zu verstehen: <strong>je niedriger dein Satz, desto besser der Preis für deinen Kunden</strong> — und desto weniger verdienst du. Diesen Hebel hast du selbst in der Hand.</p>
+        <p style="margin:0 0 10px;line-height:1.55;">Im Rechner und in der Wohnungsliste siehst du immer schon <strong>deine Kundenpreise</strong> — deine Provision wird <strong>automatisch in alle Preise eingerechnet</strong>. Auf der Rechnerseite selbst taucht das Wort Provision bewusst nirgends auf: Du kannst den Rechner also bedenkenlos gemeinsam mit deinem Kunden anschauen. Wichtig zu verstehen: <strong>je niedriger dein Satz, desto besser der Preis für deinen Kunden</strong> — und desto weniger verdienst du. Diesen Hebel hast du selbst in der Hand.</p>
         <table class="table" style="width:100%;max-width:460px;font-size:13px;" aria-label="Rechenbeispiel">
           <tbody id="extern-beispiel"></tbody>
         </table>
@@ -10604,6 +10604,7 @@ function _rechnerRenderContent() {
   const c = _rechnerCalc(d, state._rechnerInputs);
   const fE  = (v) => Math.round(v).toLocaleString('de-DE') + ' €';
   const fEM = (v) => (Math.round(v * 100) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const fCF = (v) => (v > 0 ? '+ ' : '') + fEM(v); // Cashflow: Überschuss explizit mit Plus
   const fP  = (v) => (v * 100).toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' %';
   const weTitel = (d.we && (d.we.lage || d.we.lageText)) || ('WE ' + ((d.we && d.we.weNr) || ''));
   const qm = (d.we && d.we.qm) || 0;
@@ -10655,7 +10656,6 @@ function _rechnerRenderContent() {
       (garagenNrn ? zeile('Garage-Nummer', esc(garagenNrn), { fix: true }) : ''),
       zeile('Etage', esc(etage), { fix: true }),
       zeile('Lage', esc(lageSeite), { fix: true }),
-      zeile('Zustand der Wohnung', esc((c.ks.zustand || 'Bestand')), { fix: true }),
       zeile('Restnutzungsdauer der Wohnung', (rndJahre ? rndJahre + ' Jahre' : '–'), { fix: true }),
       zeile('Gebäudeanteil vom Kaufpreis', fP(c.gebAnteil), { fix: true }),
     ].join('')),
@@ -10664,7 +10664,7 @@ function _rechnerRenderContent() {
       zeile('Kaufpreis Wohnung', fE(c.kpWohnung), { fix: true }),
       stpZeilen,
       zeile('Gesamtkaufpreis', fE(c.gesamtKp), { fix: true, sum: true }),
-    ].join(''), 'dein Kundenpreis inkl. Provision'),
+    ].join('')),
 
     sektion('Kaufnebenkosten', [
       zeile('Grunderwerbsteuer (' + fP(c.grEstPct) + ')', fE(c.knkGrest), { fix: true }),
@@ -10697,9 +10697,9 @@ function _rechnerRenderContent() {
     sektion('Monatliche Cashflow-Betrachtung', [
       zeile('Nettoeinnahmen monatlich', '<span id="rcv-nettoMo2">' + fEM(c.nettoMo) + '</span>/Mo'),
       zeile('Bankrate Immobilienfinanzierung', '<span id="rcv-rateMo2">' + fEM(c.rateMo) + '</span>/Mo'),
-      zeile('Monatliche Belastung ohne Steuervorteil', '<span id="rcv-vorSteuerMo">' + fEM(c.vorSteuerMo) + '</span>/Mo', { sum: true, big: true }),
+      zeile('Cashflow vor Steuer', '<span id="rcv-vorSteuerMo">' + fCF(c.vorSteuerMo) + '</span>/Mo', { sum: true, big: true }),
       zeile('Einnahmen aus Steuerersparnis monatlich', '<span id="rcv-ersparnisMo">' + fEM(c.ersparnisMo) + '</span>/Mo'),
-      zeile('Monatliche Belastung inkl. Steuervorteil', '<span id="rcv-nachSteuerMo">' + fEM(c.nachSteuerMo) + '</span>/Mo', { sum: true, big: true }),
+      zeile('Cashflow nach Steuer', '<span id="rcv-nachSteuerMo">' + fCF(c.nachSteuerMo) + '</span>/Mo', { sum: true, big: true }),
     ].join('')),
 
     ((!wg && marktQm > 0) ? sektion('Marktpreisvergleich', [
@@ -10757,7 +10757,7 @@ function _rechnerRenderContent() {
         <div>
           <div class="rc-kicker">B&amp;B Kapitalanlage · Musterberechnung</div>
           <h1 class="rc-title">${esc(weTitel)}</h1>
-          <div class="rc-meta">Alle Werte mit <span class="rc-lock">🔒</span> sind verbindliche B&amp;B-Angaben — dein Kundenpreis inkl. Provision ist bereits eingerechnet.</div>
+          <div class="rc-meta">Alle Werte mit <span class="rc-lock">🔒</span> sind verbindliche B&amp;B-Angaben.</div>
         </div>
         ${exposeLink ? `<a class="rc-expose" href="${esc(exposeLink)}" target="_blank" rel="noopener">Exposé ansehen ↗</a>` : ''}
       </div>
@@ -10765,8 +10765,8 @@ function _rechnerRenderContent() {
       <div class="rc-kpis">
         <div class="rc-kpi"><div class="l">Gesamtkaufpreis</div><div class="v">${fE(c.gesamtKp)}</div></div>
         <div class="rc-kpi"><div class="l">Einnahme/Monat</div><div class="v">${fEM(c.einnahmenMo)}</div></div>
-        <div class="rc-kpi"><div class="l">Belastung vor Steuer</div><div class="v" id="rcv-topVorSteuer">${fEM(c.vorSteuerMo)}/Mo</div></div>
-        <div class="rc-kpi rc-kpi-hl"><div class="l">Belastung nach Steuer</div><div class="v" id="rcv-topNachSteuer">${fEM(c.nachSteuerMo)}/Mo</div></div>
+        <div class="rc-kpi"><div class="l">Cashflow vor Steuer</div><div class="v" id="rcv-topVorSteuer">${fCF(c.vorSteuerMo)}/Mo</div></div>
+        <div class="rc-kpi rc-kpi-hl"><div class="l">Cashflow nach Steuer</div><div class="v" id="rcv-topNachSteuer">${fCF(c.nachSteuerMo)}/Mo</div></div>
       </div>
 
       <div class="rc-cols">
@@ -10806,6 +10806,7 @@ function _rechnerRecalc() {
   const c = _rechnerCalc(d, inp);
   const fE  = (v) => Math.round(v).toLocaleString('de-DE') + ' €';
   const fEM = (v) => (Math.round(v * 100) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const fCF = (v) => (v > 0 ? '+ ' : '') + fEM(v);
   const set = (id, txt) => { const el = g(id); if (el) el.textContent = txt; };
   set('rcv-finBetrag', fE(c.finBetrag));
   set('rcv-rateMo', fEM(c.rateMo));
@@ -10815,12 +10816,12 @@ function _rechnerRecalc() {
   set('rcv-kostenMo2', fEM(c.kostenMo));
   set('rcv-nettoMo', fEM(c.nettoMo));
   set('rcv-nettoMo2', fEM(c.nettoMo));
-  set('rcv-vorSteuerMo', fEM(c.vorSteuerMo));
+  set('rcv-vorSteuerMo', fCF(c.vorSteuerMo));
   set('rcv-ersparnisMo', fEM(c.ersparnisMo));
   set('rcv-ersparnisMo2', fEM(c.ersparnisMo));
-  set('rcv-nachSteuerMo', fEM(c.nachSteuerMo));
-  set('rcv-topVorSteuer', fEM(c.vorSteuerMo) + '/Mo');
-  set('rcv-topNachSteuer', fEM(c.nachSteuerMo) + '/Mo');
+  set('rcv-nachSteuerMo', fCF(c.nachSteuerMo));
+  set('rcv-topVorSteuer', fCF(c.vorSteuerMo) + '/Mo');
+  set('rcv-topNachSteuer', fCF(c.nachSteuerMo) + '/Mo');
   set('rcv-zinsenJahr', fE(c.zinsenJahr));
   set('rcv-verwaltungJahr', fE(c.verwaltungJahr));
   set('rcv-ausgabenJahr', fE(c.ausgabenJahr));
