@@ -73,9 +73,14 @@ function route() {
   const hash = (window.location.hash || '#/').replace(/^#/, '');
   if (!state.user) { state.view = 'login'; return; }
   if (hash === '/' || hash === '/dashboard' || hash === '') {
-    // 06.07.2026 (Henry) — Externe landen standardmäßig auf der Erklär-/Provisions-Seite,
-    // explizites #/dashboard bleibt erreichbar.
-    state.view = (state.user.rolle === 'Extern' && hash !== '/dashboard') ? 'extern-start' : 'dashboard';
+    // 06.07.2026 (Henry) — Externe landen standardmäßig auf der Erklär-/Provisions-Seite.
+    // 19.07.2026 (Henry) — „Meine Kunden" gibt es für Externe nicht mehr: der Kunde
+    // entsteht erst bei der Reservierung. #/dashboard leitet Externe zu den Wohnungen.
+    if (state.user.rolle === 'Extern') {
+      state.view = (hash === '/dashboard') ? 'we-liste' : 'extern-start';
+    } else {
+      state.view = 'dashboard';
+    }
   } else if (hash === '/start') {
     state.view = (state.user.rolle === 'Extern') ? 'extern-start' : 'dashboard';
   } else if (hash.startsWith('/rechner/')) {
@@ -209,8 +214,9 @@ function renderHeader() {
   const active = (view) => state.view === view ? ' nav-link-active' : '';
   um.innerHTML = `
     ${state.user.rolle === 'Extern' ? `<a href="#/start" class="nav-link${active('extern-start')}" title="So funktioniert der externe Vertrieb — Provisionssatz einstellen">Start &amp; Provision</a>` : ''}
-    <a href="#/dashboard" class="nav-link${active('dashboard')}" title="Deine Kunden + Pipeline">Meine Kunden</a>
+    ${state.user.rolle === 'Extern' ? '' : `<a href="#/dashboard" class="nav-link${active('dashboard')}" title="Deine Kunden + Pipeline">Meine Kunden</a>`}
     <a href="#/we-liste" class="nav-link${active('we-liste')}" title="Alle Wohnungen in aktiver Vermarktung mit Kennzahlen">Wohnungen</a>
+    ${state.user.rolle === 'Extern' ? `<a href="${state.rechnerWeId ? '#/rechner/' + state.rechnerWeId : '#/we-liste'}" class="nav-link${active('extern-rechner')}" title="Cleaner Rendite-Rechner — Wohnung aus der Liste wählen">Rechner</a>` : ''}
     ${isAdmin ? `<a href="#/admin" class="nav-link${active('admin')}">Admin</a>` : ''}
     <button type="button" class="bbk-help-btn" onclick="startTour()" title="Tour starten — wie funktioniert das Tool?">?</button>
     <div class="user-name">${esc(state.user.name)}</div>
@@ -10420,8 +10426,7 @@ function renderExternStart() {
       </details>
 
       <div style="display:flex;gap:10px;margin-bottom:32px;">
-        <button onclick="go('/we-liste')">Zu den Wohnungen</button>
-        <button class="secondary" onclick="go('/dashboard')">Zu meinen Kunden</button>
+        <button onclick="go('/we-liste')">Zu den Wohnungen &amp; zum Rechner</button>
       </div>
     </div>
   `;
@@ -10721,7 +10726,7 @@ async function _rechnerReservieren() {
     renovierungsbonus: (d.kalkStammdaten && d.kalkStammdaten.renovierungsbonusOverride) || 0,
   });
   const kurzOk = await ensureKurzSelbstauskunft();
-  if (!kurzOk) { toast('Reservierung abgebrochen — der Kunde bleibt unter „Meine Kunden" gespeichert', 'info'); return; }
+  if (!kurzOk) { toast('Reservierung abgebrochen — du kannst sie jederzeit neu starten', 'info'); return; }
   await externReservierungFlow(weId);
 }
 window._rechnerReservieren = _rechnerReservieren;
@@ -11236,8 +11241,8 @@ const TOUR_STEPS = [
 const EXTERN_TOUR_STEPS = [
   {
     title: 'Willkommen bei der B&B Backstube 🥨',
-    action: 'Dein Werkzeug für den Verkauf von B&B-Kapitalanlagen: Wohnungen ansehen, Kunden anlegen, Rendite kalkulieren, PDF fürs Kundengespräch erzeugen, digital reservieren. Diese Tour zeigt dir in 10 kurzen Schritten alles Wichtige — inklusive, wie deine Provision funktioniert.',
-    tip: 'Dauer: ca. 5 Minuten. Jederzeit über das „?" oben rechts neu startbar.',
+    action: 'Dein Werkzeug für den Verkauf von B&B-Kapitalanlagen: Wohnungen ansehen, Rendite kalkulieren, digital reservieren — ganz ohne Vorarbeit. Deinen Kunden gibst du erst ein, wenn wirklich reserviert wird. Diese Tour zeigt dir alles Wichtige in wenigen Schritten.',
+    tip: 'Dauer: ca. 3 Minuten. Jederzeit über das „?" oben rechts neu startbar.',
     target: null,
     needsView: 'extern-start',
   },
@@ -11256,57 +11261,29 @@ const EXTERN_TOUR_STEPS = [
     needsView: 'we-liste',
   },
   {
-    title: 'Schritt 3 — Kunden anlegen',
-    action: 'Geh auf „Meine Kunden" und klick „+ Neuer Kunde". Zum Ausprobieren kannst du dich selbst mit deiner echten E-Mail-Adresse anlegen.',
-    tip: 'Deine Kunden siehst nur du. Die E-Mail brauchst du spätestens für die digitale Reservierung — du kannst sie aber auch dann noch nachtragen.',
-    target: 'button[onclick*="createNewKunde"]',
-    needsView: 'dashboard',
-    detectCompleted: () => !!state.kundeId,
+    title: 'Schritt 3 — Der Rechner',
+    action: 'Klick in der Wohnungsliste auf eine Einheit — du landest direkt im Rechner. Oben die Kernzahlen, darunter die komplette Kalkulation: Kaufpreis, Nebenkosten, Miete + Subvention, Finanzierung, Steuer, Marktvergleich.',
+    tip: 'Alle Werte mit 🔒 sind verbindliche B&B-Angaben — darauf kannst du dich beim Verkauf zu 100 % verlassen. Dein Kundenpreis inkl. Provision ist bereits eingerechnet.',
+    target: '.we-liste-row',
+    needsView: 'extern-rechner',
   },
   {
-    title: 'Schritt 4 — Kalkulator öffnen',
-    action: 'Wechsle beim Kunden in den Tab „Kalkulator" und wähle oben Projekt und Wohneinheit.',
-    tip: 'Der Kalkulator rechnet die komplette Kapitalanlage durch: Finanzierung, Cashflow, Steuer, Vermögensaufbau.',
-    target: '#projekt-select',
-    needsView: 'kunde',
-    needsTab: 'kalkulator',
-    detectCompleted: () => !!(state.kalk && state.kalk._weId),
+    title: 'Schritt 4 — Annahmen anpassen',
+    action: 'Spiel mit den einzigen vier Stellschrauben: Eigenkapital, Zins, Tilgung und Grenzsteuersatz — alles rechnet live. Die SEV-Checkbox nimmt die optionale Mietverwaltung (30 €/Mo) mit rein.',
+    tip: 'Die wichtigste Zahl steht oben rechts: die monatliche Belastung nach Steuervorteil.',
+    target: '#rc-ek',
+    needsView: 'extern-rechner',
   },
   {
-    title: 'Schritt 5 — Dein Kundenpreis im Detail',
-    action: 'Direkt unter der Wohnungsauswahl steht deine Provisions-Info: wie viel Provision (in €) in deinem Kundenpreis steckt.',
-    tip: 'Der Kaufpreis in der Kalkulation ist immer schon der Kundenpreis. Wichtig fürs Kundengespräch: Mit dem × blendest du die Zeile aus, wenn der Kunde mitschaut — das kleine ⓘ holt sie zurück.',
-    target: '.we-extern-info, #extern-info-reveal',
-    needsView: 'kunde',
-    needsTab: 'kalkulator',
-  },
-  {
-    title: 'Schritt 6 — Die wichtigste Zahl',
-    action: 'Scroll zur großen Headline: der monatliche Eigenaufwand des Kunden. Darunter folgen Cashflow-Verlauf, Steuerersparnis und Vermögensaufbau.',
-    tip: 'Über „Annahmen" siehst du jederzeit, mit welchen Werten gerechnet wird.',
-    target: '.kalk-c-hero-headline',
-    needsView: 'kunde',
-    needsTab: 'kalkulator',
-  },
-  {
-    title: 'Schritt 7 — Investitionsrechnung als PDF',
-    action: 'Über die Toolbar erzeugst du die Investitionsrechnung als PDF — fertig fürs Kundengespräch oder zum Mailen.',
-    tip: 'Das PDF zeigt selbstverständlich deine Kundenpreise.',
-    target: '.toolbar button[onclick*="openInvestDocModal"]',
-    needsView: 'kunde',
-    needsTab: 'kalkulator',
-  },
-  {
-    title: 'Schritt 8 — Reservierung digital senden',
-    action: 'Will dein Kunde kaufen: Klick in der Toolbar auf „Reservierung digital senden". Du füllst einmalig eine Kurz-Selbstauskunft aus und gibst die Anschrift des Kunden an — dann bekommst du einen Link zur fertigen Reservierungsvereinbarung, die dein Kunde direkt online unterschreibt.',
+    title: 'Schritt 5 — Reservierung digital senden',
+    action: 'Will dein Kunde kaufen: Klick „Reservierung digital senden". JETZT erst gibst du Name und E-Mail deines Kunden ein, dann folgen Kurz-Selbstauskunft und Anschrift — und du bekommst den Link zur fertigen Reservierungsvereinbarung, die dein Kunde direkt online unterschreibt.',
     tip: 'B&B prüft die Kurz-Selbstauskunft: Ist die Finanzierbarkeit unwahrscheinlich, wird die Reservierung innerhalb von 12 Stunden wieder aufgehoben — also nur reservieren, wenn wirklich finanzierbar.',
-    target: 'button[onclick*="sendReservierungForSignature"]',
-    needsView: 'kunde',
-    needsTab: 'kalkulator',
+    target: 'button[onclick*="_rechnerReservieren"]',
+    needsView: 'extern-rechner',
   },
   {
-    title: '🎉 Schritt 9 — Du bist startklar',
-    action: 'Das war\'s: Provision einstellen → Wohnung wählen → Kalkulation zeigen → PDF senden → digital reservieren. Nach der Reservierung läuft die Abwicklung gemeinsam mit B&B.',
+    title: '🎉 Schritt 6 — Du bist startklar',
+    action: 'Das war\'s: Provision einstellen → Wohnung wählen → Rechner zeigen → digital reservieren. Nach der Reservierung läuft die Abwicklung gemeinsam mit B&B — den Ablauf findest du auf „Start & Provision".',
     tip: 'Provision ändern: jederzeit unter „Start & Provision". Tour neu starten: „?" oben rechts. Bei Fragen → dein B&B-Kontakt.',
     target: null,
     needsView: null,
@@ -11575,8 +11552,8 @@ function _renderTour() {
       }
     } catch (e) { /* detectCompleted darf nicht crashen — Tour läuft normal weiter */ }
   }
-  const viewLabel = { dashboard: 'Meine Kunden', kunde: 'Kunde-Detail-Seite', 'we-liste': 'Wohnungen', admin: 'Admin', 'extern-start': 'Start & Provision' }[needsView] || needsView;
-  const viewHref = { dashboard: '#/dashboard', kunde: state.kundeId ? ('#/kunde/' + state.kundeId) : '#/dashboard', 'we-liste': '#/we-liste', admin: '#/admin', 'extern-start': '#/start' }[needsView] || '#/dashboard';
+  const viewLabel = { dashboard: 'Meine Kunden', kunde: 'Kunde-Detail-Seite', 'we-liste': 'Wohnungen', admin: 'Admin', 'extern-start': 'Start & Provision', 'extern-rechner': 'Rechner (Wohnung in der Liste anklicken)' }[needsView] || needsView;
+  const viewHref = { dashboard: '#/dashboard', kunde: state.kundeId ? ('#/kunde/' + state.kundeId) : '#/dashboard', 'we-liste': '#/we-liste', admin: '#/admin', 'extern-start': '#/start', 'extern-rechner': state.rechnerWeId ? ('#/rechner/' + state.rechnerWeId) : '#/we-liste' }[needsView] || '#/dashboard';
   const tabLabel = { uebersicht: 'Übersicht', kalkulator: 'Kalkulator', selbstauskunft: 'Selbstauskunft', snapshots: 'Snapshots' }[needsTab] || needsTab;
 
   const targetEl = (viewMatches && tabMatches && step.target) ? document.querySelector(step.target) : null;
