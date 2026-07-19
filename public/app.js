@@ -78,6 +78,16 @@ function route() {
     state.view = (state.user.rolle === 'Extern' && hash !== '/dashboard') ? 'extern-start' : 'dashboard';
   } else if (hash === '/start') {
     state.view = (state.user.rolle === 'Extern') ? 'extern-start' : 'dashboard';
+  } else if (hash.startsWith('/rechner/')) {
+    // 19.07.2026 (Henry): kundenloser Extern-Rechner (#/rechner/<weId>) — Externe
+    // rechnen direkt aus der WE-Liste, ohne vorher einen Kunden anzulegen.
+    // Interne haben die Route nicht (ihr Kalkulator lebt am Kunden).
+    if (state.user.rolle === 'Extern') {
+      state.view = 'extern-rechner';
+      state.rechnerWeId = hash.split('/').filter(Boolean)[1] || null;
+    } else {
+      state.view = 'dashboard';
+    }
   } else if (hash.startsWith('/kunde/')) {
     state.view = 'kunde';
     const parts = hash.split('/').filter(Boolean); // kunde, :id, [tab]
@@ -10193,6 +10203,12 @@ window._weLuckenClose = _weLuckenClose;
 
 function _weListeOpenWe(weId) {
   if (!weId) return;
+  // 19.07.2026 (Henry): Externe gehen direkt in den kundenlosen Rechner —
+  // der Kunden-Zwischenschritt entfällt komplett (Kunde entsteht erst bei Reservierung).
+  if (state.user && state.user.rolle === 'Extern') {
+    go('/rechner/' + weId);
+    return;
+  }
   // QA-Fix 2026-05-23 (Audit-U4): Ohne ausgewählten Kunden → speichere WE-Wunsch im
   // sessionStorage und gehe ins Dashboard. Wenn der User dann einen Kunden öffnet,
   // wird die WE auto-geladen. Vorher war das eine Sackgasse (Toast + Redirect → User
@@ -10428,6 +10444,341 @@ async function _externPasswortSave() {
 }
 window._externPasswortSave = _externPasswortSave;
 
+// ===== MODUL: views/extern-rechner (19.07.2026 Henry) =====
+// Kundenloser, cleaner Rechner für externe Vertriebler — Aufbau nach der bewährten
+// "Musterberechnung" (Kaufpreis → Kaufnebenkosten → Miete + Subvention → Kosten →
+// Finanzierung → monatliche Betrachtung → Steuer Jahr 1 → Marktvergleich).
+// B&B-Festwerte (Preise, Mieten, Subvention, Sätze, Kosten) sind bewusst NICHT
+// editierbar — verbindliche Angaben (siehe Verbindlichkeits-Block auf Start & Provision).
+// Editierbar nur, was wirklich Kundensache ist: Eigenkapital, Zins, Tilgung,
+// Grenzsteuersatz + die optionale Mietverwaltung (SEV).
+// Der Kunde wird ERST bei einer echten Reservierung angelegt (_rechnerReservieren).
+
+const RECHNER_NOTAR_PCT = 0.023;  // Notar & Grundbuch — Satz aus der Musterberechnung
+const RECHNER_SEV_MO    = 30;     // Mietverwaltung (SEV) €/Mo — B&B-Angebots-Standard
+
+function renderExternRechner() {
+  const app = document.getElementById('app');
+  const weId = state.rechnerWeId;
+  if (!weId) { go('/we-liste'); return; }
+  app.innerHTML = '<div class="main" style="max-width:780px;margin:0 auto;"><div class="card" style="margin-top:24px;">Kalkulation wird geladen …</div></div>';
+  // Race-Schutz wie loadWeIntoKalk: nur die jüngste Antwort rendert
+  const token = (state._rechnerToken = (state._rechnerToken || 0) + 1);
+  api.get('/api/stammdaten/' + weId).then((d) => {
+    if (token !== state._rechnerToken || state.view !== 'extern-rechner') return;
+    state._rechnerData = d;
+    state._rechnerInputs = { ek: 0, zinsPct: 4.5, tilgungPct: 1.0, steuerPct: 42, sev: false };
+    _rechnerRenderContent();
+  }).catch((e) => {
+    app.innerHTML = '<div class="main" style="max-width:780px;margin:0 auto;"><div class="card" style="margin-top:24px;">Kalkulation konnte nicht geladen werden: ' + esc(e.message || 'unbekannt') + ' — <a href="#/we-liste">zurück zu den Wohnungen</a></div></div>';
+  });
+}
+
+// Festwerte aus der API (der Extern-Kundenpreis inkl. Provision ist serverseitig in we.kp).
+function _rechnerBasis(d) {
+  const ks  = d.kalkStammdaten || {};
+  const der = d.derived || {};
+  const stp = d.stellplaetze || {};
+  const kpWohnung = (d.we && d.we.kp) || 0;
+  const stpKp     = stp.kaufpreisSumme || 0;
+  const gesamtKp  = kpWohnung + stpKp;
+  const grEstPct  = ks.grEst || 0;
+  const kaltmiete = der.subventionKaltmieteAdjustiert || ks.mieteBeiVerkauf || (d.we && d.we.kaltmiete) || 0;
+  const stpMiete  = stp.mieteMoSumme || 0;
+  const phasen    = Array.isArray(der.subventionPhasen) ? der.subventionPhasen : [];
+  const subvMo1   = phasen.length ? (phasen[0].mo || 0) : 0;
+  const subvTotal = der.subventionTotalEur || 0;
+  const hv        = ks.hausverwaltung || 0;
+  const ruecklage = ks.hausgeldRuecklage || 0;
+  const gebAnteil = ks.gebaeudeAnteil || 0.85;
+  const afaSatz   = ks.afaGutachten || 0.02;
+  const knkGrest  = gesamtKp * grEstPct;
+  const knkNotar  = gesamtKp * RECHNER_NOTAR_PCT;
+  const knk       = knkGrest + knkNotar;
+  const anschaffung = gesamtKp + knk;
+  return { ks, der, stp, kpWohnung, stpKp, gesamtKp, grEstPct, kaltmiete, stpMiete,
+           phasen, subvMo1, subvTotal, hv, ruecklage, gebAnteil, afaSatz,
+           knkGrest, knkNotar, knk, anschaffung };
+}
+
+// Rechenkern — Formeln 1:1 aus der Musterberechnung (Jahr-1-Betrachtung,
+// Subvention steuerlich außen vor, KNK komplett in der AfA-Basis des Gebäudeanteils).
+function _rechnerCalc(d, inp) {
+  const b = _rechnerBasis(d);
+  const ek      = Math.min(Math.max(inp.ek || 0, 0), b.anschaffung);
+  const zins    = (inp.zinsPct || 0) / 100;
+  const tilgung = (inp.tilgungPct || 0) / 100;
+  const steuer  = (inp.steuerPct || 0) / 100;
+  const sevMo   = inp.sev ? RECHNER_SEV_MO : 0;
+  const finBetrag = Math.max(0, b.anschaffung - ek);
+  const rateMo    = finBetrag * (zins + tilgung) / 12;
+  const einnahmenMo = b.kaltmiete + b.stpMiete + b.subvMo1;
+  const kostenMo    = b.hv + b.ruecklage + sevMo;
+  const nettoMo     = einnahmenMo - kostenMo;
+  const vorSteuerMo = nettoMo - rateMo;
+  const einnahmenJahr  = (b.kaltmiete + b.stpMiete) * 12;
+  const afaJahr        = (b.kpWohnung + b.knk) * b.gebAnteil * b.afaSatz + b.stpKp * b.afaSatz;
+  const zinsenJahr     = finBetrag * zins;
+  const verwaltungJahr = (b.hv + sevMo) * 12;
+  const ergebnisJahr   = einnahmenJahr - (afaJahr + zinsenJahr + verwaltungJahr);
+  const ersparnisJahr  = -(ergebnisJahr * steuer);
+  const ersparnisMo    = ersparnisJahr / 12;
+  const nachSteuerMo   = vorSteuerMo + ersparnisMo;
+  return Object.assign(b, { ek, finBetrag, rateMo, einnahmenMo, kostenMo, nettoMo,
+    vorSteuerMo, einnahmenJahr, afaJahr, zinsenJahr, verwaltungJahr, ergebnisJahr,
+    ersparnisJahr, ersparnisMo, nachSteuerMo, sevMo });
+}
+
+function _rechnerRenderContent() {
+  const app = document.getElementById('app');
+  const d = state._rechnerData;
+  const c = _rechnerCalc(d, state._rechnerInputs);
+  const fE  = (v) => Math.round(v).toLocaleString('de-DE') + ' €';
+  const fEM = (v) => (Math.round(v * 100) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const fP  = (v) => (v * 100).toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' %';
+  const weTitel = (d.we && (d.we.lage || d.we.lageText)) || ('WE ' + ((d.we && d.we.weNr) || ''));
+  const qm = (d.we && d.we.qm) || 0;
+  const wg = !!(d.kalkStammdaten && d.kalkStammdaten.wgKonzept);
+  const marktQm = (d.derived && d.derived.marktpreisGemittelt) || 0;
+
+  // Zeilen-Helfer: fix = 🔒-Festwert (reine Anzeige), out = live berechnet, sum = Summenzeile
+  const zeile = (label, val, opt) => {
+    const o = opt || {};
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;' +
+      (o.sum ? 'border-top:1px solid var(--border, rgba(128,128,128,.25));font-weight:600;margin-top:2px;' : '') + '">' +
+      '<div class="text-small" style="color:var(--text-tertiary);">' + label + (o.fix ? ' <span title="Verbindlicher B&B-Festwert" style="opacity:.45;font-size:10px;">🔒</span>' : '') + '</div>' +
+      '<div style="font-variant-numeric:tabular-nums;white-space:nowrap;' + (o.sum ? 'font-weight:600;' : '') + '"' + (o.id ? (' id="' + o.id + '"') : '') + '>' + val + '</div></div>';
+  };
+  const sektion = (titel, inner) => '<div class="card" style="margin-bottom:14px;"><div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-tertiary);font-weight:600;margin-bottom:8px;">' + titel + '</div>' + inner + '</div>';
+  const inputFeld = (id, label, val, suffix, step) =>
+    '<label class="text-small" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0;color:var(--text-tertiary);">' + label +
+    '<span style="white-space:nowrap;"><input id="' + id + '" type="number" step="' + (step || '0.1') + '" value="' + val + '" oninput="window._rechnerRecalc()"' +
+    ' style="width:90px;text-align:right;padding:5px 7px;font-size:13px;"> ' + suffix + '</span></label>';
+
+  const stpZeilen = (c.stp.details && c.stp.details.length)
+    ? c.stp.details.filter(s => (s.kaufpreis || 0) > 0).map(s =>
+        zeile('Kaufpreis ' + (s.typ === 'Fläche' ? 'Stellplatz' : (s.typ || 'Stellplatz')), fE(s.kaufpreis), { fix: true })).join('')
+    : (c.stpKp > 0 ? zeile('Kaufpreis Stellplätze/Garagen', fE(c.stpKp), { fix: true }) : '');
+
+  const subvZeilen = c.phasen.length
+    ? c.phasen.map((p, i) => zeile('Mietsubvention Phase ' + (i + 1) + ' (' + (p.monate || 0) + ' Monate)', fEM(p.mo || 0) + '/Mo', { fix: true })).join('') +
+      zeile('Einmalbetrag der Mietsubvention', fE(c.subvTotal), { fix: true, sum: true })
+    : zeile('Mietsubvention', 'keine — Miete liegt auf Marktniveau', { fix: true });
+
+  app.innerHTML = `
+    <div class="main" style="max-width:780px;margin:0 auto;">
+      <div style="margin:18px 0 4px;"><a href="#/we-liste" class="text-small">← Zurück zu den Wohnungen</a></div>
+      <h1 class="page-title" style="margin:0 0 2px;font-size:20px;">${esc(weTitel)}</h1>
+      <div class="text-tertiary text-small" style="margin-bottom:14px;">${qm ? qm.toLocaleString('de-DE') + ' m² · ' : ''}Alle 🔒-Werte sind verbindliche B&amp;B-Angaben — dein Kundenpreis inkl. deiner Provision ist bereits eingerechnet.</div>
+
+      <div class="card" style="margin-bottom:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;border-left:3px solid var(--accent);">
+        <div><div class="text-small text-tertiary">Gesamtkaufpreis</div><div style="font-size:19px;font-weight:600;">${fE(c.anschaffung - c.knk)}</div></div>
+        <div><div class="text-small text-tertiary">Einnahme/Monat</div><div style="font-size:19px;font-weight:600;">${fEM(c.einnahmenMo)}</div></div>
+        <div><div class="text-small text-tertiary">Belastung n. Steuer</div><div style="font-size:19px;font-weight:600;" id="rcv-topNachSteuer">${fEM(c.nachSteuerMo)}/Mo</div></div>
+      </div>
+
+      ${sektion('Kaufpreis', [
+        zeile('Kaufpreis Wohnung (dein Kundenpreis)', fE(c.kpWohnung), { fix: true }),
+        stpZeilen,
+        zeile('Gesamtkaufpreis', fE(c.gesamtKp), { fix: true, sum: true }),
+      ].join(''))}
+
+      ${sektion('Kaufnebenkosten', [
+        zeile('Grunderwerbsteuer (' + fP(c.grEstPct) + ')', fE(c.knkGrest), { fix: true }),
+        zeile('Notar &amp; Grundbuch (' + fP(RECHNER_NOTAR_PCT) + ')', fE(c.knkNotar), { fix: true }),
+        zeile('Anschaffungskosten gesamt', fE(c.anschaffung), { fix: true, sum: true }),
+      ].join(''))}
+
+      ${sektion('Mieteinnahmen', [
+        zeile('Kaltmiete Wohnung' + (c.der.subventionKaltmieteAdjustiert ? ' (nach Erhöhung)' : ''), fEM(c.kaltmiete) + '/Mo', { fix: true }),
+        (c.stpMiete > 0 ? zeile('Miete Stellplatz/Garage', fEM(c.stpMiete) + '/Mo', { fix: true }) : ''),
+        subvZeilen,
+        zeile('Gesamte Einnahme inkl. Subvention', fEM(c.einnahmenMo) + '/Mo', { sum: true }),
+      ].join(''))}
+
+      ${sektion('Nicht umlagefähige Kosten', [
+        zeile('Hausverwaltung (WEG)', fEM(c.hv) + '/Mo', { fix: true }),
+        zeile('Instandhaltungsrücklage', fEM(c.ruecklage) + '/Mo', { fix: true }),
+        '<label class="text-small" style="display:flex;align-items:center;gap:8px;padding:5px 0;color:var(--text-tertiary);cursor:pointer;"><input id="rc-sev" type="checkbox" ' + (state._rechnerInputs.sev ? 'checked' : '') + ' onchange="window._rechnerRecalc()" style="width:14px;height:14px;">Mietverwaltung (SEV) dazunehmen — optional, ' + RECHNER_SEV_MO + ' €/Mo</label>',
+        zeile('Kosten gesamt', '<span id="rcv-kostenMo">' + fEM(c.kostenMo) + '</span>/Mo', { sum: true }),
+      ].join(''))}
+
+      ${sektion('Finanzierung <span style="text-transform:none;letter-spacing:0;">(deine Annahmen — frei anpassbar)</span>', [
+        inputFeld('rc-ek', 'Eigenkapitaleinsatz', state._rechnerInputs.ek, '€', '1000'),
+        inputFeld('rc-zins', 'Zins p.a.', state._rechnerInputs.zinsPct, '%', '0.05'),
+        inputFeld('rc-tilgung', 'Tilgung p.a.', state._rechnerInputs.tilgungPct, '%', '0.1'),
+        zeile('Finanzierungsbetrag', '<span id="rcv-finBetrag">' + fE(c.finBetrag) + '</span>'),
+        zeile('Bankrate', '<span id="rcv-rateMo">' + fEM(c.rateMo) + '</span>/Mo', { sum: true }),
+      ].join(''))}
+
+      ${sektion('Monatliche Betrachtung', [
+        zeile('Einnahmen inkl. Subvention', fEM(c.einnahmenMo) + '/Mo'),
+        zeile('− nicht umlagefähige Kosten', '<span id="rcv-kostenMo2">' + fEM(c.kostenMo) + '</span>/Mo'),
+        zeile('− Bankrate', '<span id="rcv-rateMo2">' + fEM(c.rateMo) + '</span>/Mo'),
+        zeile('Belastung vor Steuervorteil', '<span id="rcv-vorSteuerMo">' + fEM(c.vorSteuerMo) + '</span>/Mo', { sum: true }),
+        zeile('+ Steuerersparnis', '<span id="rcv-ersparnisMo">' + fEM(c.ersparnisMo) + '</span>/Mo'),
+        zeile('Monatliche Belastung inkl. Steuervorteil', '<span id="rcv-nachSteuerMo">' + fEM(c.nachSteuerMo) + '</span>/Mo', { sum: true }),
+      ].join(''))}
+
+      ${sektion('Steuerliche Betrachtung (Jahr 1)', [
+        inputFeld('rc-steuer', 'Persönlicher Grenzsteuersatz', state._rechnerInputs.steuerPct, '%', '1'),
+        zeile('AfA (verkürzte Restnutzungsdauer, ' + fP(c.afaSatz) + ')', '<span id="rcv-afaJahr">' + fE(c.afaJahr) + '</span>/Jahr', { fix: true }),
+        zeile('Zinsen', '<span id="rcv-zinsenJahr">' + fE(c.zinsenJahr) + '</span>/Jahr'),
+        zeile('Verwaltung', '<span id="rcv-verwaltungJahr">' + fE(c.verwaltungJahr) + '</span>/Jahr'),
+        zeile('Steuerliches Ergebnis', '<span id="rcv-ergebnisJahr">' + fE(c.ergebnisJahr) + '</span>/Jahr', { sum: true }),
+        zeile('Steuerersparnis', '<span id="rcv-ersparnisJahr">' + fE(c.ersparnisJahr) + '</span>/Jahr', { sum: true }),
+      ].join(''))}
+
+      ${(!wg && marktQm > 0) ? sektion('Marktvergleich', [
+        zeile('Marktpreis pro m² (' + esc((c.der.marktpreisGemitteltQuelle || '').replace('marktpreis-', '')) + ')', fE(marktQm), { fix: true }),
+        zeile('Dein Einkaufspreis pro m²', fE((d.we && d.we.qmPreis) || 0), { fix: true }),
+        zeile('Einkauf unter Marktwert', fE(Math.max(0, (marktQm - ((d.we && d.we.qmPreis) || 0)) * qm)), { fix: true, sum: true }),
+      ].join('')) : ''}
+
+      <div style="display:flex;gap:10px;margin:20px 0 36px;flex-wrap:wrap;">
+        <button onclick="window._rechnerReservieren()" style="font-size:14px;">Reservierung digital senden</button>
+        <button class="secondary" onclick="go('/we-liste')">Andere Wohnung wählen</button>
+      </div>
+    </div>
+  `;
+}
+
+// Live-Neuberechnung ohne Full-Rerender (Inputs behalten den Fokus)
+function _rechnerRecalc() {
+  const d = state._rechnerData;
+  if (!d) return;
+  const g = (id) => document.getElementById(id);
+  const num = (id, fb) => { const v = parseFloat((g(id) || {}).value); return isFinite(v) ? v : fb; };
+  const inp = state._rechnerInputs;
+  inp.ek = num('rc-ek', 0);
+  inp.zinsPct = num('rc-zins', 4.5);
+  inp.tilgungPct = num('rc-tilgung', 1.0);
+  inp.steuerPct = num('rc-steuer', 42);
+  inp.sev = !!(g('rc-sev') && g('rc-sev').checked);
+  const c = _rechnerCalc(d, inp);
+  const fE  = (v) => Math.round(v).toLocaleString('de-DE') + ' €';
+  const fEM = (v) => (Math.round(v * 100) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const set = (id, txt) => { const el = g(id); if (el) el.textContent = txt; };
+  set('rcv-finBetrag', fE(c.finBetrag));
+  set('rcv-rateMo', fEM(c.rateMo));
+  set('rcv-rateMo2', fEM(c.rateMo));
+  set('rcv-kostenMo', fEM(c.kostenMo));
+  set('rcv-kostenMo2', fEM(c.kostenMo));
+  set('rcv-vorSteuerMo', fEM(c.vorSteuerMo));
+  set('rcv-ersparnisMo', fEM(c.ersparnisMo));
+  set('rcv-nachSteuerMo', fEM(c.nachSteuerMo));
+  set('rcv-topNachSteuer', fEM(c.nachSteuerMo) + '/Mo');
+  set('rcv-afaJahr', fE(c.afaJahr));
+  set('rcv-zinsenJahr', fE(c.zinsenJahr));
+  set('rcv-verwaltungJahr', fE(c.verwaltungJahr));
+  set('rcv-ergebnisJahr', fE(c.ergebnisJahr));
+  set('rcv-ersparnisJahr', fE(c.ersparnisJahr));
+}
+window._rechnerRecalc = _rechnerRecalc;
+
+// Reservierung aus dem Rechner: Kunde entsteht ERST hier (Henrys Vorgabe), danach
+// laufen die bewährten Pflicht-Schritte: Kurz-Selbstauskunft → Adresse → Link.
+async function _rechnerReservieren() {
+  const d = state._rechnerData;
+  const weId = state.rechnerWeId;
+  if (!d || !weId) return;
+  const kunde = await openRechnerKundeModal(d);
+  if (!kunde) return;
+  let k;
+  try {
+    const saJson = {
+      gemeinsam: false,
+      antragsteller: { vorname: kunde.vorname, name: kunde.nachname, email: kunde.email || '', telefonPrivat: kunde.telefon || '' },
+      mitantragsteller: {},
+    };
+    k = await api.post('/api/kunden', {
+      vorname: kunde.vorname, nachname: kunde.nachname, email: kunde.email || '',
+      telefon: kunde.telefon || '', phase: 'Lead', saJson,
+    });
+  } catch (e) {
+    toast('Kunde konnte nicht angelegt werden: ' + (e.message || 'unbekannt'), 'error');
+    return;
+  }
+  state.kundeId = k.id;
+  state.kunde = k;
+  if (Array.isArray(state.kunden)) state.kunden.push(k);
+  // Minimal-Kalk-State für den bestehenden Extern-Reservierungs-Flow — die Preise
+  // rechnet extern-link.js ohnehin serverseitig, hier zählen nur die Anzeige-Werte.
+  const b = _rechnerBasis(d);
+  state.kalk = Object.assign({}, state.kalk || {}, {
+    _weId: weId,
+    qm: (d.we && d.we.qm) || 0,
+    _weNr: (d.we && d.we.weNr) || '',
+    _weLage: (d.we && (d.we.lageText || d.we.lage)) || '',
+    _projektName: '',
+    subventionPhasen: b.phasen,
+    subventionMo: (d.derived && d.derived.subventionMo) || 0,
+    subventionMonate: (d.derived && d.derived.subventionMonate) || 0,
+    subventionFaktor: 1,
+  });
+  state.kalkResult = Object.assign({}, state.kalkResult || {}, {
+    mietsubventionGesamt: b.subvTotal,
+    renovierungsbonus: (d.kalkStammdaten && d.kalkStammdaten.renovierungsbonusOverride) || 0,
+  });
+  const kurzOk = await ensureKurzSelbstauskunft();
+  if (!kurzOk) { toast('Reservierung abgebrochen — der Kunde bleibt unter „Meine Kunden" gespeichert', 'info'); return; }
+  await externReservierungFlow(weId);
+}
+window._rechnerReservieren = _rechnerReservieren;
+
+// Kundendaten-Modal (Stil der Extern-Reservierungs-Modals): Vorname, Nachname, E-Mail Pflicht.
+function openRechnerKundeModal(d) {
+  return new Promise((resolve) => {
+    const existing = document.getElementById('bbk-rechnerkunde-modal');
+    if (existing) existing.remove();
+    const weLabel = (d.we && (d.we.lageText || d.we.lage)) || 'diese Wohnung';
+    const feld = (id, label, ph, typ) => `
+      <label style="display:block;font-size:12px;color:#6B6B64;margin-bottom:10px;">
+        ${label}
+        <input id="${id}" type="${typ || 'text'}" placeholder="${ph}" autocomplete="off"
+               style="display:block;width:100%;margin-top:4px;padding:9px 11px;font-size:14px;border:1px solid #D8D4CB;border-radius:6px;background:#fff;color:#1A1A17;">
+      </label>`;
+    const ov = document.createElement('div');
+    ov.id = 'bbk-rechnerkunde-modal';
+    ov.setAttribute('role', 'dialog');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9998;background:rgba(26,26,23,0.5);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit;';
+    ov.innerHTML = `
+      <div style="background:#FBFAF7;border-radius:14px;max-width:520px;width:100%;padding:28px 32px;box-shadow:0 30px 80px rgba(0,0,0,0.25);border:1px solid #C9A572;">
+        <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#8E6E3D;font-weight:600;margin-bottom:8px;">Reservierung starten</div>
+        <h3 style="font-size:20px;font-weight:300;letter-spacing:-.01em;margin:0 0 6px 0;color:#1A1A17;">Wer reserviert ${esc(weLabel)}?</h3>
+        <p style="font-size:12.5px;color:#6B6B64;margin:0 0 16px;line-height:1.5;">Jetzt wird dein Kunde angelegt — danach folgen Kurz-Selbstauskunft und Anschrift, und dein Kunde bekommt den Unterschriften-Link.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px;">
+          ${feld('rck-vorname', 'Vorname *', 'z.B. Max')}
+          ${feld('rck-nachname', 'Nachname *', 'z.B. Mustermann')}
+        </div>
+        ${feld('rck-email', 'E-Mail *', 'max@beispiel.de', 'email')}
+        ${feld('rck-telefon', 'Telefon (optional)', '+49 …', 'tel')}
+        <div id="rck-error" style="font-size:12px;color:#9A3E33;min-height:16px;margin-bottom:8px;"></div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <button type="button" id="rck-cancel" class="secondary">Abbrechen</button>
+          <button type="button" id="rck-ok">Weiter zur Reservierung</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+    const $id = (x) => ov.querySelector('#' + x);
+    const close = (val) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+    const onKey = (e) => { if (e.key === 'Escape') close(null); };
+    document.addEventListener('keydown', onKey);
+    $id('rck-cancel').addEventListener('click', () => close(null));
+    $id('rck-ok').addEventListener('click', () => {
+      const vorname = ($id('rck-vorname').value || '').trim();
+      const nachname = ($id('rck-nachname').value || '').trim();
+      const email = ($id('rck-email').value || '').trim();
+      const telefon = ($id('rck-telefon').value || '').trim();
+      if (!vorname || !nachname) { $id('rck-error').textContent = 'Bitte Vor- und Nachname angeben.'; return; }
+      if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { $id('rck-error').textContent = 'Bitte eine gültige E-Mail angeben (für den Unterschriften-Link).'; return; }
+      close({ vorname, nachname, email, telefon });
+    });
+    setTimeout(() => { const f = $id('rck-vorname'); if (f) f.focus(); }, 50);
+  });
+}
+
 function render() {
   renderHeader();
   if (state.view === 'login') renderLogin();
@@ -10443,6 +10794,7 @@ function render() {
   else if (state.view === 'kunde') renderKunde();
   else if (state.view === 'admin') renderAdmin();
   else if (state.view === 'we-liste') renderWeListe();
+  else if (state.view === 'extern-rechner') renderExternRechner();
   else if (state.view === 'extern-start') {
     renderExternStart();
     // Extern-Kurztour startet automatisch beim ersten Login — auf der Startseite,
