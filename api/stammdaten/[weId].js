@@ -1016,6 +1016,8 @@ module.exports = async (req, res) => {
         qm:        num(wf[WE_FIELDS.QM]),
         kaltmiete: num(wf[WE_FIELDS.KALTMIETE]),
         qmPreis:   num(wf[WE_FIELDS.QM_PREIS]),
+        // 19.07.2026 (Henry): Exposé-Link für den Extern-Rechner (Iter 51-Feld)
+        objektvorstellungLink: wf[WE_FIELDS.OBJEKTVORSTELLUNG] || '',
       };
 
       // --- 2) Stellplätze zuerst (für Pro-rata-Mietberechnung), dann Mietvertrag + Kalk parallel ---

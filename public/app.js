@@ -10535,7 +10535,55 @@ function _rechnerCalc(d, inp) {
     ersparnisJahr, ersparnisMo, nachSteuerMo, sevMo });
 }
 
+// Scoped Styles für den Extern-Rechner — einmalig injiziert (Pattern wie _reservEnsureStyles).
+function _rechnerEnsureStyles() {
+  if (document.getElementById('rc-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'rc-styles';
+  s.textContent = `
+    .rc-wrap{max-width:840px;margin:0 auto;padding-bottom:56px;}
+    .rc-back{display:inline-block;font-size:12px;margin:18px 0 12px;color:var(--text-tertiary);}
+    .rc-back:hover{color:var(--accent-dark);}
+    .rc-hero{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px;}
+    .rc-kicker{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-dark);font-weight:600;margin-bottom:6px;}
+    .rc-title{font-size:25px;font-weight:300;letter-spacing:-.01em;color:var(--text-primary);margin:0 0 5px;line-height:1.25;}
+    .rc-meta{font-size:12.5px;color:var(--text-tertiary);line-height:1.5;}
+    .rc-expose{display:inline-flex;align-items:center;gap:7px;padding:10px 16px;border:1px solid var(--accent);border-radius:8px;color:var(--accent-dark);font-size:13px;font-weight:500;background:var(--bg-card);white-space:nowrap;transition:all .12s;}
+    .rc-expose:hover{background:var(--accent);color:#fff;}
+    .rc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-bottom:16px;}
+    .rc-kpi{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:13px 14px 11px;text-align:center;}
+    .rc-kpi .l{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-tertiary);font-weight:600;margin-bottom:5px;}
+    .rc-kpi .v{font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text-primary);white-space:nowrap;}
+    .rc-kpi-hl{border-top:3px solid var(--accent);}
+    .rc-kpi-hl .v{color:var(--accent-dark);}
+    .rc-sec{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:15px 18px 12px;margin-bottom:12px;}
+    .rc-sec-t{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-dark);font-weight:600;display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding-bottom:9px;border-bottom:1px solid var(--border);margin-bottom:4px;}
+    .rc-sec-t .free{letter-spacing:0;text-transform:none;color:var(--text-tertiary);font-weight:normal;font-size:11px;}
+    .rc-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;border-bottom:1px dashed var(--bg-cream);}
+    .rc-row:last-child{border-bottom:none;}
+    .rc-row .l{font-size:12.5px;color:var(--text-tertiary);}
+    .rc-row .v{font-size:13.5px;color:var(--text-primary);font-variant-numeric:tabular-nums;white-space:nowrap;}
+    .rc-sum{border-top:1.5px solid var(--border-strong);border-bottom:none !important;margin-top:3px;padding-top:9px;}
+    .rc-sum .l{color:var(--text-secondary);font-weight:600;}
+    .rc-sum .v{font-weight:600;}
+    .rc-big .v{font-size:18px;color:var(--accent-dark);}
+    .rc-lock{opacity:.4;font-size:10px;}
+    .rc-input{width:104px;text-align:right;padding:6px 9px;font-size:13px;border-radius:6px;}
+    .rc-seg{display:flex;gap:8px;flex-wrap:wrap;padding:8px 0 10px;}
+    .rc-seg label{cursor:pointer;}
+    .rc-seg input{display:none;}
+    .rc-seg span{display:inline-block;padding:7px 13px;border:1px solid var(--border);border-radius:999px;font-size:12px;color:var(--text-secondary);background:var(--bg-section);transition:all .12s;}
+    .rc-seg span:hover{border-color:var(--accent);}
+    .rc-seg input:checked+span{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+    .rc-cta{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;align-items:center;}
+    .rc-cta .rc-go{font-size:14.5px;padding:12px 24px;}
+    @media(max-width:640px){.rc-title{font-size:20px;}.rc-kpi .v{font-size:16px;}}
+  `;
+  document.head.appendChild(s);
+}
+
 function _rechnerRenderContent() {
+  _rechnerEnsureStyles();
   const app = document.getElementById('app');
   const d = state._rechnerData;
   const c = _rechnerCalc(d, state._rechnerInputs);
@@ -10546,20 +10594,19 @@ function _rechnerRenderContent() {
   const qm = (d.we && d.we.qm) || 0;
   const wg = !!(d.kalkStammdaten && d.kalkStammdaten.wgKonzept);
   const marktQm = (d.derived && d.derived.marktpreisGemittelt) || 0;
+  const exposeLink = (d.we && d.we.objektvorstellungLink) || '';
 
   // Zeilen-Helfer: fix = 🔒-Festwert (reine Anzeige), sum = Summenzeile, big = Kernzahl (hervorgehoben)
   const zeile = (label, val, opt) => {
     const o = opt || {};
-    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:' + (o.big ? '8px 0' : '5px 0') + ';' +
-      (o.sum ? 'border-top:1px solid var(--border, rgba(128,128,128,.25));font-weight:600;margin-top:2px;' : '') + '">' +
-      '<div class="text-small" style="color:var(--text-tertiary);' + (o.big ? 'font-weight:600;' : '') + '">' + label + (o.fix ? ' <span title="Verbindlicher B&B-Festwert" style="opacity:.45;font-size:10px;">🔒</span>' : '') + '</div>' +
-      '<div style="font-variant-numeric:tabular-nums;white-space:nowrap;' + (o.sum ? 'font-weight:600;' : '') + (o.big ? 'font-size:17px;color:var(--accent);' : '') + '"' + (o.id ? (' id="' + o.id + '"') : '') + '>' + val + '</div></div>';
+    return '<div class="rc-row' + (o.sum ? ' rc-sum' : '') + (o.big ? ' rc-big' : '') + '">' +
+      '<div class="l">' + label + (o.fix ? ' <span class="rc-lock" title="Verbindlicher B&B-Festwert">🔒</span>' : '') + '</div>' +
+      '<div class="v"' + (o.id ? (' id="' + o.id + '"') : '') + '>' + val + '</div></div>';
   };
-  const sektion = (titel, inner) => '<div class="card" style="margin-bottom:14px;"><div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-tertiary);font-weight:600;margin-bottom:8px;">' + titel + '</div>' + inner + '</div>';
+  const sektion = (titel, inner, frei) => '<div class="rc-sec"><div class="rc-sec-t">' + titel + (frei ? '<span class="free">' + frei + '</span>' : '') + '</div>' + inner + '</div>';
   const inputFeld = (id, label, val, suffix, step) =>
-    '<label class="text-small" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0;color:var(--text-tertiary);">' + label +
-    '<span style="white-space:nowrap;"><input id="' + id + '" type="number" step="' + (step || '0.1') + '" value="' + val + '" oninput="window._rechnerRecalc()"' +
-    ' style="width:90px;text-align:right;padding:5px 7px;font-size:13px;"> ' + suffix + '</span></label>';
+    '<div class="rc-row"><div class="l">' + label + '</div>' +
+    '<div class="v"><input id="' + id + '" class="rc-input" type="number" step="' + (step || '0.1') + '" value="' + val + '" oninput="window._rechnerRecalc()"> ' + suffix + '</div></div>';
 
   const stpZeilen = (c.stp.details && c.stp.details.length)
     ? c.stp.details.filter(s => (s.kaufpreis || 0) > 0).map(s =>
@@ -10572,16 +10619,22 @@ function _rechnerRenderContent() {
     : zeile('Mietsubvention', 'keine — Miete liegt auf Marktniveau', { fix: true });
 
   app.innerHTML = `
-    <div class="main" style="max-width:780px;margin:0 auto;">
-      <div style="margin:18px 0 4px;"><a href="#/we-liste" class="text-small">← Zurück zu den Wohnungen</a></div>
-      <h1 class="page-title" style="margin:0 0 2px;font-size:20px;">${esc(weTitel)}</h1>
-      <div class="text-tertiary text-small" style="margin-bottom:14px;">${qm ? qm.toLocaleString('de-DE') + ' m² · ' : ''}Alle 🔒-Werte sind verbindliche B&amp;B-Angaben — dein Kundenpreis inkl. deiner Provision ist bereits eingerechnet.</div>
+    <div class="main rc-wrap">
+      <a href="#/we-liste" class="rc-back">← Zurück zu den Wohnungen</a>
+      <div class="rc-hero">
+        <div>
+          <div class="rc-kicker">B&amp;B Kapitalanlage · Dein Kundenpreis inkl. Provision</div>
+          <h1 class="rc-title">${esc(weTitel)}</h1>
+          <div class="rc-meta">${qm ? qm.toLocaleString('de-DE') + ' m²' : ''}${(d.we && d.we.weNr) ? ' · Wohnungs-Nr. ' + esc(String(d.we.weNr)) : ''} · Alle Werte mit <span class="rc-lock">🔒</span> sind verbindliche B&amp;B-Angaben</div>
+        </div>
+        ${exposeLink ? `<a class="rc-expose" href="${esc(exposeLink)}" target="_blank" rel="noopener">Exposé ansehen ↗</a>` : ''}
+      </div>
 
-      <div class="card" style="margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;text-align:center;border-left:3px solid var(--accent);">
-        <div><div class="text-small text-tertiary">Gesamtkaufpreis</div><div style="font-size:18px;font-weight:600;">${fE(c.gesamtKp)}</div></div>
-        <div><div class="text-small text-tertiary">Einnahme/Monat</div><div style="font-size:18px;font-weight:600;">${fEM(c.einnahmenMo)}</div></div>
-        <div><div class="text-small text-tertiary">Belastung vor Steuer</div><div style="font-size:18px;font-weight:600;" id="rcv-topVorSteuer">${fEM(c.vorSteuerMo)}/Mo</div></div>
-        <div><div class="text-small text-tertiary">Belastung nach Steuer</div><div style="font-size:18px;font-weight:600;color:var(--accent);" id="rcv-topNachSteuer">${fEM(c.nachSteuerMo)}/Mo</div></div>
+      <div class="rc-kpis">
+        <div class="rc-kpi"><div class="l">Gesamtkaufpreis</div><div class="v">${fE(c.gesamtKp)}</div></div>
+        <div class="rc-kpi"><div class="l">Einnahme/Monat</div><div class="v">${fEM(c.einnahmenMo)}</div></div>
+        <div class="rc-kpi"><div class="l">Belastung vor Steuer</div><div class="v" id="rcv-topVorSteuer">${fEM(c.vorSteuerMo)}/Mo</div></div>
+        <div class="rc-kpi rc-kpi-hl"><div class="l">Belastung nach Steuer</div><div class="v" id="rcv-topNachSteuer">${fEM(c.nachSteuerMo)}/Mo</div></div>
       </div>
 
       ${sektion('Kaufpreis', [
@@ -10606,24 +10659,24 @@ function _rechnerRenderContent() {
       ${sektion('Nicht umlagefähige Kosten', [
         zeile('Hausverwaltung (WEG)', fEM(c.hv) + '/Mo', { fix: true }),
         zeile('Instandhaltungsrücklage', fEM(c.ruecklage) + '/Mo', { fix: true }),
-        '<label class="text-small" style="display:flex;align-items:center;gap:8px;padding:5px 0;color:var(--text-tertiary);cursor:pointer;"><input id="rc-sev" type="checkbox" ' + (state._rechnerInputs.sev ? 'checked' : '') + ' onchange="window._rechnerRecalc()" style="width:14px;height:14px;">Mietverwaltung (SEV) dazunehmen — optional, ' + RECHNER_SEV_MO + ' €/Mo</label>',
+        '<div class="rc-row"><label class="l" style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input id="rc-sev" type="checkbox" ' + (state._rechnerInputs.sev ? 'checked' : '') + ' onchange="window._rechnerRecalc()" style="width:14px;height:14px;">Mietverwaltung (SEV) dazunehmen — optional</label><div class="v">' + RECHNER_SEV_MO + ',00 €/Mo</div></div>',
         zeile('Kosten gesamt', '<span id="rcv-kostenMo">' + fEM(c.kostenMo) + '</span>/Mo', { sum: true }),
       ].join(''))}
 
-      ${sektion('Finanzierung <span style="text-transform:none;letter-spacing:0;">(deine Annahmen — frei anpassbar)</span>', [
+      ${sektion('Finanzierung', [
         // Schnellwahl (Henry 19.07.2026): 107 % = Vollfinanzierung inkl. KNK (EK 0),
         // 100 % = Kunde zahlt die KNK aus Eigenkapital, Individuell = EK frei tippen.
-        '<div class="text-small" style="display:flex;gap:14px;flex-wrap:wrap;padding:2px 0 8px;color:var(--text-tertiary);">' + [
+        '<div class="rc-seg">' + [
           ['107', 'Vollfinanzierung inkl. Nebenkosten (≈107 %)'],
           ['100', '100 % — Nebenkosten aus Eigenkapital'],
           ['custom', 'Individuell'],
-        ].map(([v, l]) => '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="rc-finmodus" value="' + v + '"' + (state._rechnerInputs.finModus === v ? ' checked' : '') + ' onchange="window._rechnerFinModus(\'' + v + '\')">' + l + '</label>').join('') + '</div>',
+        ].map(([v, l]) => '<label><input type="radio" name="rc-finmodus" value="' + v + '"' + (state._rechnerInputs.finModus === v ? ' checked' : '') + ' onchange="window._rechnerFinModus(\'' + v + '\')"><span>' + l + '</span></label>').join('') + '</div>',
         inputFeld('rc-ek', 'Eigenkapitaleinsatz', state._rechnerInputs.ek, '€', '1000').replace('window._rechnerRecalc()', 'window._rechnerEkManual()'),
         inputFeld('rc-zins', 'Zins p.a.', state._rechnerInputs.zinsPct, '%', '0.05'),
         inputFeld('rc-tilgung', 'Tilgung p.a.', state._rechnerInputs.tilgungPct, '%', '0.1'),
         zeile('Finanzierungsbetrag', '<span id="rcv-finBetrag">' + fE(c.finBetrag) + '</span>'),
         zeile('Bankrate', '<span id="rcv-rateMo">' + fEM(c.rateMo) + '</span>/Mo', { sum: true }),
-      ].join(''))}
+      ].join(''), 'deine Annahmen — frei anpassbar')}
 
       ${sektion('Monatliche Betrachtung', [
         zeile('Einnahmen inkl. Subvention', fEM(c.einnahmenMo) + '/Mo'),
@@ -10649,8 +10702,9 @@ function _rechnerRenderContent() {
         zeile('Einkauf unter Marktwert', fE(Math.max(0, (marktQm - ((d.we && d.we.qmPreis) || 0)) * qm)), { fix: true, sum: true }),
       ].join('')) : ''}
 
-      <div style="display:flex;gap:10px;margin:20px 0 36px;flex-wrap:wrap;">
-        <button onclick="window._rechnerReservieren()" style="font-size:14px;">Reservierung digital senden</button>
+      <div class="rc-cta">
+        <button class="rc-go" onclick="window._rechnerReservieren()">Reservierung digital senden</button>
+        ${exposeLink ? `<a class="rc-expose" href="${esc(exposeLink)}" target="_blank" rel="noopener">Exposé ansehen ↗</a>` : ''}
         <button class="secondary" onclick="go('/we-liste')">Andere Wohnung wählen</button>
       </div>
     </div>
