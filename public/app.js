@@ -10472,7 +10472,8 @@ function renderExternRechner() {
   api.get('/api/stammdaten/' + weId).then((d) => {
     if (token !== state._rechnerToken || state.view !== 'extern-rechner') return;
     state._rechnerData = d;
-    state._rechnerInputs = { ek: 0, zinsPct: 4.5, tilgungPct: 1.0, steuerPct: 42, sev: false };
+    // finModus: '107' = Vollfinanzierung inkl. KNK (EK 0) · '100' = KNK aus EK · 'custom' = frei
+    state._rechnerInputs = { ek: 0, finModus: '107', zinsPct: 4.5, tilgungPct: 1.0, steuerPct: 42, sev: false };
     _rechnerRenderContent();
   }).catch((e) => {
     app.innerHTML = '<div class="main" style="max-width:780px;margin:0 auto;"><div class="card" style="margin-top:24px;">Kalkulation konnte nicht geladen werden: ' + esc(e.message || 'unbekannt') + ' — <a href="#/we-liste">zurück zu den Wohnungen</a></div></div>';
@@ -10546,13 +10547,13 @@ function _rechnerRenderContent() {
   const wg = !!(d.kalkStammdaten && d.kalkStammdaten.wgKonzept);
   const marktQm = (d.derived && d.derived.marktpreisGemittelt) || 0;
 
-  // Zeilen-Helfer: fix = 🔒-Festwert (reine Anzeige), out = live berechnet, sum = Summenzeile
+  // Zeilen-Helfer: fix = 🔒-Festwert (reine Anzeige), sum = Summenzeile, big = Kernzahl (hervorgehoben)
   const zeile = (label, val, opt) => {
     const o = opt || {};
-    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;' +
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:' + (o.big ? '8px 0' : '5px 0') + ';' +
       (o.sum ? 'border-top:1px solid var(--border, rgba(128,128,128,.25));font-weight:600;margin-top:2px;' : '') + '">' +
-      '<div class="text-small" style="color:var(--text-tertiary);">' + label + (o.fix ? ' <span title="Verbindlicher B&B-Festwert" style="opacity:.45;font-size:10px;">🔒</span>' : '') + '</div>' +
-      '<div style="font-variant-numeric:tabular-nums;white-space:nowrap;' + (o.sum ? 'font-weight:600;' : '') + '"' + (o.id ? (' id="' + o.id + '"') : '') + '>' + val + '</div></div>';
+      '<div class="text-small" style="color:var(--text-tertiary);' + (o.big ? 'font-weight:600;' : '') + '">' + label + (o.fix ? ' <span title="Verbindlicher B&B-Festwert" style="opacity:.45;font-size:10px;">🔒</span>' : '') + '</div>' +
+      '<div style="font-variant-numeric:tabular-nums;white-space:nowrap;' + (o.sum ? 'font-weight:600;' : '') + (o.big ? 'font-size:17px;color:var(--accent);' : '') + '"' + (o.id ? (' id="' + o.id + '"') : '') + '>' + val + '</div></div>';
   };
   const sektion = (titel, inner) => '<div class="card" style="margin-bottom:14px;"><div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-tertiary);font-weight:600;margin-bottom:8px;">' + titel + '</div>' + inner + '</div>';
   const inputFeld = (id, label, val, suffix, step) =>
@@ -10576,10 +10577,11 @@ function _rechnerRenderContent() {
       <h1 class="page-title" style="margin:0 0 2px;font-size:20px;">${esc(weTitel)}</h1>
       <div class="text-tertiary text-small" style="margin-bottom:14px;">${qm ? qm.toLocaleString('de-DE') + ' m² · ' : ''}Alle 🔒-Werte sind verbindliche B&amp;B-Angaben — dein Kundenpreis inkl. deiner Provision ist bereits eingerechnet.</div>
 
-      <div class="card" style="margin-bottom:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;border-left:3px solid var(--accent);">
-        <div><div class="text-small text-tertiary">Gesamtkaufpreis</div><div style="font-size:19px;font-weight:600;">${fE(c.anschaffung - c.knk)}</div></div>
-        <div><div class="text-small text-tertiary">Einnahme/Monat</div><div style="font-size:19px;font-weight:600;">${fEM(c.einnahmenMo)}</div></div>
-        <div><div class="text-small text-tertiary">Belastung n. Steuer</div><div style="font-size:19px;font-weight:600;" id="rcv-topNachSteuer">${fEM(c.nachSteuerMo)}/Mo</div></div>
+      <div class="card" style="margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;text-align:center;border-left:3px solid var(--accent);">
+        <div><div class="text-small text-tertiary">Gesamtkaufpreis</div><div style="font-size:18px;font-weight:600;">${fE(c.gesamtKp)}</div></div>
+        <div><div class="text-small text-tertiary">Einnahme/Monat</div><div style="font-size:18px;font-weight:600;">${fEM(c.einnahmenMo)}</div></div>
+        <div><div class="text-small text-tertiary">Belastung vor Steuer</div><div style="font-size:18px;font-weight:600;" id="rcv-topVorSteuer">${fEM(c.vorSteuerMo)}/Mo</div></div>
+        <div><div class="text-small text-tertiary">Belastung nach Steuer</div><div style="font-size:18px;font-weight:600;color:var(--accent);" id="rcv-topNachSteuer">${fEM(c.nachSteuerMo)}/Mo</div></div>
       </div>
 
       ${sektion('Kaufpreis', [
@@ -10609,7 +10611,14 @@ function _rechnerRenderContent() {
       ].join(''))}
 
       ${sektion('Finanzierung <span style="text-transform:none;letter-spacing:0;">(deine Annahmen — frei anpassbar)</span>', [
-        inputFeld('rc-ek', 'Eigenkapitaleinsatz', state._rechnerInputs.ek, '€', '1000'),
+        // Schnellwahl (Henry 19.07.2026): 107 % = Vollfinanzierung inkl. KNK (EK 0),
+        // 100 % = Kunde zahlt die KNK aus Eigenkapital, Individuell = EK frei tippen.
+        '<div class="text-small" style="display:flex;gap:14px;flex-wrap:wrap;padding:2px 0 8px;color:var(--text-tertiary);">' + [
+          ['107', 'Vollfinanzierung inkl. Nebenkosten (≈107 %)'],
+          ['100', '100 % — Nebenkosten aus Eigenkapital'],
+          ['custom', 'Individuell'],
+        ].map(([v, l]) => '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="rc-finmodus" value="' + v + '"' + (state._rechnerInputs.finModus === v ? ' checked' : '') + ' onchange="window._rechnerFinModus(\'' + v + '\')">' + l + '</label>').join('') + '</div>',
+        inputFeld('rc-ek', 'Eigenkapitaleinsatz', state._rechnerInputs.ek, '€', '1000').replace('window._rechnerRecalc()', 'window._rechnerEkManual()'),
         inputFeld('rc-zins', 'Zins p.a.', state._rechnerInputs.zinsPct, '%', '0.05'),
         inputFeld('rc-tilgung', 'Tilgung p.a.', state._rechnerInputs.tilgungPct, '%', '0.1'),
         zeile('Finanzierungsbetrag', '<span id="rcv-finBetrag">' + fE(c.finBetrag) + '</span>'),
@@ -10620,9 +10629,9 @@ function _rechnerRenderContent() {
         zeile('Einnahmen inkl. Subvention', fEM(c.einnahmenMo) + '/Mo'),
         zeile('− nicht umlagefähige Kosten', '<span id="rcv-kostenMo2">' + fEM(c.kostenMo) + '</span>/Mo'),
         zeile('− Bankrate', '<span id="rcv-rateMo2">' + fEM(c.rateMo) + '</span>/Mo'),
-        zeile('Belastung vor Steuervorteil', '<span id="rcv-vorSteuerMo">' + fEM(c.vorSteuerMo) + '</span>/Mo', { sum: true }),
+        zeile('Belastung vor Steuervorteil', '<span id="rcv-vorSteuerMo">' + fEM(c.vorSteuerMo) + '</span>/Mo', { sum: true, big: true }),
         zeile('+ Steuerersparnis', '<span id="rcv-ersparnisMo">' + fEM(c.ersparnisMo) + '</span>/Mo'),
-        zeile('Monatliche Belastung inkl. Steuervorteil', '<span id="rcv-nachSteuerMo">' + fEM(c.nachSteuerMo) + '</span>/Mo', { sum: true }),
+        zeile('Monatliche Belastung inkl. Steuervorteil', '<span id="rcv-nachSteuerMo">' + fEM(c.nachSteuerMo) + '</span>/Mo', { sum: true, big: true }),
       ].join(''))}
 
       ${sektion('Steuerliche Betrachtung (Jahr 1)', [
@@ -10672,6 +10681,7 @@ function _rechnerRecalc() {
   set('rcv-vorSteuerMo', fEM(c.vorSteuerMo));
   set('rcv-ersparnisMo', fEM(c.ersparnisMo));
   set('rcv-nachSteuerMo', fEM(c.nachSteuerMo));
+  set('rcv-topVorSteuer', fEM(c.vorSteuerMo) + '/Mo');
   set('rcv-topNachSteuer', fEM(c.nachSteuerMo) + '/Mo');
   set('rcv-afaJahr', fE(c.afaJahr));
   set('rcv-zinsenJahr', fE(c.zinsenJahr));
@@ -10680,6 +10690,33 @@ function _rechnerRecalc() {
   set('rcv-ersparnisJahr', fE(c.ersparnisJahr));
 }
 window._rechnerRecalc = _rechnerRecalc;
+
+// Finanzierungs-Schnellwahl: setzt das EK automatisch (107 % → 0 €, 100 % → KNK),
+// bei „Individuell" bleibt der getippte Wert stehen.
+function _rechnerFinModus(modus) {
+  const d = state._rechnerData;
+  if (!d) return;
+  const inp = state._rechnerInputs;
+  inp.finModus = modus;
+  if (modus === '107') inp.ek = 0;
+  if (modus === '100') inp.ek = Math.round(_rechnerBasis(d).knk);
+  const ekEl = document.getElementById('rc-ek');
+  if (ekEl && modus !== 'custom') ekEl.value = inp.ek;
+  _rechnerRecalc();
+  // _rechnerRecalc liest das EK-Feld — finModus danach wiederherstellen
+  inp.finModus = modus;
+}
+window._rechnerFinModus = _rechnerFinModus;
+
+// EK von Hand getippt → Schnellwahl springt auf „Individuell"
+function _rechnerEkManual() {
+  const inp = state._rechnerInputs;
+  inp.finModus = 'custom';
+  const radio = document.querySelector('input[name="rc-finmodus"][value="custom"]');
+  if (radio) radio.checked = true;
+  _rechnerRecalc();
+}
+window._rechnerEkManual = _rechnerEkManual;
 
 // Reservierung aus dem Rechner: Kunde entsteht ERST hier (Henrys Vorgabe), danach
 // laufen die bewährten Pflicht-Schritte: Kurz-Selbstauskunft → Adresse → Link.
