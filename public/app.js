@@ -6734,6 +6734,7 @@ async function externReservierungFlow(weId) {
       weId,
       adresse: { strasse: eingaben.strasse, plz: eingaben.plz, ort: eingaben.ort },
       kaeufer2: eingaben.kaeufer2,
+      zusatz: eingaben.zusatz,
       doc,
     });
     await openExternReservLinkModal({ url: resp.url, reservBis: resp.reservBis, kundeEmail: (state.kunde && state.kunde.email) || '' });
@@ -6768,6 +6769,11 @@ function openExternReservModal(vorgaben) {
           ${feld('extreserv-ort', 'Ort *', 'Karlsdorf-Neuthard', vorgaben.ort)}
         </div>
         ${feld('extreserv-k2', 'Zweite/r Käufer/in (optional, voller Name)', 'z.B. Benno Baumgärtner', '')}
+        <label style="display:block;font-size:12px;color:#6B6B64;margin-bottom:10px;">
+          Zusätzliche Vereinbarung (optional — erscheint wörtlich im Dokument)
+          <textarea id="extreserv-zusatz" rows="2" placeholder="z.B. Es wird eine Anzahlung in Höhe von 5.000 € geleistet."
+                    style="display:block;width:100%;margin-top:4px;padding:9px 11px;font-size:14px;border:1px solid #D8D4CB;border-radius:6px;background:#fff;color:#1A1A17;resize:vertical;font-family:inherit;"></textarea>
+        </label>
         <div id="extreserv-error" style="font-size:12px;color:#9A3E33;min-height:16px;margin-bottom:8px;"></div>
         <div style="display:flex;justify-content:flex-end;gap:10px;">
           <button type="button" id="extreserv-cancel" class="secondary">Abbrechen</button>
@@ -6789,7 +6795,11 @@ function openExternReservModal(vorgaben) {
         $id('extreserv-error').textContent = 'Bitte Straße, PLZ und Ort des Kunden angeben.';
         return;
       }
-      close({ strasse, plz, ort, kaeufer2: ($id('extreserv-k2').value || '').trim() });
+      close({
+        strasse, plz, ort,
+        kaeufer2: ($id('extreserv-k2').value || '').trim(),
+        zusatz: (($id('extreserv-zusatz') || {}).value || '').trim(),
+      });
     });
     setTimeout(() => { const f = $id('extreserv-strasse'); if (f) f.focus(); }, 50);
   });

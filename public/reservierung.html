@@ -111,6 +111,7 @@
         ${doc.subvGesamt > 0 ? `<tr><td>Mietsubvention gesamt</td><td class="z">${eur(doc.subvGesamt)}</td></tr>` : ''}
       </table>
       ${doc.renoBudget > 0 ? `<p class="block"><strong>Renovierungsbudget:</strong> Im Kaufpreis inkludiert ist ein Budget von ${eur(doc.renoBudget)}, das entweder für Renovierungsmaßnahmen genutzt oder auf den Kaufpreis angerechnet werden kann.</p>` : ''}
+      ${doc.zusatz ? `<p class="block"><strong>Zusätzliche Vereinbarung:</strong> ${esc(doc.zusatz).replace(/\n/g, '<br>')}</p>` : ''}
 
       <div class="praemisse">
         Diese Vereinbarung gilt unter der Prämisse, dass der Zustand von Haus und Wohnung bei der Besichtigung —

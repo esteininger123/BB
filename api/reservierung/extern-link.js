@@ -57,6 +57,10 @@ module.exports = async (req, res) => {
     const ort = (adr.ort || '').trim();
     if (!strasse || !plz || !ort) return res.status(400).json({ error: 'Adresse des Kunden (Straße, PLZ, Ort) fehlt' });
     const kaeufer2 = (body.kaeufer2 || '').trim();
+    // 20.07.2026 (Henry): freie Zusatzvereinbarung des Vertrieblers, z.B.
+    // "Es wird eine Anzahlung in Höhe von 5.000 € geleistet." — erscheint
+    // wörtlich im eingefrorenen Dokument (reservierung.html).
+    const zusatz = String(body.zusatz || '').trim().slice(0, 1000);
     const clientDoc = (body.doc && typeof body.doc === 'object') ? body.doc : {};
 
     // --- Kunde + Owner-Check (Pattern aus sa-portal/generate.js) ---
@@ -147,6 +151,7 @@ module.exports = async (req, res) => {
         weNr: String(clientDoc.weNr || wf[WE_FIELDS.WE_NR] || ''),
         lage: String(clientDoc.lage || '').slice(0, 200),
         projektName: String(clientDoc.projektName || '').slice(0, 120),
+        zusatz,
       },
       signiert: null,
     };
