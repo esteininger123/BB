@@ -28,12 +28,21 @@ module.exports = async (req, res) => {
 
     const emailEsc = escapeFormulaString(email);
     const formula = `AND(LOWER({Email})='${emailEsc}', {Status}='Aktiv')`;
+    // 20.07.2026 (Henry/Fabian): Eine E-Mail kann ZWEI Records haben — intern (Google)
+    // + Extern (Passwort). Der Passwort-Login nimmt deterministisch den Record MIT
+    // Passwort-Hash (bei mehreren mit Hash: bevorzugt Rolle 'Extern'). Vorher war
+    // maxRecords:1 Zufall — Login hätte im hash-losen Intern-Record landen können.
     const resp = await airtable('list', TABLES.VERTRIEBLER, {
       filterByFormula: formula,
-      maxRecords: 1,
-      pageSize: 1,
+      maxRecords: 10,
+      pageSize: 10,
     });
-    const rec = ((resp && resp.records) || [])[0];
+    const records = ((resp && resp.records) || []);
+    const mitHash = records.filter(r => (r.fields || {})[VERTRIEBLER_FIELDS.PASSWORT_HASH]);
+    const rec = mitHash.find(r => {
+      const rolle = (r.fields || {})[VERTRIEBLER_FIELDS.ROLLE];
+      return (typeof rolle === 'object' ? rolle && rolle.name : rolle) === 'Extern';
+    }) || mitHash[0] || records[0];
     const f = (rec && rec.fields) || {};
     const hash = f[VERTRIEBLER_FIELDS.PASSWORT_HASH];
 

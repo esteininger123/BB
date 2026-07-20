@@ -25,10 +25,13 @@ module.exports = async (req, res) => {
     // Wir filtern auf Email-Feld UND Status=Aktiv. Email-Vergleich case-insensitiv via LOWER().
     const formula = `AND(LOWER({Email})='${emailEsc}', {Status}='Aktiv')`;
 
+    // 20.07.2026 (Henry/Fabian): Eine E-Mail kann ZWEI Records haben — intern (Google)
+    // + Extern (E-Mail+Passwort). Der Google-Login bevorzugt deterministisch den
+    // NICHT-Extern-Record; der Passwort-Login (auth/passwort.js) nimmt den mit Hash.
     const resp = await airtable('list', TABLES.VERTRIEBLER, {
       filterByFormula: formula,
-      maxRecords: 1,
-      pageSize: 1
+      maxRecords: 10,
+      pageSize: 10
     });
 
     const records = (resp && resp.records) || [];
@@ -36,7 +39,11 @@ module.exports = async (req, res) => {
       return res.status(403).json({ error: 'Kein Zugriff. Bitte wende dich an einen Admin.' });
     }
 
-    const rec = records[0];
+    const rolleName = (r) => {
+      const rolle = (r.fields || {})[VERTRIEBLER_FIELDS.ROLLE];
+      return (typeof rolle === 'object' ? rolle && rolle.name : rolle) || '';
+    };
+    const rec = records.find(r => rolleName(r) !== 'Extern') || records[0];
     const f = rec.fields || {};
 
     const vertriebler = {
