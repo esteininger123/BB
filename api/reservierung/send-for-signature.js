@@ -7,7 +7,11 @@
 //
 // Env-Vars: PANDADOC_API_KEY, PANDADOC_TEMPLATE_ID_RESERVIERUNG, RESERV_FRIST_TAGE
 //
-// PandaDoc-Template: u2E5Tczfe9kkePzbv42MSC ("Kaufabsichtserklärung & Reservierungsvereinbarung")
+// PandaDoc-Template: kommt aus Env PANDADOC_TEMPLATE_ID_RESERVIERUNG (Sensitive).
+// PRODUKTIV zeigt sie auf ukfK7NcLKNQ78KN3S8ZWkB ("… Automatismus Kalkulator
+// (Nicht Bearbeiten!!!)") — verifiziert 20.07.2026 über document.template eines
+// echten Docs. NICHT auf u2E5Tczfe9kkePzbv42MSC ("Vorlage template") — das ist
+// nur die Urvorlage; Text-Änderungen also IMMER im Automatismus-Template machen.
 // Rollen im Template: "Kaufinteressent" (Signer 1), "Verkäufer" (Signer 2)
 // Custom-Variablen im Template (alle befüllt durch diesen Endpoint):
 //   Ablauffrist.Reservierung, Kaufpreis, QmAnzahl.Wohnungsnummer,
