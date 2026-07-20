@@ -213,7 +213,7 @@ function renderHeader() {
   // wo er ist (Dashboard vs Aktive WEs vs Admin).
   const active = (view) => state.view === view ? ' nav-link-active' : '';
   um.innerHTML = `
-    ${state.user.rolle === 'Extern' ? `<a href="#/start" class="nav-link${active('extern-start')}" title="So funktioniert der externe Vertrieb — Provisionssatz einstellen">Start &amp; Provision</a>` : ''}
+    ${state.user.rolle === 'Extern' ? `<a href="#/start" class="nav-link${active('extern-start')}" title="So funktioniert der externe Vertrieb">Start</a>` : ''}
     ${state.user.rolle === 'Extern' ? '' : `<a href="#/dashboard" class="nav-link${active('dashboard')}" title="Deine Kunden + Pipeline">Meine Kunden</a>`}
     <a href="#/we-liste" class="nav-link${active('we-liste')}" title="Alle Wohnungen in aktiver Vermarktung mit Kennzahlen">Wohnungen</a>
     ${state.user.rolle === 'Extern' ? `<a href="${state.rechnerWeId ? '#/rechner/' + state.rechnerWeId : '#/we-liste'}" class="nav-link${active('extern-rechner')}" title="Cleaner Rendite-Rechner — Wohnung aus der Liste wählen">Rechner</a>` : ''}
@@ -2622,7 +2622,7 @@ function renderTabKalkulator() {
                       ${i._externInfo.provisionPct > 0
                         ? `Kundenpreis enthält deine Provision: <strong>${(i._externInfo.provisionPct * 100).toLocaleString('de-DE')} % = ${Math.round(i._externInfo.aufschlag).toLocaleString('de-DE')} €</strong>`
                         : `Provisionssatz 0 % — du verkaufst zum Abgabepreis (keine Provision).`}
-                      · Satz ändern: <a href="#/start">Start &amp; Provision</a>
+                      · Satz ändern: <a href="#/start">Start</a>
                     </span>
                     <button type="button" onclick="window._externInfoToggle(false)" title="Ausblenden — z.B. wenn der Kunde mitschaut (ⓘ holt die Info zurück)" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:15px;line-height:1;padding:0;flex-shrink:0;">×</button>
                   </div>
@@ -8978,7 +8978,7 @@ async function renderAdmin() {
                   <span class="text-tertiary text-small">${esc(v.rolle || 'Vertriebler')}</span>
                   <button class="secondary" style="font-size:11px;padding:3px 10px;margin-left:auto;" onclick="window._adminPasswortSetzen('${esc(v.id)}', '${esc(v.name)}')">Passwort setzen</button>
                 </div>`).join('')}
-              <div class="text-tertiary text-small" style="margin-top:6px;">Das Passwort sicher übermitteln (Telefon/Signal) — der Nutzer kann es danach selbst ändern (Externe: unter „Start &amp; Provision").</div>
+              <div class="text-tertiary text-small" style="margin-top:6px;">Das Passwort sicher übermitteln (Telefon/Signal) — der Nutzer kann es danach selbst ändern (Externe: unter „Start").</div>
             </div>
             <div class="card-title" style="font-size:13px;">WE-Freigaben für Externe <span class="text-tertiary text-small" style="font-weight:normal;">— nur angehakte Einheiten sind für die Rolle „Extern" sichtbar</span></div>
             ${freigabeRows.length === 0 ? '<div class="text-tertiary text-small">Keine aktiven Einheiten.</div>' : `
@@ -9377,9 +9377,6 @@ async function renderWeListe() {
         <div>
           <h1 class="page-title" style="margin:0 0 6px;">Wohneinheiten im Verkauf</h1>
           <div class="text-tertiary text-small">Live-Liste: Vermarktung + reservierte + Notartermin-Einheiten (reservierte/Notartermin sind markiert) — pro Projekt sortiert. Klick auf eine WE öffnet die Kalkulation.</div>
-          ${state.user && state.user.rolle === 'Extern' ? `
-            <div class="text-small" style="margin-top:6px;padding:5px 10px;border-left:3px solid var(--accent);">Alle Kaufpreise enthalten bereits deinen Provisionssatz von <strong>${(((state.user.provisionPct) || 0) * 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %</strong> — ändern unter <a href="#/start">Start &amp; Provision</a>.</div>
-          ` : ''}
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
           <label class="text-tertiary text-small" for="we-liste-profil" style="white-space:nowrap;">Kennzahlen für Profil</label>
@@ -10619,6 +10616,20 @@ function _rechnerEnsureStyles() {
     .rc-sub{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);padding:9px 0 2px;}
     @media(max-width:860px){.rc-cols{grid-template-columns:1fr;}}
     @media(max-width:640px){.rc-title{font-size:20px;}.rc-kpi .v{font-size:16px;}}
+    .rc-print-foot{display:none;}
+    /* 20.07.2026 (Henry): PDF-Export = window.print() — nur die Rechnung, ohne App-Chrome */
+    @media print {
+      #app-header, .rc-back, .rc-cta, .rc-expose, .rc-lock { display:none !important; }
+      body { background:#fff !important; }
+      .main.rc-wrap { padding:0 !important; }
+      .rc-cols { display:block !important; }
+      .rc-cols > div { width:100% !important; }
+      .rc-sec, .rc-kpi, .rc-disclaimer { break-inside:avoid; border-color:#ddd !important; }
+      .rc-kpis { grid-template-columns:repeat(4,1fr) !important; }
+      .rc-input { border:none !important; background:transparent !important; padding:0 !important; font-weight:600; width:auto; }
+      .rc-print-foot { display:block; margin-top:14px; font-size:10.5px; color:#888; text-align:right; }
+      @page { margin: 14mm 12mm; }
+    }
   `;
   document.head.appendChild(s);
 }
@@ -10834,9 +10845,11 @@ function _rechnerRenderContent() {
 
       <div class="rc-cta">
         <button class="rc-go" onclick="window._rechnerReservieren()">Reservierung digital senden</button>
+        <button class="secondary" onclick="window.print()">Als PDF speichern</button>
         ${exposeLink ? `<a class="rc-expose" href="${esc(exposeLink)}" target="_blank" rel="noopener">Exposé ansehen ↗</a>` : ''}
         <button class="secondary" onclick="go('/we-liste')">Andere Wohnung wählen</button>
       </div>
+      <div class="rc-print-foot">Erstellt am ${new Date().toLocaleDateString('de-DE')} · B&amp;B Immo GmbH · backstube.bub-immo.de</div>
     </div>
   `;
 }
@@ -11468,7 +11481,7 @@ const EXTERN_TOUR_STEPS = [
   },
   {
     title: 'Schritt 2 — Die Wohnungsliste',
-    action: 'Geh oben auf „Wohnungen". Hier siehst du alle Einheiten im Verkauf mit Kennzahlen — alle Kaufpreise sind bereits DEINE Kundenpreise inklusive deiner Provision.',
+    action: 'Geh oben auf „Wohnungen". Hier siehst du alle Einheiten im Verkauf mit Kennzahlen — alle Kaufpreise sind bereits DEINE finalen Kundenpreise.',
     tip: 'Reservierte Einheiten und Notartermine sind markiert. Klick auf eine Zeile öffnet direkt die Kalkulation.',
     target: 'a[href="#/we-liste"]',
     needsView: 'we-liste',
@@ -11476,7 +11489,7 @@ const EXTERN_TOUR_STEPS = [
   {
     title: 'Schritt 3 — Der Rechner',
     action: 'Klick in der Wohnungsliste auf eine Einheit — du landest direkt im Rechner. Oben die Kernzahlen, darunter die komplette Kalkulation: Kaufpreis, Nebenkosten, Miete + Subvention, Finanzierung, Steuer, Marktvergleich.',
-    tip: 'Alle Werte mit 🔒 sind verbindliche B&B-Angaben — darauf kannst du dich beim Verkauf zu 100 % verlassen. Dein Kundenpreis inkl. Provision ist bereits eingerechnet.',
+    tip: 'Alle Werte mit 🔒 sind verbindliche B&B-Angaben — darauf kannst du dich beim Verkauf zu 100 % verlassen. Der Kaufpreis ist dein finaler Kundenpreis.',
     target: '.we-liste-row',
     needsView: 'extern-rechner',
   },
@@ -11496,8 +11509,8 @@ const EXTERN_TOUR_STEPS = [
   },
   {
     title: '🎉 Schritt 6 — Du bist startklar',
-    action: 'Das war\'s: Provision einstellen → Wohnung wählen → Rechner zeigen → digital reservieren. Nach der Reservierung läuft die Abwicklung gemeinsam mit B&B — den Ablauf findest du auf „Start & Provision".',
-    tip: 'Provision ändern: jederzeit unter „Start & Provision". Tour neu starten: „?" oben rechts. Bei Fragen → dein B&B-Kontakt.',
+    action: 'Das war\'s: Satz einstellen → Wohnung wählen → Rechner zeigen → digital reservieren. Nach der Reservierung läuft die Abwicklung gemeinsam mit B&B — den Ablauf findest du auf „Start".',
+    tip: 'Deinen Satz änderst du jederzeit unter „Start". Tour neu starten: „?" oben rechts. Bei Fragen → dein B&B-Kontakt.',
     target: null,
     needsView: null,
   },
@@ -11765,7 +11778,7 @@ function _renderTour() {
       }
     } catch (e) { /* detectCompleted darf nicht crashen — Tour läuft normal weiter */ }
   }
-  const viewLabel = { dashboard: 'Meine Kunden', kunde: 'Kunde-Detail-Seite', 'we-liste': 'Wohnungen', admin: 'Admin', 'extern-start': 'Start & Provision', 'extern-rechner': 'Rechner (Wohnung in der Liste anklicken)' }[needsView] || needsView;
+  const viewLabel = { dashboard: 'Meine Kunden', kunde: 'Kunde-Detail-Seite', 'we-liste': 'Wohnungen', admin: 'Admin', 'extern-start': 'Start', 'extern-rechner': 'Rechner (Wohnung in der Liste anklicken)' }[needsView] || needsView;
   const viewHref = { dashboard: '#/dashboard', kunde: state.kundeId ? ('#/kunde/' + state.kundeId) : '#/dashboard', 'we-liste': '#/we-liste', admin: '#/admin', 'extern-start': '#/start', 'extern-rechner': state.rechnerWeId ? ('#/rechner/' + state.rechnerWeId) : '#/we-liste' }[needsView] || '#/dashboard';
   const tabLabel = { uebersicht: 'Übersicht', kalkulator: 'Kalkulator', selbstauskunft: 'Selbstauskunft', snapshots: 'Snapshots' }[needsTab] || needsTab;
 
