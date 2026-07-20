@@ -10659,7 +10659,7 @@ function _rechnerRenderContent() {
   const sektion = (titel, inner, frei) => '<div class="rc-sec">' + (titel ? ('<div class="rc-sec-t">' + titel + (frei ? '<span class="free">' + frei + '</span>' : '') + '</div>') : '') + inner + '</div>';
   const inputFeld = (id, label, val, suffix, step) =>
     '<div class="rc-row"><div class="l">' + label + '</div>' +
-    '<div class="v"><input id="' + id + '" class="rc-input" type="number" step="' + (step || '0.1') + '" value="' + val + '" oninput="window._rechnerRecalc()"> ' + suffix + '</div></div>';
+    '<div class="v"><input id="' + id + '" class="rc-input" type="number" step="' + (step || '0.1') + '" value="' + val + '" oninput="window._rechnerRecalc()" onchange="window._rechnerRecalc()"> ' + suffix + '</div></div>';
 
   // --- Objektdaten wie im Kopf der Musterberechnung ---
   // Adresse aus dem vollen WE-Namen ("WE: 14 (SR5A), 1.OG Rechts, Südring 5A, 97828 Marktheidenfeld")
@@ -10852,6 +10852,9 @@ function _rechnerRenderContent() {
       <div class="rc-print-foot">Erstellt am ${new Date().toLocaleDateString('de-DE')} · B&amp;B Immo GmbH · backstube.bub-immo.de</div>
     </div>
   `;
+  // Anzeige sofort mit den Input-Werten synchronisieren — schützt gegen jede Drift
+  // zwischen statisch gerendertem HTML und Rechenstand (z.B. nach Browser-Autofill).
+  _rechnerRecalc();
 }
 
 // Quelle-Label für den Marktpreisvergleich ("marktpreis-immoscout" → "ImmoScout24")
