@@ -86,13 +86,10 @@ function route() {
   } else if (hash.startsWith('/rechner/')) {
     // 19.07.2026 (Henry): kundenloser Extern-Rechner (#/rechner/<weId>) — Externe
     // rechnen direkt aus der WE-Liste, ohne vorher einen Kunden anzulegen.
-    // Interne haben die Route nicht (ihr Kalkulator lebt am Kunden).
-    if (state.user.rolle === 'Extern') {
-      state.view = 'extern-rechner';
-      state.rechnerWeId = hash.split('/').filter(Boolean)[1] || null;
-    } else {
-      state.view = 'dashboard';
-    }
+    // 20.07.2026 (Henry): auch für INTERNE offen — vereinfachte Verkaufs-Ansicht
+    // mit allen Einheiten und Intern-Preisen (Server liefert rollenabhängig).
+    state.view = 'extern-rechner';
+    state.rechnerWeId = hash.split('/').filter(Boolean)[1] || null;
   } else if (hash.startsWith('/kunde/')) {
     state.view = 'kunde';
     const parts = hash.split('/').filter(Boolean); // kunde, :id, [tab]
@@ -9379,6 +9376,12 @@ async function renderWeListe() {
           <div class="text-tertiary text-small">Live-Liste: Vermarktung + reservierte + Notartermin-Einheiten (reservierte/Notartermin sind markiert) — pro Projekt sortiert. Klick auf eine WE öffnet die Kalkulation.</div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
+          ${state.user && state.user.rolle !== 'Extern' ? `
+            <label class="text-tertiary text-small" style="display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:8px;" title="Klick auf eine WE öffnet die vereinfachte Musterberechnungs-Ansicht (wie beim externen Vertrieb) — mit Intern-Preisen und allen Einheiten">
+              <input type="checkbox" ${_simpleRechnerAktiv() ? 'checked' : ''} onchange="window._simpleRechnerToggle(this.checked)" style="width:14px;height:14px;">
+              🧮 Einfacher Rechner
+            </label>
+          ` : ''}
           <label class="text-tertiary text-small" for="we-liste-profil" style="white-space:nowrap;">Kennzahlen für Profil</label>
           <select id="we-liste-profil" onchange="window._weListeSetProfil(this.value)" style="padding:6px 10px;font-size:13px;min-width:340px;">
             ${(() => {
@@ -10218,7 +10221,9 @@ function _weListeOpenWe(weId) {
   if (!weId) return;
   // 19.07.2026 (Henry): Externe gehen direkt in den kundenlosen Rechner —
   // der Kunden-Zwischenschritt entfällt komplett (Kunde entsteht erst bei Reservierung).
-  if (state.user && state.user.rolle === 'Extern') {
+  // 20.07.2026 (Henry): Interne können per Toggle („Einfacher Rechner") dieselbe
+  // vereinfachte Ansicht nutzen — mit allen Einheiten und Intern-Preisen.
+  if (state.user && (state.user.rolle === 'Extern' || _simpleRechnerAktiv())) {
     go('/rechner/' + weId);
     return;
   }
@@ -10477,6 +10482,22 @@ window._externPasswortSave = _externPasswortSave;
 // Editierbar nur, was wirklich Kundensache ist: Eigenkapital, Zins, Tilgung,
 // Grenzsteuersatz + die optionale Mietverwaltung (SEV).
 // Der Kunde wird ERST bei einer echten Reservierung angelegt (_rechnerReservieren).
+
+// 20.07.2026 (Henry): Interne können die vereinfachte Rechner-Ansicht per Toggle in
+// der WE-Liste aktivieren — reine UI-Präferenz pro Nutzer (localStorage, wie
+// _externInfoKey). Externe brauchen den Toggle nicht (für sie ist es der Standard).
+function _simpleRechnerKey() {
+  return 'bbk_simple_rechner_' + ((state.user && state.user.email) || 'anon');
+}
+function _simpleRechnerAktiv() {
+  if (!state.user || state.user.rolle === 'Extern') return false;
+  try { return localStorage.getItem(_simpleRechnerKey()) === '1'; } catch (e) { return false; }
+}
+function _simpleRechnerToggle(an) {
+  try { localStorage.setItem(_simpleRechnerKey(), an ? '1' : '0'); } catch (e) {}
+  toast(an ? 'Einfacher Rechner aktiv — Klick auf eine WE öffnet die Musterberechnung' : 'Einfacher Rechner aus — Klick auf eine WE öffnet wieder den Kunden-Kalkulator', 'info');
+}
+window._simpleRechnerToggle = _simpleRechnerToggle;
 
 const RECHNER_NOTAR_PCT = 0.023;  // Notar & Grundbuch — Satz aus der Musterberechnung
 const RECHNER_SEV_MO    = 30;     // Mietverwaltung (SEV) €/Mo — B&B-Angebots-Standard
@@ -10844,7 +10865,9 @@ function _rechnerRenderContent() {
       </div>
 
       <div class="rc-cta">
-        <button class="rc-go" onclick="window._rechnerReservieren()">Reservierung digital senden</button>
+        ${state.user && state.user.rolle === 'Extern'
+          ? `<button class="rc-go" onclick="window._rechnerReservieren()">Reservierung digital senden</button>`
+          : `<button class="rc-go" onclick="window._rechnerInternWeiter()">Reservierung starten (PandaDoc über Kunden)</button>`}
         <button class="secondary" onclick="window.print()">Als PDF speichern</button>
         ${exposeLink ? `<a class="rc-expose" href="${esc(exposeLink)}" target="_blank" rel="noopener">Exposé ansehen ↗</a>` : ''}
         <button class="secondary" onclick="go('/we-liste')">Andere Wohnung wählen</button>
@@ -10912,10 +10935,28 @@ window._rechnerRecalc = _rechnerRecalc;
 
 // Reservierung aus dem Rechner: Kunde entsteht ERST hier (Henrys Vorgabe), danach
 // laufen die bewährten Pflicht-Schritte: Kurz-Selbstauskunft → Adresse → Link.
+// Interner Weg aus dem Rechner: zurück in den bewährten Kunden-Flow (PandaDoc).
+// Mit gewähltem Kunden direkt in dessen Kalkulator (WE wird geladen), sonst wie
+// gewohnt WE vormerken und Kunden wählen lassen (Audit-U4-Pattern).
+function _rechnerInternWeiter() {
+  const weId = state.rechnerWeId;
+  if (!weId) return;
+  if (state.kundeId) {
+    go('/kunde/' + state.kundeId + '/kalkulator');
+    setTimeout(() => { if (typeof loadWeIntoKalk === 'function') loadWeIntoKalk(weId); }, 200);
+    return;
+  }
+  try { sessionStorage.setItem('bbk_pending_we', weId); } catch (e) {}
+  toast('Wähle einen Kunden — die WE wird dann automatisch in seinen Kalkulator geladen', 'info');
+  go('/dashboard');
+}
+window._rechnerInternWeiter = _rechnerInternWeiter;
+
 async function _rechnerReservieren() {
   const d = state._rechnerData;
   const weId = state.rechnerWeId;
   if (!d || !weId) return;
+  if (!state.user || state.user.rolle !== 'Extern') { _rechnerInternWeiter(); return; }
   const kunde = await openRechnerKundeModal(d);
   if (!kunde) return;
   let k;
