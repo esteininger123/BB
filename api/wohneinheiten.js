@@ -35,7 +35,7 @@ const PROJEKT_PRETTY = {
   'BAD_MÜHL5':                'Baden-Baden, Am Mühlwäldle 5',
   // === Übriger Bestand (für Live-Schaltung später) ===
   'MÜLL_VOG 10,12':           'Müllheim, Vogesenstraße 10+12',
-  'FR-KAP_PETER_9':           'Freiburg-Kappel, Peterstal 9',
+  'FR-KAP_PETER_9':           'Freiburg-Kappel, Peterhof 9',
   'Rheinsh 1+3_Bruchsal':     'Rheinsheimer Str. 1+3, Bruchsal',
   'LABOE_HEIK 12-14':         'Laboe, Heikendorfer Weg 12–14',
   'GUS_WER33':                'Gusterath, Werthstraße 33',
