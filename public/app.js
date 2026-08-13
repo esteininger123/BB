@@ -10500,6 +10500,21 @@ function _simpleRechnerToggle(an) {
 window._simpleRechnerToggle = _simpleRechnerToggle;
 
 const RECHNER_NOTAR_PCT = 0.023;  // Notar & Grundbuch — Satz aus der Musterberechnung
+
+// 14.08.2026 (Henry): Standard-Finanzierungskonditionen im Einfachen Rechner.
+// Zins hängt daran, ob das Eigenkapital die Kaufnebenkosten deckt („Nebenkosten
+// eingebracht" = EK ≥ KNK → 4,4 %, sonst 4,6 %); Tilgung an der Kaufpreisgrenze
+// 150.000 € (darunter 1,5 %, ab 150 T€ 1,25 %). Der Zins folgt dem EK-Feld LIVE,
+// solange der Nutzer ihn nicht selbst überschrieben hat (dann gilt sein Wert).
+const RECHNER_ZINS_MIT_NK_PCT    = 4.4;
+const RECHNER_ZINS_OHNE_NK_PCT   = 4.6;
+const RECHNER_TILGUNG_GRENZE_EUR = 150000;
+function _rechnerZinsAuto(ek, knk) {
+  return (ek >= Math.round(knk) - 1) ? RECHNER_ZINS_MIT_NK_PCT : RECHNER_ZINS_OHNE_NK_PCT;
+}
+function _rechnerTilgungAuto(gesamtKp) {
+  return gesamtKp < RECHNER_TILGUNG_GRENZE_EUR ? 1.5 : 1.25;
+}
 const RECHNER_SEV_MO    = 30;     // Mietverwaltung (SEV) €/Mo — B&B-Angebots-Standard
 // B&B-Standard (Henry 19.07.2026): Garagen-AfA nach amtlicher AfA-Tabelle = 20 Jahre / 5 % p.a.
 // (eigenständige Garage als selbständiges Wirtschaftsgut; die alten 19 J./5,26 % aus der
@@ -10520,7 +10535,16 @@ function renderExternRechner() {
     // EK-Default = Kaufnebenkosten (Henry 19.07.2026): entspricht 100-%-Finanzierung
     // des Kaufpreises — der Kunde bringt die Nebenkosten als Eigenkapital mit.
     // SEV default AN wie in der Musterberechnung (SE-Verwaltergebühr fest eingerechnet) — abwählbar.
-    state._rechnerInputs = { ek: Math.round(_rechnerBasis(d).knk), zinsPct: 4.5, tilgungPct: 1.0, steuerPct: 42, sev: true };
+    // Zins/Tilgung = Standard-Konditionen (Henry 14.08.2026, siehe _rechnerZinsAuto/-TilgungAuto).
+    const b0 = _rechnerBasis(d);
+    const ek0 = Math.round(b0.knk);
+    state._rechnerInputs = {
+      ek: ek0,
+      zinsPct: _rechnerZinsAuto(ek0, b0.knk),
+      tilgungPct: _rechnerTilgungAuto(b0.gesamtKp),
+      steuerPct: 42, sev: true,
+      _zinsManuell: false,
+    };
     _rechnerRenderContent();
   }).catch((e) => {
     app.innerHTML = '<div class="main" style="max-width:780px;margin:0 auto;"><div class="card" style="margin-top:24px;">Kalkulation konnte nicht geladen werden: ' + esc(e.message || 'unbekannt') + ' — <a href="#/we-liste">zurück zu den Wohnungen</a></div></div>';
@@ -10680,7 +10704,7 @@ function _rechnerRenderContent() {
   const sektion = (titel, inner, frei) => '<div class="rc-sec">' + (titel ? ('<div class="rc-sec-t">' + titel + (frei ? '<span class="free">' + frei + '</span>' : '') + '</div>') : '') + inner + '</div>';
   const inputFeld = (id, label, val, suffix, step) =>
     '<div class="rc-row"><div class="l">' + label + '</div>' +
-    '<div class="v"><input id="' + id + '" class="rc-input" type="number" step="' + (step || '0.1') + '" value="' + val + '" oninput="window._rechnerRecalc()" onchange="window._rechnerRecalc()"> ' + suffix + '</div></div>';
+    '<div class="v"><input id="' + id + '" class="rc-input" type="number" step="' + (step || '0.1') + '" value="' + val + '" oninput="window._rechnerRecalc(this.id)" onchange="window._rechnerRecalc(this.id)"> ' + suffix + '</div></div>';
 
   // --- Objektdaten wie im Kopf der Musterberechnung ---
   // Adresse aus dem vollen WE-Namen ("WE: 14 (SR5A), 1.OG Rechts, Südring 5A, 97828 Marktheidenfeld")
@@ -10796,7 +10820,7 @@ function _rechnerRenderContent() {
       inputFeld('rc-tilgung', 'Tilgung', state._rechnerInputs.tilgungPct, '%', '0.1'),
       zeile('Tilgung monatlich', '<span id="rcv-tilgungMo">' + fEM(c.tilgMoTeil) + '</span>/Mo'),
       zeile('Annuität / Bankrate', '<span id="rcv-ratePct">' + (state._rechnerInputs.zinsPct + state._rechnerInputs.tilgungPct).toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' %</span> · <span id="rcv-rateMo">' + fEM(c.rateMo) + '</span>/Mo', { sum: true }),
-    ].join(''), 'deine Annahmen — frei anpassbar'),
+    ].join(''), 'Standard: 4,4 % Zins (NK eingebracht) / 4,6 % (NK mitfinanziert) · Tilgung 1,5 % unter / 1,25 % ab 150 T€ — frei anpassbar'),
 
     sektion('Steuerliche Betrachtung', [
       inputFeld('rc-steuer', 'Persönlicher Grenzsteuersatz', state._rechnerInputs.steuerPct, '%', '1'),
@@ -10889,15 +10913,24 @@ function marktQuelleLabelRechner(quelle) {
 }
 
 // Live-Neuberechnung ohne Full-Rerender (Inputs behalten den Fokus)
-function _rechnerRecalc() {
+function _rechnerRecalc(sourceId) {
   const d = state._rechnerData;
   if (!d) return;
   const g = (id) => document.getElementById(id);
   const num = (id, fb) => { const v = parseFloat((g(id) || {}).value); return isFinite(v) ? v : fb; };
   const inp = state._rechnerInputs;
+  // 14.08.2026 (Henry): Tippt der Nutzer selbst am Zins, gilt ab da sein Wert;
+  // sonst folgt der Zins automatisch dem EK (NK eingebracht 4,4 % / sonst 4,6 %).
+  if (sourceId === 'rc-zins') inp._zinsManuell = true;
   inp.ek = num('rc-ek', 0);
-  inp.zinsPct = num('rc-zins', 4.5);
-  inp.tilgungPct = num('rc-tilgung', 1.0);
+  const bAuto = _rechnerBasis(d);
+  if (!inp._zinsManuell && sourceId !== 'rc-zins') {
+    const zinsAuto = _rechnerZinsAuto(inp.ek, bAuto.knk);
+    const zEl = g('rc-zins');
+    if (zEl && parseFloat(zEl.value) !== zinsAuto) zEl.value = zinsAuto;
+  }
+  inp.zinsPct = num('rc-zins', RECHNER_ZINS_MIT_NK_PCT);
+  inp.tilgungPct = num('rc-tilgung', _rechnerTilgungAuto(bAuto.gesamtKp));
   inp.steuerPct = num('rc-steuer', 42);
   inp.sev = !!(g('rc-sev') && g('rc-sev').checked);
   const c = _rechnerCalc(d, inp);
