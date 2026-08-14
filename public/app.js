@@ -10717,6 +10717,9 @@ function _rechnerRenderContent() {
   const garagenNrn = c.details.filter(x => c.istGarage(x.typ)).map(x => stplNr(x.titel)).filter(Boolean).join(', ');
   const flaechenNrn = c.details.filter(x => !c.istGarage(x.typ)).map(x => stplNr(x.titel)).filter(Boolean).join(', ');
   const rndJahre = c.afaSatz > 0 ? Math.round(1 / c.afaSatz) : 0;
+  // Stellplatz-Option NUR für Freiburg Spechtweg 33-37 (Henry 14.08.2026): alle 32
+  // Stellplätze dort sind noch unvergeben und werden separat für 15.000 € verkauft.
+  const istSpechtweg = /spechtweg/i.test(String((d.we && d.we.lage) || ''));
 
   const stpZeilen = (c.details.length
     ? c.details.filter(s => (s.kaufpreis || 0) > 0).map(s =>
@@ -10756,6 +10759,19 @@ function _rechnerRenderContent() {
       stpZeilen,
       zeile('Gesamtkaufpreis', fE(c.gesamtKp), { fix: true, sum: true }),
     ].join('')),
+
+    // Stellplatz-Option Spechtweg: rein additiv — der Haken verändert KEINE Zahl der
+    // Wohnungskalkulation (kein KNK-, AfA-, Cashflow-Effekt); der Stellplatz wird
+    // separat erworben. 15.000 € hart kodiert (Henrys Verkaufspreis; die Airtable-
+    // Preisschilder der 32 Records stehen abweichend auf 10.000 und sind hier bewusst
+    // NICHT die Quelle).
+    (istSpechtweg ? sektion('Stellplatz-Option', [
+      '<div class="rc-row"><label class="l" style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input id="rc-stpOption" type="checkbox" ' + (state._rechnerInputs.stpOption ? 'checked' : '') + ' onchange="window._rechnerStpOptionToggle(this)" style="width:14px;height:14px;">Stellplatz für 15.000 € dazukaufen (optional)</label><div class="v">15.000 €</div></div>',
+      '<div id="rc-stp-detail" style="display:' + (state._rechnerInputs.stpOption ? 'block' : 'none') + ';">' +
+        zeile('Gesamtinvestition inkl. Stellplatz', fE(c.gesamtKp + 15000), { sum: true }) +
+        '<div class="rc-disclaimer" style="margin-top:8px;">Der Stellplatz wird separat erworben und verändert die Kalkulation der Wohnung nicht. Stellplatz vermietbar für 50–100&nbsp;€/Monat — auch an Externe, die Nachfrage ist sehr hoch.</div>' +
+      '</div>',
+    ].join('')) : ''),
 
     sektion('Kaufnebenkosten', [
       zeile('Grunderwerbsteuer', fE(c.knkGrest), { fix: true }),
@@ -10984,6 +11000,14 @@ function _rechnerInternWeiter() {
   go('/dashboard');
 }
 window._rechnerInternWeiter = _rechnerInternWeiter;
+
+// Stellplatz-Option Spechtweg: reiner Anzeige-Toggle, bewusst OHNE Recalc — die Option
+// darf die Wohnungskalkulation nicht beeinflussen (Henry 14.08.2026).
+window._rechnerStpOptionToggle = function (el) {
+  if (state._rechnerInputs) state._rechnerInputs.stpOption = !!(el && el.checked);
+  const box = document.getElementById('rc-stp-detail');
+  if (box) box.style.display = (el && el.checked) ? 'block' : 'none';
+};
 
 async function _rechnerReservieren() {
   const d = state._rechnerData;
