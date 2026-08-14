@@ -131,6 +131,7 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
     let jungsterVertragsbeginn = null; // YYYY-MM-DD — letzter vergangener Vertragsbeginn
     let aktuelleKaltmiete = null; // €/Mo — aus Vertrag mit jüngstem Datum ≤ heute
     let aktuelleKaltmieteDatum = null; // YYYY-MM-DD — zugehöriges Datum
+    let aktuelleVertragsart = null; // Vertragsart des Vertrags mit der aktuellen Kaltmiete (z.B. 'Indexmietvertrag')
     let vertragVorhanden = false;
     let neuStpIds = []; // Stellplatz-IDs aus "NEU: Vermieteter Stellplatz" der NICHT-archivierten Verträge
     let kuendigungZum = null; // frühestes künftiges Vertragsende eines aktiven Vertrags (= Mieter zieht aus, bekannt)
@@ -241,6 +242,7 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
             && (!aktuelleKaltmieteDatum || datumPrimary > aktuelleKaltmieteDatum)) {
           aktuelleKaltmiete = kaltmiete;
           aktuelleKaltmieteDatum = datumPrimary;
+          aktuelleVertragsart = f[MIETVERTRAG_FIELDS.VERTRAGSART] || null;
         }
       }
     });
@@ -301,6 +303,10 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
       jungsteMietsteigerung,
       aktuelleKaltmiete,
       aktuelleKaltmieteDatum,
+      // Indexmietvertrag-Erkennung (Henry 14.08.2026): Vertragsart des aktuell
+      // mietbestimmenden Vertrags — steuert in computeAutoSubvention den Index-Pfad.
+      aktuelleVertragsart,
+      istIndexvertrag: /index/i.test(String(aktuelleVertragsart || '')),
       geplanteErhoehung,
       zukunftsvertraegeCount: zukunftsvertraege.length,
     };
@@ -625,6 +631,72 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     const datum = new Date(letzte);
     const heute = new Date();
     monateSeitRaw = Math.max(0, (heute.getFullYear() - datum.getFullYear()) * 12 + (heute.getMonth() - datum.getMonth()));
+  }
+
+  // --- Indexmietverträge (Henry 14.08.2026) -----------------------------------
+  // Bei Indexmietverträgen greift die Kappungs-Stufenlogik nicht — die Miete steigt
+  // jährlich mit dem VPI. Die Subvention wird deshalb je VERTRAGSJAHR gerechnet
+  // (Prognose fest +2,0 % p.a.) und sinkt Jahr für Jahr; die Käufer-Einnahme bleibt
+  // dadurch konstant auf Marktniveau. Max. 72 Monate; Phasen unter 20 €/Mo entfallen
+  // komplett (Henrys Mini-Subventions-Regel vom 14.08.2026) — dort endet die Subvention.
+  if (vermietung && vermietung.istIndexvertrag) {
+    const INDEX_PROGNOSE_PA = 0.02;
+    const INDEX_MIN_PHASE_EUR = 20;
+    const gesamtMax = 72;
+    // Erste Indexanpassung frühestens 12 Monate nach der letzten Anpassung.
+    const seit = monateSeitRaw === null ? 0 : Math.min(monateSeitRaw, 11);
+    const p1 = Math.max(1, 12 - seit);
+    const phasenIdx = [];
+    let restMonate = gesamtMax;
+    let totalIdx = 0;
+    for (let k = 0; restMonate > 0; k++) {
+      const mieteK = mbvRaw * Math.pow(1 + INDEX_PROGNOSE_PA, k);
+      const moK = Math.round((marktmiete - mieteK) * 100) / 100;
+      if (moK < INDEX_MIN_PHASE_EUR) break;
+      const monateK = Math.min(k === 0 ? p1 : 12, restMonate);
+      phasenIdx.push({ mo: moK, monate: monateK, label: 'Jahr ' + (k + 1) + ' (Indexmiete, Prognose +2,0 % p.a.)' });
+      totalIdx += moK * monateK;
+      restMonate -= monateK;
+    }
+    if (!phasenIdx.length) {
+      return Object.assign({}, empty, {
+        quelle: 'auto-index-marktnah',
+        erlaeuterung: 'Indexmietvertrag — die Miete liegt bereits auf bzw. nahe Marktniveau (Restlücke unter 20 €/Mo); keine Subvention. Die Miete entwickelt sich mit dem Verbraucherpreisindex weiter.',
+        marktmieteEurQm,
+        marktmieteAbs: Math.round(marktmiete * 100) / 100,
+        istIndexvertrag: true,
+        indexPrognosePct: INDEX_PROGNOSE_PA * 100,
+      });
+    }
+    // €-Cap wie im Standardmodell (Iter-4-Formel); bei Überschreiten werden die
+    // hintersten Phasen gekürzt/gestrichen — die frühe Subv-Story bleibt intakt.
+    const capIdx = Math.max(5000, (weQm || 0) * 200, mbvRaw * 18);
+    let capGreiftIdx = false;
+    while (totalIdx > capIdx && phasenIdx.length) {
+      capGreiftIdx = true;
+      const last = phasenIdx[phasenIdx.length - 1];
+      const ueberhang = totalIdx - capIdx;
+      const kuerzMonate = Math.ceil(ueberhang / last.mo);
+      if (kuerzMonate >= last.monate) { totalIdx -= last.mo * last.monate; phasenIdx.pop(); }
+      else { last.monate -= kuerzMonate; totalIdx -= last.mo * kuerzMonate; }
+    }
+    const gesamtMonateIdx = phasenIdx.reduce((s, p) => s + p.monate, 0);
+    return {
+      phasen: phasenIdx,
+      totalEur: Math.round(totalIdx),
+      mo: gesamtMonateIdx > 0 ? Math.round((totalIdx / gesamtMonateIdx) * 100) / 100 : 0,
+      monate: gesamtMonateIdx,
+      quelle: 'auto-index-prognose',
+      erlaeuterung: 'Indexmietvertrag: Die Subvention ist je Vertragsjahr gerechnet — die Miete steigt mit der prognostizierten Indexanpassung (+2,0 % p.a.), die Subvention sinkt entsprechend jährlich; die Käufer-Einnahme bleibt konstant auf Marktniveau.' + (capGreiftIdx ? ' €-Cap greift — hintere Phasen gekürzt.' : '') + ' Phasen unter 20 €/Mo entfallen.',
+      capEur: capIdx,
+      capGreift: capGreiftIdx,
+      marktmieteEurQm,
+      marktmieteAbs: Math.round(marktmiete * 100) / 100,
+      istIndexvertrag: true,
+      indexPrognosePct: INDEX_PROGNOSE_PA * 100,
+      gesamtMonate: gesamtMonateIdx,
+      gesamtJahre: Math.round((gesamtMonateIdx / 12) * 10) / 10,
+    };
   }
 
   // --- Iter 63 (20.05.2026): Tag-1-Erhöhung wenn letzte Mietsteigerung > 36 Monate ---
@@ -1189,6 +1261,9 @@ module.exports = async (req, res) => {
           subventionLange:            subv.langeSubvention || false,
           subventionGesamtMonate:     subv.gesamtMonate || 0,
           subventionGesamtJahre:      subv.gesamtJahre || 0,
+          // 14.08.2026: Indexmietverträge — jährliche Phasen mit Index-Prognose
+          subventionIstIndex:         subv.istIndexvertrag || false,
+          subventionIndexPrognosePct: subv.indexPrognosePct || null,
         },
       });
     }

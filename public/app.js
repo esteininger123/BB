@@ -10727,15 +10727,19 @@ function _rechnerRenderContent() {
     : (c.stpKp > 0 ? zeile('Kaufpreis Stellplätze/Garagen:', fE(c.stpKp), { fix: true }) : ''));
 
   // Subventionszeilen mit Monatsspannen wie im Blatt: "(Monat 1–30)", "(Monat 31–66, nach 1. Mieterhöhung)"
+  // Indexmietverträge (Henry 14.08.2026): jährliche Phasen — Zusatz heißt dann
+  // "nach i. Indexanpassung" und eine Prognose-Zeile macht die Annahme transparent.
+  const istIndexSubv = !!(d.derived && d.derived.subventionIstIndex);
   const subvGesamtMonate = c.phasen.reduce((s, p) => s + (p.monate || 0), 0);
   let _subvStart = 1;
   const subvZeilen = c.phasen.length
     ? c.phasen.filter(p => (p.monate || 0) > 0).map((p, i) => {
         const von = _subvStart, bis = _subvStart + (p.monate || 0) - 1;
         _subvStart = bis + 1;
-        const zusatz = i > 0 ? ', nach ' + i + '. Mieterhöhung' : '';
-        return zeile('Mntl. Mietsubvention Phase ' + (i + 1) + ' (Monat ' + von + '–' + bis + zusatz + ')', fEM(p.mo || 0) + '/Mo', { fix: true });
+        const zusatz = i > 0 ? ', nach ' + i + '. ' + (istIndexSubv ? 'Indexanpassung' : 'Mieterhöhung') : '';
+        return zeile('Mntl. Mietsubvention ' + (istIndexSubv ? 'Jahr ' : 'Phase ') + (i + 1) + ' (Monat ' + von + '–' + bis + zusatz + ')', fEM(p.mo || 0) + '/Mo', { fix: true });
       }).join('') +
+      (istIndexSubv ? zeile('Annahme Indexentwicklung (Prognose)', '+' + ((d.derived && d.derived.subventionIndexPrognosePct) || 2).toLocaleString('de-DE', { minimumFractionDigits: 1 }) + ' % p.a.', { fix: true }) : '') +
       zeile('Einmalbetrag der Mietsubvention (' + subvGesamtMonate + ' Monate)', fE(c.subvTotal), { fix: true, sum: true })
     : zeile('Mietsubvention', 'keine — Miete liegt auf Marktniveau', { fix: true });
 
