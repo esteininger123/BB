@@ -160,6 +160,10 @@ module.exports = async (req, res) => {
           letzteMietsteigerung:   vertragInfo.letzteMietsteigerung,
           geplanteErhoehung:      vertragInfo.geplanteErhoehung || null,
           aktuelleKaltmiete:      vertragInfo.aktuelleKaltmiete || null,
+          // 14.08.2026: Indexmietvertrag-Flag durchreichen — sonst überschreibt der
+          // Cron die Index-Subventions-Caches wieder mit Kappungswerten (Live-Bug 14.08.).
+          istIndexvertrag:        !!vertragInfo.istIndexvertrag,
+          aktuelleVertragsart:    vertragInfo.aktuelleVertragsart || null,
         };
 
         // Subv berechnen

@@ -305,8 +305,9 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
       aktuelleKaltmieteDatum,
       // Indexmietvertrag-Erkennung (Henry 14.08.2026): Vertragsart des aktuell
       // mietbestimmenden Vertrags — steuert in computeAutoSubvention den Index-Pfad.
+      // Robust gegen beide Select-Formate (REST liefert String, andere Pfade {name}).
       aktuelleVertragsart,
-      istIndexvertrag: /index/i.test(String(aktuelleVertragsart || '')),
+      istIndexvertrag: /index/i.test(String((aktuelleVertragsart && aktuelleVertragsart.name) || aktuelleVertragsart || '')),
       geplanteErhoehung,
       zukunftsvertraegeCount: zukunftsvertraege.length,
     };
@@ -1186,6 +1187,10 @@ module.exports = async (req, res) => {
         // zukünftigem GUELTIG_AB an).
         geplanteErhoehung:      vertragInfo.geplanteErhoehung || null,
         aktuelleKaltmiete:      vertragInfo.aktuelleKaltmiete || null,
+        // 14.08.2026: Indexmietvertrag-Flag MUSS hier durchgereicht werden — die
+        // Engine liest vermietung.istIndexvertrag (Index-Subventionspfad).
+        istIndexvertrag:        !!vertragInfo.istIndexvertrag,
+        aktuelleVertragsart:    vertragInfo.aktuelleVertragsart || null,
         // Bekannte Kündigung: Mieter zieht zu einem bekannten künftigen Datum aus -> Neuvermietung steht an.
         kuendigungBekannt:      !!vertragInfo.kuendigungBekannt,
         kuendigungZum:          vertragInfo.kuendigungZum || null,
