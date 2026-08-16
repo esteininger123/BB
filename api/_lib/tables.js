@@ -269,6 +269,9 @@ const KALK_STAMMDATEN_FIELDS = {
   // abgeschnitten. Leer = Standard (72 bzw. 108 Mo). Beispiel: Spechtweg 332 = 48
   // ("4 Jahre Indexmiete"). Input-Feld, keine Schreib-Richtung im Backend.
   SUBV_MAX_MONATE:       'fldm1wGeDspZ307wr',
+  // 2026-08-16 (Henry/Spechtweg): Percent. Prognose der jährlichen Indexanpassung
+  // für die Index-Subventions-Treppe. Leer = Standard 2,0 %. Beispiel: 332 = 3 %.
+  INDEX_PROGNOSE_PCT:    'fldToFCbpjPqPZ089',
   AFA_GUTACHTEN:         'fldF36zoKE6Foiu5f',
   WERTSTEIGERUNG:        'fldhB9tsIkpcLGDur',
   VERMIETUNGS_MODUS:     'fldZmkdo4sEAeJqnV',
