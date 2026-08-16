@@ -773,19 +773,18 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     }
   }
 
-  // (2) Wenn keine Vereinbarung greift: Iter-63-Annahme fällt zurück.
+  // (2) Wenn keine Vereinbarung greift und die letzte Erhöhung überfällig ist (> 36 Mo):
+  // Henry-Regel 16.08.2026 (ersetzt die Iter-63-Annahme): Es darf nie mehr Subvention
+  // eingepreist werden, als mit den regulären Kappungs-Sprüngen (max. 15 % je 3 Jahre)
+  // über der HEUTIGEN IST-Miete erreichbar ist. Die frühere Tag-1-Anhebung (Mieter vor
+  // Übergabe auf MbV×(1+Kapp), danach voller Zyklus gegen die neue Basis) preiste
+  // effektiv einen dritten Sprung ein — abgeschafft. Stattdessen ist die überfällige
+  // Erhöhung der ERSTE der regulären Sprünge; Phase 1 läuft volle 36 Monate ab
+  // Übergabe gegen die heutige Basis (mbv bleibt mbvRaw).
+  let erhoehungUeberfaellig = false;
   if (!tag1Erhoehung && monateSeitRaw !== null && monateSeitRaw > 36) {
-    const mieterErhoehung = mbvRaw * kappPct;
-    const mbvNeu = marktmiete > 0
-      ? Math.min(mbvRaw + mieterErhoehung, marktmiete)
-      : mbvRaw + mieterErhoehung;
-    if (mbvNeu > mbvRaw + 0.01) {
-      tag1Erhoehung = true;
-      tag1Anhebung = mbvNeu - mbvRaw;
-      mbv = mbvNeu;          // ab hier rechnet alles mit dem neuen MbV
-      monateSeit = 0;        // Phase 1 läuft volle 36 Monate ab Übergabe
-      tag1Quelle = 'iter63-annahme';
-    }
+    erhoehungUeberfaellig = true;
+    monateSeit = 0;
   }
 
   // --- 2026-06-28 (Henry/Marktheidenfeld): generalisiertes N-Stufen-Subventionsmodell ---
@@ -986,6 +985,9 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     } else if (vereinbarungInfo.kaltmiete <= mbvRaw + 0.01) {
       hinweise.push(`Hinweis: Die gepflegte „Vereinbarte Erhöhung" (${Math.round(vereinbarungInfo.kaltmiete)} €/Mo) liegt nicht über der aktuellen Miete bei Verkauf — Pflege prüfen.`);
     }
+  }
+  if (erhoehungUeberfaellig && phasenRoh.length) {
+    hinweise.push(`Die letzte Mieterhöhung liegt ${monateSeitRaw} Monate zurück — die erste reguläre 15-%-Erhöhung ist ab Übergabe sofort möglich. Eingepreist werden trotzdem nur die regulären ${maxStufen} Kappungs-Sprünge über der heutigen Miete.`);
   }
   if (marktCapGreift) {
     // Iter 65 (20.05.2026): Marktmiete jetzt als €/qm gepflegt — für den Hinweis
