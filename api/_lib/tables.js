@@ -264,6 +264,11 @@ const KALK_STAMMDATEN_FIELDS = {
   // Nur für Sonderfälle mit sehr großer Lücke Bestandsmiete→Marktmiete. Leer = unverändert.
   // Input-Feld (Henry pflegt in Airtable) — keine Schreib-Richtung im Backend.
   LANGE_SUBVENTION:      'fldwimu2zz2C8bdjb',
+  // 2026-08-16 (Henry/Spechtweg): Number. Deckelt die Laufzeit der Auto-Subvention
+  // (Kappungs-Phasen UND Index-Treppe) auf N Monate — hintere Phasen werden
+  // abgeschnitten. Leer = Standard (72 bzw. 108 Mo). Beispiel: Spechtweg 332 = 48
+  // ("4 Jahre Indexmiete"). Input-Feld, keine Schreib-Richtung im Backend.
+  SUBV_MAX_MONATE:       'fldm1wGeDspZ307wr',
   AFA_GUTACHTEN:         'fldF36zoKE6Foiu5f',
   WERTSTEIGERUNG:        'fldhB9tsIkpcLGDur',
   VERMIETUNGS_MODUS:     'fldZmkdo4sEAeJqnV',

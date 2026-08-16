@@ -399,6 +399,8 @@ function kalkStammRecordToApi(rec) {
     mietzuschussMonate:    num(f[KALK_STAMMDATEN_FIELDS.MIETZUSCHUSS_MONATE]),
     // 2026-06-28: Schalter „9 Jahre subventionieren" für Sonderfälle (Marktheidenfeld).
     langeSubvention:       !!f[KALK_STAMMDATEN_FIELDS.LANGE_SUBVENTION],
+    // 2026-08-16 (Henry/Spechtweg): Laufzeit-Deckel für die Auto-Subvention in Monaten.
+    subvMaxMonate:         num(f[KALK_STAMMDATEN_FIELDS.SUBV_MAX_MONATE]),
     // 06.07.2026 (Henry) — WE für externe Vertriebler freigegeben (Opt-in).
     externFreigabe:        !!f[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE],
     // 08.07.2026 (Henry) — WG-/Rendite-Objekt. Steuert die WG-Ansicht + Kaufpreis-Anker
@@ -643,7 +645,9 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   if (vermietung && vermietung.istIndexvertrag) {
     const INDEX_PROGNOSE_PA = 0.02;
     const INDEX_MIN_PHASE_EUR = 20;
-    const gesamtMax = 72;
+    // 2026-08-16 (Henry): Laufzeit-Deckel aus den Stammdaten (z.B. 48 = 4 Jahre).
+    const idxDeckel = kalkApi.subvMaxMonate > 0 ? Math.round(kalkApi.subvMaxMonate) : null;
+    const gesamtMax = idxDeckel ? Math.min(72, idxDeckel) : 72;
     // Erste Indexanpassung frühestens 12 Monate nach der letzten Anpassung.
     const seit = monateSeitRaw === null ? 0 : Math.min(monateSeitRaw, 11);
     const p1 = Math.max(1, 12 - seit);
@@ -688,7 +692,7 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
       mo: gesamtMonateIdx > 0 ? Math.round((totalIdx / gesamtMonateIdx) * 100) / 100 : 0,
       monate: gesamtMonateIdx,
       quelle: 'auto-index-prognose',
-      erlaeuterung: 'Indexmietvertrag: Die Subvention ist je Vertragsjahr gerechnet — die Miete steigt mit der prognostizierten Indexanpassung (+2,0 % p.a.), die Subvention sinkt entsprechend jährlich; die Käufer-Einnahme bleibt konstant auf Marktniveau.' + (capGreiftIdx ? ' €-Cap greift — hintere Phasen gekürzt.' : '') + ' Phasen unter 20 €/Mo entfallen.',
+      erlaeuterung: 'Indexmietvertrag: Die Subvention ist je Vertragsjahr gerechnet — die Miete steigt mit der prognostizierten Indexanpassung (+2,0 % p.a.), die Subvention sinkt entsprechend jährlich; die Käufer-Einnahme bleibt konstant auf Marktniveau.' + (idxDeckel ? ` Subventionslaufzeit auf ${gesamtMax} Monate gedeckelt.` : '') + (capGreiftIdx ? ' €-Cap greift — hintere Phasen gekürzt.' : '') + ' Phasen unter 20 €/Mo entfallen.',
       capEur: capIdx,
       capGreift: capGreiftIdx,
       marktmieteEurQm,
@@ -800,6 +804,18 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   // Phase-Laufzeiten: Phase 1 = (36 − Mo seit letzter Erhöhung), Phasen 2..N = 36 Mo.
   const phasenMonate = [p1Monate];
   for (let k = 2; k <= maxStufen; k++) phasenMonate.push(36);
+
+  // 2026-08-16 (Henry): Laufzeit-Deckel aus den Stammdaten — kappt die Phasen
+  // kumulativ von hinten (z.B. Deckel 48 bei P1 33 + P2 36 → 33 + 15).
+  const subvDeckel = kalkApi.subvMaxMonate > 0 ? Math.round(kalkApi.subvMaxMonate) : null;
+  if (subvDeckel) {
+    let rest = subvDeckel;
+    for (let i = 0; i < phasenMonate.length; i++) {
+      const m = Math.min(phasenMonate[i], Math.max(0, rest));
+      phasenMonate[i] = m;
+      rest -= m;
+    }
+  }
 
   // X_ideal = MbV × ((1+Kapp)^maxStufen − 1)   (= maxStufen Erhöhungsstufen Spielraum).
   // Markt-Deckelung: X kann max. (Marktmiete − MbV) sein, sonst rechtl. nicht haltbar.
@@ -988,6 +1004,9 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   }
   if (erhoehungUeberfaellig && phasenRoh.length) {
     hinweise.push(`Die letzte Mieterhöhung liegt ${monateSeitRaw} Monate zurück — die erste reguläre 15-%-Erhöhung ist ab Übergabe sofort möglich. Eingepreist werden trotzdem nur die regulären ${maxStufen} Kappungs-Sprünge über der heutigen Miete.`);
+  }
+  if (subvDeckel && phasen.length) {
+    hinweise.push(`Subventionslaufzeit auf ${gesamtMonate} Monate gedeckelt (Stammdaten-Vorgabe).`);
   }
   if (marktCapGreift) {
     // Iter 65 (20.05.2026): Marktmiete jetzt als €/qm gepflegt — für den Hinweis
