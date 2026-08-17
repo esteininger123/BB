@@ -1077,7 +1077,7 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
 // quelle sagt, welches Portal gewonnen hat — die UI zeigt „(laut ImmoScout)"
 // bzw. „(laut Homeday)" hinter dem Marktwert. Bei Gleichstand: ImmoScout.
 // (Funktionsname bleibt wegen Export/Callern — Semantik siehe Kommentar.)
-function computeMarktpreisGemittelt(kalkApi) {
+function computeMarktpreisGemittelt(kalkApi, kaufpreisProQm) {
   if (!kalkApi) return { wert: 0, quelle: 'keine' };
   // 08.07.2026 (Henry) — WG-Konzept: Der ImmoScout/Homeday-Vergleichsmarktpreis wird für
   // WG-/Rendite-Einheiten bewusst NICHT als Vermögens-Anker verwendet (der Preis liegt
@@ -1089,10 +1089,17 @@ function computeMarktpreisGemittelt(kalkApi) {
   const hd = kalkApi.marktpreisHomeday;
   const hasIs = is != null && is > 0;
   const hasHd = hd != null && hd > 0;
-  if (hasIs && hasHd) return (hd > is) ? { wert: hd, quelle: 'homeday' } : { wert: is, quelle: 'immoscout' };
-  if (hasIs) return { wert: is, quelle: 'immoscout' };
-  if (hasHd) return { wert: hd, quelle: 'homeday' };
-  return { wert: 0, quelle: 'keine' };
+  let out;
+  if (hasIs && hasHd) out = (hd > is) ? { wert: hd, quelle: 'homeday' } : { wert: is, quelle: 'immoscout' };
+  else if (hasIs) out = { wert: is, quelle: 'immoscout' };
+  else if (hasHd) out = { wert: hd, quelle: 'homeday' };
+  else return { wert: 0, quelle: 'keine' };
+  // 17.08.2026 (Henry) — Verkauf ÜBER Markt: liegt der WE-Kaufpreis/m² über dem besten
+  // Portal-Wert, wird der Vergleichsmarktpreis gar nicht ausgewiesen (kein negativer
+  // Markteinkauf-Vorteil, kein „Du kaufst über Marktpreis"). Gleiches Muster wie
+  // WG-Konzept: wert=0 → Kaufpreis-Anker in kalkulator.js, Rechner-Marktvergleich fällt raus.
+  if (kaufpreisProQm > 0 && kaufpreisProQm > out.wert) return { wert: 0, quelle: 'ueber-markt' };
+  return out;
 }
 
 module.exports = async (req, res) => {
@@ -1225,7 +1232,8 @@ module.exports = async (req, res) => {
 
       // Subvention auto + Markt-Schnitt direkt vom Backend liefern
       const subv = computeAutoSubvention(kalkApi, vermietungObj, we.qm);
-      const marktSchnitt = computeMarktpreisGemittelt(kalkApi);
+      // 17.08.2026: KP/m² mitgeben — über Markt verkaufte WEs bekommen keinen Vergleichsmarktpreis.
+      const marktSchnitt = computeMarktpreisGemittelt(kalkApi, we.qm > 0 ? we.kp / we.qm : 0);
 
       // Iter-4 (21.05.2026): Auto-Subv zurück nach Airtable, damit die
       // KP-Vorschlag-Formel sie einbeziehen kann. Fire-and-forget — die Response

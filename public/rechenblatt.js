@@ -53,7 +53,8 @@
       ['Hausverwaltung (sonst.)', eurMo(i.hausverwaltung), 'optional'],
       ['Marktmiete', qm(i.marktmieteEurQm), 'realistisch erzielbare Miete (eigene Einschätzung)'],
       // 08.07.2026 (Henry) — WG-Konzept: kein qm-Vergleichsmarktwert; Vermögensbasis = Kaufpreis.
-      ...(i._wgKonzept ? [] : [['Marktwert', qm(i.marktwertProQm), 'für Vermögensbasis']]),
+      // 17.08.2026 (Henry) — 'ueber-markt': Marktwert ebenfalls nicht ausweisen.
+      ...((i._wgKonzept || i._ueberMarkt) ? [] : [['Marktwert', qm(i.marktwertProQm), 'für Vermögensbasis']]),
     ];
 
     const investition = [

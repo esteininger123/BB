@@ -2857,7 +2857,7 @@ function kalkInputsPaketHtml(i) {
     <details class="kalk-section" ${sec('pmarkt')} data-sec="pmarkt" ontoggle="toggleKalkSection('pmarkt', this)">
       <summary>1 · Marktpreis &amp; Wertentwicklung</summary>
       <div class="grid-1">
-        ${state.kalk._wgKonzept ? '' : sliderEur('Marktwert €/qm' + (marktQuelleLabel(state.kalk._marktpreisQuelle) ? ' (' + marktQuelleLabel(state.kalk._marktpreisQuelle) + ')' : ' (ImmoScout/Homeday)'), 'marktwertProQm', 0, 8000, 50, '€/qm')}
+        ${(state.kalk._wgKonzept || state.kalk._ueberMarkt) ? '' : sliderEur('Marktwert €/qm' + (marktQuelleLabel(state.kalk._marktpreisQuelle) ? ' (' + marktQuelleLabel(state.kalk._marktpreisQuelle) + ')' : ' (ImmoScout/Homeday)'), 'marktwertProQm', 0, 8000, 50, '€/qm')}
         ${slider('Wertsteigerung p.a.', 'wertsteigerung', 0, 6, 0.25)}
       </div>
       ${state.kalk._wgKonzept ? '' : `<div style="padding: 4px 14px 14px;">
@@ -2957,7 +2957,7 @@ function kalkInputsThemenHtml(i) {
         ${sliderEur('Kaufpreis Wohnung', 'kaufpreis', 30000, 500000, 500)}
         ${sliderEur('Stellplatz / Garage KP', 'stellplatzKp', 0, 30000, 500)}
         ${sliderEur('Quadratmeter', 'qm', 20, 200, 0.5, 'm²')}
-        ${state.kalk._wgKonzept ? '' : sliderEur('Marktwert €/qm' + (marktQuelleLabel(state.kalk._marktpreisQuelle) ? ' (' + marktQuelleLabel(state.kalk._marktpreisQuelle) + ')' : ' (ImmoScout/Homeday)'), 'marktwertProQm', 0, 8000, 50, '€/qm')}
+        ${(state.kalk._wgKonzept || state.kalk._ueberMarkt) ? '' : sliderEur('Marktwert €/qm' + (marktQuelleLabel(state.kalk._marktpreisQuelle) ? ' (' + marktQuelleLabel(state.kalk._marktpreisQuelle) + ')' : ' (ImmoScout/Homeday)'), 'marktwertProQm', 0, 8000, 50, '€/qm')}
         ${slider('Inflation / Wertsteigerung p.a.', 'wertsteigerung', 0, 6, 0.25)}
       </div>
     </details>
@@ -3718,16 +3718,20 @@ async function loadWeIntoKalk(weId) {
       // den Kaufpreis. marktwertProQm hart auf 0 setzen, damit kein Rest aus Presets/vorheriger
       // WE hängen bleibt. _wgKonzept steuert die WG-Ansicht in renderStoryPremium.
       state.kalk._wgKonzept = !!sd.wgKonzept;
+      // 17.08.2026 (Henry) — Verkauf ÜBER Markt: Backend liefert quelle='ueber-markt' + wert 0.
+      // Marktwert wird nirgends angezeigt (keine Quellen-Hinweise) und der Rechner ankert auf
+      // dem Kaufpreis statt einen negativen Markteinkauf-Vorteil zu zeigen.
+      state.kalk._ueberMarkt = derived.marktpreisGemitteltQuelle === 'ueber-markt';
       // Iter 41.9 — Markt-Schnitt (IS + HD)
-      if (sd.wgKonzept) {
+      if (sd.wgKonzept || state.kalk._ueberMarkt) {
         state.kalk.marktwertProQm = 0;
         state.kalk._marktpreisQuelle = null;
       } else if (derived.marktpreisGemittelt && derived.marktpreisGemittelt > 0) {
         state.kalk.marktwertProQm = derived.marktpreisGemittelt;
         state.kalk._marktpreisQuelle = derived.marktpreisGemitteltQuelle;
       }
-      state.kalk._marktpreisIS = sd.marktpreisImmoscout;
-      state.kalk._marktpreisHD = sd.marktpreisHomeday;
+      state.kalk._marktpreisIS = state.kalk._ueberMarkt ? null : sd.marktpreisImmoscout;
+      state.kalk._marktpreisHD = state.kalk._ueberMarkt ? null : sd.marktpreisHomeday;
       // Mieterhöhungs-Logik → mappen auf bestehende kalkulator.js-Felder
       state.kalk._vermietungsModus = sd.vermietungsModus;
       state.kalk._kappungsgrenze = sd.kappungsgrenze;
@@ -4119,7 +4123,8 @@ function renderStories(r) {
     </div>`;
 
   // Hint-Story falls Marktwert nicht gesetzt — animiert User dazu, ihn auszufüllen.
-  const markteinkaufHint = (marktQm <= 0) ? `
+  // 17.08.2026: bei bewusst unterdrücktem Marktwert (WG-Konzept / über Markt) keinen Hint zeigen.
+  const markteinkaufHint = (marktQm <= 0 && !state.kalk._wgKonzept && !state.kalk._ueberMarkt) ? `
     <div class="story-card" style="border:1px dashed var(--border); background: var(--bg-cream-subtle, #fafaf6);">
       <div class="story-tag">01 — Markteinkauf</div>
       <h3 class="story-h">Marktpreis fehlt — Vorteil ist noch nicht sichtbar</h3>
@@ -4641,7 +4646,7 @@ function renderStoryPremium(r) {
           ${wgKonzept ? `
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Vermietung</span><span class="kalk-c-v">Wohngemeinschaft</span></div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Erstvermietungsgarantie</span><span class="kalk-c-v" style="color:var(--positive)">B&amp;B</span></div>
-          ` : `
+          ` : state.kalk._ueberMarkt ? '' : `
           <div class="kalk-c-objekt-row" title="${(() => {
             const is = state.kalk._marktpreisIS;
             const hd = state.kalk._marktpreisHD;
@@ -5315,7 +5320,7 @@ function renderStoryPremium(r) {
           <div class="kalk-c-ass-row"><span class="kalk-c-k">AfA-Satz<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('afa')}</span></span><span class="kalk-c-v">${fmtPct(i.afaSatz || 0.02)} linear</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Mietsubvention<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('subv')}</span></span><span class="kalk-c-v">${subvText}</span></div>
           <div class="kalk-c-ass-row"><span class="kalk-c-k">Sparbuch-Vergleich<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('spar')}</span></span><span class="kalk-c-v"><span id="spar-zins-val" style="display:inline-block;min-width:48px;text-align:right;">${((state.kalk.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} %</span> p.a.</span></div>
-          ${wgKonzept ? '' : `<div class="kalk-c-ass-row"><span class="kalk-c-k">Marktpreis je qm Ref.<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('markt')}</span></span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') + ' €' : '—'}</span></div>`}
+          ${(wgKonzept || state.kalk._ueberMarkt) ? '' : `<div class="kalk-c-ass-row"><span class="kalk-c-k">Marktpreis je qm Ref.<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">${quelle('markt')}</span></span><span class="kalk-c-v">${marktQm > 0 ? Math.round(marktQm).toLocaleString('de-DE') + ' €' : '—'}</span></div>`}
         </div>
         <div style="margin-top:18px;padding:14px 16px;background:rgba(176,138,77,.07);border-radius:6px;font-size:12px;color:var(--text-secondary);line-height:1.55;">
           <strong style="color:var(--text-primary);">Berechnet mit Engine v${(window.Kalk && window.Kalk.ENGINE_VERSION) || '?'} · Stand: ${new Date().toLocaleDateString('de-DE')}.</strong><br>
@@ -9594,10 +9599,15 @@ function _renderWeListeContent() {
       // höherer Wert von ImmoScout/Homeday statt Schnitt.
       let marktwertProQm = (derived && derived.marktpreisGemittelt) || 0;
       // 08.07.2026 (Henry) — WG-Konzept: Vergleichsmarktpreis aus den Daten nehmen → Kaufpreis-Anker.
-      if (!marktwertProQm && !((detailKalk && detailKalk.wgKonzept) || (sd && sd.wgKonzept))) {
+      // 17.08.2026 (Henry) — 'ueber-markt' (KP/m² über Portal-Wert): ebenfalls 0 lassen.
+      if (!marktwertProQm && !((detailKalk && detailKalk.wgKonzept) || (sd && sd.wgKonzept))
+          && !(derived && derived.marktpreisGemitteltQuelle === 'ueber-markt')) {
         const isP = detailKalk.marktpreisImmoscout || sd.marktpreisImmoscout || 0;
         const hdP = detailKalk.marktpreisHomeday || sd.marktpreisHomeday || 0;
         marktwertProQm = Math.max(isP, hdP);
+        const _kp = detailWe.kp || we.kp || 0;
+        const _qm = detailWe.qm || we.qm || 0;
+        if (_qm > 0 && marktwertProQm > 0 && _kp / _qm > marktwertProQm) marktwertProQm = 0;
       }
 
       // Marktmiete €/qm aus derived (mit Tag-1-Logik) oder Stammdaten
@@ -9985,12 +9995,15 @@ function _renderWeVergleichModal() {
 
       // Markt-Schnitt
       let marktwertProQm = (derived && derived.marktpreisGemittelt) || 0;
-      if (!marktwertProQm && !(sd && sd.wgKonzept)) {
+      if (!marktwertProQm && !(sd && sd.wgKonzept)
+          && !(derived && derived.marktpreisGemitteltQuelle === 'ueber-markt')) {
         // 06.07.2026 (Henry): höherer Wert von ImmoScout/Homeday statt Schnitt.
         // 08.07.2026 (Henry): bei WG-Konzept bewusst 0 lassen (Kaufpreis-Anker).
+        // 17.08.2026 (Henry): KP/m² über Portal-Wert → 0 lassen (kein negativer Vergleich).
         const isP = sd.marktpreisImmoscout || 0;
         const hdP = sd.marktpreisHomeday || 0;
         marktwertProQm = Math.max(isP, hdP);
+        if (we.qm > 0 && marktwertProQm > 0 && (we.kp || 0) / we.qm > marktwertProQm) marktwertProQm = 0;
       }
       const marktmieteEurQm = (derived && derived.marktmieteEurQm) || sd.marktmiete || 0;
 
