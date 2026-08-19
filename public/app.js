@@ -10744,16 +10744,27 @@ function _rechnerRenderContent() {
   // "nach i. Indexanpassung" und eine Prognose-Zeile macht die Annahme transparent.
   const istIndexSubv = !!(d.derived && d.derived.subventionIstIndex);
   const subvGesamtMonate = c.phasen.reduce((s, p) => s + (p.monate || 0), 0);
+  // Henry 19.08.2026 (nur Spechtweg): Die Subvention wird als "Garantierte Miete"
+  // verpackt — ausgewiesen wird die VOLLE konstante Käufer-Einnahme über die
+  // Subventionslaufzeit, nicht die Phasen-Mechanik. Das Zahlenwerk (einnahmenMo,
+  // subvTotal, Snapshots, Reservierungs-Doc) bleibt unverändert.
+  const garantieAktiv = istSpechtweg && c.phasen.length > 0;
+  const garantieMo = c.kaltmiete + (c.phasen.length ? (c.phasen[0].mo || 0) : 0);
+  const garantieLabel = subvGesamtMonate % 12 === 0 ? (subvGesamtMonate / 12) + ' Jahre' : subvGesamtMonate + ' Monate';
   let _subvStart = 1;
   const subvZeilen = c.phasen.length
-    ? c.phasen.filter(p => (p.monate || 0) > 0).map((p, i) => {
+    ? (garantieAktiv
+      ? zeile('Garantierte Miete durch B&amp;B (' + garantieLabel + ')', fEM(garantieMo) + '/Mo', { fix: true, sum: true }) +
+        zeile('Garantie-Volumen gesamt (' + subvGesamtMonate + ' Monate)', fE(c.subvTotal), { fix: true }) +
+        '<div class="rc-disclaimer" style="margin-top:6px;">B&amp;B garantiert Dir diese Mieteinnahme konstant über die gesamte Laufzeit — unabhängig davon, wie sich die Kaltmiete des Mieters in dieser Zeit entwickelt. Nach Ablauf läuft die reguläre Mietentwicklung weiter.</div>'
+      : c.phasen.filter(p => (p.monate || 0) > 0).map((p, i) => {
         const von = _subvStart, bis = _subvStart + (p.monate || 0) - 1;
         _subvStart = bis + 1;
         const zusatz = i > 0 ? ', nach ' + i + '. ' + (istIndexSubv ? 'Indexanpassung' : 'Mieterhöhung') : '';
         return zeile('Mntl. Mietsubvention ' + (istIndexSubv ? 'Jahr ' : 'Phase ') + (i + 1) + ' (Monat ' + von + '–' + bis + zusatz + ')', fEM(p.mo || 0) + '/Mo', { fix: true });
       }).join('') +
       (istIndexSubv ? zeile('Annahme Indexentwicklung (Prognose)', '+' + ((d.derived && d.derived.subventionIndexPrognosePct) || 2).toLocaleString('de-DE', { minimumFractionDigits: 1 }) + ' % p.a.', { fix: true }) : '') +
-      zeile('Einmalbetrag der Mietsubvention (' + subvGesamtMonate + ' Monate)', fE(c.subvTotal), { fix: true, sum: true })
+      zeile('Einmalbetrag der Mietsubvention (' + subvGesamtMonate + ' Monate)', fE(c.subvTotal), { fix: true, sum: true }))
     : zeile('Mietsubvention', 'keine — Miete liegt auf Marktniveau', { fix: true });
 
   // ============ LINKE SPALTE — 1:1 die Blöcke der Spalten B/C der Musterberechnung ============
@@ -10804,7 +10815,9 @@ function _rechnerRenderContent() {
       (c.stpMiete > 0 ? zeile('Kaltmiete der Garage/des Stellplatzes', fEM(c.stpMiete) + '/Mo', { fix: true }) : ''),
       zeile('Gesamte Kaltmiete', fEM(c.kaltmiete + c.stpMiete) + '/Mo', { fix: true, sum: true }),
       subvZeilen,
-      zeile('Gesamte Einnahmen inkl. Mietsubvention' + (subvGesamtMonate > 0 ? ' (konstant über ' + subvGesamtMonate + ' Monate)' : ''), fEM(c.einnahmenMo) + '/Mo', { sum: true }),
+      zeile(garantieAktiv
+        ? 'Gesamte Einnahmen (garantiert über ' + garantieLabel + ')'
+        : 'Gesamte Einnahmen inkl. Mietsubvention' + (subvGesamtMonate > 0 ? ' (konstant über ' + subvGesamtMonate + ' Monate)' : ''), fEM(c.einnahmenMo) + '/Mo', { sum: true }),
     ].join('')),
 
     sektion('Nichtumlagefähige Nebenkosten', [
@@ -10816,7 +10829,7 @@ function _rechnerRenderContent() {
     ].join('')),
 
     sektion('Einnahmen abzüglich der Kosten', [
-      zeile('Gesamte Einnahmen inkl. Mietsubvention', fEM(c.einnahmenMo) + '/Mo'),
+      zeile(garantieAktiv ? 'Gesamte Einnahmen (garantierte Miete)' : 'Gesamte Einnahmen inkl. Mietsubvention', fEM(c.einnahmenMo) + '/Mo'),
       zeile('Nichtumlagefähige Nebenkosten', '<span id="rcv-kostenMo2">' + fEM(c.kostenMo) + '</span>/Mo'),
       zeile('Netto Einnahmen', '<span id="rcv-nettoMo">' + fEM(c.nettoMo) + '</span>/Mo', { sum: true }),
     ].join('')),
@@ -10911,7 +10924,7 @@ function _rechnerRenderContent() {
 
       <div class="rc-kpis">
         <div class="rc-kpi"><div class="l">Gesamtkaufpreis</div><div class="v">${fE(c.gesamtKp)}</div></div>
-        <div class="rc-kpi"><div class="l">Einnahme/Monat</div><div class="v">${fEM(c.einnahmenMo)}</div></div>
+        <div class="rc-kpi"><div class="l">${garantieAktiv ? 'Garantierte Miete/Monat (' + garantieLabel + ')' : 'Einnahme/Monat'}</div><div class="v">${fEM(c.einnahmenMo)}</div></div>
         <div class="rc-kpi"><div class="l">Cashflow vor Steuer</div><div class="v" id="rcv-topVorSteuer">${fCF(c.vorSteuerMo)}/Mo</div></div>
         <div class="rc-kpi rc-kpi-hl"><div class="l">Cashflow nach Steuer</div><div class="v" id="rcv-topNachSteuer">${fCF(c.nachSteuerMo)}/Mo</div></div>
       </div>
