@@ -188,6 +188,11 @@ const WE_FIELDS = {
   // Iter 51 (19.05.2026) — Link zur Objektvorstellung. Domi pflegt pro WE/Projekt.
   // Vertriebler nutzt den Link parallel zur Kalkulation im Kundengespräch.
   OBJEKTVORSTELLUNG: 'fldITEQwhu9tDi7Iy',
+  // 2026-08-21 (Henry) — Spalten in WE-Liste: Mieterzufriedenheit (Number 1–10)
+  // + Mängel-Freitext (multilineText, 1 Zeile pro Mangel — Backend zählt nicht-leere
+  // Zeilen zu maengelAnzahl). Beide read-only, keine Schreib-Richtung.
+  ZUFRIEDENHEIT: 'fldCUktOnrwOLDUDo',
+  MAENGEL_TEXT:  'fldnStQVzSDIn87L7',
 };
 
 const WE_STATUS_VERMARKTUNG = 'Vermarktung / Im Verkauf';

@@ -9506,6 +9506,10 @@ function _renderWeListeContent() {
   // QA-Sprint 2026-05-23 (Edgar-Doc Bug-1): €/qm + qm im WE-Liste anzeigen.
   const fmtQm = (v) => (v == null || !isFinite(v) || v <= 0) ? '–' : v.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' qm';
   const fmtEurPerQm = (kp, qm) => (qm > 0 && kp > 0) ? Math.round(kp / qm).toLocaleString('de-DE') + ' €/qm' : '';
+  // 2026-08-21 (Henry): Zufr. (Mieterzufriedenheit 1–10) + Mängel (Anzahl aus Bestandsaufnahme).
+  // maengelAnzahl kommt serverseitig gezählt; 0 explizit zeigen, fehlend/unbekannt = „–".
+  const fmtZufr = (v) => (v == null || !isFinite(v)) ? '–' : (Math.round(v * 10) / 10).toLocaleString('de-DE') + '/10';
+  const fmtMaengel = (v) => (v == null || !isFinite(v)) ? '–' : String(v);
   // 05.06.2026: Verkaufs-Status-Badge (reserviert / Notartermin) neben dem WE-Namen.
   const weSalesBadge = (s) => s === 'Reserviert'
     ? ' <span class="we-status-pill reserviert" style="margin-left:6px;font-size:10px;">⚠ RESERVIERT</span>'
@@ -9753,6 +9757,8 @@ function _renderWeListeContent() {
             ${checkboxCell}
             <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${weSalesBadge(we.status)}${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}${we.qm > 0 ? ' · ' + fmtQm(we.qm) : ''}</div></td>
             <td>${modusBadge}</td>
+            <td class="num">${fmtZufr(we.zufriedenheit)}</td>
+            <td class="num">${fmtMaengel(we.maengelAnzahl)}</td>
             <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
             <td colspan="9" style="text-align:center;color:var(--negative);font-style:italic;font-size:13px;">⚠ ${esc(calc.reason || 'unkalkulierbar')}</td>
           </tr>
@@ -9763,6 +9769,8 @@ function _renderWeListeContent() {
           ${checkboxCell}
           <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${weSalesBadge(we.status)}${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}${we.qm > 0 ? ' · ' + fmtQm(we.qm) : ''}</div></td>
           <td>${modusBadge}</td>
+          <td class="num">${fmtZufr(we.zufriedenheit)}</td>
+          <td class="num">${fmtMaengel(we.maengelAnzahl)}</td>
           <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
           <td class="num">${(() => {
             // FS-3t (Edgar 26.05.2026): von 4 Zeilen auf 2 Zeilen — einfacher
@@ -9823,11 +9831,13 @@ function _renderWeListeContent() {
               <col style="width:32px;">
               <col style="width:9%;">
               <col style="width:8%;">
+              <col style="width:4%;">
+              <col style="width:4%;">
               <col style="width:8%;">
-              <col style="width:12%;">
+              <col style="width:10%;">
               <col style="width:5%;">
               <col style="width:6%;">
-              <col style="width:11%;">
+              <col style="width:9%;">
               <col style="width:7%;">
               <col style="width:7%;">
               <col style="width:9%;">
@@ -9839,6 +9849,8 @@ function _renderWeListeContent() {
                 <th style="padding:6px 4px;" title="Zum Vergleich auswählen"></th>
                 <th>Wohneinheit</th>
                 <th>Modus</th>
+                <th class="num" title="Mieterzufriedenheit (1–10) aus der Bestandsaufnahme">Zufr.</th>
+                <th class="num" title="Anzahl dokumentierter Mängel aus der Bestandsaufnahme">Mängel</th>
                 <th class="num">Kaufpreis</th>
                 <th class="num">Kaltmiete</th>
                 <th class="num">Garage KP</th>

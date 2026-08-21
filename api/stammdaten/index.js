@@ -28,6 +28,13 @@ function unwrap(v) {
   return v;
 }
 
+// 2026-08-21 (Henry) — Mängel-Freitext (1 Zeile pro Mangel) serverseitig zu einer
+// Anzahl verdichten: nicht-leere Zeilen zählen. Leeres/fehlendes Feld => 0.
+function countMaengel(v) {
+  if (typeof v !== 'string') return 0;
+  return v.split(/\r?\n/).filter(line => line.trim() !== '').length;
+}
+
 // Audit-Fix Iter 49 (19.05.2026): gleiche Lookup-Auflösung wie in [weId].js.
 // Sonst zeigt der Admin-Audit einen anderen Vermietungsstatus als die Einzel-Ansicht
 // (Lookup „Miet-status (ist)" autoritativ seit Iter 41.17, hier zuvor ignoriert).
@@ -63,6 +70,7 @@ module.exports = async (req, res) => {
           WE_FIELDS.LAGE_BEZ, WE_FIELDS.WE_NR, WE_FIELDS.LAGE_TEXT,
           WE_FIELDS.KAUFPREIS, WE_FIELDS.QM, WE_FIELDS.KALTMIETE, WE_FIELDS.QM_PREIS,
           WE_FIELDS.STATUS,
+          WE_FIELDS.ZUFRIEDENHEIT, WE_FIELDS.MAENGEL_TEXT, // 2026-08-21 (Henry) — Spalten Zufr./Mängel in WE-Liste
         ],
         pageSize: 100,
       }, 2000),
@@ -146,6 +154,10 @@ module.exports = async (req, res) => {
         kaltmiete: num(wf[WE_FIELDS.KALTMIETE]) || 0,
         qmPreis:   num(wf[WE_FIELDS.QM_PREIS]) || 0,
         status:    unwrap(wf[WE_FIELDS.STATUS]) || null, // 05.06.2026 — Reserviert/Notartermin-Markierung
+        // 2026-08-21 (Henry) — WE-Liste-Spalten: Zufriedenheit 1–10 (null = nicht erhoben),
+        // Mängel-Anzahl aus dem Freitext gezählt (0 = keine dokumentiert).
+        zufriedenheit: num(wf[WE_FIELDS.ZUFRIEDENHEIT]),
+        maengelAnzahl: countMaengel(wf[WE_FIELDS.MAENGEL_TEXT]),
       };
 
       // Stammdaten — Priorität: Aktiv > Entwurf > Archiviert
