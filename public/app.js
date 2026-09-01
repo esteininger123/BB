@@ -6717,7 +6717,9 @@ async function externReservierungFlow(weId, opts) {
   let sa = state.kunde && state.kunde.saJson;
   if (typeof sa === 'string') { try { sa = JSON.parse(sa); } catch (e) { sa = null; } }
   const a = (sa && sa.antragsteller) || {};
-  const eingaben = await openExternReservModal({ weLabel, strasse: a.strasse || '', plz: a.plz || '', ort: a.ort || '' });
+  // Intern sind alle Felder optional (Henry 01.09.2026) — extern bleibt die Adresse Pflicht.
+  const _istExtern = !!(state.user && state.user.rolle === 'Extern');
+  const eingaben = await openExternReservModal({ weLabel, strasse: a.strasse || '', plz: a.plz || '', ort: a.ort || '', pflicht: _istExtern });
   if (!eingaben) return;
 
   const i = state.kalk;
@@ -6755,6 +6757,8 @@ function openExternReservModal(vorgaben) {
     const existing = document.getElementById('bbk-extreserv-modal');
     if (existing) existing.remove();
     const kundeName = (((state.kunde && state.kunde.vorname) || '') + ' ' + ((state.kunde && state.kunde.nachname) || '')).trim() || 'Kunde';
+    const pflicht = !!(vorgaben && vorgaben.pflicht);
+    const stern = pflicht ? ' *' : '';
     const feld = (id, label, ph, val) => `
       <label style="display:block;font-size:12px;color:#6B6B64;margin-bottom:10px;">
         ${label}
@@ -6769,11 +6773,11 @@ function openExternReservModal(vorgaben) {
       <div style="background:#FBFAF7;border-radius:14px;max-width:560px;width:100%;padding:28px 32px;box-shadow:0 30px 80px rgba(0,0,0,0.25);border:1px solid #C9A572;">
         <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#8E6E3D;font-weight:600;margin-bottom:8px;">Reservierung vorbereiten</div>
         <h3 style="font-size:20px;font-weight:300;letter-spacing:-.01em;margin:0 0 6px 0;color:#1A1A17;">${esc(kundeName)} · ${esc(vorgaben.weLabel)}</h3>
-        <p style="font-size:12.5px;color:#6B6B64;margin:0 0 16px;line-height:1.5;">Es wird eine vorausgefüllte <strong>Kaufabsichtserklärung &amp; Reservierungsvereinbarung</strong> erstellt (Kaufpreise, Mietsubvention, Reservierungsfrist). Dein Kunde bekommt einen Link und unterschreibt direkt online. Für das Dokument brauchen wir seine Anschrift:</p>
-        ${feld('extreserv-strasse', 'Straße & Hausnummer *', 'z.B. Carl-Benz-Str. 4', vorgaben.strasse)}
+        <p style="font-size:12.5px;color:#6B6B64;margin:0 0 16px;line-height:1.5;">Es wird eine vorausgefüllte <strong>Kaufabsichtserklärung &amp; Reservierungsvereinbarung</strong> erstellt (Kaufpreise, Mietsubvention, Reservierungsfrist). Dein Kunde bekommt einen Link und unterschreibt direkt online.${pflicht ? ' Für das Dokument brauchen wir seine Anschrift:' : ' <strong>Alle Felder sind optional</strong> — der Name reicht, den Rest kannst Du später nachtragen:'}</p>
+        ${feld('extreserv-strasse', 'Straße &amp; Hausnummer' + stern, 'z.B. Carl-Benz-Str. 4', vorgaben.strasse)}
         <div style="display:grid;grid-template-columns:130px 1fr;gap:0 12px;">
-          ${feld('extreserv-plz', 'PLZ *', '76689', vorgaben.plz)}
-          ${feld('extreserv-ort', 'Ort *', 'Karlsdorf-Neuthard', vorgaben.ort)}
+          ${feld('extreserv-plz', 'PLZ' + stern, '76689', vorgaben.plz)}
+          ${feld('extreserv-ort', 'Ort' + stern, 'Karlsdorf-Neuthard', vorgaben.ort)}
         </div>
         ${feld('extreserv-k2', 'Zweite/r Käufer/in (optional, voller Name)', 'z.B. Benno Baumgärtner', '')}
         <label style="display:block;font-size:12px;color:#6B6B64;margin-bottom:10px;">
@@ -6798,7 +6802,7 @@ function openExternReservModal(vorgaben) {
       const strasse = ($id('extreserv-strasse').value || '').trim();
       const plz = ($id('extreserv-plz').value || '').trim();
       const ort = ($id('extreserv-ort').value || '').trim();
-      if (!strasse || !plz || !ort) {
+      if (pflicht && (!strasse || !plz || !ort)) {
         $id('extreserv-error').textContent = 'Bitte Straße, PLZ und Ort des Kunden angeben.';
         return;
       }
@@ -7064,14 +7068,15 @@ async function sendReservierungDirekt() {
     toast('Pakete werden bei der digitalen Reservierung noch nicht unterstützt — bitte einzelne WE auswählen', 'error');
     return;
   }
-  // E-Mail wie im PandaDoc-Weg: fehlt sie, direkt nachfragen und am Kunden speichern.
-  let kundeEmail = state.kunde && state.kunde.email;
-  if (!kundeEmail) {
-    kundeEmail = await openKundeEmailModal();
-    if (!kundeEmail) return;
-  }
-  // Externe behalten ihre Pflicht-Kurz-Selbstauskunft.
+  // 01.09.2026 (Henry): INTERN keine Vorschritte mehr — keine E-Mail-Abfrage
+  // (der Link wird ohnehin selbst verschickt), keine Pflichtadresse. Externe
+  // behalten E-Mail-Pflicht und Kurz-Selbstauskunft.
   if (state.user && state.user.rolle === 'Extern') {
+    let kundeEmail = state.kunde && state.kunde.email;
+    if (!kundeEmail) {
+      kundeEmail = await openKundeEmailModal();
+      if (!kundeEmail) return;
+    }
     const kurzSaOk = await ensureKurzSelbstauskunft();
     if (!kurzSaOk) return;
   }

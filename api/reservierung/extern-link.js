@@ -60,7 +60,12 @@ module.exports = async (req, res) => {
     const strasse = (adr.strasse || '').trim();
     const plz = (adr.plz || '').trim();
     const ort = (adr.ort || '').trim();
-    if (!strasse || !plz || !ort) return res.status(400).json({ error: 'Adresse des Kunden (Straße, PLZ, Ort) fehlt' });
+    // 01.09.2026 (Henry): Intern ist die Adresse OPTIONAL — der Name reicht, damit
+    // eine Reservierung ohne Vorschritte rausgehen kann. Fuer Externe bleibt sie
+    // Pflicht (dort ist das Dokument der einzige Kontakt zum Kunden).
+    if (extern && (!strasse || !plz || !ort)) {
+      return res.status(400).json({ error: 'Adresse des Kunden (Straße, PLZ, Ort) fehlt' });
+    }
     const kaeufer2 = (body.kaeufer2 || '').trim();
     // 20.07.2026 (Henry): freie Zusatzvereinbarung des Vertrieblers, z.B.
     // "Es wird eine Anzahlung in Höhe von 5.000 € geleistet." — erscheint

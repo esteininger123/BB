@@ -90,8 +90,7 @@
       <div class="block">
         <p>Kaufinteressent-/in:<br>
         <strong>${esc(d.kaeufer)}</strong><br>
-        ${esc(adr.strasse)}<br>
-        ${esc(adr.plz)} ${esc(adr.ort)}</p>
+        ${adr.strasse ? esc(adr.strasse) + '<br>' : ''}${(adr.plz || adr.ort) ? (esc(adr.plz) + ' ' + esc(adr.ort)).trim() : ''}</p>
       </div>
       <p style="font-size:12px;color:#7A7A72;">Vermittelt durch: ${esc(d.vertrieblerName)}</p>
 
@@ -131,7 +130,7 @@
             : `<canvas id="sig-canvas" width="680" height="220" class="no-print-keep"></canvas>
                <div class="sig-tools no-print"><button type="button" class="btn-ghost" id="sig-clear">Feld leeren</button></div>
                <div class="sig-linie"></div>`}
-          <div class="sig-meta">${esc(adr.ort)}, den ${signiert ? new Date(d.signiert.am).toLocaleDateString('de-DE') : heute}<br>
+          <div class="sig-meta">${adr.ort ? esc(adr.ort) + ', den ' : 'Den '}${signiert ? new Date(d.signiert.am).toLocaleDateString('de-DE') : heute}<br>
           Kaufinteressent-/in:<br><strong>${esc(d.kaeufer)}</strong></div>
         </div>
       </div>
