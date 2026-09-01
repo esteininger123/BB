@@ -17,10 +17,11 @@
 const jwt = require('jsonwebtoken');
 const { verifySession, requireSafeOrigin, isExtern } = require('../_lib/auth');
 const { externPreis, loadProvisionPct, ladeStellplatzKpSummen } = require('../_lib/extern');
+const { kpWohnungFuerReservierung } = require('../_lib/reserv-preis');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { airtable, listAll } = require('../_lib/airtable');
 const { appendActivityZeile } = require('../_lib/notizen');
-const { TABLES, KUNDEN_FIELDS, VERTRIEBLER_FIELDS, WE_FIELDS, KALK_STAMMDATEN_FIELDS, KALK_STATUS_AKTIV } = require('../_lib/tables');
+const { TABLES, KUNDEN_FIELDS, VERTRIEBLER_FIELDS, WE_FIELDS, SNAPSHOT_FIELDS, KALK_STAMMDATEN_FIELDS, KALK_STATUS_AKTIV } = require('../_lib/tables');
 
 const TOKEN_KIND = 'reserv-sign';
 const TOKEN_TAGE = 14;
@@ -41,9 +42,13 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const session = verifySession(req);
   if (!session) return res.status(401).json({ error: 'Nicht eingeloggt' });
-  if (!isExtern(session)) {
-    return res.status(403).json({ error: 'Dieser Reservierungs-Weg ist für externe Vertriebler — intern läuft die Reservierung über PandaDoc.' });
-  }
+  // 01.09.2026 (Henry): Der Direkt-Link-Weg steht jetzt auch INTERN zur Verfügung
+  // ("Reservierung senden (NEU)"). Unterschiede intern vs. extern weiter unten:
+  //   - Preis: intern der echte Abgabepreis (kein 2-%-Rabatt, keine Provision),
+  //            optional der eingefrorene Snapshot-Kaufpreis wie im PandaDoc-Flow.
+  //   - Extern-Freigabe der Einheit wird nur für Externe geprueft.
+  // Der alte PandaDoc-Weg (send-for-signature.js) bleibt unveraendert bestehen.
+  const extern = isExtern(session);
 
   try {
     const body = await readBody(req);
@@ -61,6 +66,7 @@ module.exports = async (req, res) => {
     // "Es wird eine Anzahlung in Höhe von 5.000 € geleistet." — erscheint
     // wörtlich im eingefrorenen Dokument (reservierung.html).
     const zusatz = String(body.zusatz || '').trim().slice(0, 1000);
+    const snapshotId = (body.snapshotId || '').trim();
     const clientDoc = (body.doc && typeof body.doc === 'object') ? body.doc : {};
 
     // --- Kunde + Owner-Check (Pattern aus sa-portal/generate.js) ---
@@ -71,8 +77,13 @@ module.exports = async (req, res) => {
       return res.status(404).json({ error: 'Kunde nicht gefunden' });
     }
     const kf = (kundeRec && kundeRec.fields) || {};
-    const ownerIds = kf[KUNDEN_FIELDS.OWNER] || [];
-    if (!Array.isArray(ownerIds) || !ownerIds.includes(session.vertrieblerId)) {
+    // Owner-Normalisierung wie in send-for-signature.js (Owner kann String oder {id,name} sein);
+    // Admins duerfen wie dort fuer jeden Kunden reservieren.
+    const ownersRaw = kf[KUNDEN_FIELDS.OWNER] || [];
+    const ownerIds = Array.isArray(ownersRaw)
+      ? ownersRaw.map(o => (o && typeof o === 'object') ? o.id : (typeof o === 'string' && o.startsWith('rec') ? o : null)).filter(Boolean)
+      : [];
+    if (session.rolle !== 'Admin' && !ownerIds.includes(session.vertrieblerId)) {
       return res.status(403).json({ error: 'Dieser Kunde gehört nicht zu Dir' });
     }
     const kaeuferName = (((kf[KUNDEN_FIELDS.VORNAME] || '') + ' ' + (kf[KUNDEN_FIELDS.NACHNAME] || '')).trim())
@@ -80,18 +91,20 @@ module.exports = async (req, res) => {
 
     // --- Freigabe-Check (06.07.2026): nur explizit für Extern freigegebene
     // Einheiten sind reservierbar — auch gegen manipulierte Requests. ---
-    const stammRecs = await listAll(TABLES.KALK_STAMMDATEN, {
-      filterByFormula: `{${KALK_STAMMDATEN_FIELDS.STATUS}}='${KALK_STATUS_AKTIV}'`,
-      fields: [KALK_STAMMDATEN_FIELDS.WOHNEINHEIT, KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE],
-    }, 1000);
-    const freigegeben = stammRecs.some(r => {
-      const f = r.fields || {};
-      if (!f[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE]) return false;
-      const links = f[KALK_STAMMDATEN_FIELDS.WOHNEINHEIT] || [];
-      return Array.isArray(links) && links.some(x => ((x && typeof x === 'object' && x.id) ? x.id : x) === weId);
-    });
-    if (!freigegeben) {
-      return res.status(403).json({ error: 'Diese Einheit ist für den externen Vertrieb nicht freigegeben.' });
+    if (extern) {
+      const stammRecs = await listAll(TABLES.KALK_STAMMDATEN, {
+        filterByFormula: `{${KALK_STAMMDATEN_FIELDS.STATUS}}='${KALK_STATUS_AKTIV}'`,
+        fields: [KALK_STAMMDATEN_FIELDS.WOHNEINHEIT, KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE],
+      }, 1000);
+      const freigegeben = stammRecs.some(r => {
+        const f = r.fields || {};
+        if (!f[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE]) return false;
+        const links = f[KALK_STAMMDATEN_FIELDS.WOHNEINHEIT] || [];
+        return Array.isArray(links) && links.some(x => ((x && typeof x === 'object' && x.id) ? x.id : x) === weId);
+      });
+      if (!freigegeben) {
+        return res.status(403).json({ error: 'Diese Einheit ist für den externen Vertrieb nicht freigegeben.' });
+      }
     }
 
     // --- Preise SERVERSEITIG (Abgabepreis + Provision des Externen) ---
@@ -105,7 +118,20 @@ module.exports = async (req, res) => {
     const kpBasis = num(wf[WE_FIELDS.KAUFPREIS]);
     if (kpBasis <= 0) return res.status(400).json({ error: 'Für diese Wohneinheit ist kein Kaufpreis gepflegt' });
     const stellplatzKp = num(stplKpByWe[weId]);
-    const e = externPreis(kpBasis, stellplatzKp, prov);
+    // Kundenpreis der Wohnung: extern = Abgabepreis + Provision, intern = echter Preis
+    // (mit eingefrorenem Snapshot-Kaufpreis, falls mitgegeben). Siehe _lib/reserv-preis.js.
+    let snapKaufpreis = 0;
+    if (!extern && /^rec[A-Za-z0-9]{14}$/.test(snapshotId)) {
+      try {
+        const snapRec = await airtable('get', TABLES.SNAPSHOTS, { recordId: snapshotId });
+        const raw = snapRec && snapRec.fields && snapRec.fields[SNAPSHOT_FIELDS.KALK_JSON];
+        const snapKalk = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : null;
+        snapKaufpreis = num(snapKalk && snapKalk.kaufpreis);
+      } catch (err) { /* Snapshot-Fehler ist nicht toedlich -> WE-Live-Preis */ }
+    }
+    const kpWohnung = kpWohnungFuerReservierung({
+      extern, kpBasis, stellplatzKp, provisionPct: prov, snapKaufpreis,
+    });
     const vertrieblerName = (vertrieblerRec && vertrieblerRec.fields && vertrieblerRec.fields[VERTRIEBLER_FIELDS.NAME]) || session.email;
 
     // --- Frist: heute + RESERV_FRIST_TAGE (wie PandaDoc-Flow) ---
@@ -131,6 +157,7 @@ module.exports = async (req, res) => {
 
     sa.reservierungExtern = {
       erstelltAm: new Date().toISOString(),
+      quelle: extern ? 'extern' : 'intern',   // 01.09.2026: Herkunft fuer die Anzeige in der Kundenkarte
       reservBis: fmtDatum(reservBisDate),
       vertrieblerName,
       kaeufer: kaeufer2 ? `${kaeuferName} und ${kaeufer2}` : kaeuferName,
@@ -138,9 +165,9 @@ module.exports = async (req, res) => {
       weId,
       doc: {
         // Preise = Server-Wahrheit (Kundenpreis inkl. Provision, Stellplatz unverändert)
-        kpWohnung: e.kp,
+        kpWohnung,
         stellplatzKp,
-        kpGesamt: e.kp + stellplatzKp,
+        kpGesamt: kpWohnung + stellplatzKp,
         // Anzeige-Werte aus dem Kalkulator (Subvention/RenoBudget/Objektdaten)
         subvPhasen,
         subvMo: Math.round(num(clientDoc.subvMo)),
@@ -176,10 +203,10 @@ module.exports = async (req, res) => {
 
     try {
       const stamp = new Date().toISOString().substring(0, 16).replace('T', ' ');
-      await appendActivityZeile(kundeId, `[${stamp}] Reservierungs-Link (Extern) erzeugt — WE ${sa.reservierungExtern.doc.weNr || weId}, Kundenpreis ${e.kp.toLocaleString('de-DE')} €, gültig bis ${sa.reservierungExtern.reservBis} (${vertrieblerName})`);
+      await appendActivityZeile(kundeId, `[${stamp}] Reservierungs-Link (${extern ? 'Extern' : 'Intern'}) erzeugt — WE ${sa.reservierungExtern.doc.weNr || weId}, Kundenpreis ${kpWohnung.toLocaleString('de-DE')} €, gültig bis ${sa.reservierungExtern.reservBis} (${vertrieblerName})`);
     } catch (err) { /* Log-Fehler killt den Link nicht */ }
 
-    return res.status(200).json({ ok: true, url, reservBis: sa.reservierungExtern.reservBis, kpGesamt: e.kp + stellplatzKp });
+    return res.status(200).json({ ok: true, url, reservBis: sa.reservierungExtern.reservBis, kpGesamt: kpWohnung + stellplatzKp });
   } catch (e) {
     return sendError(res, e);
   }

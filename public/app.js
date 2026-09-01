@@ -2231,7 +2231,7 @@ function renderTabUebersicht() {
     return `
       <div class="card mt-16" style="border-left:3px solid ${signiert ? 'var(--positive,#2D6E47)' : '#B08A4D'};">
         <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-          <span>Reservierung (Externer Vertrieb)</span>
+          <span>Reservierung (${rv.quelle === 'intern' ? 'Direkt-Link' : 'Externer Vertrieb'})</span>
           <span style="font-size:12px;font-weight:600;color:${signiert ? 'var(--positive,#2D6E47)' : '#B08A4D'};">
             ${signiert ? '✍️ Unterschrieben am ' + fmtD(rv.signiert.am) : '⏳ Wartet auf Unterschrift des Kunden'}
           </span>
@@ -2718,6 +2718,9 @@ function renderTabKalkulator() {
         ${state.kalk && state.kalk._isPaket
           ? `<button disabled title="Bei Paket-Auswahl noch nicht unterstützt — bitte einzelne WE wählen" style="opacity:0.45;cursor:not-allowed;">Reservierung digital senden (nur Einzel-WE)</button>`
           : `<button onclick="sendReservierungForSignature()">Reservierung digital senden</button>`}
+        ${state.kalk && state.kalk._isPaket
+          ? ''
+          : `<button onclick="sendReservierungDirekt()" title="Erzeugt sofort die vorausgefüllte Kaufabsichtserklärung und einen Link zum Weitergeben — der Kunde unterschreibt direkt online, ohne PandaDoc-Zwischenschritte">Reservierung senden (NEU)</button>`}
       </div>
     `}
   `;
@@ -6707,7 +6710,8 @@ window._copyExternReservLink = _copyExternReservLink;
 // PandaDoc. Fragt die Kundenadresse (Pflicht fürs Dokument) und optional einen
 // zweiten Käufer ab, friert die Kalkulationswerte serverseitig ein
 // (POST /api/reservierung/extern-link) und zeigt den Link zum Weitergeben.
-async function externReservierungFlow(weId) {
+async function externReservierungFlow(weId, opts) {
+  const _snapshotId = (opts && opts.snapshotId) || null;
   const w = (state.wohneinheiten || []).find(x => x.id === weId);
   const weLabel = (w && ((w.projektName ? w.projektName + ' — ' : '') + (w.lageText || w.lage || ('WE ' + w.weNr)))) || 'die ausgewählte Wohnung';
   let sa = state.kunde && state.kunde.saJson;
@@ -6734,6 +6738,7 @@ async function externReservierungFlow(weId) {
     const resp = await api.post('/api/reservierung/extern-link', {
       kundeId: state.kundeId,
       weId,
+      snapshotId: _snapshotId,
       adresse: { strasse: eingaben.strasse, plz: eingaben.plz, ort: eingaben.ort },
       kaeufer2: eingaben.kaeufer2,
       zusatz: eingaben.zusatz,
@@ -7035,6 +7040,61 @@ async function sendReservierungForSignature() {
   }
 }
 window.sendReservierungForSignature = sendReservierungForSignature;
+
+// 01.09.2026 (Henry): "Reservierung senden (NEU)" — der Direkt-Weg, den es bisher
+// nur fuer Externe gab, jetzt auch INTERN: vorausgefuellte Kaufabsichtserklaerung
+// einfrieren, Token-Link erzeugen, Kunde unterschreibt online. Kein PandaDoc, keine
+// Zwischenschritte. Der alte Button (sendReservierungForSignature) bleibt daneben
+// bestehen und laeuft unveraendert ueber PandaDoc.
+async function sendReservierungDirekt() {
+  if (_sendReservLock) {
+    toast('Vorgang läuft bereits — bitte warten', 'info');
+    return;
+  }
+  if (!state.kundeId) {
+    toast('Erst Kunde auswählen', 'error');
+    return;
+  }
+  const weId = state.kalk && state.kalk._weId;
+  if (!weId) {
+    toast('Erst eine Einzel-Wohnung auswählen (Pakete werden noch nicht unterstützt)', 'error');
+    return;
+  }
+  if (state.kalk._isPaket) {
+    toast('Pakete werden bei der digitalen Reservierung noch nicht unterstützt — bitte einzelne WE auswählen', 'error');
+    return;
+  }
+  // E-Mail wie im PandaDoc-Weg: fehlt sie, direkt nachfragen und am Kunden speichern.
+  let kundeEmail = state.kunde && state.kunde.email;
+  if (!kundeEmail) {
+    kundeEmail = await openKundeEmailModal();
+    if (!kundeEmail) return;
+  }
+  // Externe behalten ihre Pflicht-Kurz-Selbstauskunft.
+  if (state.user && state.user.rolle === 'Extern') {
+    const kurzSaOk = await ensureKurzSelbstauskunft();
+    if (!kurzSaOk) return;
+  }
+  // Juengsten Snapshot dieser WE mitschicken — dann steht im Dokument derselbe
+  // eingefrorene Kaufpreis wie im PandaDoc-Weg (Server prueft/rechnet selbst).
+  let snapshotId = null;
+  if (Array.isArray(state.snapshots)) {
+    const fitting = state.snapshots
+      .filter(x => x && x.weRecordId === weId)
+      .sort((a, b) => new Date(b.created || 0) - new Date(a.created || 0));
+    if (fitting[0]) snapshotId = fitting[0].id;
+  }
+  _sendReservLock = true;
+  const _btns = Array.from(document.querySelectorAll('button[onclick*="sendReservierungDirekt"]'));
+  _btns.forEach(b => { b.disabled = true; b.dataset.prevText = b.textContent; b.textContent = 'Erstelle…'; });
+  try {
+    await externReservierungFlow(weId, { snapshotId });
+  } finally {
+    _sendReservLock = false;
+    _btns.forEach(b => { b.disabled = false; if (b.dataset.prevText) { b.textContent = b.dataset.prevText; delete b.dataset.prevText; } });
+  }
+}
+window.sendReservierungDirekt = sendReservierungDirekt;
 
 // --- Modal-Helpers für die Reservierungs-Flow ---
 
