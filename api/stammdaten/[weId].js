@@ -19,6 +19,8 @@ const { externPreis, loadProvisionPct } = require('../_lib/extern');
 const { airtable, listAll } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
+// 07.09.2026 — Varianten (möbliert): ID-Form "<weId>~<stammId>", siehe _lib/we-variante.js
+const { parseWeId, loadVariante, applyVariante } = require('../_lib/we-variante');
 const {
   TABLES,
   WE_FIELDS,
@@ -1109,17 +1111,25 @@ module.exports = async (req, res) => {
   const session = verifySession(req);
   if (!session) return res.status(401).json({ error: 'Nicht eingeloggt' });
 
-  const weId = req.query && req.query.weId;
-  if (!weId || !weId.startsWith('rec')) return res.status(400).json({ error: 'weId fehlt oder ungültig' });
+  // Varianten-ID ("<weId>~<stammId>") auf die echte WE-ID herunterbrechen — Airtable
+  // kennt nur die Wohneinheit, die Variante ist ein Kalk-Stammdatensatz dazu.
+  const { weId, variantId } = parseWeId(req.query && req.query.weId);
+  if (!weId) return res.status(400).json({ error: 'weId fehlt oder ungültig' });
+  const weIdRaw = (req.query && req.query.weId) || weId;
 
   try {
+    // Variante laden + validieren (gehört sie wirklich zu dieser WE?)
+    const variante = variantId ? await loadVariante(weId, variantId) : null;
+    if (variantId && !variante) return res.status(404).json({ error: 'Variante nicht gefunden' });
+
     if (req.method === 'GET') {
       // --- 1) Wohneinheit-Datensatz lesen ---
       const weResp = await airtable('get', TABLES.WOHNEINHEIT, { recordId: weId });
       if (!weResp || !weResp.fields) return res.status(404).json({ error: 'WE nicht gefunden' });
-      const wf = weResp.fields || {};
+      // Variante: Preis (Basis-KP + Ausstattungspaket), Name und Exposé überlagern die WE-Werte.
+      const wf = variante ? applyVariante(weResp.fields, variante.info) : (weResp.fields || {});
       const we = {
-        id: weResp.id,
+        id: weIdRaw,
         weNr:      wf[WE_FIELDS.WE_NR] || '',
         lage:      (Array.isArray(wf[WE_FIELDS.LAGE_BEZ]) ? wf[WE_FIELDS.LAGE_BEZ][0] : wf[WE_FIELDS.LAGE_BEZ]) || '',
         lageText:  (Array.isArray(wf[WE_FIELDS.LAGE_TEXT]) ? wf[WE_FIELDS.LAGE_TEXT][0] : wf[WE_FIELDS.LAGE_TEXT]) || '',
@@ -1129,6 +1139,13 @@ module.exports = async (req, res) => {
         qmPreis:   num(wf[WE_FIELDS.QM_PREIS]),
         // 19.07.2026 (Henry): Exposé-Link für den Extern-Rechner (Iter 51-Feld)
         objektvorstellungLink: wf[WE_FIELDS.OBJEKTVORSTELLUNG] || '',
+        // 07.09.2026 — Varianten-Karte (möbliert): Aufschlüsselung für Anzeige/Kaufvertrag.
+        variante: variante ? {
+          label:   variante.info.label,
+          basisKp: variante.info.basisKp > 0 ? variante.info.basisKp : num(weResp.fields[WE_FIELDS.KAUFPREIS]),
+          paket:   variante.info.paket,
+          basisWeId: weId,
+        } : null,
       };
 
       // --- 2) Stellplätze zuerst (für Pro-rata-Mietberechnung), dann Mietvertrag + Kalk parallel ---
@@ -1136,10 +1153,13 @@ module.exports = async (req, res) => {
       // die Stellplatzmiete proportional zur aktuellen WE-Verknüpfung berechnet wird.
       const stellplaetzeData = await loadStellplaetzeForWE(weId);
       const weStpIds = stellplaetzeData.weLinked.map(s => s.id);
-      const [vertragInfo, kalkRec] = await Promise.all([
+      const [vertragInfo, kalkRecStandard] = await Promise.all([
         loadMietvertragInfoForWE(weId, weStpIds),
         loadKalkStammdatenForWE(weId),
       ]);
+      // Bei einer Variante gilt deren eigener Stammdatensatz (Miete möbliert, Marktmiete,
+      // Notizen …) — nicht der Aktiv-Satz der unmöblierten Wohnung.
+      const kalkRec = variante ? variante.rec : kalkRecStandard;
 
       // --- Vermietungs-Status ZUERST (Iter 41.17) — steuert leer=raus für die Stellplätze ---
       // Single Source of Truth: Lookup „Miet-status (ist)" aus WE-Tabelle, gespiegelt in
@@ -1365,13 +1385,16 @@ module.exports = async (req, res) => {
         }
       }
 
-      // Existierenden Datensatz finden (egal welcher Status)
-      const existing = await loadKalkStammdatenForWE(weId);
+      // Existierenden Datensatz finden (egal welcher Status) — bei einer Variante
+      // wird deren eigener Stammsatz bearbeitet, nie der der unmöblierten Wohnung.
+      const existing = variante ? variante.rec : await loadKalkStammdatenForWE(weId);
 
       // Body → Airtable-Field-IDs (nur gesetzte Felder)
       // Iter 45 (19.05.2026): Reihenfolge gefixt — fields VOR Aktiv-Validierung, sonst ReferenceError.
       const fields = {};
-      if (body.status !== undefined)                fields[KALK_STAMMDATEN_FIELDS.STATUS]               = body.status;
+      // Status eines Varianten-Satzes ist fix — sonst würde ein Umschalten auf 'Aktiv'
+      // den Stammsatz der unmöblierten Wohnung archivieren (archiveOtherAktivForWE).
+      if (body.status !== undefined && !variante)   fields[KALK_STAMMDATEN_FIELDS.STATUS]               = body.status;
       if (body.hausverwaltung !== undefined)        fields[KALK_STAMMDATEN_FIELDS.HAUSVERWALTUNG]       = num(body.hausverwaltung);
       if (body.hausgeldRuecklage !== undefined)     fields[KALK_STAMMDATEN_FIELDS.HAUSGELD_RUECKLAGE]   = num(body.hausgeldRuecklage);
       if (body.mietverwaltungDefault !== undefined) fields[KALK_STAMMDATEN_FIELDS.MIETVERWALTUNG_DEF]   = num(body.mietverwaltungDefault);
@@ -1403,7 +1426,7 @@ module.exports = async (req, res) => {
       // Iter 41.16 (Audit-Fix #14): Pflichtfeld-Validierung beim Aktiv-Setzen.
       // Eine WE darf nur dann auf Status=Aktiv gesetzt werden, wenn die für den
       // Vertriebs-Pitch zwingend benötigten Felder gepflegt sind.
-      if (body.status === KALK_STATUS_AKTIV) {
+      if (body.status === KALK_STATUS_AKTIV && !variante) {
         const merged = Object.assign({}, existing ? (existing.fields || {}) : {}, fields);
         const missing = [];
         const mbv = num(merged[KALK_STAMMDATEN_FIELDS.MIETE_BEI_VERKAUF]);
@@ -1437,7 +1460,7 @@ module.exports = async (req, res) => {
 
       let updatedRec;
       if (existing) {
-        if (body.status === KALK_STATUS_AKTIV) {
+        if (body.status === KALK_STATUS_AKTIV && !variante) {
           await archiveOtherAktivForWE(weId, existing.id);
         }
         updatedRec = await airtable('update', TABLES.KALK_STAMMDATEN, { recordId: existing.id, fields });

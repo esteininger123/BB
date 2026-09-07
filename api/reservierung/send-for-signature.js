@@ -31,6 +31,8 @@
 
 const { verifySession, requireSafeOrigin } = require('../_lib/auth');
 const { airtable, listAll } = require('../_lib/airtable');
+// 07.09.2026 — möblierte Varianten ("<weId>~<stammId>"), siehe _lib/we-variante.js
+const { parseWeId, loadVariante, applyVariante } = require('../_lib/we-variante');
 const { appendActivityZeile } = require('../_lib/notizen');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const {
@@ -61,9 +63,12 @@ module.exports = async (req, res) => {
     }
 
     const body = await readBody(req);
-    const { kundeId, weId, snapshotId } = body;
+    const { kundeId, weId: weIdRaw, snapshotId } = body;
+    const { weId, variantId } = parseWeId(weIdRaw);
     if (!kundeId) return res.status(400).json({ error: 'kundeId erforderlich' });
     if (!weId)    return res.status(400).json({ error: 'weId erforderlich' });
+    const variante = variantId ? await loadVariante(weId, variantId) : null;
+    if (variantId && !variante) return res.status(400).json({ error: 'Variante nicht gefunden' });
 
     // --- 1. Daten parallel laden (Kunde, WE, eingeloggter Vertriebler)
     const [kundeRec, weRec, vertrieblerRec] = await Promise.all([
@@ -112,7 +117,8 @@ module.exports = async (req, res) => {
 
     // --- 4. Feld-Extraktion
     const kunde       = kundeRec.fields       || {};
-    const we          = weRec.fields          || {};
+    // Variante (möbliert): Preis/WE-Nr. der Variante statt der unmöblierten Wohnung.
+    const we          = variante ? applyVariante(weRec.fields || {}, variante.info) : (weRec.fields || {});
     const vertriebler = vertrieblerRec.fields || {};
 
     const vorname  = kunde[KUNDEN_FIELDS.VORNAME]  || '';

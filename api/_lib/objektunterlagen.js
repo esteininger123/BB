@@ -5,8 +5,11 @@
 const { airtable } = require('./airtable');
 const { TABLES, WE_FIELDS, PROJEKT_FIELDS } = require('./tables');
 const { folderIdFromUrl } = require('./drive');
+const { baseWeId } = require('./we-variante');
 
-async function resolveVerkaufsunterlagenFolder(weId) {
+async function resolveVerkaufsunterlagenFolder(weIdRaw) {
+  // Varianten-ID ("<weId>~<stammId>") → echte WE-ID (07.09.2026)
+  const weId = baseWeId(weIdRaw);
   if (!weId) return '';
   try {
     const weRec = await airtable('get', TABLES.WOHNEINHEIT, { recordId: weId });

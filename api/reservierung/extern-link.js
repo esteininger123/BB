@@ -17,6 +17,8 @@
 const jwt = require('jsonwebtoken');
 const { verifySession, requireSafeOrigin, isExtern } = require('../_lib/auth');
 const { externPreis, loadProvisionPct, ladeStellplatzKpSummen } = require('../_lib/extern');
+// 07.09.2026 — möblierte Varianten: eigene Karte, aber dieselbe Wohneinheit.
+const { parseWeId, loadVariante, applyVariante } = require('../_lib/we-variante');
 const { kpWohnungFuerReservierung } = require('../_lib/reserv-preis');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { airtable, listAll } = require('../_lib/airtable');
@@ -53,9 +55,13 @@ module.exports = async (req, res) => {
   try {
     const body = await readBody(req);
     const kundeId = (body.kundeId || '').trim();
-    const weId = (body.weId || '').trim();
+    const weIdRaw = (body.weId || '').trim();
+    // "<weId>~<stammId>" = möblierte Variante → echte WE-ID + Varianten-Stammsatz
+    const { weId, variantId } = parseWeId(weIdRaw);
     if (!/^rec[A-Za-z0-9]{14}$/.test(kundeId)) return res.status(400).json({ error: 'kundeId fehlt oder ungültig' });
-    if (!/^rec[A-Za-z0-9]{14}$/.test(weId)) return res.status(400).json({ error: 'weId fehlt oder ungültig' });
+    if (!weId) return res.status(400).json({ error: 'weId fehlt oder ungültig' });
+    const variante = variantId ? await loadVariante(weId, variantId) : null;
+    if (variantId && !variante) return res.status(400).json({ error: 'Variante nicht gefunden' });
     const adr = body.adresse || {};
     const strasse = (adr.strasse || '').trim();
     const plz = (adr.plz || '').trim();
@@ -107,7 +113,8 @@ module.exports = async (req, res) => {
         const links = f[KALK_STAMMDATEN_FIELDS.WOHNEINHEIT] || [];
         return Array.isArray(links) && links.some(x => ((x && typeof x === 'object' && x.id) ? x.id : x) === weId);
       });
-      if (!freigegeben) {
+      const varianteFreigegeben = !!(variante && (variante.rec.fields || {})[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE]);
+      if (variante ? !varianteFreigegeben : !freigegeben) {
         return res.status(403).json({ error: 'Diese Einheit ist für den externen Vertrieb nicht freigegeben.' });
       }
     }
@@ -119,7 +126,9 @@ module.exports = async (req, res) => {
       loadProvisionPct(session),
       ladeStellplatzKpSummen(),
     ]);
-    const wf = (weRec && weRec.fields) || {};
+    // Variante: Kaufpreis (Basis + Ausstattungspaket) und WE-Nr. überlagern die WE-Werte,
+    // damit Reservierung und Aktivitätslog den möblierten Preis führen.
+    const wf = variante ? applyVariante((weRec && weRec.fields) || {}, variante.info) : ((weRec && weRec.fields) || {});
     const kpBasis = num(wf[WE_FIELDS.KAUFPREIS]);
     if (kpBasis <= 0) return res.status(400).json({ error: 'Für diese Wohneinheit ist kein Kaufpreis gepflegt' });
     const stellplatzKp = num(stplKpByWe[weId]);
@@ -167,7 +176,7 @@ module.exports = async (req, res) => {
       vertrieblerName,
       kaeufer: kaeufer2 ? `${kaeuferName} und ${kaeufer2}` : kaeuferName,
       adresse: { strasse, plz, ort },
-      weId,
+      weId: weIdRaw,
       doc: {
         // Preise = Server-Wahrheit (Kundenpreis inkl. Provision, Stellplatz unverändert)
         kpWohnung,

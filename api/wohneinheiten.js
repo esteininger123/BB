@@ -12,6 +12,11 @@ const {
   weStatusSichtbarFormula, maklerFirmaFormula
 } = require('./_lib/tables');
 const { weRecordToApi } = require('./_lib/mappers');
+// 07.09.2026 — Varianten (möbliert): zweite Angebots-Karte für dieselbe WE,
+// ohne zweiten Wohneinheit-Record in Airtable. Siehe _lib/we-variante.js.
+const {
+  composeWeId, varianteInfo, applyVariante, listVariantenStamm,
+} = require('./_lib/we-variante');
 
 // Versucht Projekt-Namen aus den verlinkten Records zu laden.
 // Toleriert Fehler (z.B. wenn Projekt-Tabelle anders heißt) und liefert leeres Mapping.
@@ -196,6 +201,24 @@ module.exports = async (req, res) => {
       pageSize: 100
     }, 1000);
 
+    // Varianten-Stammdaten (Status='Variante') separat laden — sie erzeugen je eine
+    // zusätzliche Karte auf der BESTEHENDEN WE (möbliert), zählen in Airtable aber nicht
+    // als eigene Wohneinheit.
+    const variantenRecords = await listVariantenStamm([
+      KALK_STAMMDATEN_FIELDS.WOHNEINHEIT,
+      KALK_STAMMDATEN_FIELDS.STATUS,
+      KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE,
+      KALK_STAMMDATEN_FIELDS.VARIANTE_LABEL,
+      KALK_STAMMDATEN_FIELDS.VARIANTE_BASIS_KP,
+      KALK_STAMMDATEN_FIELDS.VARIANTE_PAKET,
+      KALK_STAMMDATEN_FIELDS.VARIANTE_EXPOSE,
+    ]);
+    // Nur Varianten, die der Session zustehen (Externe: Opt-in-Checkbox wie bei Aktiv-WEs)
+    const varianten = variantenRecords
+      .filter(r => !isExtern(session) || (r.fields || {})[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE])
+      .map(varianteInfo)
+      .filter(v => v && v.weId);
+
     const aktiveWeIds = new Set();
     stammdatenRecords.forEach(r => {
       // 06.07.2026 (Henry): Externe sehen nur explizit freigegebene Einheiten
@@ -209,8 +232,12 @@ module.exports = async (req, res) => {
       });
     });
 
-    // Wenn keine WE auf Aktiv UND nicht showAll → leeres Array zurückgeben
-    if (aktiveWeIds.size === 0 && !showAll) {
+    // WEs, die (nur) über eine Variante sichtbar werden, müssen mit abgefragt werden.
+    const variantenWeIds = new Set(varianten.map(v => v.weId));
+    const abzufragendeWeIds = new Set([...aktiveWeIds, ...variantenWeIds]);
+
+    // Wenn keine WE auf Aktiv, keine Variante UND nicht showAll → leeres Array zurückgeben
+    if (abzufragendeWeIds.size === 0 && !showAll) {
       return res.status(200).json([]);
     }
 
@@ -231,7 +258,7 @@ module.exports = async (req, res) => {
 
     // WE-ID-Filter aus aktiven Stammdaten (nur wenn nicht showAll)
     // Iter 53: showAll Admin-Modus → keinen WE-ID-Filter, dafür alle Vermarktungs-WEs
-    const weIdArr = Array.from(aktiveWeIds);
+    const weIdArr = Array.from(abzufragendeWeIds);
     let formula;
     if (showAll) {
       formula = `AND(${weStatusSichtbarFormula()}, ${maklerFirmaFormula()}, ${objektFormula})`;
@@ -268,13 +295,38 @@ module.exports = async (req, res) => {
     const projektMap = await loadProjektNames(projektIds);
 
     // Iter 53: pro WE Flag inStammdatenAktiv für die Admin-Trennung in 2 Tabellen
-    const out = records.map(r => {
-      const mapped = weRecordToApi(r, projektMap);
-      mapped.inStammdatenAktiv = aktiveWeIds.has(r.id);
-      // WE-Status mitliefern (singleSelect → {name} oder String) für die Reserviert/Notartermin-Markierung.
+    const weStatusName = (r) => {
       const st = r.fields && r.fields[WE_FIELDS.STATUS];
-      mapped.status = (st && typeof st === 'object') ? st.name : (st || null);
-      return mapped;
+      return (st && typeof st === 'object') ? st.name : (st || null);
+    };
+    // Varianten-Karten (möbliert): gleiche WE, eigener Preis/Name/Exposé,
+    // ID "<weId>~<stammId>". Sie stehen direkt hinter ihrer Wohnung — die
+    // bisherige Reihenfolge der Liste bleibt sonst unverändert.
+    const variantenByWe = new Map();
+    varianten.forEach(v => {
+      if (!variantenByWe.has(v.weId)) variantenByWe.set(v.weId, []);
+      variantenByWe.get(v.weId).push(v);
+    });
+
+    const out = [];
+    records.forEach(r => {
+      // Eine WE, die NUR wegen einer Variante geladen wurde (kein Aktiv-Stammsatz),
+      // erscheint selbst nicht als Karte — sonst tauchte sie unmöbliert im Vertrieb auf.
+      if (aktiveWeIds.has(r.id) || showAll) {
+        const mapped = weRecordToApi(r, projektMap);
+        mapped.inStammdatenAktiv = aktiveWeIds.has(r.id);
+        mapped.status = weStatusName(r);
+        out.push(mapped);
+      }
+      (variantenByWe.get(r.id) || []).forEach(v => {
+        const virtRec = { id: r.id, fields: applyVariante(r.fields, v) };
+        const mapped = weRecordToApi(virtRec, projektMap);
+        mapped.id = composeWeId(v.weId, v.stammId);
+        mapped.inStammdatenAktiv = true;
+        mapped.status = weStatusName(r);
+        mapped.variante = { label: v.label, paket: v.paket, basisWeId: v.weId };
+        out.push(mapped);
+      });
     });
 
     // 06.07.2026 (Henry) — Externer Vertrieb: Kundenpreis statt Abgabepreis.
@@ -286,7 +338,8 @@ module.exports = async (req, res) => {
         ladeStellplatzKpSummen(),
       ]);
       out.forEach(w => {
-        const e = externPreis(w.kp, stplKpByWe[w.id] || 0, prov);
+        const basisId = w.variante ? w.variante.basisWeId : w.id;
+        const e = externPreis(w.kp, stplKpByWe[basisId] || 0, prov);
         w.kp = e.kp;
         if (w.qm > 0) w.qmPreis = Math.round((e.kp / w.qm) * 100) / 100;
         w.extern = { provisionPct: e.provisionPct, aufschlag: e.aufschlag };

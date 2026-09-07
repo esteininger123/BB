@@ -1,6 +1,9 @@
 // Field-Mappings: Airtable-Record → API-Object und API-Body → Airtable-Fields.
 
 const { KUNDEN_FIELDS, SNAPSHOT_FIELDS, VERTRIEBLER_FIELDS, WE_FIELDS, FINANZIERUNGSFALL_FIELDS, FINANZIERUNGSFALL_STATUS_START, FINANZIERUNG_BB } = require('./tables');
+// 07.09.2026 — Varianten-IDs ("<weId>~<stammId>") auf die echte WE-ID reduzieren:
+// Airtable-Link-Felder akzeptieren nur echte Record-IDs.
+const { baseWeId } = require('./we-variante');
 
 // Frontend-Key ('ueber_bb' | 'offen' | 'extern') → Airtable-Choice-Name.
 const FINANZIERUNG_BB_BY_KEY = { ueber_bb: FINANZIERUNG_BB.JA, offen: FINANZIERUNG_BB.OFFEN, extern: FINANZIERUNG_BB.EXTERN };
@@ -208,7 +211,7 @@ function finanzierungsfallBodyToFields(body) {
   const setIf = (field, val) => { if (val != null) out[field] = val; };
 
   if (body.kundeId)    out[F.KUNDE]       = [body.kundeId];
-  if (body.weId)       out[F.WOHNEINHEIT] = [body.weId];
+  if (body.weId)       out[F.WOHNEINHEIT] = [baseWeId(body.weId) || body.weId];
   if (body.snapshotId) out[F.SNAPSHOT]    = [body.snapshotId];
 
   // Titel = "Kundenname — WE-Bezeichnung"

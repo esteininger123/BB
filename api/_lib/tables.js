@@ -291,6 +291,17 @@ const KALK_STAMMDATEN_FIELDS = {
   // zeigte für ALLE WEs „Keine Stammdaten gepflegt — läuft mit Defaults".
   // hgInflation wird seit 24.05.2026 ohnehin als 0 hartcodiert (siehe
   // kalkStammRecordToApi + maybeWriteBackAutoSubv).
+  // 07.09.2026 (Henry) — VARIANTEN-MODELL (möblierte Wohnungen):
+  // Eine möblierte Wohnung ist KEIN zweiter Wohneinheit-Record in Airtable (das
+  // verfälscht alle Objekt-Auswertungen: WE-Anzahl, KP-Summen, Vermarktungsstand),
+  // sondern ein zusätzlicher Kalk-Stammdatensatz mit Status = 'Variante', der auf
+  // dieselbe Wohneinheit verlinkt. Die Backstube macht daraus eine zweite
+  // Angebots-Karte (WE-ID der Karte = "<weRecId>~<stammRecId>", siehe _lib/we-variante.js).
+  // In Airtable bleibt es EINE Wohnung.
+  VARIANTE_LABEL:        'fld74UEC8mPUchm8c', // singleLineText, z.B. "möbliert"
+  VARIANTE_BASIS_KP:     'fldLEa7jYqqMCxOHB', // Currency € — Override des Wohnungs-KP (leer = KP der WE)
+  VARIANTE_PAKET:        'fldXE7SAhUP1vgg3i', // Currency € — Aufpreis Möbel-/Küchenpaket (separat im KV)
+  VARIANTE_EXPOSE:       'fldeH34w0FdE9R8jt', // URL — eigenes Exposé der Variante (leer = Exposé der WE)
   NOTIZEN:               'fld097ACU9qRS5kwq',
   QUELLE:                'fldrMUcQs06YF0lGi',
   // Iter 41.9 — Henry-Feedback 17.05.2026:
@@ -357,6 +368,10 @@ const KALK_STAMMDATEN_FIELDS = {
 const KALK_STATUS_AKTIV    = 'Aktiv';
 const KALK_STATUS_ENTWURF  = 'Entwurf';
 const KALK_STATUS_ARCHIV   = 'Archiviert';
+// 07.09.2026 — Varianten-Datensatz (möbliert o.ä.): erzeugt in der Backstube eine
+// zusätzliche Karte für dieselbe WE, wird von der normalen Aktiv-/Entwurf-Logik
+// (loadKalkStammdatenForWE, archiveOtherAktivForWE) bewusst ignoriert.
+const KALK_STATUS_VARIANTE = 'Variante';
 
 module.exports = {
   TABLES,
@@ -380,6 +395,7 @@ module.exports = {
   KALK_STATUS_AKTIV,
   KALK_STATUS_ENTWURF,
   KALK_STATUS_ARCHIV,
+  KALK_STATUS_VARIANTE,
   FINANZIERUNGSFALL_FIELDS,
   FINANZIERUNGSFALL_STATUS_START,
   FINANZIERUNG_BB,

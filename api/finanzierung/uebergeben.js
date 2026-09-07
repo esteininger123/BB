@@ -11,6 +11,7 @@ const { airtable, listAll } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { TABLES, SNAPSHOT_FIELDS, KUNDEN_FIELDS, FINANZIERUNGSFALL_FIELDS } = require('../_lib/tables');
 const { finanzierungsfallBodyToFields } = require('../_lib/mappers');
+const { baseWeId } = require('../_lib/we-variante');
 
 // Owner-Check (gleiche Logik wie snapshots.js): Admin darf alles, sonst muss
 // der eingeloggte Vertriebler Owner des Kunden sein.
@@ -83,7 +84,10 @@ module.exports = async (req, res) => {
       kundeName = (kRec.fields && kRec.fields[KUNDEN_FIELDS.NAME]) || '';
     } catch { /* Titel notfalls nur aus WE */ }
 
-    const weRecId = sf[SNAPSHOT_FIELDS.WE_RECID] || '';
+    // Snapshot kann eine Varianten-ID ("<weId>~<stammId>", möbliert) tragen —
+    // für Link-Feld, Drive-Ordner und Upload-Token gilt die echte WE-ID (07.09.2026).
+    const weRecIdRaw = sf[SNAPSHOT_FIELDS.WE_RECID] || '';
+    const weRecId = baseWeId(weRecIdRaw) || '';
     const fields = finanzierungsfallBodyToFields({
       kundeId: body.kundeId,
       weId: weRecId || undefined,
