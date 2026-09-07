@@ -267,3 +267,38 @@ Zusätzlich zu Google (v.a. für Externe ohne Google-Konto):
   via `PATCH /api/me { passwortNeu, passwortAlt? }` (passwortAlt Pflicht, sobald
   eines existiert; UI für Externe: Start & Provision → Login & Passwort).
 - Login-Formular unter dem Google-Button (renderLogin), min. 8 Zeichen.
+
+## Möblierte Wohnungen = Varianten, kein zweiter WE-Record (07.09.2026, Henry)
+
+**Regel:** Eine möblierte Wohnung ist in Airtable **dieselbe Wohneinheit**. Ein zweiter
+Wohneinheit-Record (früher "WE: 205 (möbliert)") verdoppelt die Wohnung in allen
+Objekt-Auswertungen — WE-Anzahl, Kaufpreis-Summen, Vermarktungsstand, Margen- und
+Provisionsrechnungen. Solche Duplikate dürfen nicht angelegt werden.
+
+**Stattdessen:** ein zusätzlicher Datensatz in *Kalkulations-Stammdaten* (`tblz5KNtzkLSLHHFo`)
+mit **Status = `Variante`**, verlinkt auf die bestehende WE. Nur die Backstube macht daraus
+eine zweite Angebots-Karte.
+
+| Feld | ID | Bedeutung |
+|---|---|---|
+| Variante — Label | `fld74UEC8mPUchm8c` | Namenszusatz, z.B. `möbliert` |
+| Variante — Basis-KP Wohnung | `fldLEa7jYqqMCxOHB` | Override des Wohnungs-KP (leer = KP der WE) |
+| Variante — Ausstattungspaket € | `fldXE7SAhUP1vgg3i` | Aufpreis Möbel/Küche (separat im KV) |
+| Variante — Exposé-Link | `fldeH34w0FdE9R8jt` | eigenes Exposé (leer = Exposé der WE) |
+
+Preis der Karte = (Basis-KP **oder** KP der WE) + Ausstattungspaket.
+Alle übrigen Rechenwerte (Miete bei Verkauf, Marktmiete, Notizen, Extern-Freigabe …)
+kommen aus dem Varianten-Stammsatz selbst.
+
+**WE-ID der Karte:** `<weRecId>~<stammRecId>` (z.B. `recOVuIsot18BpO75~rec4h53kvjaD9SCMx`).
+Sie läuft durch App und APIs wie eine normale WE-ID. **Jeder Airtable-Zugriff muss vorher
+durch `parseWeId()` / `baseWeId()` aus `api/_lib/we-variante.js`** — Record-Gets und
+Link-Felder (Finanzierungsfall, Stellplatz, Mietvertrag) vertragen nur die echte WE-ID.
+
+Status `Variante` wird von `loadKalkStammdatenForWE`, `archiveOtherAktivForWE`,
+`stammdaten/index.js` und `refresh-all.js` bewusst ignoriert — der Aktiv-Satz der
+unmöblierten Wohnung bleibt davon unberührt. Der Status eines Varianten-Satzes ist im
+PUT fix; Extern-Freigabe einer Variante wird direkt in Airtable gesetzt.
+
+Bestand 07.09.2026: Spechtweg 35 — WE 205 (`rec4h53kvjaD9SCMx`, +20.000 €) und
+WE 219 (`recO1qE1Cmahc6oMY`, Basis 176.275 € + 15.000 €, Angebot Kober).
