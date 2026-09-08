@@ -9452,6 +9452,9 @@ async function renderWeListe() {
               🧮 Einfacher Rechner
             </label>
           ` : ''}
+          ${_weListeSimpleMode() ? `
+            <span class="text-tertiary text-small" style="white-space:nowrap;" title="${esc(_rechnerDefaultsLabel())}">Kennzahlen = Musterberechnung (${esc(_rechnerDefaultsLabel())})</span>
+          ` : `
           <label class="text-tertiary text-small" for="we-liste-profil" style="white-space:nowrap;">Kennzahlen für Profil</label>
           <select id="we-liste-profil" onchange="window._weListeSetProfil(this.value)" style="padding:6px 10px;font-size:13px;min-width:340px;">
             ${(() => {
@@ -9473,6 +9476,7 @@ async function renderWeListe() {
               }).join('');
             })()}
           </select>
+          `}
           <button class="secondary" onclick="window._weListeReload()" style="font-size:13px;">⟳ Neu laden</button>
         </div>
       </div>
@@ -9567,6 +9571,10 @@ function _renderWeListeContent() {
 
   const fmtEur = (v) => (v == null || !isFinite(v)) ? '–' : Math.round(v).toLocaleString('de-DE') + ' €';
   const fmtEurMo = (v) => (v == null || !isFinite(v)) ? '–' : Math.round(v).toLocaleString('de-DE') + ' €/Mo';
+  // Cashflow der Musterberechnung: Cent-genau + Vorzeichen, damit die Zahl 1:1 der
+  // Anzeige im Einfachen Rechner entspricht (dort „− 10,92 €/Mo").
+  const fmtCf = (v) => (v == null || !isFinite(v)) ? '–'
+    : (v > 0 ? '+ ' : '') + v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €/Mo';
   const fmtPct  = (v) => (v == null || !isFinite(v)) ? '–' : (v * 100).toFixed(1).replace('.', ',') + ' %';
   // QA-Sprint 2026-05-23 (Edgar-Doc Bug-1): €/qm + qm im WE-Liste anzeigen.
   const fmtQm = (v) => (v == null || !isFinite(v) || v <= 0) ? '–' : v.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' qm';
@@ -9582,6 +9590,9 @@ function _renderWeListeContent() {
     ? ' <span class="we-status-pill notartermin" style="margin-left:6px;font-size:10px;">⚠ NOTARTERMIN</span>'
     : '';
 
+  // Kennzahlen-Quelle: Musterberechnung (Klick öffnet den Einfachen Rechner) oder Engine (Kunden-Kalkulator)
+  const simpleMode = _weListeSimpleMode();
+
   // Pro Zeile: Engine durchrechnen
   function _berechne(row) {
     if (!window.Kalk || !window.Kalk.recalc) return null;
@@ -9596,6 +9607,33 @@ function _renderWeListeContent() {
       // korrekte vermietung.letzteMietsteigerung. Vorher war Cashflow J1 in der WE-Liste deutlich
       // negativer als in der App, weil 2-Phasen-Subv + Tag-1-Anhebung fehlten.
       const detail = (detailById && detailById[we.id]) || null;
+      // 08.09.2026 (Henry): Öffnet der Klick die Musterberechnung (Einfacher Rechner /
+      // Extern), kommen die Kennzahlen aus GENAU deren Rechenkern + Standard-Eingaben.
+      // Vorher: Engine mit Listen-Profil → WE 1 Meckesheim −82 €/Mo in der Liste,
+      // −10,92 €/Mo nach dem Klick. Ohne Detaildaten ist die Zeile unkalkulierbar
+      // (kein stiller Fallback auf abweichende Engine-Werte).
+      if (simpleMode) {
+        if (!detail || !detail.we) return { incomplete: true, reason: 'Stammdaten nicht ladbar — „Neu laden" versuchen' };
+        if (!(detail.we.kp > 0)) return { incomplete: true, reason: 'Kaufpreis nicht gepflegt' };
+        const c = _rechnerCalc(detail, _rechnerDefaultInputs(detail));
+        if (!(c.kaltmiete > 0)) return { incomplete: true, reason: 'Kaltmiete und MBV fehlen — Pflege in Stammdaten' };
+        const ph = Array.isArray(c.phasen) ? c.phasen : [];
+        const modusRawS = String((detail.kalkStammdaten && detail.kalkStammdaten.vermietungsModus) || sd.vermietungsModus || '').toLowerCase();
+        return {
+          simple: true,
+          gesamtKp: c.gesamtKp,
+          einnahmenMo: c.einnahmenMo,
+          vorSteuerMo: c.vorSteuerMo,
+          belastungMo: c.nachSteuerMo,
+          // Brutto-Rendite Tag 1 = Einnahme/Monat (Kaltmiete + Stellplatz + Subv Phase 1) × 12 ÷ Gesamt-KP
+          bruttoRendite: c.gesamtKp > 0 ? (c.einnahmenMo * 12) / c.gesamtKp : null,
+          subvMoPhase1: c.subvMo1,
+          subvMonatePhase1: ph.length ? (ph[0].monate || 0) : 0,
+          subvGesamt: c.subvTotal || (c.subvMo1 * (ph.length ? (ph[0].monate || 0) : 0)),
+          modus: /neuvermietung|staffel|leer|frei/.test(modusRawS) ? 'staffel' : (/index/.test(modusRawS) ? 'index' : 'sprung'),
+          tag1Aktiv: !!(detail.derived && detail.derived.subventionKaltmieteAdjustiert > 0),
+        };
+      }
       const derived = (detail && detail.derived) || null;
       const detailVerm = (detail && detail.vermietung) || verm;
       const detailStpl = (detail && detail.stellplaetze) || stpl;
@@ -9825,7 +9863,7 @@ function _renderWeListeContent() {
             <td class="num">${fmtZufr(we.zufriedenheit)}</td>
             <td class="num">${fmtMaengel(we.maengelAnzahl)}</td>
             <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
-            <td colspan="9" style="text-align:center;color:var(--negative);font-style:italic;font-size:13px;">⚠ ${esc(calc.reason || 'unkalkulierbar')}</td>
+            <td colspan="${simpleMode ? 8 : 9}" style="text-align:center;color:var(--negative);font-style:italic;font-size:13px;">⚠ ${esc(calc.reason || 'unkalkulierbar')}</td>
           </tr>
         `;
       }
@@ -9873,6 +9911,11 @@ function _renderWeListeContent() {
           <td class="num">${(stpl.anzahl > 0 && stpl.mieteMoSumme > 0) ? fmtEurMo(stpl.mieteMoSumme) : '–'}</td>
           <td class="num">${subvCell}</td>
           <td class="num">${fmtPct(calc.bruttoRendite)}</td>
+          ${simpleMode ? `
+          <td class="num">${fmtEurMo(calc.einnahmenMo)}</td>
+          <td class="num ${calc.vorSteuerMo < 0 ? 'cell-neg' : 'cell-pos'}">${fmtCf(calc.vorSteuerMo)}</td>
+          <td class="num ${calc.belastungMo < 0 ? 'cell-neg' : 'cell-pos'}"><strong>${fmtCf(calc.belastungMo)}</strong></td>
+          ` : `
           <td class="num ${calc.belastungMo < 0 ? 'cell-neg' : 'cell-pos'}">${fmtEurMo(calc.belastungMo)}</td>
           <td class="num">${fmtEur(calc.vermoegenNetto10)}</td>
           <td class="num">${(() => {
@@ -9884,6 +9927,7 @@ function _renderWeListeContent() {
             return kp > 0 ? fmtPct(calc.vermoegenNetto10 / kp) : '–';
           })()}</td>
           <td class="num"><strong>${fmtPct(calc.irr)}</strong></td>
+          `}
         </tr>
       `;
     }).join('');
@@ -9904,10 +9948,16 @@ function _renderWeListeContent() {
               <col style="width:6%;">
               <col style="width:9%;">
               <col style="width:7%;">
+              ${simpleMode ? `
+              <col style="width:8%;">
+              <col style="width:8%;">
+              <col style="width:8%;">
+              ` : `
               <col style="width:7%;">
               <col style="width:9%;">
               <col style="width:8%;">
               <col style="width:6%;">
+              `}
             </colgroup>
             <thead>
               <tr>
@@ -9922,10 +9972,16 @@ function _renderWeListeContent() {
                 <th class="num">Garage Miete</th>
                 <th class="num">Mietsubvention</th>
                 <th class="num">Brutto-Rendite</th>
+                ${simpleMode ? `
+                <th class="num" title="Einnahme/Monat der Musterberechnung: Kaltmiete + Stellplatz + Mietsubvention">Einnahme/Mo</th>
+                <th class="num" title="Cashflow vor Steuer (Musterberechnung, Jahr 1)">CF vor St.</th>
+                <th class="num" title="Cashflow nach Steuer (Musterberechnung, Jahr 1) — identisch zur Anzeige nach dem Klick">CF n.St.</th>
+                ` : `
                 <th class="num" title="Cashflow Jahr 1 nach Steuern">CF J1 n.St.</th>
                 <th class="num">Vermögen J10</th>
                 <th class="num" title="Vermögensaufbau J10 ÷ Kaufpreis (Whg + Garage) — wie viel Vermögen pro investiertem €">Wachstum</th>
                 <th class="num">IRR 10J</th>
+                `}
               </tr>
             </thead>
             <tbody>${trs}</tbody>
@@ -10313,7 +10369,7 @@ function _weListeOpenWe(weId) {
   // der Kunden-Zwischenschritt entfällt komplett (Kunde entsteht erst bei Reservierung).
   // 20.07.2026 (Henry): Interne können per Toggle („Einfacher Rechner") dieselbe
   // vereinfachte Ansicht nutzen — mit allen Einheiten und Intern-Preisen.
-  if (state.user && (state.user.rolle === 'Extern' || _simpleRechnerAktiv())) {
+  if (_weListeSimpleMode()) {
     go('/rechner/' + weId);
     return;
   }
@@ -10586,6 +10642,14 @@ function _simpleRechnerAktiv() {
 function _simpleRechnerToggle(an) {
   try { localStorage.setItem(_simpleRechnerKey(), an ? '1' : '0'); } catch (e) {}
   toast(an ? 'Einfacher Rechner aktiv — Klick auf eine WE öffnet die Musterberechnung' : 'Einfacher Rechner aus — Klick auf eine WE öffnet wieder den Kunden-Kalkulator', 'info');
+  // 08.09.2026 (Henry): Kennzahlen der Liste folgen dem Modus (Musterberechnung vs. Engine) →
+  // sofort neu rendern, damit Liste und Klick-Ziel dieselben Zahlen zeigen.
+  if (state.view === 'we-liste' && typeof renderWeListe === 'function') renderWeListe();
+}
+// true = Klick auf eine WE öffnet die Musterberechnung (Einfacher Rechner) —
+// dann müssen auch die Kennzahlen der WE-Liste aus der Musterberechnung kommen.
+function _weListeSimpleMode() {
+  return !!(state.user && (state.user.rolle === 'Extern' || _simpleRechnerAktiv()));
 }
 window._simpleRechnerToggle = _simpleRechnerToggle;
 
@@ -10612,6 +10676,29 @@ const RECHNER_SEV_MO    = 30;     // Mietverwaltung (SEV) €/Mo — B&B-Angebot
 const RECHNER_GARAGE_AFA = 0.05;
 const RECHNER_GARAGE_JAHRE = 20;
 
+// 08.09.2026 (Henry): Standard-Eingaben der Musterberechnung an EINER Stelle —
+// werden vom Einfachen Rechner beim Öffnen UND von der WE-Liste (Kennzahlen bei
+// aktivem „Einfacher Rechner") benutzt. Vorher zeigte die Liste Engine-Werte
+// (Profil 30 % StSatz / 1 % Tilgung), der Klick dann die Musterberechnung
+// (42 % StSatz, EK = KNK, 4,4 % Zins, 1,5 % Tilgung, SEV 30 €) → WE 1 Meckesheim
+// stand mit −82 €/Mo in der Liste und −10,92 €/Mo nach dem Klick.
+function _rechnerDefaultInputs(d) {
+  const b0 = _rechnerBasis(d);
+  const ek0 = Math.round(b0.knk);
+  return {
+    ek: ek0,
+    zinsPct: _rechnerZinsAuto(ek0, b0.knk),
+    tilgungPct: _rechnerTilgungAuto(b0.gesamtKp),
+    steuerPct: 42, sev: true,
+    _zinsManuell: false,
+  };
+}
+// Kurzbeschreibung der Standard-Annahmen (für den Hinweis in der WE-Liste).
+function _rechnerDefaultsLabel() {
+  return 'EK = Kaufnebenkosten · ' + RECHNER_ZINS_MIT_NK_PCT.toLocaleString('de-DE') + ' % Zins · '
+    + '1,5 % Tilgung (ab ' + (RECHNER_TILGUNG_GRENZE_EUR / 1000) + ' T€: 1,25 %) · 42 % Steuersatz · SEV ' + RECHNER_SEV_MO + ' €/Mo';
+}
+
 function renderExternRechner() {
   const app = document.getElementById('app');
   const weId = state.rechnerWeId;
@@ -10626,15 +10713,7 @@ function renderExternRechner() {
     // des Kaufpreises — der Kunde bringt die Nebenkosten als Eigenkapital mit.
     // SEV default AN wie in der Musterberechnung (SE-Verwaltergebühr fest eingerechnet) — abwählbar.
     // Zins/Tilgung = Standard-Konditionen (Henry 14.08.2026, siehe _rechnerZinsAuto/-TilgungAuto).
-    const b0 = _rechnerBasis(d);
-    const ek0 = Math.round(b0.knk);
-    state._rechnerInputs = {
-      ek: ek0,
-      zinsPct: _rechnerZinsAuto(ek0, b0.knk),
-      tilgungPct: _rechnerTilgungAuto(b0.gesamtKp),
-      steuerPct: 42, sev: true,
-      _zinsManuell: false,
-    };
+    state._rechnerInputs = _rechnerDefaultInputs(d);
     _rechnerRenderContent();
   }).catch((e) => {
     app.innerHTML = '<div class="main" style="max-width:780px;margin:0 auto;"><div class="card" style="margin-top:24px;">Kalkulation konnte nicht geladen werden: ' + esc(e.message || 'unbekannt') + ' — <a href="#/we-liste">zurück zu den Wohnungen</a></div></div>';
