@@ -9443,13 +9443,13 @@ async function renderWeListe() {
       <div class="we-liste-head" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;margin-bottom:18px;">
         <div>
           <h1 class="page-title" style="margin:0 0 6px;">Wohneinheiten im Verkauf</h1>
-          <div class="text-tertiary text-small">Live-Liste: Vermarktung + reservierte + Notartermin-Einheiten (reservierte/Notartermin sind markiert) — pro Projekt sortiert. Klick auf eine WE öffnet die Kalkulation.</div>
+          <div class="text-tertiary text-small">Live-Liste: Vermarktung + reservierte + Notartermin-Einheiten (reservierte/Notartermin sind markiert) — pro Projekt sortiert. Klick auf eine WE öffnet die Musterberechnung (Standard) — Haken „Komplizierter Rechner" für den Kunden-Kalkulator.</div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
           ${state.user && state.user.rolle !== 'Extern' ? `
-            <label class="text-tertiary text-small" style="display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:8px;" title="Klick auf eine WE öffnet die vereinfachte Musterberechnungs-Ansicht (wie beim externen Vertrieb) — mit Intern-Preisen und allen Einheiten">
-              <input type="checkbox" ${_simpleRechnerAktiv() ? 'checked' : ''} onchange="window._simpleRechnerToggle(this.checked)" style="width:14px;height:14px;">
-              🧮 Einfacher Rechner
+            <label class="text-tertiary text-small" style="display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:8px;" title="Standard ist die einfache Musterberechnung. Haken setzen → Klick auf eine WE öffnet stattdessen den alten Kunden-Kalkulator (Engine mit Profil, Vermögen J10, IRR)">
+              <input type="checkbox" ${_komplexRechnerAktiv() ? 'checked' : ''} onchange="window._komplexRechnerToggle(this.checked)" style="width:14px;height:14px;">
+              🧮 Komplizierter Rechner
             </label>
           ` : ''}
           ${_weListeSimpleMode() ? `
@@ -10629,29 +10629,39 @@ window._externPasswortSave = _externPasswortSave;
 // Grenzsteuersatz + die optionale Mietverwaltung (SEV).
 // Der Kunde wird ERST bei einer echten Reservierung angelegt (_rechnerReservieren).
 
-// 20.07.2026 (Henry): Interne können die vereinfachte Rechner-Ansicht per Toggle in
-// der WE-Liste aktivieren — reine UI-Präferenz pro Nutzer (localStorage, wie
-// _externInfoKey). Externe brauchen den Toggle nicht (für sie ist es der Standard).
-function _simpleRechnerKey() {
-  return 'bbk_simple_rechner_' + ((state.user && state.user.email) || 'anon');
+// 20.07.2026 (Henry): Interne konnten die vereinfachte Rechner-Ansicht per Toggle
+// „Einfacher Rechner" aktivieren (Opt-in, localStorage-Key bbk_simple_rechner_*).
+// 08.09.2026 (Henry): UMGEDREHT — die Musterberechnung ist jetzt für ALLE der
+// Standard. Der Haken heißt „Komplizierter Rechner" und schaltet pro Nutzer den
+// alten Weg zu (Klick auf WE → Kunden-Kalkulator mit Engine/Profil/IRR). Der
+// alte Kalkulator-Code bleibt komplett erhalten (Kunden-Tab „Kalkulator",
+// Snapshots, PDFs); nur der Einstieg aus der WE-Liste ist jetzt Opt-in.
+// Neuer Key, damit die alte Opt-in-Einstellung niemanden im alten Modus lässt.
+function _komplexRechnerKey() {
+  return 'bbk_komplex_rechner_' + ((state.user && state.user.email) || 'anon');
 }
-function _simpleRechnerAktiv() {
+function _komplexRechnerAktiv() {
   if (!state.user || state.user.rolle === 'Extern') return false;
-  try { return localStorage.getItem(_simpleRechnerKey()) === '1'; } catch (e) { return false; }
+  try { return localStorage.getItem(_komplexRechnerKey()) === '1'; } catch (e) { return false; }
 }
-function _simpleRechnerToggle(an) {
-  try { localStorage.setItem(_simpleRechnerKey(), an ? '1' : '0'); } catch (e) {}
-  toast(an ? 'Einfacher Rechner aktiv — Klick auf eine WE öffnet die Musterberechnung' : 'Einfacher Rechner aus — Klick auf eine WE öffnet wieder den Kunden-Kalkulator', 'info');
-  // 08.09.2026 (Henry): Kennzahlen der Liste folgen dem Modus (Musterberechnung vs. Engine) →
+function _komplexRechnerToggle(an) {
+  try { localStorage.setItem(_komplexRechnerKey(), an ? '1' : '0'); } catch (e) {}
+  toast(an ? 'Komplizierter Rechner aktiv — Klick auf eine WE öffnet den Kunden-Kalkulator' : 'Komplizierter Rechner aus — Klick auf eine WE öffnet wieder die Musterberechnung', 'info');
+  // Kennzahlen der Liste folgen dem Modus (Musterberechnung vs. Engine) →
   // sofort neu rendern, damit Liste und Klick-Ziel dieselben Zahlen zeigen.
   if (state.view === 'we-liste' && typeof renderWeListe === 'function') renderWeListe();
 }
-// true = Klick auf eine WE öffnet die Musterberechnung (Einfacher Rechner) —
-// dann müssen auch die Kennzahlen der WE-Liste aus der Musterberechnung kommen.
-function _weListeSimpleMode() {
-  return !!(state.user && (state.user.rolle === 'Extern' || _simpleRechnerAktiv()));
+// Kompatibilität: alter Name, jetzt = „nicht komplex" (Extern immer einfach).
+function _simpleRechnerAktiv() {
+  return !!(state.user && (state.user.rolle === 'Extern' || !_komplexRechnerAktiv()));
 }
-window._simpleRechnerToggle = _simpleRechnerToggle;
+// true = Klick auf eine WE öffnet die Musterberechnung (Standard) —
+// dann kommen auch die Kennzahlen der WE-Liste aus der Musterberechnung.
+function _weListeSimpleMode() {
+  return _simpleRechnerAktiv();
+}
+window._komplexRechnerToggle = _komplexRechnerToggle;
+window._simpleRechnerToggle = (an) => _komplexRechnerToggle(!an);
 
 const RECHNER_NOTAR_PCT = 0.023;  // Notar & Grundbuch — Satz aus der Musterberechnung
 
