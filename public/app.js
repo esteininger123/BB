@@ -9496,19 +9496,45 @@ async function renderWeListe() {
       // vermietung.letzteMietsteigerung). Parallel-Calls via Promise.all.
       const auditList = await api.get('/api/stammdaten');
       const activeRows = auditList.filter(row => row.stammdaten && row.stammdaten.status === 'Aktiv');
-      // Pro aktive WE parallel den Detail-Endpoint holen
+      const weIds = activeRows.map(row => row.we && row.we.id).filter(Boolean);
+      // 09.09.2026 (Henry): Batch-Endpoint statt ~50 paralleler Detail-Calls. Die
+      // Einzel-Calls scannen je drei Airtable-Tabellen → Rate-Limit (5 req/s) → 429 →
+      // zufällige Zeilen „Stammdaten nicht ladbar". Der Batch lädt die Tabellen einmal.
       const detailById = {};
-      await Promise.all(activeRows.map(async row => {
-        const weId = row.we && row.we.id;
-        if (!weId) return;
+      const BATCH = 100;
+      for (let i = 0; i < weIds.length; i += BATCH) {
+        const chunk = weIds.slice(i, i + BATCH);
         try {
-          const detail = await api.get('/api/stammdaten/' + encodeURIComponent(weId));
-          detailById[weId] = detail;
+          const resp = await api.get('/api/stammdaten/liste?weIds=' + encodeURIComponent(chunk.join(',')));
+          chunk.forEach(id => {
+            const d = resp && resp.byId && resp.byId[id];
+            detailById[id] = (d && d.we) ? d : null;
+          });
         } catch (e) {
-          // einzelne Fehler nicht-tödlich — Fallback auf Audit-Daten
-          detailById[weId] = null;
+          console.warn('[we-liste] Batch-Detail fehlgeschlagen, Fallback auf Einzel-Calls:', e && e.message);
         }
-      }));
+      }
+      // Nachladen, was im Batch fehlte (oder Fallback, wenn der Batch komplett ausfiel):
+      // Einzel-Calls mit kleinem Pool + 1 Wiederholung, damit das Rate-Limit nicht reißt.
+      const fehlend = weIds.filter(id => !detailById[id]);
+      if (fehlend.length > 0) {
+        const queue = fehlend.slice();
+        const worker = async () => {
+          while (queue.length) {
+            const id = queue.shift();
+            for (let versuch = 0; versuch < 2; versuch++) {
+              try {
+                detailById[id] = await api.get('/api/stammdaten/' + encodeURIComponent(id));
+                break;
+              } catch (e) {
+                detailById[id] = null;
+                if (versuch === 0) await new Promise(r => setTimeout(r, 1200));
+              }
+            }
+          }
+        };
+        await Promise.all([worker(), worker()]);
+      }
       _weListeCache = { auditList, detailById };
     }
     _renderWeListeContent();

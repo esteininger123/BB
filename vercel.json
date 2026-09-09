@@ -37,6 +37,10 @@
       "memory": 1024,
       "maxDuration": 60
     },
+    "api/stammdaten/liste.js": {
+      "memory": 1024,
+      "maxDuration": 60
+    },
     "api/pandadoc/webhook.js": {
       "maxDuration": 30
     },

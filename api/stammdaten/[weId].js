@@ -47,7 +47,42 @@ function firstStringFromLink(v) {
 }
 
 // Liefert das Stellplatz-Datenobjekt für die App (kombiniert).
-async function loadStellplaetzeForWE(weId) {
+// Feldlisten der Bulk-Loads — identisch für Einzel-GET und Batch (loadPreloadedTables).
+const STPL_LIST_FIELDS = [
+  STELLPLATZ_FIELDS.TITEL,
+  STELLPLATZ_FIELDS.WE_LINK,
+  STELLPLATZ_FIELDS.TYP,
+  STELLPLATZ_FIELDS.MIETKOSTEN,
+  STELLPLATZ_FIELDS.KAUFPREIS,
+];
+const MV_LIST_FIELDS = [
+  MIETVERTRAG_FIELDS.WE_LINK,
+  MIETVERTRAG_FIELDS.STELLPLATZ_LINK,
+  MIETVERTRAG_FIELDS.NEU_VERMIETETER_STELLPLATZ,
+  MIETVERTRAG_FIELDS.KALTMIETE,
+  MIETVERTRAG_FIELDS.STELLPLATZMIETE,
+  MIETVERTRAG_FIELDS.STATUS_LOOKUP,
+  MIETVERTRAG_FIELDS.VERTRAGSBEGINN,
+  MIETVERTRAG_FIELDS.GUELTIG_AB,
+  MIETVERTRAG_FIELDS.VERTRAGSART,
+  MIETVERTRAG_FIELDS.VERTRAGSENDE,
+];
+
+// 09.09.2026 (Henry): Die drei Tabellen-Scans (Stellplatz, Mietvertrag, Kalk-Stammdaten)
+// EINMAL laden — für den Batch-Endpoint /api/stammdaten/liste. Vorher machte die
+// WE-Liste ~50 parallele Einzel-GETs, jeder mit drei kompletten Tabellen-Scans →
+// Airtable-Rate-Limit (5 req/s) → 429 → Zeilen „Stammdaten nicht ladbar".
+async function loadPreloadedTables() {
+  const [stplRecs, mvRecs, kalkRecs] = await Promise.all([
+    listAll(TABLES.STELLPLATZ, { fields: STPL_LIST_FIELDS }, 2000),
+    listAll(TABLES.MIETVERTRAG, { fields: MV_LIST_FIELDS }, 5000),
+    listAll(TABLES.KALK_STAMMDATEN, { fields: Object.values(KALK_STAMMDATEN_FIELDS) }, 1000),
+  ]);
+  return { stplRecs, mvRecs, kalkRecs };
+}
+
+// preRecs (optional): vorgeladene Stellplatz-Records (Batch) — spart den Tabellen-Scan.
+async function loadStellplaetzeForWE(weId, preRecs) {
   try {
     // Audit-Notiz Iter 49 (19.05.2026): serverseitiger Filter über filterByFormula auf
     // RECORD_ID() des verknüpften WE-Links wäre der saubere Weg — Airtable's
@@ -55,14 +90,8 @@ async function loadStellplaetzeForWE(weId) {
     // Die Field-Namen werden im Code nicht geführt (würden Drift verursachen wenn umbenannt).
     // Bis ein Mapping (oder ein Reverse-Lookup auf der WE-Tabelle) ergänzt ist, bleibt der
     // clientseitige Filter. Skalierungsrisiko vermerkt im Backlog (§7/§8 QA-Report).
-    const recs = await listAll(TABLES.STELLPLATZ, {
-      fields: [
-        STELLPLATZ_FIELDS.TITEL,
-        STELLPLATZ_FIELDS.WE_LINK,
-        STELLPLATZ_FIELDS.TYP,
-        STELLPLATZ_FIELDS.MIETKOSTEN,
-        STELLPLATZ_FIELDS.KAUFPREIS,
-      ],
+    const recs = Array.isArray(preRecs) ? preRecs : await listAll(TABLES.STELLPLATZ, {
+      fields: STPL_LIST_FIELDS,
     }, 2000);
 
     const matched = recs.filter(r => {
@@ -110,21 +139,11 @@ async function loadStellplaetzeForWE(weId) {
 // übergeben wird, prüfen wir pro Mietvertrag, wie viele der vertraglich verlinkten
 // Stellplätze noch zur WE gehören. Beispiel Wess 5: Vertrag = 100 € für [stp1, stp2],
 // WE hat nur noch stp1 → Anteil 1/2, effektive Stellplatzmiete = 50 €.
-async function loadMietvertragInfoForWE(weId, weStpIds) {
+// preRecs (optional): vorgeladene Mietvertrag-Records (Batch) — spart den Tabellen-Scan.
+async function loadMietvertragInfoForWE(weId, weStpIds, preRecs) {
   try {
-    const recs = await listAll(TABLES.MIETVERTRAG, {
-      fields: [
-        MIETVERTRAG_FIELDS.WE_LINK,
-        MIETVERTRAG_FIELDS.STELLPLATZ_LINK,
-        MIETVERTRAG_FIELDS.NEU_VERMIETETER_STELLPLATZ,
-        MIETVERTRAG_FIELDS.KALTMIETE,
-        MIETVERTRAG_FIELDS.STELLPLATZMIETE,
-        MIETVERTRAG_FIELDS.STATUS_LOOKUP,
-        MIETVERTRAG_FIELDS.VERTRAGSBEGINN,
-        MIETVERTRAG_FIELDS.GUELTIG_AB,
-        MIETVERTRAG_FIELDS.VERTRAGSART,
-        MIETVERTRAG_FIELDS.VERTRAGSENDE,
-      ],
+    const recs = Array.isArray(preRecs) ? preRecs : await listAll(TABLES.MIETVERTRAG, {
+      fields: MV_LIST_FIELDS,
     }, 5000);
 
     let stplMietsummeNominal = 0; // Summe ohne Filter — für Debug/Diff (Backward-Compat)
@@ -336,9 +355,10 @@ async function loadMietvertragInfoForWE(weId, weStpIds) {
 
 // Findet die Kalkulations-Stammdaten-Zeile für eine WE.
 // Priorität: erst aktiv, dann entwurf, dann keinen.
-async function loadKalkStammdatenForWE(weId) {
+// preRecs (optional): vorgeladene Kalk-Stammdaten-Records (Batch) — spart den Tabellen-Scan.
+async function loadKalkStammdatenForWE(weId, preRecs) {
   try {
-    const recs = await listAll(TABLES.KALK_STAMMDATEN, {
+    const recs = Array.isArray(preRecs) ? preRecs : await listAll(TABLES.KALK_STAMMDATEN, {
       fields: Object.values(KALK_STAMMDATEN_FIELDS),
     }, 1000);
 
@@ -1104,6 +1124,220 @@ function computeMarktpreisGemittelt(kalkApi, kaufpreisProQm) {
   return out;
 }
 
+// 09.09.2026 (Henry): Die komplette GET-Logik (WE + Stellplätze + Mietvertrag + Kalk +
+// derived) als Funktion — genutzt vom Einzel-GET und vom Batch-Endpoint
+// /api/stammdaten/liste (der lädt die Tabellen einmal und reicht sie als `pre` durch).
+//   pre: { weRec?, stplRecs?, mvRecs?, kalkRecs?, provisionPct?, skipWriteBack? }
+// Rückgabe: { status, body } — der Handler macht daraus res.status(...).json(...).
+async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
+  const P = pre || {};
+  // --- 1) Wohneinheit-Datensatz lesen ---
+  const weResp = (P.weRec && P.weRec.fields) ? P.weRec : await airtable('get', TABLES.WOHNEINHEIT, { recordId: weId });
+  if (!weResp || !weResp.fields) return { status: 404, body: { error: 'WE nicht gefunden' } };
+  // Variante: Preis (Basis-KP + Ausstattungspaket), Name und Exposé überlagern die WE-Werte.
+  const wf = variante ? applyVariante(weResp.fields, variante.info) : (weResp.fields || {});
+  const we = {
+    id: weIdRaw,
+    weNr:      wf[WE_FIELDS.WE_NR] || '',
+    lage:      (Array.isArray(wf[WE_FIELDS.LAGE_BEZ]) ? wf[WE_FIELDS.LAGE_BEZ][0] : wf[WE_FIELDS.LAGE_BEZ]) || '',
+    lageText:  (Array.isArray(wf[WE_FIELDS.LAGE_TEXT]) ? wf[WE_FIELDS.LAGE_TEXT][0] : wf[WE_FIELDS.LAGE_TEXT]) || '',
+    kp:        num(wf[WE_FIELDS.KAUFPREIS]),
+    qm:        num(wf[WE_FIELDS.QM]),
+    kaltmiete: num(wf[WE_FIELDS.KALTMIETE]),
+    qmPreis:   num(wf[WE_FIELDS.QM_PREIS]),
+    // 19.07.2026 (Henry): Exposé-Link für den Extern-Rechner (Iter 51-Feld)
+    objektvorstellungLink: wf[WE_FIELDS.OBJEKTVORSTELLUNG] || '',
+    // 07.09.2026 — Varianten-Karte (möbliert): Aufschlüsselung für Anzeige/Kaufvertrag.
+    variante: variante ? {
+      label:   variante.info.label,
+      basisKp: variante.info.basisKp > 0 ? variante.info.basisKp : num(weResp.fields[WE_FIELDS.KAUFPREIS]),
+      paket:   variante.info.paket,
+      basisWeId: weId,
+    } : null,
+  };
+
+  // --- 2) Stellplätze zuerst (für Pro-rata-Mietberechnung), dann Mietvertrag + Kalk parallel ---
+  // Iter 44: Stellplatz-IDs werden an loadMietvertragInfoForWE übergeben, damit
+  // die Stellplatzmiete proportional zur aktuellen WE-Verknüpfung berechnet wird.
+  const stellplaetzeData = await loadStellplaetzeForWE(weId, P.stplRecs);
+  const weStpIds = stellplaetzeData.weLinked.map(s => s.id);
+  const [vertragInfo, kalkRecStandard] = await Promise.all([
+    loadMietvertragInfoForWE(weId, weStpIds, P.mvRecs),
+    loadKalkStammdatenForWE(weId, P.kalkRecs),
+  ]);
+  // Bei einer Variante gilt deren eigener Stammdatensatz (Miete möbliert, Marktmiete,
+  // Notizen …) — nicht der Aktiv-Satz der unmöblierten Wohnung.
+  const kalkRec = variante ? variante.rec : kalkRecStandard;
+
+  // --- Vermietungs-Status ZUERST (Iter 41.17) — steuert leer=raus für die Stellplätze ---
+  // Single Source of Truth: Lookup „Miet-status (ist)" aus WE-Tabelle, gespiegelt in
+  // Kalk-Stammdaten. Sonst Heuristik „Vertrag vorhanden" (kaltmiete>0 ist unzuverlässig
+  // bei Leerstand — Audit-Fix Iter 49: nur ein echter Mietvertrag gilt als Vermietungs-Beweis).
+  const kalkApi = kalkStammRecordToApi(kalkRec);
+
+  // 06.07.2026 (Henry): Externe sehen NUR explizit freigegebene Einheiten —
+  // auch per Deep-Link/Direktaufruf nicht mehr.
+  if (isExtern(session) && !(kalkApi && kalkApi.externFreigabe)) {
+    return { status: 404, body: { error: 'Diese Einheit ist für den externen Vertrieb nicht freigegeben.' } };
+  }
+
+  const statusVomLookup = resolveVermietungsstatusFromLookup(kalkApi && kalkApi.weVermietungsstatusRaw);
+  let statusFinal, statusQuelle;
+  if (statusVomLookup) {
+    statusFinal = statusVomLookup;
+    statusQuelle = 'we-lookup';
+  } else {
+    statusFinal = vertragInfo.vertragVorhanden ? 'vermietet' : 'leer';
+    statusQuelle = vertragInfo.vertragVorhanden ? 'fallback-mietvertrag' : 'fallback-keine-daten';
+  }
+
+  // Stellplatz-Aggregat (NEU 04.06.2026): Verknüpfung primär über den aktiven Mietvertrag
+  // (vertragInfo.neuStellplatzIds), Fallback alte WE-Verknüpfung; Werte (Kaufpreis + Miete)
+  // aus dem Stellplatz-Datensatz; leer => raus. Gemeinsamer Helfer mit stammdaten/index.js.
+  const stpAgg = aggregateStellplaetze({
+    vermietet: statusFinal === 'vermietet',
+    neuStellplatzIds: vertragInfo.neuStellplatzIds || [],
+    altStellplatzIds: weStpIds,
+    stpById: stellplaetzeData.byId,
+    vertragMieteFallback: vertragInfo.stellplatzMietsumme,
+    stellplatzMieteBeiVerkauf: kalkApi ? kalkApi.stellplatzMieteBeiVerkauf : null,
+  });
+  const stpKaufpreisSumme = stpAgg.kaufpreisSumme;
+  const stpMieteEffektiv = stpAgg.mieteMoSumme;
+
+  // Letzte Mietsteigerung — Quelle-Klärung (Edgar-Doc Bug 6+7+8):
+  // - status='vermietet' → erst Kalk-Stammdaten (Edgar manuell gepflegt),
+  //                        sonst Mietvertrags-Anpassung (jungsteMietsteigerung),
+  //                        sonst Vertragsbeginn nur wenn > 3 Jahre alt,
+  //                        sonst null (Pflegelücke).
+  // - status='leer'      → IMMER null.
+  const kalkLetzte = (kalkRec && kalkRec.fields && kalkRec.fields[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG]) || null;
+  let letzteMietsteigerung, letzteMietsteigerungQuelle;
+  if (statusFinal === 'leer') {
+    letzteMietsteigerung = null;
+    letzteMietsteigerungQuelle = 'leerstand-keine';
+  } else if (kalkLetzte) {
+    letzteMietsteigerung = kalkLetzte;
+    letzteMietsteigerungQuelle = 'kalk-stammdaten';
+  } else if (vertragInfo.letzteMietsteigerung) {
+    letzteMietsteigerung = vertragInfo.letzteMietsteigerung;
+    // jetzt zwischen echter Anpassung und Vertragsbeginn-Fallback unterscheiden
+    if (vertragInfo.letzteMietsteigerungIstAnpassung) {
+      letzteMietsteigerungQuelle = 'mietvertrag-anpassung';
+    } else if (vertragInfo.letzteMietsteigerungIstVertragsbeginn) {
+      letzteMietsteigerungQuelle = 'mietvertrag-vertragsbeginn-alt';
+    } else {
+      letzteMietsteigerungQuelle = 'mietvertrag';
+    }
+  } else {
+    letzteMietsteigerung = null;
+    letzteMietsteigerungQuelle = 'unbekannt';
+  }
+
+  // Stellplatz-Typ-Aufteilung kommt jetzt aus dem Aggregat-Helfer
+  const garageCount  = stpAgg.garageCount;
+  const flaecheCount = stpAgg.flaecheCount;
+
+  const vermietungObj = {
+    status:                 statusFinal,
+    statusQuelle,           // 'we-lookup' | 'fallback-...'
+    vertragVorhanden:       vertragInfo.vertragVorhanden,
+    letzteMietsteigerung,
+    letzteMietsteigerungQuelle,
+    // Iter 76 (21.05.2026): Geplante Erhöhung aus Mietvertrag (Schenki pflegt
+    // bei einer unterschriebenen Vereinbarung einen neuen Mietvertrag mit
+    // zukünftigem GUELTIG_AB an).
+    geplanteErhoehung:      vertragInfo.geplanteErhoehung || null,
+    aktuelleKaltmiete:      vertragInfo.aktuelleKaltmiete || null,
+    // 14.08.2026: Indexmietvertrag-Flag MUSS hier durchgereicht werden — die
+    // Engine liest vermietung.istIndexvertrag (Index-Subventionspfad).
+    istIndexvertrag:        !!vertragInfo.istIndexvertrag,
+    aktuelleVertragsart:    vertragInfo.aktuelleVertragsart || null,
+    // Bekannte Kündigung: Mieter zieht zu einem bekannten künftigen Datum aus -> Neuvermietung steht an.
+    kuendigungBekannt:      !!vertragInfo.kuendigungBekannt,
+    kuendigungZum:          vertragInfo.kuendigungZum || null,
+  };
+
+  // Subvention auto + Markt-Schnitt direkt vom Backend liefern
+  const subv = computeAutoSubvention(kalkApi, vermietungObj, we.qm);
+  // 17.08.2026: KP/m² mitgeben — über Markt verkaufte WEs bekommen keinen Vergleichsmarktpreis.
+  const marktSchnitt = computeMarktpreisGemittelt(kalkApi, we.qm > 0 ? we.kp / we.qm : 0);
+
+  // Iter-4 (21.05.2026): Auto-Subv zurück nach Airtable, damit die
+  // KP-Vorschlag-Formel sie einbeziehen kann. Fire-and-forget — die Response
+  // wartet nicht. Nur bei signifikanter Änderung (>5 €/Mo oder >50 € Total),
+  // siehe maybeWriteBackAutoSubv. Wenn manueller Mietzuschuss gepflegt ist,
+  // hat der Vorrang (computeAutoSubvention liefert dann subv.mo = manueller
+  // Wert) — wir schreiben dann den manuellen Wert in die Auto-Felder, was
+  // ein No-op für die Formel ist (die nutzt entweder/oder, siehe Airtable-
+  // Formel-Vorlage in §IT-4 der Doku).
+  // Batch (WE-Liste): kein Write-back — 50 Schreibzugriffe auf einmal würden das
+  // Rate-Limit reißen; der Cron refresh-all schreibt die Auto-Subv ohnehin 3×/Tag.
+  if (!P.skipWriteBack) maybeWriteBackAutoSubv(kalkApi, subv);
+
+  // 06.07.2026 (Henry) — Externer Vertrieb: Kundenpreis statt Abgabepreis.
+  // Aufschlag = Satz × (Wohnung + Stellplatz), landet nur auf we.kp; das
+  // Stellplatz-Aggregat bleibt unverändert (marktüblich eingepreist). Der
+  // extern-Block versorgt die UI (Provisionssatz + Provision in €).
+  let externInfo = null;
+  if (isExtern(session)) {
+    const prov = (P.provisionPct != null) ? P.provisionPct : await loadProvisionPct(session);
+    const e = externPreis(we.kp, stpKaufpreisSumme, prov);
+    we.kp = e.kp;
+    if (we.qm > 0) we.qmPreis = Math.round((e.kp / we.qm) * 100) / 100;
+    externInfo = { provisionPct: e.provisionPct, aufschlag: e.aufschlag };
+  }
+
+  return { status: 200, body: {
+    extern: externInfo,
+    we,
+    stellplaetze: {
+      anzahl:        stpAgg.anzahl,
+      garageCount,
+      flaecheCount,
+      kaufpreisSumme: stpKaufpreisSumme,
+      mieteMoSumme:   stpMieteEffektiv,
+      mieteMoQuelle:  stpAgg.mieteMoQuelle,
+      details:        stpAgg.details,
+    },
+    vermietung: vermietungObj,
+    kalkStammdaten: kalkApi,
+    // Abgeleitete Werte:
+    derived: {
+      // Backward-Compat (Iter 41.9): Aggregat-Werte für alte Pfade
+      subventionMo:     subv.mo,
+      subventionMonate: subv.monate,
+      subventionQuelle: subv.quelle,
+      // Iter 41.10: 2-Phasen-Modell
+      subventionPhasen:      subv.phasen || [],
+      subventionTotalEur:    subv.totalEur || 0,
+      subventionCapEur:      subv.capEur,
+      subventionCapGreift:   subv.capGreift,
+      subventionErlaeuterung: subv.erlaeuterung || '',
+      // Iter 62/63 (20.05.2026)
+      subventionTag1Erhoehung:    subv.tag1Erhoehung || false,
+      subventionTag1Anhebung:     subv.tag1Anhebung || 0,
+      subventionKaltmieteAdjustiert: subv.kaltmieteAdjustiert || null,
+      subventionMarktCapGreift:   subv.marktCapGreift || false,
+      // Iter 65 (20.05.2026): Marktmiete €/qm + umgerechnet €/Mo
+      marktmieteEurQm:            subv.marktmieteEurQm || 0,
+      marktmieteAbs:              subv.marktmieteAbs || 0,
+      marktpreisGemittelt:        marktSchnitt.wert,
+      marktpreisGemitteltQuelle:  marktSchnitt.quelle,
+      // Iter 70 (21.05.2026): Vereinbarte Mieterhöhung
+      subventionTag1Quelle:       subv.tag1Quelle || null, // null | 'vereinbarung' | 'iter63-annahme'
+      vereinbarung:               subv.vereinbarung || null, // { datum, monateBisErhoehung, kaltmiete, anwendbar } | null
+      // 2026-06-28: 9-Jahre-Schalter + Gesamt-Laufzeit (für UI-Badge)
+      subventionLange:            subv.langeSubvention || false,
+      subventionGesamtMonate:     subv.gesamtMonate || 0,
+      subventionGesamtJahre:      subv.gesamtJahre || 0,
+      // 14.08.2026: Indexmietverträge — jährliche Phasen mit Index-Prognose
+      subventionIstIndex:         subv.istIndexvertrag || false,
+      subventionIndexPrognosePct: subv.indexPrognosePct || null,
+    },
+  } };
+}
+
 module.exports = async (req, res) => {
   // QA-Fix 2026-05-23 (Audit-DD-1): CSRF-Schutz für PUT (Stammdaten-Edit).
   if (!requireSafeOrigin(req, res)) return;
@@ -1123,209 +1357,8 @@ module.exports = async (req, res) => {
     if (variantId && !variante) return res.status(404).json({ error: 'Variante nicht gefunden' });
 
     if (req.method === 'GET') {
-      // --- 1) Wohneinheit-Datensatz lesen ---
-      const weResp = await airtable('get', TABLES.WOHNEINHEIT, { recordId: weId });
-      if (!weResp || !weResp.fields) return res.status(404).json({ error: 'WE nicht gefunden' });
-      // Variante: Preis (Basis-KP + Ausstattungspaket), Name und Exposé überlagern die WE-Werte.
-      const wf = variante ? applyVariante(weResp.fields, variante.info) : (weResp.fields || {});
-      const we = {
-        id: weIdRaw,
-        weNr:      wf[WE_FIELDS.WE_NR] || '',
-        lage:      (Array.isArray(wf[WE_FIELDS.LAGE_BEZ]) ? wf[WE_FIELDS.LAGE_BEZ][0] : wf[WE_FIELDS.LAGE_BEZ]) || '',
-        lageText:  (Array.isArray(wf[WE_FIELDS.LAGE_TEXT]) ? wf[WE_FIELDS.LAGE_TEXT][0] : wf[WE_FIELDS.LAGE_TEXT]) || '',
-        kp:        num(wf[WE_FIELDS.KAUFPREIS]),
-        qm:        num(wf[WE_FIELDS.QM]),
-        kaltmiete: num(wf[WE_FIELDS.KALTMIETE]),
-        qmPreis:   num(wf[WE_FIELDS.QM_PREIS]),
-        // 19.07.2026 (Henry): Exposé-Link für den Extern-Rechner (Iter 51-Feld)
-        objektvorstellungLink: wf[WE_FIELDS.OBJEKTVORSTELLUNG] || '',
-        // 07.09.2026 — Varianten-Karte (möbliert): Aufschlüsselung für Anzeige/Kaufvertrag.
-        variante: variante ? {
-          label:   variante.info.label,
-          basisKp: variante.info.basisKp > 0 ? variante.info.basisKp : num(weResp.fields[WE_FIELDS.KAUFPREIS]),
-          paket:   variante.info.paket,
-          basisWeId: weId,
-        } : null,
-      };
-
-      // --- 2) Stellplätze zuerst (für Pro-rata-Mietberechnung), dann Mietvertrag + Kalk parallel ---
-      // Iter 44: Stellplatz-IDs werden an loadMietvertragInfoForWE übergeben, damit
-      // die Stellplatzmiete proportional zur aktuellen WE-Verknüpfung berechnet wird.
-      const stellplaetzeData = await loadStellplaetzeForWE(weId);
-      const weStpIds = stellplaetzeData.weLinked.map(s => s.id);
-      const [vertragInfo, kalkRecStandard] = await Promise.all([
-        loadMietvertragInfoForWE(weId, weStpIds),
-        loadKalkStammdatenForWE(weId),
-      ]);
-      // Bei einer Variante gilt deren eigener Stammdatensatz (Miete möbliert, Marktmiete,
-      // Notizen …) — nicht der Aktiv-Satz der unmöblierten Wohnung.
-      const kalkRec = variante ? variante.rec : kalkRecStandard;
-
-      // --- Vermietungs-Status ZUERST (Iter 41.17) — steuert leer=raus für die Stellplätze ---
-      // Single Source of Truth: Lookup „Miet-status (ist)" aus WE-Tabelle, gespiegelt in
-      // Kalk-Stammdaten. Sonst Heuristik „Vertrag vorhanden" (kaltmiete>0 ist unzuverlässig
-      // bei Leerstand — Audit-Fix Iter 49: nur ein echter Mietvertrag gilt als Vermietungs-Beweis).
-      const kalkApi = kalkStammRecordToApi(kalkRec);
-
-      // 06.07.2026 (Henry): Externe sehen NUR explizit freigegebene Einheiten —
-      // auch per Deep-Link/Direktaufruf nicht mehr.
-      if (isExtern(session) && !(kalkApi && kalkApi.externFreigabe)) {
-        return res.status(404).json({ error: 'Diese Einheit ist für den externen Vertrieb nicht freigegeben.' });
-      }
-
-      const statusVomLookup = resolveVermietungsstatusFromLookup(kalkApi && kalkApi.weVermietungsstatusRaw);
-      let statusFinal, statusQuelle;
-      if (statusVomLookup) {
-        statusFinal = statusVomLookup;
-        statusQuelle = 'we-lookup';
-      } else {
-        statusFinal = vertragInfo.vertragVorhanden ? 'vermietet' : 'leer';
-        statusQuelle = vertragInfo.vertragVorhanden ? 'fallback-mietvertrag' : 'fallback-keine-daten';
-      }
-
-      // Stellplatz-Aggregat (NEU 04.06.2026): Verknüpfung primär über den aktiven Mietvertrag
-      // (vertragInfo.neuStellplatzIds), Fallback alte WE-Verknüpfung; Werte (Kaufpreis + Miete)
-      // aus dem Stellplatz-Datensatz; leer => raus. Gemeinsamer Helfer mit stammdaten/index.js.
-      const stpAgg = aggregateStellplaetze({
-        vermietet: statusFinal === 'vermietet',
-        neuStellplatzIds: vertragInfo.neuStellplatzIds || [],
-        altStellplatzIds: weStpIds,
-        stpById: stellplaetzeData.byId,
-        vertragMieteFallback: vertragInfo.stellplatzMietsumme,
-        stellplatzMieteBeiVerkauf: kalkApi ? kalkApi.stellplatzMieteBeiVerkauf : null,
-      });
-      const stpKaufpreisSumme = stpAgg.kaufpreisSumme;
-      const stpMieteEffektiv = stpAgg.mieteMoSumme;
-
-      // Letzte Mietsteigerung — Quelle-Klärung (Edgar-Doc Bug 6+7+8):
-      // - status='vermietet' → erst Kalk-Stammdaten (Edgar manuell gepflegt),
-      //                        sonst Mietvertrags-Anpassung (jungsteMietsteigerung),
-      //                        sonst Vertragsbeginn nur wenn > 3 Jahre alt,
-      //                        sonst null (Pflegelücke).
-      // - status='leer'      → IMMER null.
-      const kalkLetzte = (kalkRec && kalkRec.fields && kalkRec.fields[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG]) || null;
-      let letzteMietsteigerung, letzteMietsteigerungQuelle;
-      if (statusFinal === 'leer') {
-        letzteMietsteigerung = null;
-        letzteMietsteigerungQuelle = 'leerstand-keine';
-      } else if (kalkLetzte) {
-        letzteMietsteigerung = kalkLetzte;
-        letzteMietsteigerungQuelle = 'kalk-stammdaten';
-      } else if (vertragInfo.letzteMietsteigerung) {
-        letzteMietsteigerung = vertragInfo.letzteMietsteigerung;
-        // jetzt zwischen echter Anpassung und Vertragsbeginn-Fallback unterscheiden
-        if (vertragInfo.letzteMietsteigerungIstAnpassung) {
-          letzteMietsteigerungQuelle = 'mietvertrag-anpassung';
-        } else if (vertragInfo.letzteMietsteigerungIstVertragsbeginn) {
-          letzteMietsteigerungQuelle = 'mietvertrag-vertragsbeginn-alt';
-        } else {
-          letzteMietsteigerungQuelle = 'mietvertrag';
-        }
-      } else {
-        letzteMietsteigerung = null;
-        letzteMietsteigerungQuelle = 'unbekannt';
-      }
-
-      // Stellplatz-Typ-Aufteilung kommt jetzt aus dem Aggregat-Helfer
-      const garageCount  = stpAgg.garageCount;
-      const flaecheCount = stpAgg.flaecheCount;
-
-      const vermietungObj = {
-        status:                 statusFinal,
-        statusQuelle,           // 'we-lookup' | 'fallback-...'
-        vertragVorhanden:       vertragInfo.vertragVorhanden,
-        letzteMietsteigerung,
-        letzteMietsteigerungQuelle,
-        // Iter 76 (21.05.2026): Geplante Erhöhung aus Mietvertrag (Schenki pflegt
-        // bei einer unterschriebenen Vereinbarung einen neuen Mietvertrag mit
-        // zukünftigem GUELTIG_AB an).
-        geplanteErhoehung:      vertragInfo.geplanteErhoehung || null,
-        aktuelleKaltmiete:      vertragInfo.aktuelleKaltmiete || null,
-        // 14.08.2026: Indexmietvertrag-Flag MUSS hier durchgereicht werden — die
-        // Engine liest vermietung.istIndexvertrag (Index-Subventionspfad).
-        istIndexvertrag:        !!vertragInfo.istIndexvertrag,
-        aktuelleVertragsart:    vertragInfo.aktuelleVertragsart || null,
-        // Bekannte Kündigung: Mieter zieht zu einem bekannten künftigen Datum aus -> Neuvermietung steht an.
-        kuendigungBekannt:      !!vertragInfo.kuendigungBekannt,
-        kuendigungZum:          vertragInfo.kuendigungZum || null,
-      };
-
-      // Subvention auto + Markt-Schnitt direkt vom Backend liefern
-      const subv = computeAutoSubvention(kalkApi, vermietungObj, we.qm);
-      // 17.08.2026: KP/m² mitgeben — über Markt verkaufte WEs bekommen keinen Vergleichsmarktpreis.
-      const marktSchnitt = computeMarktpreisGemittelt(kalkApi, we.qm > 0 ? we.kp / we.qm : 0);
-
-      // Iter-4 (21.05.2026): Auto-Subv zurück nach Airtable, damit die
-      // KP-Vorschlag-Formel sie einbeziehen kann. Fire-and-forget — die Response
-      // wartet nicht. Nur bei signifikanter Änderung (>5 €/Mo oder >50 € Total),
-      // siehe maybeWriteBackAutoSubv. Wenn manueller Mietzuschuss gepflegt ist,
-      // hat der Vorrang (computeAutoSubvention liefert dann subv.mo = manueller
-      // Wert) — wir schreiben dann den manuellen Wert in die Auto-Felder, was
-      // ein No-op für die Formel ist (die nutzt entweder/oder, siehe Airtable-
-      // Formel-Vorlage in §IT-4 der Doku).
-      maybeWriteBackAutoSubv(kalkApi, subv);
-
-      // 06.07.2026 (Henry) — Externer Vertrieb: Kundenpreis statt Abgabepreis.
-      // Aufschlag = Satz × (Wohnung + Stellplatz), landet nur auf we.kp; das
-      // Stellplatz-Aggregat bleibt unverändert (marktüblich eingepreist). Der
-      // extern-Block versorgt die UI (Provisionssatz + Provision in €).
-      let externInfo = null;
-      if (isExtern(session)) {
-        const prov = await loadProvisionPct(session);
-        const e = externPreis(we.kp, stpKaufpreisSumme, prov);
-        we.kp = e.kp;
-        if (we.qm > 0) we.qmPreis = Math.round((e.kp / we.qm) * 100) / 100;
-        externInfo = { provisionPct: e.provisionPct, aufschlag: e.aufschlag };
-      }
-
-      return res.status(200).json({
-        extern: externInfo,
-        we,
-        stellplaetze: {
-          anzahl:        stpAgg.anzahl,
-          garageCount,
-          flaecheCount,
-          kaufpreisSumme: stpKaufpreisSumme,
-          mieteMoSumme:   stpMieteEffektiv,
-          mieteMoQuelle:  stpAgg.mieteMoQuelle,
-          details:        stpAgg.details,
-        },
-        vermietung: vermietungObj,
-        kalkStammdaten: kalkApi,
-        // Abgeleitete Werte:
-        derived: {
-          // Backward-Compat (Iter 41.9): Aggregat-Werte für alte Pfade
-          subventionMo:     subv.mo,
-          subventionMonate: subv.monate,
-          subventionQuelle: subv.quelle,
-          // Iter 41.10: 2-Phasen-Modell
-          subventionPhasen:      subv.phasen || [],
-          subventionTotalEur:    subv.totalEur || 0,
-          subventionCapEur:      subv.capEur,
-          subventionCapGreift:   subv.capGreift,
-          subventionErlaeuterung: subv.erlaeuterung || '',
-          // Iter 62/63 (20.05.2026)
-          subventionTag1Erhoehung:    subv.tag1Erhoehung || false,
-          subventionTag1Anhebung:     subv.tag1Anhebung || 0,
-          subventionKaltmieteAdjustiert: subv.kaltmieteAdjustiert || null,
-          subventionMarktCapGreift:   subv.marktCapGreift || false,
-          // Iter 65 (20.05.2026): Marktmiete €/qm + umgerechnet €/Mo
-          marktmieteEurQm:            subv.marktmieteEurQm || 0,
-          marktmieteAbs:              subv.marktmieteAbs || 0,
-          marktpreisGemittelt:        marktSchnitt.wert,
-          marktpreisGemitteltQuelle:  marktSchnitt.quelle,
-          // Iter 70 (21.05.2026): Vereinbarte Mieterhöhung
-          subventionTag1Quelle:       subv.tag1Quelle || null, // null | 'vereinbarung' | 'iter63-annahme'
-          vereinbarung:               subv.vereinbarung || null, // { datum, monateBisErhoehung, kaltmiete, anwendbar } | null
-          // 2026-06-28: 9-Jahre-Schalter + Gesamt-Laufzeit (für UI-Badge)
-          subventionLange:            subv.langeSubvention || false,
-          subventionGesamtMonate:     subv.gesamtMonate || 0,
-          subventionGesamtJahre:      subv.gesamtJahre || 0,
-          // 14.08.2026: Indexmietverträge — jährliche Phasen mit Index-Prognose
-          subventionIstIndex:         subv.istIndexvertrag || false,
-          subventionIndexPrognosePct: subv.indexPrognosePct || null,
-        },
-      });
+      const r = await buildWeDetail({ weId, weIdRaw, variante, session });
+      return res.status(r.status).json(r.body);
     }
 
     if (req.method === 'PUT') {
@@ -1523,3 +1556,5 @@ module.exports.kalkStammRecordToApi       = kalkStammRecordToApi;
 module.exports.resolveVermietungsstatusFromLookup = resolveVermietungsstatusFromLookup;
 module.exports.maybeWriteBackAutoSubv     = maybeWriteBackAutoSubv;
 module.exports.computeMarktpreisGemittelt = computeMarktpreisGemittelt;
+module.exports.buildWeDetail              = buildWeDetail;
+module.exports.loadPreloadedTables        = loadPreloadedTables;
