@@ -2587,6 +2587,9 @@ function renderTabKalkulator() {
                 ` : i._vermietungsStatus === 'leer' ? `
                   <span class="we-status-pill leer">○ leer — neu vermietet vor Verkauf</span>
                 ` : ''}
+                ${_selWe && _selWe.stellplatzBedarf === true ? `
+                  <span class="we-status-pill stellplatz-wunsch" title="Bedarf an Stellplatz (Bestandsaufnahme) — Stellplatz mit anbieten">🅿️ Mieter wünscht Stellplatz</span>
+                ` : ''}
                 ${i._objektvorstellungLink ? `
                   <a href="${esc(i._objektvorstellungLink)}" target="_blank" rel="noopener" class="we-meta-link">
                     Objektvorstellung <span aria-hidden="true">↗</span>
@@ -9607,6 +9610,10 @@ function _renderWeListeContent() {
   // maengelAnzahl kommt serverseitig gezählt; 0 explizit zeigen, fehlend/unbekannt = „–".
   const fmtZufr = (v) => (v == null || !isFinite(v)) ? '–' : (Math.round(v * 10) / 10).toLocaleString('de-DE') + '/10';
   const fmtMaengel = (v) => (v == null || !isFinite(v)) ? '–' : String(v);
+  // 09.09.2026 (Henry): StPl-Wunsch — „Bedarf an Stellplatz" aus der Bestandsaufnahme.
+  // Nur „Ja" wird gezeigt (🅿️), Nein/leer bleibt leer — die Spalte soll nur auffallen, wo
+  // der Vertriebler den Stellplatz mit anbieten soll.
+  const fmtStpl = (v) => v === true ? '<span title="Mieter wünscht Stellplatz — Stellplatz mit anbieten">🅿️</span>' : '';
   // 05.06.2026: Verkaufs-Status-Badge (reserviert / Notartermin) neben dem WE-Namen.
   const weSalesBadge = (s) => s === 'Reserviert'
     ? ' <span class="we-status-pill reserviert" style="margin-left:6px;font-size:10px;">⚠ RESERVIERT</span>'
@@ -9886,6 +9893,7 @@ function _renderWeListeContent() {
             <td>${modusBadge}</td>
             <td class="num">${fmtZufr(we.zufriedenheit)}</td>
             <td class="num">${fmtMaengel(we.maengelAnzahl)}</td>
+          <td class="num">${fmtStpl(we.stellplatzBedarf)}</td>
             <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
             <td colspan="${simpleMode ? 8 : 9}" style="text-align:center;color:var(--negative);font-style:italic;font-size:13px;">⚠ ${esc(calc.reason || 'unkalkulierbar')}</td>
           </tr>
@@ -9898,6 +9906,7 @@ function _renderWeListeContent() {
           <td>${modusBadge}</td>
           <td class="num">${fmtZufr(we.zufriedenheit)}</td>
           <td class="num">${fmtMaengel(we.maengelAnzahl)}</td>
+          <td class="num">${fmtStpl(we.stellplatzBedarf)}</td>
           <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
           <td class="num">${(() => {
             // FS-3t (Edgar 26.05.2026): von 4 Zeilen auf 2 Zeilen — einfacher
@@ -9966,6 +9975,7 @@ function _renderWeListeContent() {
               <col style="width:8%;">
               <col style="width:4%;">
               <col style="width:4%;">
+              <col style="width:4%;">
               <col style="width:8%;">
               <col style="width:10%;">
               <col style="width:5%;">
@@ -9990,6 +10000,7 @@ function _renderWeListeContent() {
                 <th>Modus</th>
                 <th class="num" title="Mieterzufriedenheit (1–10) aus der Bestandsaufnahme">Zufr.</th>
                 <th class="num" title="Anzahl dokumentierter Mängel aus der Bestandsaufnahme">Mängel</th>
+                <th class="num" title="Mieter wünscht Stellplatz (Bedarf an Stellplatz aus der Bestandsaufnahme) — Stellplatz mit anbieten">StPl-Wunsch</th>
                 <th class="num">Kaufpreis</th>
                 <th class="num">Kaltmiete</th>
                 <th class="num">Garage KP</th>
@@ -10970,6 +10981,11 @@ function _rechnerRenderContent() {
       (garagenNrn ? zeile('Garage-Nummer', esc(garagenNrn), { fix: true }) : ''),
       zeile('Etage', esc(etage), { fix: true }),
       zeile('Lage', esc(lageSeite), { fix: true }),
+      // 09.09.2026 (Henry): „Bedarf an Stellplatz" = Ja → Hinweis im Objekt-Kopf, damit der
+      // Vertriebler den Stellplatz mit anbietet (nur bei Ja, sonst keine Zeile).
+      ((d.we && d.we.stellplatzBedarf === true)
+        ? zeile('Stellplatz', '<span class="we-status-pill stellplatz-wunsch" title="Bedarf an Stellplatz (Bestandsaufnahme)">🅿️ Mieter wünscht Stellplatz</span>', { fix: true })
+        : ''),
       zeile('Restnutzungsdauer der Wohnung in Jahren', (rndJahre ? String(rndJahre) : '–'), { fix: true }),
       zeile('Gebäudeanteil vom Kaufpreis der Wohnung', fP(c.gebAnteil), { fix: true }),
     ].join('')),

@@ -277,9 +277,25 @@ function weRecordToApi(rec, projektNameById = {}) {
     qmPreis:    toNumber(f[WE_FIELDS.QM_PREIS]),
     // Iter 51: Link zur Objektvorstellung (Domi pflegt). Wenn leer → kein Anzeige.
     objektvorstellungLink: f[WE_FIELDS.OBJEKTVORSTELLUNG] || '',
+    // 09.09.2026 (Henry): „Bedarf an Stellplatz" → Pill im Kalkulator-Kopf
+    stellplatzBedarf: weStellplatzBedarf(f[WE_FIELDS.STELLPLATZ_BEDARF]),
     projektId,
     projektName: projektId ? (projektNameById[projektId] || '') : ''
   };
+}
+
+// 09.09.2026 (Henry) — WE-Feld „Bedarf an Stellplatz" (singleSelect Ja/Nein/leer).
+// Gemeinsamer Leser für /api/wohneinheiten, /api/stammdaten (Sammel) und
+// /api/stammdaten/[weId] (+ Batch /liste): 'Ja' → true, 'Nein' → false, leer/unbekannt → null.
+// Defensiv gegen Lookup-Form (['Ja']) und Choice-Objekt ({ name: 'Ja' }).
+function weStellplatzBedarf(v) {
+  let s = Array.isArray(v) ? v[0] : v;
+  if (s && typeof s === 'object' && s.name !== undefined) s = s.name;
+  if (s === undefined || s === null || s === '') return null;
+  const t = String(s).trim().toLowerCase();
+  if (t === 'ja') return true;
+  if (t === 'nein') return false;
+  return null;
 }
 
 // --- Hilfsmittel ---
@@ -316,6 +332,7 @@ module.exports = {
   snapshotBodyToFields,
   finanzierungsfallBodyToFields,
   weRecordToApi,
+  weStellplatzBedarf,
   parseJsonField,
   stringifyJson
 };

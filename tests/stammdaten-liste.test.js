@@ -33,6 +33,7 @@ function weRec() {
   return { id: WE_ID, fields: {
     [WE_FIELDS.WE_NR]: '1', [WE_FIELDS.LAGE_BEZ]: ['UG Links'], [WE_FIELDS.LAGE_TEXT]: ['UG Links'],
     [WE_FIELDS.KAUFPREIS]: 128000, [WE_FIELDS.QM]: 41.38, [WE_FIELDS.KALTMIETE]: 250, [WE_FIELDS.QM_PREIS]: 3093,
+    [WE_FIELDS.STELLPLATZ_BEDARF]: 'Ja', // 09.09.2026 — „Mieter wünscht Stellplatz"
   } };
 }
 function stplRecs() {
@@ -78,6 +79,7 @@ test('buildWeDetail mit Preload: kein Airtable-Call, Detail-Form wie Einzel-GET'
   assert.strictEqual(b.we.id, WE_ID);
   assert.strictEqual(b.we.kp, 128000);
   assert.strictEqual(b.we.qm, 41.38);
+  assert.strictEqual(b.we.stellplatzBedarf, true, 'Bedarf an Stellplatz = Ja muss als true im Batch-Detail ankommen');
   assert.strictEqual(b.stellplaetze.kaufpreisSumme, 8000);
   assert.strictEqual(b.stellplaetze.mieteMoSumme, 40);
   assert.strictEqual(b.stellplaetze.details.length, 1);

@@ -1862,6 +1862,8 @@ input[type="range"].spar-zins-range::-moz-range-track {
 /* 05.06.2026: Verkaufs-Status — bewusst auffällig (Reserviert amber, Notartermin orange), mit Rand. */
 .we-status-pill.reserviert  { background: #FCEFC7; color: #7A5A00; border: 1px solid #E6C766; }
 .we-status-pill.notartermin { background: #FBE3CE; color: #8A4B16; border: 1px solid #E0A66E; }
+/* 09.09.2026: „Mieter wünscht Stellplatz" (WE-Feld Bedarf an Stellplatz = Ja) — Kalkulator-Kopf + Einfacher Rechner. */
+.we-status-pill.stellplatz-wunsch { background: #DDEBF7; color: #1F4E79; border: 1px solid #9DC3E6; }
 
 /* Iter 53: dezenter Inline-Link für Objektvorstellung — Akzentfarbe, klein, unterstrichen */
 .we-meta-link {

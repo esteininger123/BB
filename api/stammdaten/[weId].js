@@ -19,6 +19,7 @@ const { externPreis, loadProvisionPct } = require('../_lib/extern');
 const { airtable, listAll } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
+const { weStellplatzBedarf } = require('../_lib/mappers');
 // 07.09.2026 — Varianten (möbliert): ID-Form "<weId>~<stammId>", siehe _lib/we-variante.js
 const { parseWeId, loadVariante, applyVariante } = require('../_lib/we-variante');
 const {
@@ -1147,6 +1148,9 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
     qmPreis:   num(wf[WE_FIELDS.QM_PREIS]),
     // 19.07.2026 (Henry): Exposé-Link für den Extern-Rechner (Iter 51-Feld)
     objektvorstellungLink: wf[WE_FIELDS.OBJEKTVORSTELLUNG] || '',
+    // 09.09.2026 (Henry): „Bedarf an Stellplatz" (Ja/Nein/leer → true/false/null) —
+    // Hinweis „Mieter wünscht Stellplatz" im Einfachen Rechner + Kalkulator-Kopf.
+    stellplatzBedarf: weStellplatzBedarf(wf[WE_FIELDS.STELLPLATZ_BEDARF]),
     // 07.09.2026 — Varianten-Karte (möbliert): Aufschlüsselung für Anzeige/Kaufvertrag.
     variante: variante ? {
       label:   variante.info.label,

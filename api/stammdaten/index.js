@@ -7,6 +7,7 @@ const { externPreis, loadProvisionPct } = require('../_lib/extern');
 const { airtable, listAll } = require('../_lib/airtable');
 const { methodNotAllowed, sendError } = require('../_lib/http');
 const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
+const { weStellplatzBedarf } = require('../_lib/mappers');
 const {
   TABLES,
   WE_FIELDS,
@@ -71,6 +72,7 @@ module.exports = async (req, res) => {
           WE_FIELDS.KAUFPREIS, WE_FIELDS.QM, WE_FIELDS.KALTMIETE, WE_FIELDS.QM_PREIS,
           WE_FIELDS.STATUS,
           WE_FIELDS.ZUFRIEDENHEIT, WE_FIELDS.MAENGEL_TEXT, // 2026-08-21 (Henry) — Spalten Zufr./Mängel in WE-Liste
+          WE_FIELDS.STELLPLATZ_BEDARF, // 2026-09-09 (Henry) — Spalte StPl-Wunsch in WE-Liste
         ],
         pageSize: 100,
       }, 2000),
@@ -158,6 +160,8 @@ module.exports = async (req, res) => {
         // Mängel-Anzahl aus dem Freitext gezählt (0 = keine dokumentiert).
         zufriedenheit: num(wf[WE_FIELDS.ZUFRIEDENHEIT]),
         maengelAnzahl: countMaengel(wf[WE_FIELDS.MAENGEL_TEXT]),
+        // 2026-09-09 (Henry) — „Bedarf an Stellplatz": true/false/null → Spalte StPl-Wunsch
+        stellplatzBedarf: weStellplatzBedarf(wf[WE_FIELDS.STELLPLATZ_BEDARF]),
       };
 
       // Stammdaten — Priorität: Aktiv > Entwurf > Archiviert

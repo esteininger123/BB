@@ -193,6 +193,11 @@ const WE_FIELDS = {
   // Zeilen zu maengelAnzahl). Beide read-only, keine Schreib-Richtung.
   ZUFRIEDENHEIT: 'fldCUktOnrwOLDUDo',
   MAENGEL_TEXT:  'fldnStQVzSDIn87L7',
+  // 2026-09-09 (Henry) — „Bedarf an Stellplatz" (singleSelect Ja/Nein/leer, Bestandsaufnahme).
+  // Read-only. API liefert stellplatzBedarf true/false/null; UI: Spalte „StPl-Wunsch" in der
+  // WE-Liste + Hinweis „Mieter wünscht Stellplatz" im Rechner-/Kalkulator-Kopf, damit der
+  // Vertriebler den Stellplatz mit anbietet. Mapper-Helfer: mappers.weStellplatzBedarf().
+  STELLPLATZ_BEDARF: 'fldcNbjkfNqvbQs3f',
 };
 
 const WE_STATUS_VERMARKTUNG = 'Vermarktung / Im Verkauf';

@@ -50,6 +50,13 @@
     - qm-Preis: `fldGClYivJ0IdvAyG` (berechnet)
     - WE-Nr: `fldGia0unyS8cBaE5`
     - Projekt-Link: `fld1cp8nYcq6wXZx6` (Link auf Projekt)
+    - Link zur Objektvorstellung: `fldITEQwhu9tDi7Iy` (URL, Iter 51)
+    - Mieterzufriedenheit: `fldCUktOnrwOLDUDo` (number 1–10, read-only → `zufriedenheit`)
+    - Mängel (vor Ort): `fldnStQVzSDIn87L7` (multilineText, read-only → `maengelAnzahl` = nicht-leere Zeilen)
+    - Bedarf an Stellplatz: `fldcNbjkfNqvbQs3f` (singleSelect `Ja`/`Nein`/leer, read-only — 09.09.2026)
+      → API `we.stellplatzBedarf` = `true`/`false`/`null` in `/api/wohneinheiten`, `/api/stammdaten` (Sammel),
+      `/api/stammdaten/[weId]` und Batch `/api/stammdaten/liste`. UI: Spalte „StPl-Wunsch" (🅿️ nur bei Ja)
+      in der WE-Liste, Pill „Mieter wünscht Stellplatz" im Kalkulator-Kopf und im Objekt-Kopf des Einfachen Rechners.
 - **Tabelle App-Konfiguration:** `tbl044p3Vg6zsFAqy` (Key/Value-Store, 1 Record je Key — 2026-06-19)
   - Felder:
     - Key: `fldJWAcW1pYcjds16` (singleLineText, Primary — z.B. `konditionen`)

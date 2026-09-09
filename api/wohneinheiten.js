@@ -277,6 +277,7 @@ module.exports = async (req, res) => {
       WE_FIELDS.QM_PREIS,
       WE_FIELDS.PROJEKT,
       WE_FIELDS.OBJEKTVORSTELLUNG, // Iter 51 — Link für Vertriebler
+      WE_FIELDS.STELLPLATZ_BEDARF, // 09.09.2026 — „Mieter wünscht Stellplatz"-Pill im Kalkulator-Kopf
       WE_FIELDS.STATUS,            // 05.06.2026 — für Reserviert/Notartermin-Markierung im Frontend
     ];
 
