@@ -9452,9 +9452,7 @@ async function renderWeListe() {
               🧮 Komplizierter Rechner
             </label>
           ` : ''}
-          ${_weListeSimpleMode() ? `
-            <span class="text-tertiary text-small" style="white-space:nowrap;" title="${esc(_rechnerDefaultsLabel())}">Kennzahlen = Musterberechnung (${esc(_rechnerDefaultsLabel())})</span>
-          ` : `
+          ${_weListeSimpleMode() ? '' : `
           <label class="text-tertiary text-small" for="we-liste-profil" style="white-space:nowrap;">Kennzahlen für Profil</label>
           <select id="we-liste-profil" onchange="window._weListeSetProfil(this.value)" style="padding:6px 10px;font-size:13px;min-width:340px;">
             ${(() => {
@@ -10055,7 +10053,9 @@ function _renderWeListeContent() {
   el.innerHTML = `
     <div class="text-tertiary text-small" style="margin:0 0 8px;">
       <strong>${audit.length} aktive WEs</strong> über ${projekte.length} ${projekte.length === 1 ? 'Projekt' : 'Projekte'} ·
-      Profil: <strong>${esc(profilLabel)}</strong> · Wertsteigerung 3 %/a, AfA aus Stammdaten.${irrHint}
+      ${simpleMode
+        ? `Kennzahlen = Musterberechnung: <strong>${esc(_rechnerDefaultsLabel())}</strong> · AfA, GrESt und Kosten aus den Stammdaten — identisch zur Ansicht nach dem Klick.`
+        : `Profil: <strong>${esc(profilLabel)}</strong> · Wertsteigerung 3 %/a, AfA aus Stammdaten.${irrHint}`}
     </div>
     ${sections}
     ${compareFab}
