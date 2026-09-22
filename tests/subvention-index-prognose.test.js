@@ -1,5 +1,6 @@
-// Tests für das Feld „Index-Prognose % p.a." (Henry 16.08.2026):
-// überschreibt die 2,0-%-Standard-Prognose der Index-Subventions-Treppe pro WE.
+// Tests für das Feld „Index-Prognose % p.a." (Henry 16.08.2026, Standard seit 22.09.2026 = 3,0 %):
+// überschreibt die Standard-Prognose der Index-Subventions-Treppe pro WE. Seit 22.09.2026
+// bestimmt die Prognose auch das Subventionsziel (MbV × (1+p)^6).
 const { test } = require('node:test');
 const assert = require('node:assert');
 
@@ -25,25 +26,34 @@ function kalk(extra) {
 }
 const verm = () => ({ istIndexvertrag: true, letzteMietsteigerung: frischesDatum(3) });
 
-test('3 % Prognose → steilere Treppe, weniger Subvention als 2 % (Regression: leer = 2 %)', () => {
+test('Leer = 3 % Standard; 2 % explizit → niedrigeres Ziel und weniger Subvention', () => {
   const std = computeAutoSubvention(kalk(), verm(), QM);
-  const drei = computeAutoSubvention(kalk({ indexPrognosePa: 0.03 }), verm(), QM);
-  assert.strictEqual(std.indexPrognosePct, 2);
-  assert.strictEqual(drei.indexPrognosePct, 3);
-  assert.ok(drei.totalEur < std.totalEur, `3 % (${drei.totalEur}) < 2 % (${std.totalEur})`);
-  assert.ok(/\+3,0 % p\.a\./.test(drei.erlaeuterung), drei.erlaeuterung);
-  assert.ok(/\+3,0 % p\.a\./.test(drei.phasen[1].label), drei.phasen[1].label);
+  const zwei = computeAutoSubvention(kalk({ indexPrognosePa: 0.02 }), verm(), QM);
+  assert.strictEqual(std.indexPrognosePct, 3);
+  assert.strictEqual(zwei.indexPrognosePct, 2);
+  assert.ok(Math.abs(std.zielMiete - 565.47) < 0.02, 'Ziel 3 %: ' + std.zielMiete);
+  assert.ok(Math.abs(zwei.zielMiete - 533.32) < 0.02, 'Ziel 2 %: ' + zwei.zielMiete);
+  assert.ok(zwei.totalEur < std.totalEur, `2 % (${zwei.totalEur}) < 3 % (${std.totalEur})`);
+  assert.ok(/\+3,0 % p\.a\./.test(std.erlaeuterung), std.erlaeuterung);
+  assert.ok(/\+2,0 % p\.a\./.test(zwei.phasen[1].label), zwei.phasen[1].label);
 });
 
-test('3 % + Deckel 48 → Spechtweg-332-Referenzwerte', () => {
-  const s = computeAutoSubvention(kalk({ indexPrognosePa: 0.03, subvMaxMonate: 48 }), verm(), QM);
+test('Spechtweg-137-Referenz (3 %, 3 Monate seit Anpassung): P1 = 91,90 über 9 Mo, P2 = 77,69', () => {
+  const s = computeAutoSubvention(kalk(), verm(), QM);
+  // Ziel 565,47: Jahr 1: 565,47 − 473,57 = 91,90; Jahr 2: 565,47 − 487,78 = 77,69
+  assert.strictEqual(s.phasen[0].monate, 9);
+  assert.ok(Math.abs(s.phasen[0].mo - 91.90) < 0.02, 'P1 ' + s.phasen[0].mo);
+  assert.ok(Math.abs(s.phasen[1].mo - 77.69) < 0.02, 'P2 ' + s.phasen[1].mo);
+  assert.strictEqual(s.phasen.length, 5, 'Jahr 6 (16,44 €) entfällt unter der 20-€-Regel');
+  assert.strictEqual(s.monate, 9 + 4 * 12);
+});
+
+test('3 % + Deckel 48 → 48 Monate', () => {
+  const s = computeAutoSubvention(kalk({ subvMaxMonate: 48 }), verm(), QM);
   assert.strictEqual(s.monate, 48);
-  // Jahr 1: 617,70 − 473,57 = 144,13; Jahr 2: 617,70 − 473,57×1,03 = 129,92 usw.
-  assert.ok(Math.abs(s.phasen[0].mo - 144.13) < 0.02, 'P1 ' + s.phasen[0].mo);
-  assert.ok(Math.abs(s.phasen[1].mo - 129.92) < 0.02, 'P2 ' + s.phasen[1].mo);
 });
 
-test('Unplausible Prognose (≥ 15 %) fällt auf 2 % zurück', () => {
+test('Unplausible Prognose (≥ 15 %) fällt auf 3 % zurück', () => {
   const s = computeAutoSubvention(kalk({ indexPrognosePa: 0.5 }), verm(), QM);
-  assert.strictEqual(s.indexPrognosePct, 2);
+  assert.strictEqual(s.indexPrognosePct, 3);
 });

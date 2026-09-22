@@ -645,7 +645,8 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
   // („Marktmiete pflegen"), und die Phase-2-Story bleibt aus. Der Vertriebler
   // wird nicht mehr ungewollt zu einem Reservierungs-Klick verführt, der auf
   // einer Pflegelücke beruht.
-  if (marktmiete <= 0) {
+  // 22.09.2026: Indexmietverträge brauchen keine Marktmiete mehr (Ziel = Indexpfad).
+  if (marktmiete <= 0 && !(vermietung && vermietung.istIndexvertrag)) {
     return Object.assign({}, empty, {
       quelle: 'auto-marktmiete-fehlt',
       erlaeuterung: 'Marktmiete in Stammdaten fehlt — ohne Marktanker keine seriöse Subventions-Story berechenbar. Bitte Marktmiete (€/qm) pflegen.',
@@ -661,19 +662,23 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     monateSeitRaw = Math.max(0, (heute.getFullYear() - datum.getFullYear()) * 12 + (heute.getMonth() - datum.getMonth()));
   }
 
-  // --- Indexmietverträge (Henry 14.08.2026) -----------------------------------
+  // --- Indexmietverträge (Henry 14.08.2026, Regel geändert 22.09.2026) -----------
   // Bei Indexmietverträgen greift die Kappungs-Stufenlogik nicht — die Miete steigt
-  // jährlich mit dem VPI. Die Subvention wird deshalb je VERTRAGSJAHR gerechnet
-  // (Prognose fest +2,0 % p.a.) und sinkt Jahr für Jahr; die Käufer-Einnahme bleibt
-  // dadurch konstant auf Marktniveau. Max. 72 Monate; Phasen unter 20 €/Mo entfallen
-  // komplett (Henrys Mini-Subventions-Regel vom 14.08.2026) — dort endet die Subvention.
+  // jährlich mit dem VPI. HENRY-REGEL 22.09.2026: Das Subventionsziel ist NICHT die
+  // Marktmiete, sondern die Miete, die der Indexvertrag in 6 Jahren organisch erreicht
+  // (MbV × (1 + Prognose)^6) — egal ob das über, unter oder genau auf der Marktmiete
+  // liegt. Die Subvention füllt je Vertragsjahr die Lücke zu diesem Ziel und läuft mit
+  // der 6. Indexanpassung auf null aus (keine Klippe nach Monat 72). Standard-Prognose
+  // 3,0 % p.a. (Feld „Index-Prognose % p.a." überschreibt). Phasen unter 20 €/Mo
+  // entfallen (Mini-Subventions-Regel 14.08.2026).
   if (vermietung && vermietung.istIndexvertrag) {
-    // 2026-08-16 (Henry): Prognose pro WE aus den Stammdaten überschreibbar
-    // (Feld „Index-Prognose % p.a."); leer = Standard 2,0 %. Plausibilitäts-Guard < 15 %.
     const INDEX_PROGNOSE_PA = (kalkApi.indexPrognosePa > 0 && kalkApi.indexPrognosePa < 0.15)
-      ? kalkApi.indexPrognosePa : 0.02;
+      ? kalkApi.indexPrognosePa : 0.03;
     const INDEX_PROGNOSE_STR = (INDEX_PROGNOSE_PA * 100).toFixed(1).replace('.', ',');
     const INDEX_MIN_PHASE_EUR = 20;
+    const INDEX_ZIEL_JAHRE = 6;
+    const zielMiete = Math.round(mbvRaw * Math.pow(1 + INDEX_PROGNOSE_PA, INDEX_ZIEL_JAHRE) * 100) / 100;
+    const zielMieteEurQm = weQm > 0 ? Math.round((zielMiete / weQm) * 100) / 100 : null;
     // 2026-08-16 (Henry): Laufzeit-Deckel aus den Stammdaten (z.B. 48 = 4 Jahre).
     const idxDeckel = kalkApi.subvMaxMonate > 0 ? Math.round(kalkApi.subvMaxMonate) : null;
     const gesamtMax = idxDeckel ? Math.min(72, idxDeckel) : 72;
@@ -683,9 +688,9 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     const phasenIdx = [];
     let restMonate = gesamtMax;
     let totalIdx = 0;
-    for (let k = 0; restMonate > 0; k++) {
+    for (let k = 0; k < INDEX_ZIEL_JAHRE && restMonate > 0; k++) {
       const mieteK = mbvRaw * Math.pow(1 + INDEX_PROGNOSE_PA, k);
-      const moK = Math.round((marktmiete - mieteK) * 100) / 100;
+      const moK = Math.round((zielMiete - mieteK) * 100) / 100;
       if (moK < INDEX_MIN_PHASE_EUR) break;
       const monateK = Math.min(k === 0 ? p1 : 12, restMonate);
       phasenIdx.push({ mo: moK, monate: monateK, label: 'Jahr ' + (k + 1) + ' (Indexmiete, Prognose +' + INDEX_PROGNOSE_STR + ' % p.a.)' });
@@ -695,11 +700,13 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
     if (!phasenIdx.length) {
       return Object.assign({}, empty, {
         quelle: 'auto-index-marktnah',
-        erlaeuterung: 'Indexmietvertrag — die Miete liegt bereits auf bzw. nahe Marktniveau (Restlücke unter 20 €/Mo); keine Subvention. Die Miete entwickelt sich mit dem Verbraucherpreisindex weiter.',
+        erlaeuterung: 'Indexmietvertrag — die Lücke zur in 6 Jahren erreichbaren Indexmiete liegt unter 20 €/Mo; keine Subvention. Die Miete entwickelt sich mit dem Verbraucherpreisindex weiter.',
         marktmieteEurQm,
         marktmieteAbs: Math.round(marktmiete * 100) / 100,
         istIndexvertrag: true,
         indexPrognosePct: INDEX_PROGNOSE_PA * 100,
+        zielMiete,
+        zielMieteEurQm,
       });
     }
     // €-Cap wie im Standardmodell (Iter-4-Formel); bei Überschreiten werden die
@@ -721,13 +728,15 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
       mo: gesamtMonateIdx > 0 ? Math.round((totalIdx / gesamtMonateIdx) * 100) / 100 : 0,
       monate: gesamtMonateIdx,
       quelle: 'auto-index-prognose',
-      erlaeuterung: `Indexmietvertrag: Die Subvention ist je Vertragsjahr gerechnet — die Miete steigt mit der prognostizierten Indexanpassung (+${INDEX_PROGNOSE_STR} % p.a.), die Subvention sinkt entsprechend jährlich; die Käufer-Einnahme bleibt konstant auf Marktniveau.` + (idxDeckel ? ` Subventionslaufzeit auf ${gesamtMax} Monate gedeckelt.` : '') + (capGreiftIdx ? ' €-Cap greift — hintere Phasen gekürzt.' : '') + ' Phasen unter 20 €/Mo entfallen.',
+      erlaeuterung: `Indexmietvertrag: Ziel ist die Miete, die der Vertrag in 6 Jahren bei +${INDEX_PROGNOSE_STR} % p.a. erreicht (${zielMiete.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €/Mo). Die Subvention füllt je Vertragsjahr die Lücke dorthin auf und sinkt mit jeder Indexanpassung; die Käufer-Einnahme bleibt konstant auf diesem Zielwert und läuft ohne Sprung in die reguläre Indexmiete über.` + (idxDeckel ? ` Subventionslaufzeit auf ${gesamtMax} Monate gedeckelt.` : '') + (capGreiftIdx ? ' €-Cap greift — hintere Phasen gekürzt.' : '') + ' Phasen unter 20 €/Mo entfallen.',
       capEur: capIdx,
       capGreift: capGreiftIdx,
       marktmieteEurQm,
       marktmieteAbs: Math.round(marktmiete * 100) / 100,
       istIndexvertrag: true,
       indexPrognosePct: INDEX_PROGNOSE_PA * 100,
+      zielMiete,
+      zielMieteEurQm,
       gesamtMonate: gesamtMonateIdx,
       gesamtJahre: Math.round((gesamtMonateIdx / 12) * 10) / 10,
     };
@@ -1338,6 +1347,8 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
       // 14.08.2026: Indexmietverträge — jährliche Phasen mit Index-Prognose
       subventionIstIndex:         subv.istIndexvertrag || false,
       subventionIndexPrognosePct: subv.indexPrognosePct || null,
+      subventionIndexZielMiete:   subv.zielMiete || null,
+      subventionIndexZielEurQm:   subv.zielMieteEurQm || null,
     },
   } };
 }

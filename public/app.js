@@ -10968,7 +10968,7 @@ function _rechnerRenderContent() {
       }).join('') +
       (istIndexSubv ? zeile('Annahme Indexentwicklung (Prognose)', '+' + ((d.derived && d.derived.subventionIndexPrognosePct) || 2).toLocaleString('de-DE', { minimumFractionDigits: 1 }) + ' % p.a.', { fix: true }) : '') +
       zeile('Einmalbetrag der Mietsubvention (' + subvGesamtMonate + ' Monate)', fE(c.subvTotal), { fix: true, sum: true }))
-    : zeile('Mietsubvention', 'keine — Miete liegt auf Marktniveau', { fix: true });
+    : zeile('Mietsubvention', 'keine — Miete liegt auf dem Zielniveau', { fix: true });
 
   // ============ LINKE SPALTE — 1:1 die Blöcke der Spalten B/C der Musterberechnung ============
   const spalteLinks = [

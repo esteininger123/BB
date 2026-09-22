@@ -30,7 +30,7 @@ test('Index + Deckel 48 → Treppe endet nach genau 48 Monaten', () => {
   assert.strictEqual(s.quelle, 'auto-index-prognose');
   assert.strictEqual(s.monate, 48, 'gesamt 48 Monate: ' + s.monate);
   const ohne = computeAutoSubvention(kalkIndex(), { istIndexvertrag: true, letzteMietsteigerung: frischesDatum(3) }, QM);
-  assert.strictEqual(ohne.monate, 72, 'ohne Deckel 72');
+  assert.strictEqual(ohne.monate, 57, 'ohne Deckel 9 + 4 x 12 = 57 (Jahr 6 unter 20 EUR, Regel 22.09.2026)');
   assert.ok(s.totalEur < ohne.totalEur, 'gedeckelt subventioniert weniger');
   assert.ok(/gedeckelt/.test(s.erlaeuterung), 'Deckel-Hinweis: ' + s.erlaeuterung);
 });
