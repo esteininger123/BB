@@ -676,12 +676,14 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
       ? kalkApi.indexPrognosePa : 0.03;
     const INDEX_PROGNOSE_STR = (INDEX_PROGNOSE_PA * 100).toFixed(1).replace('.', ',');
     const INDEX_MIN_PHASE_EUR = 20;
-    const INDEX_ZIEL_JAHRE = 6;
+    // 2026-08-16 (Henry): Laufzeit-Deckel aus den Stammdaten (z.B. 48 = 4 Jahre).
+    // 2026-09-23 (Henry, WE 133): Werte ÜBER 72 verlängern den Zielhorizont — 84 = Ziel nach
+    // 7 Jahren (MbV × (1+p)^7) mit 7 Jahresphasen. Werte ≤ 72 bleiben ein reiner Deckel.
+    const idxDeckel = kalkApi.subvMaxMonate > 0 ? Math.round(kalkApi.subvMaxMonate) : null;
+    const INDEX_ZIEL_JAHRE = idxDeckel && idxDeckel > 72 ? Math.min(10, Math.round(idxDeckel / 12)) : 6;
     const zielMiete = Math.round(mbvRaw * Math.pow(1 + INDEX_PROGNOSE_PA, INDEX_ZIEL_JAHRE) * 100) / 100;
     const zielMieteEurQm = weQm > 0 ? Math.round((zielMiete / weQm) * 100) / 100 : null;
-    // 2026-08-16 (Henry): Laufzeit-Deckel aus den Stammdaten (z.B. 48 = 4 Jahre).
-    const idxDeckel = kalkApi.subvMaxMonate > 0 ? Math.round(kalkApi.subvMaxMonate) : null;
-    const gesamtMax = idxDeckel ? Math.min(72, idxDeckel) : 72;
+    const gesamtMax = idxDeckel ? Math.min(INDEX_ZIEL_JAHRE * 12, idxDeckel) : 72;
     // Erste Indexanpassung frühestens 12 Monate nach der letzten Anpassung.
     const seit = monateSeitRaw === null ? 0 : Math.min(monateSeitRaw, 11);
     const p1 = Math.max(1, 12 - seit);
@@ -728,7 +730,7 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
       mo: gesamtMonateIdx > 0 ? Math.round((totalIdx / gesamtMonateIdx) * 100) / 100 : 0,
       monate: gesamtMonateIdx,
       quelle: 'auto-index-prognose',
-      erlaeuterung: `Indexmietvertrag: Ziel ist die Miete, die der Vertrag in 6 Jahren bei +${INDEX_PROGNOSE_STR} % p.a. erreicht (${zielMiete.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €/Mo). Die Subvention füllt je Vertragsjahr die Lücke dorthin auf und sinkt mit jeder Indexanpassung; die Käufer-Einnahme bleibt konstant auf diesem Zielwert und läuft ohne Sprung in die reguläre Indexmiete über.` + (idxDeckel ? ` Subventionslaufzeit auf ${gesamtMax} Monate gedeckelt.` : '') + (capGreiftIdx ? ' €-Cap greift — hintere Phasen gekürzt.' : '') + ' Phasen unter 20 €/Mo entfallen.',
+      erlaeuterung: `Indexmietvertrag: Ziel ist die Miete, die der Vertrag in ${INDEX_ZIEL_JAHRE} Jahren bei +${INDEX_PROGNOSE_STR} % p.a. erreicht (${zielMiete.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €/Mo). Die Subvention füllt je Vertragsjahr die Lücke dorthin auf und sinkt mit jeder Indexanpassung; die Käufer-Einnahme bleibt konstant auf diesem Zielwert und läuft ohne Sprung in die reguläre Indexmiete über.` + (idxDeckel && idxDeckel <= 72 ? ` Subventionslaufzeit auf ${gesamtMax} Monate gedeckelt.` : '') + (capGreiftIdx ? ' €-Cap greift — hintere Phasen gekürzt.' : '') + ' Phasen unter 20 €/Mo entfallen.',
       capEur: capIdx,
       capGreift: capGreiftIdx,
       marktmieteEurQm,
@@ -737,6 +739,7 @@ function computeAutoSubvention(kalkApi, vermietung, weQm) {
       indexPrognosePct: INDEX_PROGNOSE_PA * 100,
       zielMiete,
       zielMieteEurQm,
+      zielJahre: INDEX_ZIEL_JAHRE,
       gesamtMonate: gesamtMonateIdx,
       gesamtJahre: Math.round((gesamtMonateIdx / 12) * 10) / 10,
     };

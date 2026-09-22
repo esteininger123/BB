@@ -57,3 +57,17 @@ test('Unplausible Prognose (≥ 15 %) fällt auf 3 % zurück', () => {
   const s = computeAutoSubvention(kalk({ indexPrognosePa: 0.5 }), verm(), QM);
   assert.strictEqual(s.indexPrognosePct, 3);
 });
+
+test('Subvention max. Monate = 84 → Ziel nach 7 Jahren, 7 Phasen (Henry 23.09.2026, WE 133)', () => {
+  const s = computeAutoSubvention(kalk({ mieteBeiVerkauf: 604.67, subvMaxMonate: 84 }), verm(), 52.58);
+  assert.strictEqual(s.zielJahre, 7);
+  assert.ok(Math.abs(s.zielMiete - 743.67) < 0.02, 'Ziel 7 J: ' + s.zielMiete);
+  assert.strictEqual(s.phasen.length, 7, '7 Jahresphasen');
+  assert.ok(Math.abs(s.phasen[0].mo - 139.00) < 0.02, 'P1 ' + s.phasen[0].mo);
+  assert.ok(Math.abs(s.phasen[6].mo - 21.65) < 0.02, 'P7 ' + s.phasen[6].mo);
+  assert.strictEqual(s.monate, 9 + 6 * 12);
+  assert.ok(!/gedeckelt/.test(s.erlaeuterung), 'kein Deckel-Hinweis bei Verlängerung');
+  const sechs = computeAutoSubvention(kalk({ mieteBeiVerkauf: 604.67 }), verm(), 52.58);
+  assert.strictEqual(sechs.zielJahre, 6);
+  assert.ok(s.totalEur > sechs.totalEur);
+});
