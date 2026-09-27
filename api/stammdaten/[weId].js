@@ -1163,6 +1163,8 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
     // 09.09.2026 (Henry): „Bedarf an Stellplatz" (Ja/Nein/leer → true/false/null) —
     // Hinweis „Mieter wünscht Stellplatz" im Einfachen Rechner + Kalkulator-Kopf.
     stellplatzBedarf: weStellplatzBedarf(wf[WE_FIELDS.STELLPLATZ_BEDARF]),
+    // 27.09.2026 (Henry): Zimmeranzahl → Standard-Zins/-Tilgung im Einfachen Rechner.
+    zimmer:    num(wf[WE_FIELDS.ZIMMER]),
     // 07.09.2026 — Varianten-Karte (möbliert): Aufschlüsselung für Anzeige/Kaufvertrag.
     variante: variante ? {
       label:   variante.info.label,

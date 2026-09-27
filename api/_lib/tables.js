@@ -198,6 +198,9 @@ const WE_FIELDS = {
   // WE-Liste + Hinweis „Mieter wünscht Stellplatz" im Rechner-/Kalkulator-Kopf, damit der
   // Vertriebler den Stellplatz mit anbietet. Mapper-Helfer: mappers.weStellplatzBedarf().
   STELLPLATZ_BEDARF: 'fldcNbjkfNqvbQs3f',
+  // 2026-09-27 (Henry) — Zimmeranzahl (Number). Read-only. Steuert die Standard-Konditionen
+  // im Einfachen Rechner: 1 Zi = 4,8 % Zins / 1,5 % Tilgung, 2 Zi = 4,9 % / 1,25 %.
+  ZIMMER: 'fldfhjl44rt6zJUKW',
 };
 
 const WE_STATUS_VERMARKTUNG = 'Vermarktung / Im Verkauf';
