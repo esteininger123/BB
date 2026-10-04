@@ -10931,32 +10931,19 @@ window._simpleRechnerToggle = (an) => _komplexRechnerToggle(!an);
 
 const RECHNER_NOTAR_PCT = 0.023;  // Notar & Grundbuch — Satz aus der Musterberechnung
 
-// 14.08.2026 (Henry): Standard-Finanzierungskonditionen im Einfachen Rechner.
-// Zins hängt daran, ob das Eigenkapital die Kaufnebenkosten deckt („Nebenkosten
-// eingebracht" = EK ≥ KNK → 4,4 %, sonst 4,6 %); Tilgung an der Kaufpreisgrenze
-// 150.000 € (darunter 1,5 %, ab 150 T€ 1,25 %). Der Zins folgt dem EK-Feld LIVE,
-// solange der Nutzer ihn nicht selbst überschrieben hat (dann gilt sein Wert).
-const RECHNER_ZINS_MIT_NK_PCT    = 4.4;
-const RECHNER_ZINS_OHNE_NK_PCT   = 4.6;
-const RECHNER_TILGUNG_GRENZE_EUR = 150000;
-// 27.09.2026 (Henry): Feste Konditionen nach Zimmeranzahl (WE-Feld „Zimmer") — gelten
-// unabhängig vom EK und vom Kaufpreis. Andere Zimmerzahlen / leeres Feld → Regel von oben.
-const RECHNER_KONDITIONEN_ZIMMER = {
-  1: { zins: 4.8, tilgung: 1.5 },
-  2: { zins: 4.9, tilgung: 1.25 },
-};
-function _rechnerZimmerKond(zimmer) {
-  return RECHNER_KONDITIONEN_ZIMMER[Math.round(Number(zimmer) || 0)] || null;
+// 04.10.2026 (Henry): EIN Standard für alle — extern wie intern, jede Einheit:
+// 5,0 % Zins / 1,0 % Tilgung. Ersetzt die Regeln vom 14.08. (4,4/4,6 % nach EK,
+// Tilgung 1,5/1,25 % nach 150-T€-Grenze) und vom 27.09. (Sätze nach Zimmeranzahl).
+// Beide Werte bleiben im Rechner frei überschreibbar.
+const RECHNER_ZINS_STANDARD_PCT    = 5.0;
+const RECHNER_TILGUNG_STANDARD_PCT = 1.0;
+// Signatur (ek, knk, zimmer) bzw. (gesamtKp, zimmer) bleibt für die Aufrufer erhalten —
+// falls die Konditionen wieder von Einheit/Finanzierung abhängen sollen, hier ansetzen.
+function _rechnerZinsAuto() {
+  return RECHNER_ZINS_STANDARD_PCT;
 }
-function _rechnerZinsAuto(ek, knk, zimmer) {
-  const k = _rechnerZimmerKond(zimmer);
-  if (k) return k.zins;
-  return (ek >= Math.round(knk) - 1) ? RECHNER_ZINS_MIT_NK_PCT : RECHNER_ZINS_OHNE_NK_PCT;
-}
-function _rechnerTilgungAuto(gesamtKp, zimmer) {
-  const k = _rechnerZimmerKond(zimmer);
-  if (k) return k.tilgung;
-  return gesamtKp < RECHNER_TILGUNG_GRENZE_EUR ? 1.5 : 1.25;
+function _rechnerTilgungAuto() {
+  return RECHNER_TILGUNG_STANDARD_PCT;
 }
 const RECHNER_SEV_MO    = 30;     // Mietverwaltung (SEV) €/Mo — B&B-Angebots-Standard
 // B&B-Standard (Henry 19.07.2026): Garagen-AfA nach amtlicher AfA-Tabelle = 20 Jahre / 5 % p.a.
@@ -10969,7 +10956,7 @@ const RECHNER_GARAGE_JAHRE = 20;
 // werden vom Einfachen Rechner beim Öffnen UND von der WE-Liste (Kennzahlen bei
 // aktivem „Einfacher Rechner") benutzt. Vorher zeigte die Liste Engine-Werte
 // (Profil 30 % StSatz / 1 % Tilgung), der Klick dann die Musterberechnung
-// (42 % StSatz, EK = KNK, 4,4 % Zins, 1,5 % Tilgung, SEV 30 €) → WE 1 Meckesheim
+// (42 % StSatz, EK = KNK, damals 4,4 % Zins / 1,5 % Tilgung, SEV 30 €) → WE 1 Meckesheim
 // stand mit −82 €/Mo in der Liste und −10,92 €/Mo nach dem Klick.
 function _rechnerDefaultInputs(d) {
   const b0 = _rechnerBasis(d);
@@ -10984,8 +10971,8 @@ function _rechnerDefaultInputs(d) {
 }
 // Kurzbeschreibung der Standard-Annahmen (für den Hinweis in der WE-Liste).
 function _rechnerDefaultsLabel() {
-  return 'EK = Kaufnebenkosten · 1 Zi: 4,8 % Zins / 1,5 % Tilgung · 2 Zi: 4,9 % / 1,25 % · sonst '
-    + RECHNER_ZINS_MIT_NK_PCT.toLocaleString('de-DE') + ' % Zins, 1,5 % Tilgung (ab ' + (RECHNER_TILGUNG_GRENZE_EUR / 1000) + ' T€: 1,25 %) · 42 % Steuersatz · SEV ' + RECHNER_SEV_MO + ' €/Mo';
+  return 'EK = Kaufnebenkosten · ' + RECHNER_ZINS_STANDARD_PCT.toLocaleString('de-DE') + ' % Zins · '
+    + RECHNER_TILGUNG_STANDARD_PCT.toLocaleString('de-DE') + ' % Tilgung · 42 % Steuersatz · SEV ' + RECHNER_SEV_MO + ' €/Mo';
 }
 
 function renderExternRechner() {
@@ -11001,7 +10988,7 @@ function renderExternRechner() {
     // EK-Default = Kaufnebenkosten (Henry 19.07.2026): entspricht 100-%-Finanzierung
     // des Kaufpreises — der Kunde bringt die Nebenkosten als Eigenkapital mit.
     // SEV default AN wie in der Musterberechnung (SE-Verwaltergebühr fest eingerechnet) — abwählbar.
-    // Zins/Tilgung = Standard-Konditionen (Henry 14.08.2026, siehe _rechnerZinsAuto/-TilgungAuto).
+    // Zins/Tilgung = Standard-Konditionen 5,0 % / 1,0 % (Henry 04.10.2026, siehe _rechnerZinsAuto/-TilgungAuto).
     state._rechnerInputs = _rechnerDefaultInputs(d);
     _rechnerRenderContent();
   }).catch((e) => {
@@ -11316,7 +11303,7 @@ function _rechnerRenderContent() {
       inputFeld('rc-tilgung', 'Tilgung', state._rechnerInputs.tilgungPct, '%', '0.1'),
       zeile('Tilgung monatlich', '<span id="rcv-tilgungMo">' + fEM(c.tilgMoTeil) + '</span>/Mo'),
       zeile('Annuität / Bankrate', '<span id="rcv-ratePct">' + (state._rechnerInputs.zinsPct + state._rechnerInputs.tilgungPct).toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' %</span> · <span id="rcv-rateMo">' + fEM(c.rateMo) + '</span>/Mo', { sum: true }),
-    ].join(''), 'Standard: 4,4 % Zins (NK eingebracht) / 4,6 % (NK mitfinanziert) · Tilgung 1,5 % unter / 1,25 % ab 150 T€ — frei anpassbar'),
+    ].join(''), 'Standard: ' + RECHNER_ZINS_STANDARD_PCT.toLocaleString('de-DE') + ' % Zins · ' + RECHNER_TILGUNG_STANDARD_PCT.toLocaleString('de-DE') + ' % Tilgung — frei anpassbar'),
 
     sektion('Steuerliche Betrachtung', [
       inputFeld('rc-steuer', 'Persönlicher Grenzsteuersatz', state._rechnerInputs.steuerPct, '%', '1'),
@@ -11415,8 +11402,8 @@ function _rechnerRecalc(sourceId) {
   const g = (id) => document.getElementById(id);
   const num = (id, fb) => { const v = parseFloat((g(id) || {}).value); return isFinite(v) ? v : fb; };
   const inp = state._rechnerInputs;
-  // 14.08.2026 (Henry): Tippt der Nutzer selbst am Zins, gilt ab da sein Wert;
-  // sonst folgt der Zins automatisch dem EK (NK eingebracht 4,4 % / sonst 4,6 %).
+  // Tippt der Nutzer selbst am Zins, gilt ab da sein Wert; sonst steht der Standard
+  // (seit 04.10.2026 fest 5,0 % — die frühere EK-Kopplung 4,4/4,6 % ist entfallen).
   if (sourceId === 'rc-zins') inp._zinsManuell = true;
   inp.ek = num('rc-ek', 0);
   const bAuto = _rechnerBasis(d);
@@ -11425,7 +11412,7 @@ function _rechnerRecalc(sourceId) {
     const zEl = g('rc-zins');
     if (zEl && parseFloat(zEl.value) !== zinsAuto) zEl.value = zinsAuto;
   }
-  inp.zinsPct = num('rc-zins', RECHNER_ZINS_MIT_NK_PCT);
+  inp.zinsPct = num('rc-zins', RECHNER_ZINS_STANDARD_PCT);
   inp.tilgungPct = num('rc-tilgung', _rechnerTilgungAuto(bAuto.gesamtKp, d.we && d.we.zimmer));
   inp.steuerPct = num('rc-steuer', 42);
   inp.sev = !!(g('rc-sev') && g('rc-sev').checked);
