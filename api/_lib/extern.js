@@ -19,12 +19,24 @@
 // Henrys Wunsch komplett entfernt — „verwirrt nur".)
 
 const { airtable, listAll } = require('./airtable');
-const { TABLES, VERTRIEBLER_FIELDS, STELLPLATZ_FIELDS, MIETVERTRAG_FIELDS } = require('./tables');
+const { TABLES, VERTRIEBLER_FIELDS, STELLPLATZ_FIELDS, MIETVERTRAG_FIELDS, KALK_STAMMDATEN_FIELDS } = require('./tables');
 const { isExtern } = require('./auth');
 const { linkIds, dedupe } = require('./stellplatz');
 
 const PROVISION_MAX = 0.07;   // 7 % — Obergrenze, hart serverseitig
 const EXTERN_RABATT = 0.02;   // 06.07.2026 (Henry): Abgabepreis Wohnung für Externe 2 % unter intern
+// 04.10.2026 (Henry): Pro Einheit kann stattdessen ein eigener Abschlag gelten (Kalk-Stammdaten
+// „Extern-Abschlag %"), z.B. 3,57 % = die Vertriebsleistung, die B&B beim Eigenverkauf ansetzt.
+// Basis ist dann der GESAMT-Kaufpreis (Wohnung + Stellflächen) — wie bei der 3,57-%-Regel —,
+// abgezogen wird er vom Wohnungspreis. Obergrenze als Tippfehler-Schutz (0,357 statt 0,0357).
+const EXTERN_ABSCHLAG_MAX = 0.15;
+
+// Gültiger Einheiten-Abschlag als Dezimalwert oder null (= Standard-Rabatt greift).
+function clampAbschlag(v) {
+  const n = typeof v === 'number' ? v : parseFloat(v);
+  if (!isFinite(n) || n <= 0 || n > EXTERN_ABSCHLAG_MAX) return null;
+  return n;
+}
 
 // Normalisiert einen Provisionssatz: Dezimalwert 0…0.07, auf 4 Nachkommastellen
 // (= 0,01-%-Punkte) gerundet. Ungültiges → 0 (= Abgabepreis, sicherster Fall).
@@ -36,11 +48,17 @@ function clampProvision(v) {
 
 // Rechnet den Extern-Kundenpreis für eine WE. Reine Funktion, keine IO.
 // kpWohnung = INTERNER Abgabepreis der Wohnung — der 2-%-Extern-Rabatt wird hier abgezogen.
-function externPreis(kpWohnung, stellplatzKp, provisionPct) {
+// abschlagPct (optional) = Einheiten-Abschlag aus den Kalk-Stammdaten: ersetzt die 2 % durch
+// abschlag × (Wohnung + Stellplatz), abgezogen vom Wohnungspreis.
+function externPreis(kpWohnung, stellplatzKp, provisionPct, abschlagPct) {
   const kpIntern = (typeof kpWohnung === 'number' && isFinite(kpWohnung)) ? kpWohnung : 0;
   const stpl = (typeof stellplatzKp === 'number' && isFinite(stellplatzKp)) ? stellplatzKp : 0;
   const prov = clampProvision(provisionPct);
-  const kpExtern = Math.round(kpIntern * (1 - EXTERN_RABATT)); // Abgabepreis für Externe (Stellplatz unrabattiert)
+  const abschlag = clampAbschlag(abschlagPct);
+  // Abgabepreis für Externe (der Stellplatzpreis selbst bleibt immer unverändert)
+  const kpExtern = abschlag != null
+    ? Math.max(0, Math.round(kpIntern - abschlag * (kpIntern + stpl)))
+    : Math.round(kpIntern * (1 - EXTERN_RABATT));
   const basis = kpExtern + stpl;
   const aufschlag = Math.round(prov * basis);      // = Brutto-Provision des Externen in €
   return {
@@ -109,4 +127,48 @@ async function ladeStellplatzKpSummen() {
   return summen;
 }
 
-module.exports = { PROVISION_MAX, EXTERN_RABATT, clampProvision, externPreis, loadProvisionPct, ladeStellplatzKpSummen };
+// 04.10.2026 (Henry) — Exklusiv-Kontingente für Externe.
+// Sichtbarkeitsregel einer Einheit (Kalk-Stammdatensatz, auch Varianten) für die Rolle Extern:
+//   1. Haken „Extern freigegeben" fehlt            → niemand Externes sieht sie
+//   2. „Extern exklusiv für" leer                  → alle Externen sehen sie
+//   3. „Extern exklusiv für" gepflegt              → nur die verknüpften Vertriebler
+// Alle Extern-Filter (Liste, Detail, Batch, Reservierung) laufen über externDarfSehen(),
+// damit die Regel nirgends auseinanderläuft.
+function externExklusivIds(stammFields) {
+  return dedupe(linkIds((stammFields || {})[KALK_STAMMDATEN_FIELDS.EXTERN_EXKLUSIV]));
+}
+
+function externDarfSehen(stammFields, session) {
+  const f = stammFields || {};
+  if (!f[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE]) return false;
+  const exklusiv = externExklusivIds(f);
+  if (exklusiv.length === 0) return true;
+  return !!(session && session.vertrieblerId && exklusiv.includes(session.vertrieblerId));
+}
+
+// true, wenn die Einheit extern freigegeben UND einem Exklusiv-Kontingent zugeordnet ist
+// (Kennzeichnung „exklusiv" in Listen — ohne Freigabe sieht sie extern ohnehin niemand).
+function hatExklusivKontingent(stammFields) {
+  const f = stammFields || {};
+  return !!f[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE] && externExklusivIds(f).length > 0;
+}
+
+// Namen der Vertriebler zu einer ID-Liste (für den internen „Exklusiv: …"-Hinweis).
+// Fehler → leere Map (der Hinweis zeigt dann nur „Exklusiv" ohne Namen).
+async function ladeVertrieblerNamen(ids) {
+  const liste = dedupe(ids || []);
+  if (liste.length === 0) return {};
+  try {
+    const recs = await listAll(TABLES.VERTRIEBLER, { fields: [VERTRIEBLER_FIELDS.NAME] }, 500);
+    const namen = {};
+    recs.forEach(r => { if (liste.includes(r.id)) namen[r.id] = (r.fields && r.fields[VERTRIEBLER_FIELDS.NAME]) || ''; });
+    return namen;
+  } catch (e) {
+    return {};
+  }
+}
+
+module.exports = {
+  PROVISION_MAX, EXTERN_RABATT, EXTERN_ABSCHLAG_MAX, clampProvision, clampAbschlag, externPreis, loadProvisionPct, ladeStellplatzKpSummen,
+  externExklusivIds, externDarfSehen, hatExklusivKontingent, ladeVertrieblerNamen,
+};

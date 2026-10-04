@@ -15,7 +15,7 @@
 //   - Nur Admins dürfen schreiben.
 
 const { verifySession, requireSafeOrigin, isExtern } = require('../_lib/auth');
-const { externPreis, loadProvisionPct } = require('../_lib/extern');
+const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds } = require('../_lib/extern');
 const { airtable, listAll } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
@@ -428,6 +428,13 @@ function kalkStammRecordToApi(rec) {
     indexPrognosePa:       num(f[KALK_STAMMDATEN_FIELDS.INDEX_PROGNOSE_PCT]),
     // 06.07.2026 (Henry) — WE für externe Vertriebler freigegeben (Opt-in).
     externFreigabe:        !!f[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE],
+    // 04.10.2026 (Henry) — Exklusiv-Kontingent: Vertriebler-IDs, die die Einheit als
+    // einzige Externe sehen (leer = alle Externen). Für Extern-Sessions wird die Liste in
+    // buildWeDetail durch das Flag externExklusivFuerMich ersetzt (keine fremden IDs).
+    externExklusiv:        externExklusivIds(f),
+    // 04.10.2026 (Henry) — Einheiten-Abschlag für Externe (leer = Standard 2 %); verlässt den
+    // Server für Extern-Sessions nicht (sonst wäre der interne Preis rückrechenbar).
+    externAbschlag:        num(f[KALK_STAMMDATEN_FIELDS.EXTERN_ABSCHLAG]),
     // 08.07.2026 (Henry) — WG-/Rendite-Objekt. Steuert die WG-Ansicht + Kaufpreis-Anker
     // (siehe computeMarktpreisGemittelt: bei wgKonzept fällt der Vergleichsmarktpreis raus).
     wgKonzept:             !!f[KALK_STAMMDATEN_FIELDS.WG_KONZEPT],
@@ -1195,8 +1202,13 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
 
   // 06.07.2026 (Henry): Externe sehen NUR explizit freigegebene Einheiten —
   // auch per Deep-Link/Direktaufruf nicht mehr.
-  if (isExtern(session) && !(kalkApi && kalkApi.externFreigabe)) {
-    return { status: 404, body: { error: 'Diese Einheit ist für den externen Vertrieb nicht freigegeben.' } };
+  // 04.10.2026: inkl. Exklusiv-Kontingent — fremdes Kontingent verhält sich wie „nicht freigegeben".
+  if (isExtern(session)) {
+    if (!kalkApi || !externDarfSehen(kalkRec && kalkRec.fields, session)) {
+      return { status: 404, body: { error: 'Diese Einheit ist für den externen Vertrieb nicht freigegeben.' } };
+    }
+    kalkApi.externExklusivFuerMich = kalkApi.externExklusiv.length > 0;
+    delete kalkApi.externExklusiv;
   }
 
   const statusVomLookup = resolveVermietungsstatusFromLookup(kalkApi && kalkApi.weVermietungsstatusRaw);
@@ -1300,7 +1312,8 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
   let externInfo = null;
   if (isExtern(session)) {
     const prov = (P.provisionPct != null) ? P.provisionPct : await loadProvisionPct(session);
-    const e = externPreis(we.kp, stpKaufpreisSumme, prov);
+    const e = externPreis(we.kp, stpKaufpreisSumme, prov, kalkApi && kalkApi.externAbschlag);
+    if (kalkApi) delete kalkApi.externAbschlag;
     we.kp = e.kp;
     if (we.qm > 0) we.qmPreis = Math.round((e.kp / we.qm) * 100) / 100;
     externInfo = { provisionPct: e.provisionPct, aufschlag: e.aufschlag };
@@ -1475,6 +1488,14 @@ module.exports = async (req, res) => {
       if (body.marktmiete !== undefined)            fields[KALK_STAMMDATEN_FIELDS.MARKTMIETE]           = num(body.marktmiete);
       // 06.07.2026 (Henry) — Extern-Freigabe (Checkbox, Admin-Bereich „Externer Vertrieb")
       if (body.externFreigabe !== undefined)        fields[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE]      = !!body.externFreigabe;
+      // 04.10.2026 (Henry) — Exklusiv-Kontingent: Array von Kalk-Vertriebler-IDs ([] = aufheben)
+      if (body.externExklusiv !== undefined) {
+        const ids = Array.isArray(body.externExklusiv) ? body.externExklusiv : null;
+        if (!ids || ids.some(id => !/^rec[A-Za-z0-9]{14}$/.test(String(id)))) {
+          return res.status(400).json({ error: 'externExklusiv muss eine Liste von Vertriebler-IDs sein' });
+        }
+        fields[KALK_STAMMDATEN_FIELDS.EXTERN_EXKLUSIV] = Array.from(new Set(ids));
+      }
 
       // Iter 41.16 (Audit-Fix #14): Pflichtfeld-Validierung beim Aktiv-Setzen.
       // Eine WE darf nur dann auf Status=Aktiv gesetzt werden, wenn die für den

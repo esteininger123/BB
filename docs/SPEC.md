@@ -262,6 +262,41 @@ Externe Vertriebler reservieren über einen eigenen Muster-Flow:
   Unterschrift, „Dokument öffnen"/„Kunden-Link kopieren"
   (`POST /api/reservierung/view-link`, Owner oder Admin).
 
+## Exklusiv-Kontingente für Externe (04.10.2026, Henry)
+
+Einzelne Einheiten lassen sich bestimmten externen Vertrieblern exklusiv zuordnen.
+
+- Feld **Extern exklusiv für** (`fldJWrG3kZo0EdxzR`, Link → Kalk-Vertriebler, mehrfach) auf
+  Kalk-Stammdaten (auch auf Varianten-Sätzen). Rückverknüpfung in Kalk-Vertriebler:
+  `fldApD9s1izvWW7Mj` (zeigt je Vertriebler sein Kontingent).
+- **Regel** (einzige Quelle: `externDarfSehen()` in `api/_lib/extern.js`):
+  Freigabe-Haken fehlt → kein Externer · Exklusiv leer → alle Externen ·
+  Exklusiv gepflegt → nur die verknüpften Vertriebler. Mehrere Vertriebler pro Einheit
+  = geteiltes Kontingent. Interne (Admin/Vertriebler) sehen die Einheit weiterhin.
+- Greift in denselben Stellen wie die Freigabe: `/api/wohneinheiten`, `/api/stammdaten`
+  (Liste), `/api/stammdaten/[weId]` + `/api/stammdaten/liste` (404), `/api/reservierung/extern-link` (403).
+- **Responses:** Extern bekommt nur `externExklusivFuerMich` (bool) bzw. `externExklusiv: true`
+  in der WE-Liste, nie fremde Vertriebler-IDs. Intern: `stammdaten.externExklusiv` (IDs) +
+  `externExklusivNamen` (nur `/api/stammdaten`).
+- **Pflege:** `PUT /api/stammdaten/[weId] { externExklusiv: ['rec…'] }` (Admin, `[]` = aufheben).
+  UI: Admin → „Externer Vertrieb" → je Einheit Button „Alle Externen / 🔒 Name" oder
+  Kontingent-Dialog je Vertriebler (mehrere Einheiten auf einmal; setzt fehlenden
+  Freigabe-Haken mit).
+- **Anzeige:** WE-Liste/Picker — Extern „★ Exklusiv für dich", intern „🔒 Exklusiv: Name".
+- Tests: `tests/extern-exklusiv.test.js`.
+
+## Extern-Abschlag je Einheit (04.10.2026, Henry)
+
+- Feld **Extern-Abschlag %** (`fldMAH69tz8IET5Vm`, percent) auf Kalk-Stammdaten (auch Varianten).
+  Gepflegt = ersetzt für diese Einheit den Standard-Extern-Rabatt (2 % auf die Wohnung):
+  `Extern-Abgabepreis Wohnung = Wohnungs-KP − Satz × (Wohnungs-KP + Stellflächen-KP)`.
+  Anlass: 3,57 % = die Vertriebsleistung, die B&B beim Eigenverkauf ansetzt (Meckesheim WE 9 + 11).
+  Die Provision des Externen kommt wie gehabt obendrauf. Leer, ≤ 0 oder > 15 % = Standard.
+- Greift in `externPreis(kp, stellplatzKp, provision, abschlag)` und damit in allen vier
+  Preiswegen (Liste, Stammdaten-Liste, Detail/Batch, Reservierung). Der Satz wird Externen
+  nie ausgeliefert. Input-Feld — Pflege direkt in Airtable.
+- Tests: `tests/extern-preis.test.js`, `tests/extern-exklusiv.test.js`.
+
 ## E-Mail+Passwort-Login (06.07.2026)
 
 Zusätzlich zu Google (v.a. für Externe ohne Google-Konto):

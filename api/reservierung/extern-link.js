@@ -16,7 +16,7 @@
 
 const jwt = require('jsonwebtoken');
 const { verifySession, requireSafeOrigin, isExtern } = require('../_lib/auth');
-const { externPreis, loadProvisionPct, ladeStellplatzKpSummen } = require('../_lib/extern');
+const { externPreis, loadProvisionPct, ladeStellplatzKpSummen, externDarfSehen } = require('../_lib/extern');
 // 07.09.2026 — möblierte Varianten: eigene Karte, aber dieselbe Wohneinheit.
 const { parseWeId, loadVariante, applyVariante } = require('../_lib/we-variante');
 const { kpWohnungFuerReservierung } = require('../_lib/reserv-preis');
@@ -101,22 +101,27 @@ module.exports = async (req, res) => {
       || kf[KUNDEN_FIELDS.NAME] || 'Kaufinteressent';
 
     // --- Freigabe-Check (06.07.2026): nur explizit für Extern freigegebene
-    // Einheiten sind reservierbar — auch gegen manipulierte Requests. ---
+    // Einheiten sind reservierbar — auch gegen manipulierte Requests.
+    // 04.10.2026: inkl. Exklusiv-Kontingent (fremdes Kontingent = nicht reservierbar). ---
+    let externAbschlag = null; // Einheiten-Abschlag (Kalk-Stammdaten „Extern-Abschlag %"), leer = Standard 2 %
     if (extern) {
       const stammRecs = await listAll(TABLES.KALK_STAMMDATEN, {
         filterByFormula: `{${KALK_STAMMDATEN_FIELDS.STATUS}}='${KALK_STATUS_AKTIV}'`,
-        fields: [KALK_STAMMDATEN_FIELDS.WOHNEINHEIT, KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE],
+        fields: [KALK_STAMMDATEN_FIELDS.WOHNEINHEIT, KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE, KALK_STAMMDATEN_FIELDS.EXTERN_EXKLUSIV, KALK_STAMMDATEN_FIELDS.EXTERN_ABSCHLAG],
       }, 1000);
-      const freigegeben = stammRecs.some(r => {
+      const stammTreffer = stammRecs.find(r => {
         const f = r.fields || {};
-        if (!f[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE]) return false;
+        if (!externDarfSehen(f, session)) return false;
         const links = f[KALK_STAMMDATEN_FIELDS.WOHNEINHEIT] || [];
         return Array.isArray(links) && links.some(x => ((x && typeof x === 'object' && x.id) ? x.id : x) === weId);
       });
-      const varianteFreigegeben = !!(variante && (variante.rec.fields || {})[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE]);
+      const freigegeben = !!stammTreffer;
+      const varianteFreigegeben = !!(variante && externDarfSehen(variante.rec.fields, session));
       if (variante ? !varianteFreigegeben : !freigegeben) {
         return res.status(403).json({ error: 'Diese Einheit ist für den externen Vertrieb nicht freigegeben.' });
       }
+      // Derselbe Stammsatz wie in Liste/Rechner bestimmt den Abschlag (Variante: ihr eigener).
+      externAbschlag = ((variante ? variante.rec : stammTreffer).fields || {})[KALK_STAMMDATEN_FIELDS.EXTERN_ABSCHLAG];
     }
 
     // --- Preise SERVERSEITIG (Abgabepreis + Provision des Externen) ---
@@ -144,7 +149,7 @@ module.exports = async (req, res) => {
       } catch (err) { /* Snapshot-Fehler ist nicht toedlich -> WE-Live-Preis */ }
     }
     const kpWohnung = kpWohnungFuerReservierung({
-      extern, kpBasis, stellplatzKp, provisionPct: prov, snapKaufpreis,
+      extern, kpBasis, stellplatzKp, provisionPct: prov, snapKaufpreis, abschlagPct: externAbschlag,
     });
     const vertrieblerName = (vertrieblerRec && vertrieblerRec.fields && vertrieblerRec.fields[VERTRIEBLER_FIELDS.NAME]) || session.email;
 

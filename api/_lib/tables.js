@@ -327,6 +327,16 @@ const KALK_STAMMDATEN_FIELDS = {
   // 06.07.2026 (Henry) — Checkbox: WE ist für EXTERNE Vertriebler freigegeben (Opt-in).
   // Gesteuert im Admin-Bereich → „Externer Vertrieb". Ohne Haken sehen Externe die WE nicht.
   EXTERN_FREIGABE:       'fldQ4pMt1KnVXx8Fw',
+  // 04.10.2026 (Henry) — Exklusiv-Kontingent: Link → Kalk-Vertriebler. Ist mindestens ein
+  // Vertriebler verknüpft, sehen NUR diese Externen die Einheit (Freigabe-Haken bleibt
+  // Voraussetzung). Leer = alle Externen. Interne sehen die Einheit weiter (mit Hinweis).
+  // Einzige Quelle der Sichtbarkeitsregel: externDarfSehen() in _lib/extern.js.
+  EXTERN_EXKLUSIV:       'fldJWrG3kZo0EdxzR',
+  // 04.10.2026 (Henry) — Percent. Abschlag für Externe auf den GESAMT-Kaufpreis (Wohnung +
+  // Stellflächen), z.B. 3,57 % = die eingesparte eigene Vertriebsleistung. Ersetzt für diese
+  // Einheit den Standard-Extern-Rabatt (2 % auf die Wohnung). Leer = Standard.
+  // Input-Feld (Pflege in Airtable) — keine Schreib-Richtung im Backend. Siehe externPreis().
+  EXTERN_ABSCHLAG:       'fldMAH69tz8IET5Vm',
   // 08.07.2026 (Henry) — Checkbox: WG-/Rendite-Objekt (z.B. Offenburg August-Hund-Str. 4).
   // Wenn gesetzt: Backstube ankert die Vermögensrechnung auf den Kaufpreis statt den
   // ImmoScout/Homeday-Vergleichsmarktpreis (dieser wird für WG-Einheiten aus den Daten

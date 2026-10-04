@@ -3,7 +3,7 @@
 //   Vermietungs-Info in einem Response. Nur Admin.
 
 const { verifySession, isExtern } = require('../_lib/auth');
-const { externPreis, loadProvisionPct } = require('../_lib/extern');
+const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds, ladeVertrieblerNamen } = require('../_lib/extern');
 const { airtable, listAll } = require('../_lib/airtable');
 const { methodNotAllowed, sendError } = require('../_lib/http');
 const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
@@ -288,6 +288,11 @@ module.exports = async (req, res) => {
           stellplatzMieteBeiVerkauf: num(sf[KALK_STAMMDATEN_FIELDS.STELLPLATZ_MIETE_BEI_VERKAUF]),
           // 06.07.2026 (Henry) — WE für externe Vertriebler freigegeben (Admin-Toggle)
           externFreigabe:        !!sf[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE],
+          // 04.10.2026 (Henry) — Exklusiv-Kontingent (Vertriebler-IDs; leer = alle Externen).
+          // Für Extern-Sessions unten durch externExklusivFuerMich ersetzt.
+          externExklusiv:        externExklusivIds(sf),
+          // 04.10.2026 (Henry) — Einheiten-Abschlag für Externe (leer = Standard 2 %).
+          externAbschlag:        num(sf[KALK_STAMMDATEN_FIELDS.EXTERN_ABSCHLAG]),
           marktpreisImmoscout:   num(sf[KALK_STAMMDATEN_FIELDS.MARKTPREIS_IS]),
           marktpreisHomeday:     num(sf[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]),
           marktmiete:            num(sf[KALK_STAMMDATEN_FIELDS.MARKTMIETE]),
@@ -316,10 +321,21 @@ module.exports = async (req, res) => {
     // stellplaetze.kaufpreisSumme bleibt unverändert (marktüblich eingepreist).
     if (isExtern(session)) {
       // 06.07.2026 (Henry): Externe sehen nur explizit freigegebene Einheiten.
-      audit = audit.filter(row => row.stammdaten && row.stammdaten.externFreigabe);
+      // 04.10.2026: plus Exklusiv-Kontingent — fremde Kontingente fallen raus, die eigene
+      // exklusive Einheit bekommt ein Flag; fremde Vertriebler-IDs verlassen den Server nie.
+      audit = audit.filter(row => {
+        const sd = row.stammdaten;
+        if (!sd || !sd.externFreigabe) return false;
+        return sd.externExklusiv.length === 0 || sd.externExklusiv.includes(session.vertrieblerId);
+      });
+      audit.forEach(row => {
+        row.stammdaten.externExklusivFuerMich = row.stammdaten.externExklusiv.length > 0;
+        delete row.stammdaten.externExklusiv;
+      });
       const prov = await loadProvisionPct(session);
       audit.forEach(row => {
-        const e = externPreis(row.we.kp, row.stellplaetze.kaufpreisSumme, prov);
+        const e = externPreis(row.we.kp, row.stellplaetze.kaufpreisSumme, prov, row.stammdaten && row.stammdaten.externAbschlag);
+        if (row.stammdaten) delete row.stammdaten.externAbschlag; // interner Preis darf nicht rückrechenbar sein
         row.we.kp = e.kp;
         if (row.we.qm > 0) row.we.qmPreis = Math.round((e.kp / row.we.qm) * 100) / 100;
         row.extern = { provisionPct: e.provisionPct, aufschlag: e.aufschlag };
@@ -328,6 +344,16 @@ module.exports = async (req, res) => {
       // nach einer Satz-Änderung falsch.
       res.setHeader('Cache-Control', 'no-store');
     } else {
+      // 04.10.2026: Interne sehen exklusiv vergebene Einheiten weiter — mit Namen der
+      // Kontingent-Inhaber (WE-Liste-Hinweis „Exklusiv: …"). Namen nur laden, wenn nötig.
+      const exklIds = audit.flatMap(row => (row.stammdaten && row.stammdaten.externExklusiv) || []);
+      if (exklIds.length > 0) {
+        const namen = await ladeVertrieblerNamen(exklIds);
+        audit.forEach(row => {
+          const ids = (row.stammdaten && row.stammdaten.externExklusiv) || [];
+          if (ids.length > 0) row.stammdaten.externExklusivNamen = ids.map(id => namen[id] || '').filter(Boolean);
+        });
+      }
       res.setHeader('Cache-Control', 'private, max-age=60, must-revalidate');
     }
     return res.status(200).json(audit);

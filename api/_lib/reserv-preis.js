@@ -3,7 +3,8 @@
 // senden (NEU)"), gibt es zwei Preiswege. Bewusst als reine Funktion ausgelagert —
 // ein Fehler hier landet unbemerkt im Dokument, das der Kunde unterschreibt.
 //
-//   extern: Abgabepreis (interner KP − 2 %) + Provision des Externen  → externPreis()
+//   extern: Abgabepreis (interner KP − 2 % bzw. Einheiten-Abschlag) + Provision des
+//           Externen  → externPreis()
 //   intern: der echte interne Kaufpreis. Liegt ein Snapshot vor, gilt dessen
 //           eingefrorener GESAMT-Kaufpreis (Wohnung + Stellplatz) — identisch zu
 //           send-for-signature.js (`snapKalk.kaufpreis || wohnung + stellplatz`),
@@ -17,10 +18,10 @@ function toNum(v) {
   return isFinite(n) ? n : 0;
 }
 
-function kpWohnungFuerReservierung({ extern, kpBasis, stellplatzKp, provisionPct, snapKaufpreis }) {
+function kpWohnungFuerReservierung({ extern, kpBasis, stellplatzKp, provisionPct, snapKaufpreis, abschlagPct }) {
   const basis = toNum(kpBasis);
   const stpl = toNum(stellplatzKp);
-  if (extern) return externPreis(basis, stpl, provisionPct).kp;
+  if (extern) return externPreis(basis, stpl, provisionPct, abschlagPct).kp;
   const gesamt = toNum(snapKaufpreis);
   if (gesamt > 0) return Math.max(0, gesamt - stpl);
   return basis;

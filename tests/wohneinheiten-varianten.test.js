@@ -70,6 +70,8 @@ function installStubs() {
     requireSafeOrigin: () => true,
   });
   stub('api/_lib/extern.js', {
+    externDarfSehen: () => true,
+    hatExklusivKontingent: () => false,
     externPreis: (kp) => ({ kp, provisionPct: 0, aufschlag: 0 }),
     loadProvisionPct: async () => 0,
     ladeStellplatzKpSummen: async () => ({}),

@@ -2501,7 +2501,10 @@ function renderTabKalkulator() {
     // 05.06.2026: reservierte / im Notartermin befindliche WEs klar im Label markieren.
     const st = w.status === 'Reserviert' ? '  ·  ⚠ RESERVIERT'
              : w.status === 'Notartermin' ? '  ·  ⚠ NOTARTERMIN' : '';
-    return titel + kp + st;
+    // 04.10.2026: Exklusiv-Kontingent (Extern sieht nur das eigene, intern = Hinweis).
+    const ex = !w.externExklusiv ? ''
+             : (state.user && state.user.rolle === 'Extern') ? '  ·  ★ EXKLUSIV FÜR DICH' : '  ·  🔒 EXKLUSIV (EXTERN)';
+    return titel + kp + st + ex;
   };
   // WEs nach Projekt gruppieren + innerhalb des Projekts nach WE-Nummer sortieren.
   const wesByProjekt = {};
@@ -6663,6 +6666,230 @@ async function _adminExternFreigabe(weId, checked) {
 }
 window._adminExternFreigabe = _adminExternFreigabe;
 
+// 04.10.2026 (Henry): Exklusiv-Kontingente — einzelne Einheiten nur bestimmten externen
+// Vertrieblern zeigen (Feld „Extern exklusiv für" in den Kalk-Stammdaten). Leer = alle
+// Externen sehen die freigegebene Einheit. Regel serverseitig: externDarfSehen (_lib/extern.js).
+function _adminExterneVertriebler() {
+  const alle = (state.adminStats && state.adminStats.vertriebler) || [];
+  const txt = (v) => (v && typeof v === 'object' && v.name) ? v.name : (v || '');
+  return alle
+    .filter(v => txt(v.rolle) === 'Extern' && txt(v.status) === 'Aktiv')
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}
+
+function _adminExklNamen(ids) {
+  const alle = (state.adminStats && state.adminStats.vertriebler) || [];
+  return (ids || []).map(id => {
+    const v = alle.find(x => x.id === id);
+    return v ? (v.name || v.email || id) : 'unbekannt';
+  });
+}
+
+function _adminExternFreigabeRows() {
+  return (state.adminStammAudit || [])
+    .filter(r => r.stammdaten && r.stammdaten.status === 'Aktiv')
+    .sort((a, b) => (a.we.titel || '').localeCompare(b.we.titel || ''));
+}
+
+function _adminWeLabel(r) {
+  return (r.we.titel || r.we.id) + (r.we.weNr ? ' · WE ' + r.we.weNr : '');
+}
+
+// Liste „WE-Freigaben für Externe" inkl. Exklusiv-Schalter + Kontingent-Übersicht.
+// Eigene Funktion, damit nach dem Speichern nur dieser Block neu gezeichnet wird.
+function _adminExternFreigabenHtml() {
+  const rows = _adminExternFreigabeRows();
+  if (rows.length === 0) return '<div class="text-tertiary text-small">Keine aktiven Einheiten.</div>';
+  const eur = (v) => (v === null || v === undefined || !isFinite(v)) ? '–' : Math.round(v).toLocaleString('de-DE') + ' €';
+  const externe = _adminExterneVertriebler();
+  const anzahlJe = {};
+  rows.forEach(r => (r.stammdaten.externExklusiv || []).forEach(id => { anzahlJe[id] = (anzahlJe[id] || 0) + 1; }));
+  return `
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;">
+      <span class="text-tertiary text-small">Exklusiv-Kontingent je Vertriebler:</span>
+      ${externe.length === 0 ? '<span class="text-tertiary text-small">keine aktiven externen Vertriebler</span>' : externe.map(v => `
+        <button class="secondary" style="font-size:11px;padding:3px 10px;" title="Einheiten auswählen, die nur ${esc(v.name)} sehen soll" onclick="window._adminExternKontingent('${esc(v.id)}')">${esc(v.name)}${anzahlJe[v.id] ? ' · ' + anzahlJe[v.id] + ' WE' : ''}</button>`).join('')}
+    </div>
+    <div id="admin-extern-freigaben-list" style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;padding:6px 12px;">
+      ${rows.map(r => {
+        const exkl = r.stammdaten.externExklusiv || [];
+        return `
+        <div style="display:flex;align-items:center;gap:10px;padding:5px 0;font-size:13px;border-bottom:1px solid var(--border);">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin:0;flex:1;min-width:0;">
+            <input type="checkbox" ${r.stammdaten.externFreigabe ? 'checked' : ''} onchange="window._adminExternFreigabe('${esc(r.we.id)}', this.checked)" style="width:15px;height:15px;flex-shrink:0;">
+            <span>${esc(_adminWeLabel(r))}</span>
+          </label>
+          <button class="secondary" style="font-size:11px;padding:3px 10px;flex-shrink:0;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${exkl.length ? 'border-color:#B08A4D;color:#7A5A00;' : ''}" title="${exkl.length ? 'Nur diese externen Vertriebler sehen die Einheit — Klick zum Ändern' : 'Alle externen Vertriebler sehen die Einheit (sofern freigegeben) — Klick für Exklusiv-Zuordnung'}" onclick="window._adminExternExklusivEdit('${esc(r.we.id)}')">${exkl.length ? '🔒 ' + esc(_adminExklNamen(exkl).join(', ')) : 'Alle Externen'}</button>
+          <span class="text-tertiary text-small" style="flex-shrink:0;min-width:76px;text-align:right;">${eur(r.we.kp)}</span>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="text-tertiary text-small" style="margin-top:6px;">„🔒 Name" = Exklusiv-Kontingent: nur die genannten externen Vertriebler sehen und reservieren die Einheit. Interne sehen sie weiterhin (mit Hinweis in der Wohnungsliste).</div>`;
+}
+
+function _adminExternFreigabenRefresh() {
+  const box = document.getElementById('admin-extern-freigaben');
+  if (!box) return;
+  const list = document.getElementById('admin-extern-freigaben-list');
+  const scroll = list ? list.scrollTop : 0;
+  box.innerHTML = _adminExternFreigabenHtml();
+  const neu = document.getElementById('admin-extern-freigaben-list');
+  if (neu) neu.scrollTop = scroll;
+}
+
+// Speichert die Exklusiv-Liste einer Einheit. Wer exklusiv vergibt, will die Einheit
+// extern zeigen → fehlender Freigabe-Haken wird dabei mitgesetzt.
+async function _adminExklSpeichern(row, ids) {
+  const body = { externExklusiv: ids };
+  if (ids.length > 0 && !row.stammdaten.externFreigabe) body.externFreigabe = true;
+  await api.put('/api/stammdaten/' + encodeURIComponent(row.we.id), body);
+  row.stammdaten.externExklusiv = ids;
+  if (body.externFreigabe) row.stammdaten.externFreigabe = true;
+}
+
+function _adminExklModal(id, innerHtml) {
+  const existing = document.getElementById(id);
+  if (existing) existing.remove();
+  const ov = document.createElement('div');
+  ov.id = id;
+  ov.setAttribute('role', 'dialog');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9998;background:rgba(26,26,23,0.5);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit;overflow-y:auto;';
+  ov.innerHTML = `<div style="background:#FBFAF7;border-radius:14px;max-width:640px;width:100%;padding:24px 28px;box-shadow:0 30px 80px rgba(0,0,0,0.25);border:1px solid #C9A572;max-height:calc(100vh - 48px);overflow-y:auto;">${innerHtml}</div>`;
+  document.body.appendChild(ov);
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+  document.addEventListener('keydown', onKey);
+  return { ov, close };
+}
+
+// Dialog je Einheit: welche Externen sehen sie exklusiv?
+function _adminExternExklusivEdit(weId) {
+  const row = (state.adminStammAudit || []).find(r => r.we && r.we.id === weId);
+  if (!row || !row.stammdaten) return;
+  const externe = _adminExterneVertriebler();
+  const aktuell = row.stammdaten.externExklusiv || [];
+  // Bereits verknüpfte, aber nicht mehr aktive/externe Vertriebler bleiben abwählbar sichtbar.
+  const sonstige = aktuell.filter(id => !externe.some(v => v.id === id));
+  const zeile = (id, name, zusatz) => `
+    <label style="display:flex;align-items:center;gap:10px;padding:6px 0;font-size:14px;cursor:pointer;margin:0;border-bottom:1px solid #EAE5DA;">
+      <input type="checkbox" class="exkl-cb" value="${esc(id)}" ${aktuell.includes(id) ? 'checked' : ''} style="width:16px;height:16px;">
+      <span>${esc(name)}</span>${zusatz ? `<span class="text-tertiary text-small">${zusatz}</span>` : ''}
+    </label>`;
+  const { ov, close } = _adminExklModal('bbk-exkl-modal', `
+    <h3 style="font-size:19px;font-weight:400;margin:0 0 4px 0;color:#1A1A17;">Exklusiv-Zuordnung</h3>
+    <div class="text-tertiary text-small" style="margin-bottom:14px;">${esc(_adminWeLabel(row))}</div>
+    <div style="font-size:13px;line-height:1.5;margin-bottom:10px;">Nur die angehakten externen Vertriebler sehen diese Einheit. <strong>Kein Haken = alle Externen</strong> sehen sie (sofern freigegeben).</div>
+    ${externe.length === 0 && sonstige.length === 0 ? '<div class="text-tertiary text-small">Keine aktiven externen Vertriebler vorhanden.</div>' : ''}
+    ${externe.map(v => zeile(v.id, v.name || v.email, '')).join('')}
+    ${sonstige.map(id => zeile(id, _adminExklNamen([id])[0], '(nicht mehr aktiv/extern)')).join('')}
+    <div id="exkl-error" style="font-size:12px;color:#9A3E33;min-height:16px;margin-top:8px;"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:6px;">
+      <button type="button" id="exkl-cancel" class="secondary">Abbrechen</button>
+      <button type="button" id="exkl-save">Speichern</button>
+    </div>`);
+  ov.querySelector('#exkl-cancel').addEventListener('click', close);
+  const btn = ov.querySelector('#exkl-save');
+  btn.addEventListener('click', async () => {
+    const ids = Array.from(ov.querySelectorAll('.exkl-cb:checked')).map(cb => cb.value);
+    btn.disabled = true;
+    btn.textContent = 'Speichere …';
+    try {
+      await _adminExklSpeichern(row, ids);
+      close();
+      _adminExternFreigabenRefresh();
+      toast(ids.length ? 'Exklusiv zugeordnet: ' + _adminExklNamen(ids).join(', ') : 'Exklusivität aufgehoben — alle Externen sehen die Einheit', 'success');
+    } catch (e) {
+      ov.querySelector('#exkl-error').textContent = 'Speichern fehlgeschlagen: ' + (e.message || 'unbekannt');
+      btn.disabled = false;
+      btn.textContent = 'Speichern';
+    }
+  });
+}
+window._adminExternExklusivEdit = _adminExternExklusivEdit;
+
+// Dialog je Vertriebler: sein komplettes Kontingent (mehrere Einheiten auf einmal).
+function _adminExternKontingent(vertrieblerId) {
+  const v = _adminExterneVertriebler().find(x => x.id === vertrieblerId);
+  if (!v) return;
+  const rows = _adminExternFreigabeRows();
+  const { ov, close } = _adminExklModal('bbk-exkl-modal', `
+    <h3 style="font-size:19px;font-weight:400;margin:0 0 4px 0;color:#1A1A17;">Exklusiv-Kontingent: ${esc(v.name)}</h3>
+    <div style="font-size:13px;line-height:1.5;margin-bottom:10px;">Angehakte Einheiten sieht von den Externen <strong>nur ${esc(v.name)}</strong> (plus ggf. weitere dort genannte Vertriebler). Haken entfernen = Einheit verlässt sein Kontingent.</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+      <input id="kont-filter" type="text" placeholder="Filtern, z. B. Spechtweg" autocomplete="off" style="flex:1;padding:7px 10px;font-size:13px;border:1px solid #D8D4CB;border-radius:6px;background:#fff;">
+      <button type="button" id="kont-alle" class="secondary" style="font-size:11px;padding:4px 10px;white-space:nowrap;">Sichtbare anhaken</button>
+      <button type="button" id="kont-keine" class="secondary" style="font-size:11px;padding:4px 10px;white-space:nowrap;">Sichtbare abwählen</button>
+    </div>
+    <div style="max-height:46vh;overflow-y:auto;border:1px solid #D8D4CB;border-radius:6px;padding:4px 12px;background:#fff;">
+      ${rows.map(r => {
+        const exkl = r.stammdaten.externExklusiv || [];
+        const andere = exkl.filter(id => id !== vertrieblerId);
+        const hinweis = andere.length ? 'auch exklusiv: ' + _adminExklNamen(andere).join(', ') : (r.stammdaten.externFreigabe ? '' : 'bisher nicht freigegeben');
+        const label = _adminWeLabel(r);
+        return `
+        <label class="kont-row" data-suche="${esc(label.toLowerCase())}" style="display:flex;align-items:center;gap:10px;padding:5px 0;font-size:13px;cursor:pointer;margin:0;border-bottom:1px solid #EAE5DA;">
+          <input type="checkbox" class="kont-cb" value="${esc(r.we.id)}" ${exkl.includes(vertrieblerId) ? 'checked' : ''} style="width:15px;height:15px;flex-shrink:0;">
+          <span style="flex:1;min-width:0;">${esc(label)}</span>
+          ${hinweis ? `<span class="text-tertiary text-small" style="flex-shrink:0;">${esc(hinweis)}</span>` : ''}
+        </label>`;
+      }).join('')}
+    </div>
+    <div id="kont-info" class="text-tertiary text-small" style="margin-top:8px;min-height:16px;"></div>
+    <div id="kont-error" style="font-size:12px;color:#9A3E33;min-height:16px;"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:4px;">
+      <button type="button" id="kont-cancel" class="secondary">Abbrechen</button>
+      <button type="button" id="kont-save">Kontingent speichern</button>
+    </div>`);
+  const cbs = () => Array.from(ov.querySelectorAll('.kont-cb'));
+  const sichtbar = () => Array.from(ov.querySelectorAll('.kont-row')).filter(el => el.style.display !== 'none').map(el => el.querySelector('.kont-cb'));
+  const info = () => { ov.querySelector('#kont-info').textContent = cbs().filter(cb => cb.checked).length + ' Einheit(en) im Kontingent'; };
+  info();
+  ov.addEventListener('change', (e) => { if (e.target && e.target.classList.contains('kont-cb')) info(); });
+  ov.querySelector('#kont-filter').addEventListener('input', (e) => {
+    const q = (e.target.value || '').trim().toLowerCase();
+    ov.querySelectorAll('.kont-row').forEach(el => { el.style.display = (!q || el.getAttribute('data-suche').includes(q)) ? 'flex' : 'none'; });
+  });
+  ov.querySelector('#kont-alle').addEventListener('click', () => { sichtbar().forEach(cb => { cb.checked = true; }); info(); });
+  ov.querySelector('#kont-keine').addEventListener('click', () => { sichtbar().forEach(cb => { cb.checked = false; }); info(); });
+  ov.querySelector('#kont-cancel').addEventListener('click', close);
+  const btn = ov.querySelector('#kont-save');
+  btn.addEventListener('click', async () => {
+    // Nur geänderte Einheiten schreiben — nacheinander (Airtable-Rate-Limit 5 req/s).
+    const aenderungen = [];
+    cbs().forEach(cb => {
+      const row = rows.find(r => r.we.id === cb.value);
+      if (!row) return;
+      const exkl = row.stammdaten.externExklusiv || [];
+      const war = exkl.includes(vertrieblerId);
+      if (cb.checked === war) return;
+      aenderungen.push({ row, ids: cb.checked ? exkl.concat([vertrieblerId]) : exkl.filter(id => id !== vertrieblerId) });
+    });
+    if (aenderungen.length === 0) { close(); return; }
+    btn.disabled = true;
+    ov.querySelector('#kont-cancel').disabled = true;
+    const fehler = [];
+    for (let i = 0; i < aenderungen.length; i++) {
+      btn.textContent = 'Speichere ' + (i + 1) + '/' + aenderungen.length + ' …';
+      try {
+        await _adminExklSpeichern(aenderungen[i].row, aenderungen[i].ids);
+      } catch (e) {
+        fehler.push(_adminWeLabel(aenderungen[i].row) + ': ' + (e.message || 'unbekannt'));
+      }
+    }
+    _adminExternFreigabenRefresh();
+    if (fehler.length === 0) {
+      close();
+      toast('Kontingent für ' + v.name + ' gespeichert (' + aenderungen.length + ' Änderung' + (aenderungen.length === 1 ? '' : 'en') + ')', 'success');
+    } else {
+      ov.querySelector('#kont-error').textContent = fehler.length + ' von ' + aenderungen.length + ' nicht gespeichert — ' + fehler.slice(0, 3).join(' · ');
+      btn.disabled = false;
+      ov.querySelector('#kont-cancel').disabled = false;
+      btn.textContent = 'Kontingent speichern';
+    }
+  });
+}
+window._adminExternKontingent = _adminExternKontingent;
+
 async function _adminPasswortSetzen(vertrieblerId, name) {
   const pw = window.prompt('Neues Login-Passwort für ' + name + ' (mindestens 8 Zeichen):');
   if (pw === null) return;
@@ -8932,7 +9159,7 @@ async function renderAdmin() {
     const [stats, wohneinheiten, audit, externReservListe] = await Promise.all([
       api.get('/api/admin/stats'),
       api.get('/api/wohneinheiten?all=1'),
-      api.get('/api/stammdaten').catch(() => []),
+      api.get('/api/stammdaten?t=' + Date.now()).catch(() => []), // am 60-s-Browser-Cache vorbei: Freigabe/Exklusiv sofort aktuell
       api.get('/api/reservierung/extern-liste').catch(() => []),
     ]);
     state.adminStats = stats;
@@ -9010,9 +9237,7 @@ async function renderAdmin() {
         // welche Einheiten die Rolle „Extern" überhaupt sieht (Opt-in-Checkbox
         // in den Kalk-Stammdaten).
         const externReserv = state.adminExternReserv || [];
-        const freigabeRows = (state.adminStammAudit || [])
-          .filter(r => r.stammdaten && r.stammdaten.status === 'Aktiv')
-          .sort((a, b) => (a.we.titel || '').localeCompare(b.we.titel || ''));
+        const freigabeRows = _adminExternFreigabeRows();
         const freiCount = freigabeRows.filter(r => r.stammdaten.externFreigabe).length;
         return `
         <details class="card mt-16" ${externReserv.some(r => r.signiertAm) ? 'open' : ''} style="border-left:3px solid #B08A4D;">
@@ -9050,16 +9275,8 @@ async function renderAdmin() {
                 </div>`).join('')}
               <div class="text-tertiary text-small" style="margin-top:6px;">Das Passwort sicher übermitteln (Telefon/Signal) — der Nutzer kann es danach selbst ändern (Externe: unter „Start").</div>
             </div>
-            <div class="card-title" style="font-size:13px;">WE-Freigaben für Externe <span class="text-tertiary text-small" style="font-weight:normal;">— nur angehakte Einheiten sind für die Rolle „Extern" sichtbar</span></div>
-            ${freigabeRows.length === 0 ? '<div class="text-tertiary text-small">Keine aktiven Einheiten.</div>' : `
-            <div style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;padding:6px 12px;">
-              ${freigabeRows.map(r => `
-                <label style="display:flex;align-items:center;gap:10px;padding:5px 0;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);margin:0;">
-                  <input type="checkbox" ${r.stammdaten.externFreigabe ? 'checked' : ''} onchange="window._adminExternFreigabe('${esc(r.we.id)}', this.checked)" style="width:15px;height:15px;flex-shrink:0;">
-                  <span>${esc(r.we.titel || r.we.id)}${r.we.weNr ? ' · WE ' + esc(r.we.weNr) : ''}</span>
-                  <span class="text-tertiary text-small" style="margin-left:auto;">${eur(r.we.kp)}</span>
-                </label>`).join('')}
-            </div>`}
+            <div class="card-title" style="font-size:13px;">WE-Freigaben für Externe <span class="text-tertiary text-small" style="font-weight:normal;">— nur angehakte Einheiten sind für die Rolle „Extern" sichtbar; rechts je Einheit: alle Externen oder Exklusiv-Kontingent</span></div>
+            <div id="admin-extern-freigaben">${_adminExternFreigabenHtml()}</div>
           </div>
         </details>`;
       })()}
@@ -9251,7 +9468,7 @@ async function reloadAdminWohneinheiten() {
   try {
     toast('Lade Wohneinheiten neu aus Airtable…', 'info');
     state.adminWohneinheiten = await api.get('/api/wohneinheiten');
-    state.adminStammAudit = await api.get('/api/stammdaten').catch(() => []);
+    state.adminStammAudit = await api.get('/api/stammdaten?t=' + Date.now()).catch(() => []);
     state.wohneinheiten = null;
     renderAdmin();
     toast('Wohneinheiten neu geladen', 'success');
@@ -9620,6 +9837,18 @@ function _renderWeListeContent() {
     : s === 'Notartermin'
     ? ' <span class="we-status-pill notartermin" style="margin-left:6px;font-size:10px;">⚠ NOTARTERMIN</span>'
     : '';
+  // 04.10.2026 (Henry): Exklusiv-Kontingent. Extern: „Exklusiv für dich" (fremde Kontingente
+  // liefert der Server gar nicht aus). Intern: Hinweis, an wen die Einheit exklusiv vergeben ist.
+  const weExklBadge = (sd) => {
+    if (!sd) return '';
+    const stil = 'margin-left:6px;font-size:10px;background:#EFE6F7;color:#5B2A86;border:1px solid #C9A9E3;';
+    if (sd.externExklusivFuerMich) return ' <span class="we-status-pill" style="' + stil + '" title="Diese Einheit gehört zu deinem Exklusiv-Kontingent — kein anderer externer Partner sieht oder reserviert sie">★ EXKLUSIV FÜR DICH</span>';
+    if (sd.externFreigabe && Array.isArray(sd.externExklusiv) && sd.externExklusiv.length > 0) {
+      const namen = (sd.externExklusivNamen || []).join(', ');
+      return ' <span class="we-status-pill" style="' + stil + '" title="Exklusiv-Kontingent eines externen Vertriebspartners — vor einem Verkauf mit Henry abstimmen">🔒 EXKLUSIV' + (namen ? ': ' + esc(namen) : '') + '</span>';
+    }
+    return '';
+  };
 
   // Kennzahlen-Quelle: Musterberechnung (Klick öffnet den Einfachen Rechner) oder Engine (Kunden-Kalkulator)
   const simpleMode = _weListeSimpleMode();
@@ -9889,7 +10118,7 @@ function _renderWeListeContent() {
         return `
           <tr class="we-liste-row" onclick="window._weListeOpenWe('${esc(we.id || '')}')" style="opacity:0.55;">
             ${checkboxCell}
-            <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${weSalesBadge(we.status)}${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}${we.qm > 0 ? ' · ' + fmtQm(we.qm) : ''}</div></td>
+            <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${weSalesBadge(we.status)}${weExklBadge(row.stammdaten)}${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}${we.qm > 0 ? ' · ' + fmtQm(we.qm) : ''}</div></td>
             <td>${modusBadge}</td>
             <td class="num">${fmtZufr(we.zufriedenheit)}</td>
             <td class="num">${fmtMaengel(we.maengelAnzahl)}</td>
@@ -9902,7 +10131,7 @@ function _renderWeListeContent() {
       return `
         <tr class="we-liste-row" onclick="window._weListeOpenWe('${esc(we.id || '')}')">
           ${checkboxCell}
-          <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${weSalesBadge(we.status)}${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}${we.qm > 0 ? ' · ' + fmtQm(we.qm) : ''}</div></td>
+          <td><strong>${esc(we.weNr ? 'WE ' + we.weNr : '—')}</strong>${weSalesBadge(we.status)}${weExklBadge(row.stammdaten)}${luckenIcon}<div class="text-tertiary text-small">${esc(we.lageText || we.lage || '')}${we.qm > 0 ? ' · ' + fmtQm(we.qm) : ''}</div></td>
           <td>${modusBadge}</td>
           <td class="num">${fmtZufr(we.zufriedenheit)}</td>
           <td class="num">${fmtMaengel(we.maengelAnzahl)}</td>
@@ -10590,7 +10819,7 @@ function renderExternStart() {
           <div style="font-size:26px;line-height:1;" aria-hidden="true">ℹ️</div>
           <div>
             <div class="card-title" style="margin-bottom:4px;">Keine Exklusivität</div>
-            <p style="margin:0;line-height:1.6;" class="text-small">Die in der Backstube angezeigten Wohnungen sind <strong>nicht exklusiv</strong> für dich reserviert — sie werden parallel auch über andere Vertriebspartner und Kanäle vertrieben. Es gilt: <strong>Wer zuerst reserviert, bekommt die Einheit.</strong> Exklusive Regelungen (z.&nbsp;B. für einzelne Objekte oder Kontingente) sind grundsätzlich möglich — dafür bitte direkt <strong>Henry kontaktieren</strong>.</p>
+            <p style="margin:0;line-height:1.6;" class="text-small">Die in der Backstube angezeigten Wohnungen sind <strong>nicht exklusiv</strong> für dich reserviert — sie werden parallel auch über andere Vertriebspartner und Kanäle vertrieben. Es gilt: <strong>Wer zuerst reserviert, bekommt die Einheit.</strong> Exklusive Regelungen (z.&nbsp;B. für einzelne Objekte oder Kontingente) sind grundsätzlich möglich — dafür bitte direkt <strong>Henry kontaktieren</strong>. Einheiten mit der Kennzeichnung <strong>„★ Exklusiv für dich"</strong> gehören zu deinem Kontingent: Kein anderer externer Partner sieht oder reserviert sie.</p>
           </div>
         </div>
       </div>
