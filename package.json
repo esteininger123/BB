@@ -4,7 +4,7 @@
   "description": "BB Kalkulator V2 — Vercel-App für Kalkulation, Kunden & Snapshots",
   "private": true,
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "scripts": {
     "dev": "vercel dev",
