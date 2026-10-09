@@ -22,6 +22,8 @@ const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
 const { weStellplatzBedarf } = require('../_lib/mappers');
 // 07.09.2026 — Varianten (möbliert): ID-Form "<weId>~<stammId>", siehe _lib/we-variante.js
 const { parseWeId, loadVariante, applyVariante } = require('../_lib/we-variante');
+// 09.10.2026 — Einbauküche im Verkauf (Küchen-KP + Küchenmiete), siehe _lib/kueche.js
+const { kuecheEigentum, buildKueche } = require('../_lib/kueche');
 const {
   TABLES,
   WE_FIELDS,
@@ -67,6 +69,7 @@ const MV_LIST_FIELDS = [
   MIETVERTRAG_FIELDS.GUELTIG_AB,
   MIETVERTRAG_FIELDS.VERTRAGSART,
   MIETVERTRAG_FIELDS.VERTRAGSENDE,
+  MIETVERTRAG_FIELDS.ZUSATZ_MIETE, // 09.10.2026 — Küchenzuschlag des mietbestimmenden Vertrags
 ];
 
 // 09.09.2026 (Henry): Die drei Tabellen-Scans (Stellplatz, Mietvertrag, Kalk-Stammdaten)
@@ -154,6 +157,7 @@ async function loadMietvertragInfoForWE(weId, weStpIds, preRecs) {
     let aktuelleKaltmiete = null; // €/Mo — aus Vertrag mit jüngstem Datum ≤ heute
     let aktuelleKaltmieteDatum = null; // YYYY-MM-DD — zugehöriges Datum
     let aktuelleVertragsart = null; // Vertragsart des Vertrags mit der aktuellen Kaltmiete (z.B. 'Indexmietvertrag')
+    let aktuelleZusatzMiete = 0; // €/Mo — „Miete für zusätzl. Bestandteile" (Küchenzuschlag) desselben Vertrags
     let vertragVorhanden = false;
     let neuStpIds = []; // Stellplatz-IDs aus "NEU: Vermieteter Stellplatz" der NICHT-archivierten Verträge
     let kuendigungZum = null; // frühestes künftiges Vertragsende eines aktiven Vertrags (= Mieter zieht aus, bekannt)
@@ -265,6 +269,7 @@ async function loadMietvertragInfoForWE(weId, weStpIds, preRecs) {
           aktuelleKaltmiete = kaltmiete;
           aktuelleKaltmieteDatum = datumPrimary;
           aktuelleVertragsart = f[MIETVERTRAG_FIELDS.VERTRAGSART] || null;
+          aktuelleZusatzMiete = num(f[MIETVERTRAG_FIELDS.ZUSATZ_MIETE]) || 0;
         }
       }
     });
@@ -329,6 +334,7 @@ async function loadMietvertragInfoForWE(weId, weStpIds, preRecs) {
       // mietbestimmenden Vertrags — steuert in computeAutoSubvention den Index-Pfad.
       // Robust gegen beide Select-Formate (REST liefert String, andere Pfade {name}).
       aktuelleVertragsart,
+      aktuelleZusatzMiete,
       istIndexvertrag: /index/i.test(String((aktuelleVertragsart && aktuelleVertragsart.name) || aktuelleVertragsart || '')),
       geplanteErhoehung,
       zukunftsvertraegeCount: zukunftsvertraege.length,
@@ -348,6 +354,7 @@ async function loadMietvertragInfoForWE(weId, weStpIds, preRecs) {
       jungsterVertragsbeginn: null,
       aktuelleKaltmiete: null,
       aktuelleKaltmieteDatum: null,
+      aktuelleZusatzMiete: 0,
       geplanteErhoehung: null,
       zukunftsvertraegeCount: 0,
     };
@@ -456,6 +463,9 @@ function kalkStammRecordToApi(rec) {
     mieteBeiVerkauf:       num(f[KALK_STAMMDATEN_FIELDS.MIETE_BEI_VERKAUF]),
     // 28.06.2026 (Edgar) — angenommene Stellplatzmiete bei Verkauf (Pendant zu MBV).
     stellplatzMieteBeiVerkauf: num(f[KALK_STAMMDATEN_FIELDS.STELLPLATZ_MIETE_BEI_VERKAUF]),
+    // 09.10.2026 (Henry/Spechtweg) — Einbauküche im Verkauf (separat im KV) + Küchenmiete-Override
+    kuecheKp:              num(f[KALK_STAMMDATEN_FIELDS.KUECHE_KP]),
+    kuecheMieteBeiVerkauf: num(f[KALK_STAMMDATEN_FIELDS.KUECHE_MIETE_BEI_VERKAUF]),
     marktpreisImmoscout:   num(f[KALK_STAMMDATEN_FIELDS.MARKTPREIS_IS]),
     marktpreisHomeday:     num(f[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]),
     marktmiete:            num(f[KALK_STAMMDATEN_FIELDS.MARKTMIETE]),
@@ -1172,6 +1182,8 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
     stellplatzBedarf: weStellplatzBedarf(wf[WE_FIELDS.STELLPLATZ_BEDARF]),
     // 27.09.2026 (Henry): Zimmeranzahl → Standard-Zins/-Tilgung im Einfachen Rechner.
     zimmer:    num(wf[WE_FIELDS.ZIMMER]),
+    // 09.10.2026 (Henry/Spechtweg): Eigentum der Einbauküche (WE-Feld „Küche")
+    kuecheEigentum: kuecheEigentum(wf[WE_FIELDS.KUECHE]),
     // 07.09.2026 — Varianten-Karte (möbliert): Aufschlüsselung für Anzeige/Kaufvertrag.
     variante: variante ? {
       label:   variante.info.label,
@@ -1333,6 +1345,14 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
     },
     vermietung: vermietungObj,
     kalkStammdaten: kalkApi,
+    // 09.10.2026 (Henry/Spechtweg) — Einbauküche im Verkauf: Küchen-KP (separat im KV,
+    // keine GrESt, AfA 10 J) + Küchenmiete (Override oder Zuschlag des aktuellen Vertrags).
+    kueche: buildKueche({
+      stammFields: kalkRec && kalkRec.fields,
+      zusatzMieteMo: vertragInfo.aktuelleZusatzMiete,
+      vermietet: statusFinal === 'vermietet',
+      eigentum: we.kuecheEigentum,
+    }),
     // Abgeleitete Werte:
     derived: {
       // Backward-Compat (Iter 41.9): Aggregat-Werte für alte Pfade
@@ -1482,6 +1502,9 @@ module.exports = async (req, res) => {
       if (body.mieteBeiVerkauf !== undefined)       fields[KALK_STAMMDATEN_FIELDS.MIETE_BEI_VERKAUF]    = num(body.mieteBeiVerkauf);
       // 28.06.2026 (Edgar) — angenommene Stellplatzmiete bei Verkauf.
       if (body.stellplatzMieteBeiVerkauf !== undefined) fields[KALK_STAMMDATEN_FIELDS.STELLPLATZ_MIETE_BEI_VERKAUF] = num(body.stellplatzMieteBeiVerkauf);
+      // 09.10.2026 (Henry/Spechtweg) — Einbauküche im Verkauf
+      if (body.kuecheKp !== undefined)              fields[KALK_STAMMDATEN_FIELDS.KUECHE_KP]            = Math.max(0, num(body.kuecheKp));
+      if (body.kuecheMieteBeiVerkauf !== undefined) fields[KALK_STAMMDATEN_FIELDS.KUECHE_MIETE_BEI_VERKAUF] = Math.max(0, num(body.kuecheMieteBeiVerkauf));
       if (body.marktpreisImmoscout !== undefined)   fields[KALK_STAMMDATEN_FIELDS.MARKTPREIS_IS]        = num(body.marktpreisImmoscout);
       if (body.marktpreisHomeday !== undefined)     fields[KALK_STAMMDATEN_FIELDS.MARKTPREIS_HD]        = num(body.marktpreisHomeday);
       // Iter 41.10

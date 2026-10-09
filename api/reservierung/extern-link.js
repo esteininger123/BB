@@ -20,6 +20,8 @@ const { externPreis, loadProvisionPct, ladeStellplatzKpSummen, externDarfSehen }
 // 07.09.2026 — möblierte Varianten: eigene Karte, aber dieselbe Wohneinheit.
 const { parseWeId, loadVariante, applyVariante } = require('../_lib/we-variante');
 const { kpWohnungFuerReservierung } = require('../_lib/reserv-preis');
+// 09.10.2026 — Einbauküche separat im Kaufvertrag (Küchen-KP aus Kalk-Stammdaten)
+const { loadKuecheKpForWE } = require('../_lib/kueche');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { airtable, listAll } = require('../_lib/airtable');
 const { appendActivityZeile } = require('../_lib/notizen');
@@ -137,6 +139,8 @@ module.exports = async (req, res) => {
     const kpBasis = num(wf[WE_FIELDS.KAUFPREIS]);
     if (kpBasis <= 0) return res.status(400).json({ error: 'Für diese Wohneinheit ist kein Kaufpreis gepflegt' });
     const stellplatzKp = num(stplKpByWe[weId]);
+    // 09.10.2026 (Henry/Spechtweg): Einbauküche (B&B-Eigentum) separat im KV, ohne Extern-Abschlag/Provision.
+    const kuecheKp = await loadKuecheKpForWE(weId, variante);
     // Kundenpreis der Wohnung: extern = Abgabepreis + Provision, intern = echter Preis
     // (mit eingefrorenem Snapshot-Kaufpreis, falls mitgegeben). Siehe _lib/reserv-preis.js.
     let snapKaufpreis = 0;
@@ -186,7 +190,8 @@ module.exports = async (req, res) => {
         // Preise = Server-Wahrheit (Kundenpreis inkl. Provision, Stellplatz unverändert)
         kpWohnung,
         stellplatzKp,
-        kpGesamt: kpWohnung + stellplatzKp,
+        kuecheKp,
+        kpGesamt: kpWohnung + stellplatzKp + kuecheKp,
         // Anzeige-Werte aus dem Kalkulator (Subvention/RenoBudget/Objektdaten)
         subvPhasen,
         subvMo: Math.round(num(clientDoc.subvMo)),
@@ -225,7 +230,7 @@ module.exports = async (req, res) => {
       await appendActivityZeile(kundeId, `[${stamp}] Reservierungs-Link (${extern ? 'Extern' : 'Intern'}) erzeugt — WE ${sa.reservierungExtern.doc.weNr || weId}, Kundenpreis ${kpWohnung.toLocaleString('de-DE')} €, gültig bis ${sa.reservierungExtern.reservBis} (${vertrieblerName})`);
     } catch (err) { /* Log-Fehler killt den Link nicht */ }
 
-    return res.status(200).json({ ok: true, url, reservBis: sa.reservierungExtern.reservBis, kpGesamt: kpWohnung + stellplatzKp });
+    return res.status(200).json({ ok: true, url, reservBis: sa.reservierungExtern.reservBis, kpGesamt: kpWohnung + stellplatzKp + kuecheKp });
   } catch (e) {
     return sendError(res, e);
   }

@@ -2239,7 +2239,7 @@ function renderTabUebersicht() {
         <div class="text-small" style="line-height:1.7;">
           ${esc(rv.doc.projektName ? rv.doc.projektName + ' — ' : '')}${esc(rv.doc.lage || '')}${rv.doc.weNr ? ' · WE ' + esc(rv.doc.weNr) : ''}<br>
           Gesamtkaufpreis <strong>${Math.round(rv.doc.kpGesamt || 0).toLocaleString('de-DE')} €</strong>
-          (Wohnung ${Math.round(rv.doc.kpWohnung || 0).toLocaleString('de-DE')} €${rv.doc.stellplatzKp > 0 ? ' + Stellplatz/Garage ' + Math.round(rv.doc.stellplatzKp).toLocaleString('de-DE') + ' €' : ''})
+          (Wohnung ${Math.round(rv.doc.kpWohnung || 0).toLocaleString('de-DE')} €${rv.doc.stellplatzKp > 0 ? ' + Stellplatz/Garage ' + Math.round(rv.doc.stellplatzKp).toLocaleString('de-DE') + ' €' : ''}${rv.doc.kuecheKp > 0 ? ' + Einbauküche ' + Math.round(rv.doc.kuecheKp).toLocaleString('de-DE') + ' €' : ''})
           · Reservierung bis <strong>${esc(rv.reservBis || '—')}</strong><br>
           Erstellt ${fmtD(rv.erstelltAm)} von ${esc(rv.vertrieblerName || '—')} · Käufer: ${esc(rv.kaeufer || '—')}
         </div>
@@ -10951,6 +10951,10 @@ const RECHNER_SEV_MO    = 30;     // Mietverwaltung (SEV) €/Mo — B&B-Angebot
 // Ur-Excel waren unbelegt). Tiefgaragen/Gebäudeteil-Garagen laufen über die Gebäude-AfA.
 const RECHNER_GARAGE_AFA = 0.05;
 const RECHNER_GARAGE_JAHRE = 20;
+// 09.10.2026 (Henry/Spechtweg): Einbauküche = eigenes Wirtschaftsgut, 10 Jahre AfA (BFH IX R 14/15).
+// Die Küche gehört B&B (WE-Feld „Küche" = Vermietereigentum) und wird SEPARAT im Kaufvertrag
+// ausgewiesen (Kalk-Stammdaten „Küchen-KP (€)") — keine Grunderwerbsteuer auf die Küche.
+const RECHNER_KUECHE_AFA_JAHRE = 10;
 
 // 08.09.2026 (Henry): Standard-Eingaben der Musterberechnung an EINER Stelle —
 // werden vom Einfachen Rechner beim Öffnen UND von der WE-Liste (Kennzahlen bei
@@ -11015,10 +11019,19 @@ function _rechnerBasis(d) {
   const sonstige  = 1; // "Sonstige nichtumlagefähige Nebenkosten" — 1-€-Platzhalter wie C47 der Musterberechnung
   const gebAnteil = ks.gebaeudeAnteil || 0.85;
   const afaSatz   = ks.afaGutachten || 0.02;
-  const knkGrest  = gesamtKp * grEstPct;
-  const knkNotar  = gesamtKp * RECHNER_NOTAR_PCT;
+  // 09.10.2026 (Henry/Spechtweg): Einbauküche im Verkauf (d.kueche aus /api/stammdaten/:weId).
+  // Küchen-KP kommt ZUSÄTZLICH zum Gesamtkaufpreis der Immobilie: keine GrESt darauf,
+  // Notar/Grundbuch konservativ auf den Gesamtbetrag; Küchenmiete = eigene Einnahmezeile.
+  const kue            = d.kueche || {};
+  const kuecheKp       = Math.max(0, kue.kp || 0);
+  const kuecheMiete    = Math.max(0, kue.mieteMo || 0);
+  const kuecheEigentum = kue.eigentum || null;
+  const knkGrest  = gesamtKp * grEstPct;                        // GrESt nur Wohnung + Stellplatz
+  const knkNotar  = (gesamtKp + kuecheKp) * RECHNER_NOTAR_PCT;  // Notar/Grundbuch inkl. Küche (konservativ)
+  const knkKueche = kuecheKp * RECHNER_NOTAR_PCT;               // KNK-Anteil der Küche (AfA-Basis Küche)
   const knk       = knkGrest + knkNotar;
-  const anschaffung = gesamtKp + knk;
+  const gesamtInvest = gesamtKp + kuecheKp;                     // Immobilie + Einbauküche
+  const anschaffung = gesamtInvest + knk;
   // Garage-/Stellplatz-Split wie in der Musterberechnung: Garagen (auch TG/Carport)
   // schreiben mit 1/19 = 5,26 % ab, offene Stellplätze mit dem Gebäude-AfA-Satz.
   const details = Array.isArray(stp.details) ? stp.details : [];
@@ -11027,7 +11040,8 @@ function _rechnerBasis(d) {
   const flaecheKp = Math.max(0, stpKp - garageKp);
   return { ks, der, stp, details, istGarage, kpWohnung, stpKp, garageKp, flaecheKp,
            gesamtKp, grEstPct, kaltmiete, stpMiete, phasen, subvMo1, subvTotal,
-           hv, ruecklage, sonstige, gebAnteil, afaSatz, knkGrest, knkNotar, knk, anschaffung };
+           hv, ruecklage, sonstige, gebAnteil, afaSatz, knkGrest, knkNotar, knk, anschaffung,
+           kuecheKp, kuecheMiete, kuecheEigentum, knkKueche, gesamtInvest };
 }
 
 // Rechenkern — Formeln 1:1 aus der Musterberechnung (Jahr-1-Betrachtung,
@@ -11043,15 +11057,17 @@ function _rechnerCalc(d, inp) {
   const zinsMoTeil = finBetrag * zins / 12;
   const tilgMoTeil = finBetrag * tilgung / 12;
   const rateMo    = zinsMoTeil + tilgMoTeil;
-  const einnahmenMo = b.kaltmiete + b.stpMiete + b.subvMo1;
+  const einnahmenMo = b.kaltmiete + b.stpMiete + b.subvMo1 + b.kuecheMiete; // 09.10.2026: + Küchenmiete
   const kostenMo    = b.hv + b.ruecklage + sevMo + b.sonstige;
   const nettoMo     = einnahmenMo - kostenMo;
   const vorSteuerMo = nettoMo - rateMo;
-  const einnahmenJahr  = (b.kaltmiete + b.stpMiete) * 12;
-  const afaGebJahr     = (b.kpWohnung + b.knk) * b.gebAnteil * b.afaSatz;
+  const einnahmenJahr  = (b.kaltmiete + b.stpMiete + b.kuecheMiete) * 12;
+  // KNK-Anteil der Küche gehört in die Küchen-AfA, nicht in den Gebäudeanteil.
+  const afaGebJahr     = (b.kpWohnung + b.knk - b.knkKueche) * b.gebAnteil * b.afaSatz;
   const afaGarageJahr  = b.garageKp * RECHNER_GARAGE_AFA; // B&B-Standard: 20 Jahre / 5 % (AfA-Tabelle)
   const afaStpJahr     = b.flaecheKp * b.afaSatz; // identisch zum Gebäudeanteil (Musterberechnung)
-  const afaJahr        = afaGebJahr + afaGarageJahr + afaStpJahr;
+  const afaKuecheJahr  = (b.kuecheKp + b.knkKueche) / RECHNER_KUECHE_AFA_JAHRE; // 09.10.2026: Einbauküche 10 J
+  const afaJahr        = afaGebJahr + afaGarageJahr + afaStpJahr + afaKuecheJahr;
   const zinsenJahr     = finBetrag * zins;
   const verwaltungJahr = (b.hv + sevMo) * 12;
   const ausgabenJahr   = afaJahr + zinsenJahr + verwaltungJahr;
@@ -11060,7 +11076,7 @@ function _rechnerCalc(d, inp) {
   const ersparnisMo    = ersparnisJahr / 12;
   const nachSteuerMo   = vorSteuerMo + ersparnisMo;
   return Object.assign(b, { ek, finBetrag, zinsMoTeil, tilgMoTeil, rateMo, einnahmenMo, kostenMo, nettoMo,
-    vorSteuerMo, einnahmenJahr, afaGebJahr, afaGarageJahr, afaStpJahr, afaJahr,
+    vorSteuerMo, einnahmenJahr, afaGebJahr, afaGarageJahr, afaStpJahr, afaKuecheJahr, afaJahr,
     zinsenJahr, verwaltungJahr, ausgabenJahr, ergebnisJahr,
     ersparnisJahr, ersparnisMo, nachSteuerMo, sevMo });
 }
@@ -11215,6 +11231,11 @@ function _rechnerRenderContent() {
       ((d.we && d.we.stellplatzBedarf === true)
         ? zeile('Stellplatz', '<span class="we-status-pill stellplatz-wunsch" title="Bedarf an Stellplatz (Bestandsaufnahme)">🅿️ Mieter wünscht Stellplatz</span>', { fix: true })
         : ''),
+      // 09.10.2026 (Henry/Spechtweg): Einbauküche — gehört sie B&B (Vermietereigentum), wird sie
+      // mitverkauft; mit Küchen-KP separat im Kaufvertrag, sonst im Kaufpreis enthalten.
+      (c.kuecheEigentum === 'Vermietereigentum'
+        ? zeile('Einbauküche', c.kuecheKp > 0 ? 'Eigentum des Verkäufers — wird mitverkauft (separat im Kaufvertrag)' : 'Eigentum des Verkäufers — im Kaufpreis enthalten', { fix: true })
+        : (c.kuecheEigentum === 'Mietereigentum' ? zeile('Einbauküche', 'Eigentum des Mieters (nicht Kaufgegenstand)', { fix: true }) : '')),
       zeile('Restnutzungsdauer der Wohnung in Jahren', (rndJahre ? String(rndJahre) : '–'), { fix: true }),
       zeile('Gebäudeanteil vom Kaufpreis der Wohnung', fP(c.gebAnteil), { fix: true }),
     ].join('')),
@@ -11222,7 +11243,11 @@ function _rechnerRenderContent() {
     sektion('Kaufpreis', [
       zeile('Kaufpreis Wohnung', fE(c.kpWohnung), { fix: true }),
       stpZeilen,
-      zeile('Gesamtkaufpreis', fE(c.gesamtKp), { fix: true, sum: true }),
+      zeile('Gesamtkaufpreis' + (c.kuecheKp > 0 ? ' Immobilie' : ''), fE(c.gesamtKp), { fix: true, sum: true }),
+      (c.kuecheKp > 0 ? [
+        zeile('Einbauküche (separat im Kaufvertrag, ohne Grunderwerbsteuer)', fE(c.kuecheKp), { fix: true }),
+        zeile('Gesamtinvestition inkl. Einbauküche', fE(c.gesamtInvest), { fix: true, sum: true }),
+      ].join('') : ''),
     ].join('')),
 
     // Stellplatz-Option Spechtweg: rein additiv — der Haken verändert KEINE Zahl der
@@ -11233,7 +11258,7 @@ function _rechnerRenderContent() {
     (istSpechtweg ? sektion('Stellplatz-Option', [
       '<div class="rc-row"><label class="l" style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input id="rc-stpOption" type="checkbox" ' + (state._rechnerInputs.stpOption ? 'checked' : '') + ' onchange="window._rechnerStpOptionToggle(this)" style="width:14px;height:14px;">Stellplatz für 15.000 € dazukaufen (optional)</label><div class="v">15.000 €</div></div>',
       '<div id="rc-stp-detail" style="display:' + (state._rechnerInputs.stpOption ? 'block' : 'none') + ';">' +
-        zeile('Gesamtinvestition inkl. Stellplatz', fE(c.gesamtKp + 15000), { sum: true }) +
+        zeile('Gesamtinvestition inkl. Stellplatz', fE(c.gesamtInvest + 15000), { sum: true }) +
         '<div class="rc-disclaimer" style="margin-top:8px;">Der Stellplatz wird separat erworben und verändert die Kalkulation der Wohnung nicht. Stellplatz vermietbar für 50–100&nbsp;€/Monat — auch an Externe, die Nachfrage ist sehr hoch.</div>' +
       '</div>',
     ].join('')) : ''),
@@ -11250,7 +11275,8 @@ function _rechnerRenderContent() {
     sektion('Mietsituation der Wohnung', [
       zeile('Kaltmiete der Wohnung' + (c.der.subventionKaltmieteAdjustiert ? ' nach Erhöhung durch den Verkäufer' : ''), fEM(c.kaltmiete) + '/Mo', { fix: true }),
       (c.stpMiete > 0 ? zeile('Kaltmiete der Garage/des Stellplatzes', fEM(c.stpMiete) + '/Mo', { fix: true }) : ''),
-      zeile('Gesamte Kaltmiete', fEM(c.kaltmiete + c.stpMiete) + '/Mo', { fix: true, sum: true }),
+      (c.kuecheMiete > 0 ? zeile('Küchenmiete (Zuschlag für die Einbauküche)', fEM(c.kuecheMiete) + '/Mo', { fix: true }) : ''),
+      zeile('Gesamte Kaltmiete', fEM(c.kaltmiete + c.stpMiete + c.kuecheMiete) + '/Mo', { fix: true, sum: true }),
       subvZeilen,
       zeile(garantieAktiv
         ? 'Gesamte Einnahmen (garantiert über ' + garantieLabel + ')'
@@ -11294,7 +11320,7 @@ function _rechnerRenderContent() {
     '<div class="rc-disclaimer">Die hier aufgeführte Berechnung ist unverbindlich, freibleibend und ohne Gewähr. Die getätigten Annahmen / Angaben können lediglich bedingt überprüft werden, so dass hier keine Haftung, insbesondere hinsichtlich Ihrer individuellen Steuer- und Vermögensverhältnisse sowie Änderungen der Finanzierungskonditionen, übernommen wird. Eine konkretere Berechnung sowie Annahme Ihrer persönlichen Einkommensverhältnisse sollte durch Ihren Steuer- oder Rechtsberater durchgeführt werden.</div>',
 
     sektion('Immobilienfinanzierung', [
-      zeile('Kaufpreis der Immobilie', fE(c.anschaffung), { fix: true }),
+      zeile('Kaufpreis der Immobilie' + (c.kuecheKp > 0 ? ' inkl. Einbauküche' : ''), fE(c.anschaffung), { fix: true }),
       zeile('davon Kaufnebenkosten', fE(c.knk), { fix: true }),
       inputFeld('rc-ek', 'Eigenkapitaleinsatz', state._rechnerInputs.ek, '€', '1000'),
       zeile('Finanzierungsbetrag', '<span id="rcv-finBetrag">' + fE(c.finBetrag) + '</span>', { sum: true }),
@@ -11311,7 +11337,7 @@ function _rechnerRenderContent() {
       '<div class="rc-sub" style="font-weight:500;text-transform:none;letter-spacing:0;">Abschreibungsbetrag Gebäudeanteil</div>',
       zeile('Verkürzte Restnutzungsdauer in Jahren laut Gutachten', (rndJahre ? String(rndJahre) : '–'), { fix: true }),
       zeile('Verkürzte Restnutzungsdauer in %', fP(c.afaSatz), { fix: true }),
-      zeile('Gebäudeanteil inkl. der Kaufnebenkosten', fE((c.kpWohnung + c.knk) * c.gebAnteil), { fix: true }),
+      zeile('Gebäudeanteil inkl. der Kaufnebenkosten', fE((c.kpWohnung + c.knk - c.knkKueche) * c.gebAnteil), { fix: true }),
       zeile('Abschreibungsbetrag Gebäudeanteil p.a.', fE(c.afaGebJahr), { fix: true, sum: true }),
       (c.garageKp > 0 ? [
         '<div class="rc-sub" style="font-weight:500;text-transform:none;letter-spacing:0;">Abschreibungsbetrag Garage</div>',
@@ -11325,6 +11351,12 @@ function _rechnerRenderContent() {
         zeile('Nutzungsdauer Stellplatz', fP(c.afaSatz) + ' (identisch zum Gebäudeanteil)', { fix: true }),
         zeile('Abschreibungsbetrag Stellplatz p.a.', fE(c.afaStpJahr), { fix: true, sum: true }),
       ].join('') : ''),
+      (c.kuecheKp > 0 ? [
+        '<div class="rc-sub" style="font-weight:500;text-transform:none;letter-spacing:0;">Abschreibungsbetrag Einbauküche</div>',
+        zeile('Kaufpreis Einbauküche inkl. anteiliger Nebenkosten', fE(c.kuecheKp + c.knkKueche), { fix: true }),
+        zeile('Nutzungsdauer Einbauküche', RECHNER_KUECHE_AFA_JAHRE + ' Jahre (' + fP(1 / RECHNER_KUECHE_AFA_JAHRE) + ')', { fix: true }),
+        zeile('Abschreibungsbetrag Einbauküche p.a.', fE(c.afaKuecheJahr), { fix: true, sum: true }),
+      ].join('') : ''),
       '<div class="rc-sub" style="font-weight:500;text-transform:none;letter-spacing:0;">Jährliche Zinsen</div>',
       zeile('Zinsen Immobilienfinanzierung', '<span id="rcv-zinsenJahr">' + fE(c.zinsenJahr) + '</span>/Jahr'),
       zeile('Zinsen p.a.', '<span id="rcv-zinsenJahr2">' + fE(c.zinsenJahr) + '</span>/Jahr', { sum: true }),
@@ -11336,6 +11368,7 @@ function _rechnerRenderContent() {
       '<div class="rc-sub">Einnahmen — Jährliche Kaltmieteinnahmen</div>',
       zeile('Wohnung', fE(c.kaltmiete * 12) + '/Jahr', { fix: true }),
       (c.stpMiete > 0 ? zeile('Garage/Stellplatz', fE(c.stpMiete * 12) + '/Jahr', { fix: true }) : ''),
+      (c.kuecheMiete > 0 ? zeile('Einbauküche (Küchenmiete)', fE(c.kuecheMiete * 12) + '/Jahr', { fix: true }) : ''),
       zeile('Summe der Jährlichen Kaltmieteinnahmen', fE(c.einnahmenJahr) + '/Jahr', { fix: true, sum: true }),
       zeile('Summe Einnahmen', fE(c.einnahmenJahr) + '/Jahr', { fix: true, sum: true }),
       '<div class="rc-sub">Verlust-/ Gewinnermittlung</div>',
@@ -11360,7 +11393,7 @@ function _rechnerRenderContent() {
       </div>
 
       <div class="rc-kpis">
-        <div class="rc-kpi"><div class="l">Gesamtkaufpreis</div><div class="v">${fE(c.gesamtKp)}</div></div>
+        <div class="rc-kpi"><div class="l">${c.kuecheKp > 0 ? 'Gesamtinvestition inkl. Küche' : 'Gesamtkaufpreis'}</div><div class="v">${fE(c.gesamtInvest)}</div></div>
         <div class="rc-kpi"><div class="l">${garantieAktiv ? 'Garantierte Miete/Monat (' + garantieLabel + ')' : 'Einnahme/Monat'}</div><div class="v">${fEM(c.einnahmenMo)}</div></div>
         <div class="rc-kpi"><div class="l">Cashflow vor Steuer</div><div class="v" id="rcv-topVorSteuer">${fCF(c.vorSteuerMo)}/Mo</div></div>
         <div class="rc-kpi rc-kpi-hl"><div class="l">Cashflow nach Steuer</div><div class="v" id="rcv-topNachSteuer">${fCF(c.nachSteuerMo)}/Mo</div></div>

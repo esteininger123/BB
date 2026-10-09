@@ -17,6 +17,16 @@ test('Kaufpreis-Zusammensetzung: Wohnung + Garage + Stellplatz + Subvention', ()
   assert.strictEqual(s, '163.000 € + 15.000 € Garage + 8.000 € Stellplatz und 3.470 € Mietsubvention');
 });
 
+test('Kaufpreis-Zusammensetzung: Einbauküche separat (Henry 09.10.2026, Spechtweg)', () => {
+  const s = composeKaufpreisZusammensetzung(160700, [], null, 7143, 3750);
+  assert.strictEqual(s, '160.700 € + 3.750 € Einbauküche und 7.143 € Mietsubvention');
+  const s2 = composeKaufpreisZusammensetzung(176275, [{ typ: 'Fläche', preis: 15000 }], null, 0, 7000);
+  assert.strictEqual(s2, '176.275 € + 15.000 € Stellplatz + 7.000 € Einbauküche');
+  // ohne/0 Küche: unverändert wie bisher
+  assert.strictEqual(composeKaufpreisZusammensetzung(160700, [], null, 0, 0), '160.700 €');
+  assert.strictEqual(composeKaufpreisZusammensetzung(160700, [], null, 0), '160.700 €');
+});
+
 test('Kaufpreis-Zusammensetzung: nur Wohnung, keine Extras', () => {
   assert.strictEqual(composeKaufpreisZusammensetzung(290000, [], null, 0), '290.000 €');
 });

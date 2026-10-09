@@ -174,6 +174,9 @@ const APP_KONFIG_KEY_KONDITIONEN = 'konditionen';
 const WE_FIELDS = {
   LAGE_BEZ:    'fldhlG1CH22gG3Ta6',
   STATUS:      'fld9zBkxSrrviMw96',
+  // 09.10.2026 (Henry/Spechtweg) — singleSelect „Küche": 'Vermietereigentum' | 'Mietereigentum' | leer.
+  // Vermietereigentum = die Einbauküche gehört B&B und wird mitverkauft (Hinweis im Rechner).
+  KUECHE:      'fldkTnpJ2OajLJUyq',
   MAKLER:      'fldiwYeFDiKlf5UVX',
   KAUFPREIS:   'fldKQ5ZpGvEzuc5qc',
   QM:          'fldzF0RSb8xjKdjDc',
@@ -253,6 +256,9 @@ const MIETVERTRAG_FIELDS = {
   VERTRAGSBEGINN:  'fldDdFKwsytwadjqG',   // Originaldatum Vertrag (bei Neuvertrag)
   GUELTIG_AB:      'fldLkBwWJj8fAZAHJ',   // 'Anpassung gültig ab' (bei Erhöhung/Staffel) — Datum der letzten Mietsteigerung
   VERTRAGSENDE:    'fldZjDwH7aXw5Bwjv',   // Datum — Mietverhältnis endet; NUR dieses Feld eintragen wenn Mieter kündigt (App liest nur VERTRAGSENDE)
+  // 09.10.2026 (Henry/Spechtweg) — „Miete für zusätzl. Bestandteile" €/Mo: der Küchenzuschlag
+  // (Spechtweg: 20/30/40 €), NICHT in der Kaltmiete enthalten. Quelle der Küchenmiete im Rechner.
+  ZUSATZ_MIETE:    'flddyVrq7Y9T0z3sv',
 };
 
 // --- Mieter-Tabelle ---
@@ -310,6 +316,14 @@ const KALK_STAMMDATEN_FIELDS = {
   VARIANTE_BASIS_KP:     'fldLEa7jYqqMCxOHB', // Currency € — Override des Wohnungs-KP (leer = KP der WE)
   VARIANTE_PAKET:        'fldXE7SAhUP1vgg3i', // Currency € — Aufpreis Möbel-/Küchenpaket (separat im KV)
   VARIANTE_EXPOSE:       'fldeH34w0FdE9R8jt', // URL — eigenes Exposé der Variante (leer = Exposé der WE)
+  // 09.10.2026 (Henry/Spechtweg) — EINBAUKÜCHE IM VERKAUF:
+  // Küchen-KP € = Kaufpreis der Einbauküche, im Kaufvertrag SEPARAT neben dem Wohnungspreis
+  // (keine GrESt, Käufer schreibt sie über 10 J ab). Backstube: Gesamtinvestition = Wohnung +
+  // Stellplatz + Küche; Reservierung „… + 5.000 € Einbauküche". Leer/0 = keine Küche im Verkauf.
+  // Staffel Spechtweg: Küchenmiete 20 € → 2.500, 30 € → 3.750, 40 € → 5.000, Leerstand → 7.000 (wie WE 205).
+  KUECHE_KP:             'fldsNXegcNb5d4e25', // Currency €
+  // Küchenmiete bei Verkauf €/Mo = Override; leer → ZUSATZ_MIETE des mietbestimmenden Vertrags.
+  KUECHE_MIETE_BEI_VERKAUF: 'fldi4PErrpHPxPhiI', // Currency €/Mo
   NOTIZEN:               'fld097ACU9qRS5kwq',
   QUELLE:                'fldrMUcQs06YF0lGi',
   // Iter 41.9 — Henry-Feedback 17.05.2026:

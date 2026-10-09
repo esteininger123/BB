@@ -33,6 +33,8 @@ const { verifySession, requireSafeOrigin } = require('../_lib/auth');
 const { airtable, listAll } = require('../_lib/airtable');
 // 07.09.2026 — möblierte Varianten ("<weId>~<stammId>"), siehe _lib/we-variante.js
 const { parseWeId, loadVariante, applyVariante } = require('../_lib/we-variante');
+// 09.10.2026 — Einbauküche separat im Kaufvertrag (Küchen-KP aus Kalk-Stammdaten)
+const { loadKuecheKpForWE } = require('../_lib/kueche');
 const { appendActivityZeile } = require('../_lib/notizen');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const {
@@ -176,11 +178,14 @@ module.exports = async (req, res) => {
     }
 
     const stellplatzPreis = stellplaetze.reduce((sum, s) => sum + s.preis, 0);
+    // 09.10.2026 (Henry/Spechtweg): Einbauküche im Eigentum von B&B wird SEPARAT im KV
+    // ausgewiesen (keine GrESt) — Betrag aus Kalk-Stammdaten „Küchen-KP (€)".
+    const kuecheKp = await loadKuecheKpForWE(weId, variante);
     const hatStellplatz   = stellplaetze.length > 0 && stellplatzPreis > 0;
 
     // Snapshot-Kaufpreis hat Vorrang (eingefrorener Preis aus Kalkulation),
     // sonst Wohnung + Stellplatz aus Live-Daten
-    const kaufpreis = (snapKalk && snapKalk.kaufpreis) || (wohnungsPreis + stellplatzPreis) || 0;
+    const kaufpreis = ((snapKalk && snapKalk.kaufpreis) || (wohnungsPreis + stellplatzPreis) || 0) + kuecheKp;
 
     // --- 4c. Mietsubvention aus Snapshot-Kalkulation (subventionPhasen / subventionMo+Monate)
     let mietsubventionTotal = 0;
@@ -239,7 +244,7 @@ module.exports = async (req, res) => {
 
     // --- 5b. Neuer Standard-Wortlaut (Henry 16.07.2026)
     const kaufpreisZusammensetzung = composeKaufpreisZusammensetzung(
-      wohnungsPreis, stellplaetze, snapKalk && snapKalk.kaufpreis, mietsubventionTotal
+      wohnungsPreis, stellplaetze, snapKalk && snapKalk.kaufpreis, mietsubventionTotal, kuecheKp
     );
     const reservierungStandardtext = composeStandardtext({
       ablaufStr,
@@ -499,12 +504,15 @@ function stellplatzLabel(typ) {
 // z.B. "163.000 € + 15.000 € Garage + 8.000 € Stellplatz und 3.470 € Mietsubvention".
 // Nur vorhandene Bestandteile erscheinen; ohne Stellplatz/Subvention bleibt es
 // beim reinen Wohnungspreis. Snapshot-Preis (eingefroren) hat wie überall Vorrang.
-function composeKaufpreisZusammensetzung(wohnungsPreis, stellplaetze, snapKaufpreis, mietsubventionTotal) {
+// 09.10.2026 (Henry/Spechtweg): optional 5. Parameter kuecheKp → „+ 5.000 € Einbauküche"
+// (Küche im Eigentum von B&B, separat im Kaufvertrag, keine Grunderwerbsteuer).
+function composeKaufpreisZusammensetzung(wohnungsPreis, stellplaetze, snapKaufpreis, mietsubventionTotal, kuecheKp) {
   const whgPreis = (snapKaufpreis && snapKaufpreis > 0) ? snapKaufpreis : (wohnungsPreis || 0);
   const teile = [formatEUR(whgPreis)];
   for (const s of (stellplaetze || [])) {
     if (s && s.preis > 0) teile.push(`${formatEUR(s.preis)} ${stellplatzLabel(s.typ)}`);
   }
+  if (kuecheKp > 0) teile.push(`${formatEUR(kuecheKp)} Einbauküche`);
   let text = teile.join(' + ');
   if (mietsubventionTotal > 0) {
     text += ` und ${formatEUR(mietsubventionTotal)} Mietsubvention`;

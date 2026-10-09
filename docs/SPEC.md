@@ -332,6 +332,28 @@ Preis der Karte = (Basis-KP **oder** KP der WE) + Ausstattungspaket.
 Alle übrigen Rechenwerte (Miete bei Verkauf, Marktmiete, Notizen, Extern-Freigabe …)
 kommen aus dem Varianten-Stammsatz selbst.
 
+### Einbauküche im Verkauf (09.10.2026, Henry / Spechtweg)
+
+Bei 90+ Spechtweg-WEs gehört die Einbauküche B&B (WE-Feld **Küche** `fldkTnpJ2OajLJUyq` =
+`Vermietereigentum`). 23 Mieter zahlen einen Küchenzuschlag (Mietvertrag **Miete für zusätzl.
+Bestandteile** `flddyVrq7Y9T0z3sv`, 20/30/40 €/Mo), der NICHT in der Kaltmiete steckt. Die
+Küche wird im Kaufvertrag SEPARAT ausgewiesen (keine GrESt, AfA 10 J), Vorbild WE 205
+(176.275 € + 7.000 € Einbauküche).
+
+| Feld (Kalk-Stammdaten) | ID | Bedeutung |
+|---|---|---|
+| Küchen-KP (€) | `fldsNXegcNb5d4e25` | Kaufpreis der Einbauküche, separat im KV; leer/0 = keine Küche im Verkauf |
+| Küchenmiete bei Verkauf (€/Mo) | `fldi4PErrpHPxPhiI` | Override der Küchenmiete; leer → Zuschlag des mietbestimmenden Vertrags |
+
+Staffel Spechtweg: ohne Zuschlag 2.500 € · 20 € → 3.000 € · 30 € → 4.000 € · 40 € → 5.000 € ·
+Leerstand 7.000 € + 50 €/Mo Küchenmiete bei Neuvermietung. Reservierte WEs behalten ihren Preis (kein Küchen-KP).
+
+API `/api/stammdaten/:weId` liefert `kueche = { eigentum, kp, mieteMo, mieteQuelle, imVerkauf, afaJahre }`
+(`_lib/kueche.js`). Einfacher Rechner + WE-Liste: Gesamtinvestition = Wohnung + Stellplatz + Küche,
+GrESt nur auf die Immobilie, Küchen-AfA 10 J, Küchenmiete als eigene Einnahmezeile. Reservierung:
+`[Kaufpreis.Zusammensetzung]` → „… + 5.000 € Einbauküche"; Extern-Link `doc.kuecheKp` + Zeile im Portal.
+NICHT angebunden: der große Kunden-Kalkulator (`kalkulator.js`-Engine).
+
 **WE-ID der Karte:** `<weRecId>~<stammRecId>` (z.B. `recOVuIsot18BpO75~rec4h53kvjaD9SCMx`).
 Sie läuft durch App und APIs wie eine normale WE-ID. **Jeder Airtable-Zugriff muss vorher
 durch `parseWeId()` / `baseWeId()` aus `api/_lib/we-variante.js`** — Record-Gets und

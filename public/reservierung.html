@@ -105,6 +105,7 @@
       <table class="objekt">
         <tr><td>Kaufpreis Wohnung</td><td class="z">${eur(doc.kpWohnung)}</td></tr>
         ${doc.stellplatzKp > 0 ? `<tr><td>Kaufpreis Stellplatz / Garage</td><td class="z">${eur(doc.stellplatzKp)}</td></tr>` : ''}
+        ${doc.kuecheKp > 0 ? `<tr><td>Einbauküche (separat im Kaufvertrag)</td><td class="z">${eur(doc.kuecheKp)}</td></tr>` : ''}
         <tr class="summe"><td>Gesamtkaufpreis</td><td class="z">${eur(doc.kpGesamt)}</td></tr>
         ${subvZeilen}
         ${doc.subvGesamt > 0 ? `<tr><td>Mietsubvention gesamt</td><td class="z">${eur(doc.subvGesamt)}</td></tr>` : ''}

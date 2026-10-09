@@ -286,6 +286,9 @@ module.exports = async (req, res) => {
           // Iter 41.9
           mieteBeiVerkauf:       num(sf[KALK_STAMMDATEN_FIELDS.MIETE_BEI_VERKAUF]),
           stellplatzMieteBeiVerkauf: num(sf[KALK_STAMMDATEN_FIELDS.STELLPLATZ_MIETE_BEI_VERKAUF]),
+          // 09.10.2026 (Henry/Spechtweg) — Einbauküche im Verkauf
+          kuecheKp:              num(sf[KALK_STAMMDATEN_FIELDS.KUECHE_KP]),
+          kuecheMieteBeiVerkauf: num(sf[KALK_STAMMDATEN_FIELDS.KUECHE_MIETE_BEI_VERKAUF]),
           // 06.07.2026 (Henry) — WE für externe Vertriebler freigegeben (Admin-Toggle)
           externFreigabe:        !!sf[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE],
           // 04.10.2026 (Henry) — Exklusiv-Kontingent (Vertriebler-IDs; leer = alle Externen).
