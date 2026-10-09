@@ -648,6 +648,10 @@ function computeBonitaetDetailed(sa, gemeinsam) {
 /**
  * Master-Recalc — bildet exakt die Excel-Logik nach
  */
+// 09.10.2026 (Henry/Spechtweg): Einbauküche im Verkauf — eigenes Wirtschaftsgut, 10 Jahre AfA
+// (BFH IX R 14/15). Inputs i.kuecheKp (€, separat im KV, keine GrESt) + i.kuecheMiete (€/Mo).
+const KUECHE_AFA_JAHRE = 10;
+
 function recalc(i) {
   // Iter 60 (20.05.2026): Bonitäts-Modus „Detail" hat eigenen Steuersatz.
   //   Der Wert aus dem Quick-Eingabefeld (`i.steuersatz`) bleibt erhalten —
@@ -662,6 +666,10 @@ function recalc(i) {
   // CF=0/NaN-Mischung). User sah leere oder „n.v."-Werte ohne Verständnis warum.
   const kpGesamt = (parseFloat(i.kaufpreis) || 0) + (parseFloat(i.stellplatzKp) || 0);
   if (!(kpGesamt > 0)) return null;
+  // 09.10.2026: Einbauküche — kommt ZUSÄTZLICH zum Immobilien-Kaufpreis (kpGesamt bleibt die
+  // GrESt-/Markt-Basis), Küchenmiete ist eine konstante Zusatz-Einnahme (kein Mietsteigerungs-Pfad).
+  const kuecheKp = Math.max(0, parseFloat(i.kuecheKp) || 0);
+  const kuecheMieteMo = Math.max(0, parseFloat(i.kuecheMiete) || 0);
   // QA-Fix 2026-05-23 (Audit E-3 HIGH): zins=0 (Volltilgung / Promo-Darlehen)
   // hat im cumipmtExcel-Pfad eine NaN-Kaskade ausgelöst (rate=0 → division
   // durch 0).
@@ -677,13 +685,15 @@ function recalc(i) {
   // (i.grEstPct), Fallback 5 % (BaWü).
   const grEstPct = (i.grEstPct !== undefined && i.grEstPct !== null && isFinite(i.grEstPct)) ? i.grEstPct : BB_DEFAULTS.grEstPct;
   const knkPct = grEstPct + 0.015 + 0.005;
-  const knk = kpGesamt * knkPct;
-  const investitionGesamt = kpGesamt + knk;
+  // Küche: keine GrESt, aber Notar/Grundbuch (2 %) konservativ auch auf den Küchenpreis.
+  const knkKueche = kuecheKp * 0.02;
+  const knk = kpGesamt * knkPct + knkKueche;
+  const investitionGesamt = kpGesamt + kuecheKp + knk;
   // Iter 7: AfA-Gutachten-Kosten komplett raus aus EK-Bedarf (B&B trägt das,
   // typisch <1.000 €, ist KEINE Käufer-Position). EK-Bedarf = nur KNK (wenn
   // nicht mitfinanziert), sonst 0.
   const ekBedarf = i.knkMitfinanziert ? 0 : knk;
-  const darlehen = i.knkMitfinanziert ? investitionGesamt : kpGesamt;
+  const darlehen = i.knkMitfinanziert ? investitionGesamt : kpGesamt + kuecheKp;
 
   const annuityMo = darlehen * (i.zins + i.tilgung) / 12;
   const rateM = i.zins / 12;
@@ -713,9 +723,13 @@ function recalc(i) {
   //   zur Bemessungsgrundlage). Wirkung bei 7 % KNK + 85 % Geb-Anteil: ~6 % höhere
   //   AfA-Bemessung → spürbarer Steuervorteil-Hebel.
   const gebaeudeAnteilFaktor = (i.gebaeudeAnteil !== undefined && i.gebaeudeAnteil !== null && isFinite(i.gebaeudeAnteil)) ? i.gebaeudeAnteil : BB_DEFAULTS.gebaeudeAnteil;
-  const anschaffungskosten = kpGesamt + knk;
+  const anschaffungskosten = kpGesamt + knk - knkKueche; // Immobilie inkl. ihrer KNK (ohne Küche)
   const afaBemessungBetrag = anschaffungskosten * gebaeudeAnteilFaktor;
-  const afaJahr = afaBemessungBetrag * i.afaSatz;
+  const afaGebJahr = afaBemessungBetrag * i.afaSatz;
+  // Küchen-AfA: linear über 10 Jahre auf Küchenpreis + anteilige Nebenkosten, danach 0.
+  const afaKuecheJahr = (kuecheKp + knkKueche) / KUECHE_AFA_JAHRE;
+  const afaKuecheJahrY = (y) => (y <= KUECHE_AFA_JAHRE ? afaKuecheJahr : 0);
+  const afaJahr = afaGebJahr + afaKuecheJahr; // Jahr-1-Wert (Tag-0-Snapshot, Anzeige)
   const afaMo = afaJahr / 12;
 
   // --- Renovierungsbonus (Carve-out) ---
@@ -982,7 +996,7 @@ function recalc(i) {
     }
     const subventionMoEff = subvJahrSumme / 12;
 
-    const mieteJahr = (kaltmieteMo + spMieteMo + subventionMoEff) * 12;
+    const mieteJahr = (kaltmieteMo + spMieteMo + subventionMoEff + kuecheMieteMo) * 12;
 
     // Zinsen + Tilgung Jahr y via CUMIPMT/CUMPRINC
     const startP = (y - 1) * 12 + 1;
@@ -1016,7 +1030,7 @@ function recalc(i) {
 
     // Steuervorteil — Werbungskosten = AfA + Zinsen + Mietverwaltung + Hausverwaltung (WEG)
     // Mietverwaltung und Hausverwaltung gelten beide als nicht-umlagefähige Werbungskosten.
-    const wkAfa = afaBemessungBetrag * i.afaSatz;
+    const wkAfa = afaGebJahr + afaKuecheJahrY(y); // Küchen-AfA nur Jahre 1–10
     const stVerlustJahr = wkAfa + zinsenJahr + mvJahr + hvJahr - mieteJahr;
     const stVorteilJahr = stVerlustJahr * i.steuersatz;
 
@@ -1032,7 +1046,8 @@ function recalc(i) {
       // Felder. Vorher in recalcPaket via `cf[y].annuJahr || 0` gesummt → 0.
       // Jetzt korrekt nutzbar (Paket-Output war stumm-defekt für diese 2 Felder).
       annuJahr: zinsenJahr + tilgungJahr,
-      afaJahr: afaJahr,
+      afaJahr: wkAfa,
+      kuecheMieteMo,
       hgJahr, mvJahr, hvJahr,
       stVorteilJahr,
       cfJahr,
@@ -1063,7 +1078,7 @@ function recalc(i) {
     // Subv-Glättung (Iter 43): siehe subvForMonth() — Effektivmiete bleibt in jeder
     // Phase konstant, Subv schmilzt mit Bestandsmieten-Steigerung. Kein Spike mehr.
     const subvM = subvForMonth(m);
-    const mieteM = kaltmieteM + spMieteM + subvM;
+    const mieteM = kaltmieteM + spMieteM + subvM + kuecheMieteMo;
     // Zinsen + Tilgung pro Monat (Annuitäten-Formel iterativ)
     // QA-Fix 2026-05-22 (Phase-2a Bug #2): annuityMoExcel statt annuityMo.
     let zinsM = 0, tilgM = 0;
@@ -1081,7 +1096,7 @@ function recalc(i) {
     const mvM = (i.mietverwaltung || 0) * hgFaktorM;
     const hgM = (i.hausgeld || 0) * hgFaktorM + mvM + hausverwM;
     // Steuervorteil pro Monat — AfA + Zinsen + MV + HV als Werbungskosten gegen Miete
-    const afaM_ = afaJahr / 12;
+    const afaM_ = (afaGebJahr + afaKuecheJahrY(y)) / 12;
     const stVerlustM = afaM_ + zinsM + mvM + hausverwM - mieteM;
     const stVorteilM = stVerlustM * (i.steuersatz || 0);
     const cfNachStM = mieteM - zinsM - tilgM - hgM + stVorteilM;
@@ -1161,7 +1176,7 @@ function recalc(i) {
   const subvTag0Mo = _initialSubv0 * _subvFaktor0;
   const kaltmieteTag0Mo = i.kaltmiete || 0;            // Vertrags-Kaltmiete heute (Cap reduziert IST nicht, FS-3x)
   const stellplatzTag0Mo = i.stellplatzMiete || 0;
-  const mieteTag0Mo = kaltmieteTag0Mo + stellplatzTag0Mo + subvTag0Mo;
+  const mieteTag0Mo = kaltmieteTag0Mo + stellplatzTag0Mo + subvTag0Mo + kuecheMieteMo;
   const _zinsTag0 = darlehen * rateM;                  // Monat-1-Zins (zinsunabhängig von Mietsteigerung)
   const _mvTag0 = (i.mietverwaltung || 0);
   const _hausverwTag0 = (i.hausverwaltung == null || !isFinite(i.hausverwaltung)) ? BB_DEFAULTS.hausverwaltungMo : i.hausverwaltung;
@@ -1203,7 +1218,7 @@ function recalc(i) {
   // die Bank vorher eine zu hohe anrechenbare Miete. Engine bucht in Monat 1
   // tatsächlich kaltmieteForMonth(1) = capped — Bank-Bonität muss das spiegeln.
   const kaltmieteMo1 = (typeof kaltmieteForMonth === 'function') ? kaltmieteForMonth(1) : i.kaltmiete;
-  const bonMieteAnr = (kaltmieteMo1 + i.stellplatzMiete + subvMo1) * 0.8;
+  const bonMieteAnr = (kaltmieteMo1 + i.stellplatzMiete + subvMo1 + kuecheMieteMo) * 0.8;
   const bonAnnuMo = annuityMo; // Annuität positiv aus Sicht der Belastung
   // Quick-Modus (kompatibel zu Iter 10): nur Miete − Annuität.
   // Detail-Modus (Iter 11): zusätzlich HG + HV bank-konservativ.
@@ -1272,6 +1287,8 @@ function recalc(i) {
     inputs: i,
     engineVersion: ENGINE_VERSION,
     kpGesamt, knk, investitionGesamt, ekBedarf, darlehen,
+    // 09.10.2026: Einbauküche (separat im KV)
+    kuecheKp, kuecheMieteMo, knkKueche, afaGebJahr, afaKuecheJahr, kpGesamtInklKueche: kpGesamt + kuecheKp,
     renovierungsbonus, renovierungsbonusCap, ekBedarfNetto, renoErstattung,
     annuityMo, nper, afaMo, afaJahr, afaBemessungBetrag, anschaffungskosten, gebaeudeAnteilFaktor,
     cf, cfMonate, vermoegen, irr: irrValue,
@@ -1298,7 +1315,7 @@ function recalc(i) {
     stVorteilJ5Mo: cf[4].stVorteilJahr / 12,
     stVorteilJ10Mo: cf[9].stVorteilJahr / 12,
     mieteJ1Mo: cf1.mieteJahr / 12,
-    mieteTag1Mo: (kaltmieteMo1 + i.stellplatzMiete + subvMo1),   // Tag-1-Ist-Miete (gekappte Kaltmiete + Stellplatz + Subv Monat 1) — für Jahr-0-Anzeigen
+    mieteTag1Mo: (kaltmieteMo1 + i.stellplatzMiete + subvMo1 + kuecheMieteMo),   // Tag-1-Ist-Miete (gekappte Kaltmiete + Stellplatz + Subv Monat 1) — für Jahr-0-Anzeigen
     ersteErhoehungMonat,
     ersteErhoehungJahrLabel,
     // Iter 67 (20.05.2026): €/qm-Werte + Bruttorendite für Vertriebler-UI.
@@ -1324,7 +1341,7 @@ function recalc(i) {
       const cappedKaltmieteMo1 = (typeof kaltmieteForMonth === 'function')
         ? kaltmieteForMonth(1)
         : (parseFloat(i.kaltmiete) || 0);
-      const tag1Miete = cappedKaltmieteMo1 + (parseFloat(i.stellplatzMiete) || 0);
+      const tag1Miete = cappedKaltmieteMo1 + (parseFloat(i.stellplatzMiete) || 0) + kuecheMieteMo;
       const phase1Subv = (Array.isArray(i.subventionPhasen) && i.subventionPhasen[0])
         ? (parseFloat(i.subventionPhasen[0].mo) || 0)
         : (parseFloat(i.subventionMo) || 0);

@@ -352,7 +352,7 @@ API `/api/stammdaten/:weId` liefert `kueche = { eigentum, kp, mieteMo, mieteQuel
 (`_lib/kueche.js`). Einfacher Rechner + WE-Liste: Gesamtinvestition = Wohnung + Stellplatz + Küche,
 GrESt nur auf die Immobilie, Küchen-AfA 10 J, Küchenmiete als eigene Einnahmezeile. Reservierung:
 `[Kaufpreis.Zusammensetzung]` → „… + 5.000 € Einbauküche"; Extern-Link `doc.kuecheKp` + Zeile im Portal.
-NICHT angebunden: der große Kunden-Kalkulator (`kalkulator.js`-Engine).
+Kunden-Kalkulator (`kalkulator.js` recalc): Inputs `kuecheKp`/`kuecheMiete` (aus `loadWeIntoKalk` bzw. WE-Liste), Darlehen inkl. Küche, Küchen-AfA nur Jahre 1–10 (`afaKuecheJahr`, `afaGebJahr`), Küchenmiete konstant in mieteJahr/cfMonate/Tag-0/Bonität; Story „Steuervorteil" + PDF zeigen die Küche als eigene Zeile. Ohne Küche bit-identisch (Snapshot-Tests).
 
 **WE-ID der Karte:** `<weRecId>~<stammRecId>` (z.B. `recOVuIsot18BpO75~rec4h53kvjaD9SCMx`).
 Sie läuft durch App und APIs wie eine normale WE-ID. **Jeder Airtable-Zugriff muss vorher

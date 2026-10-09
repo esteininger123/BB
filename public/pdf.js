@@ -547,6 +547,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           <h4>Kaufpreis</h4>
           <div class="pdf-c-obj-row"><span class="k">Wohnung</span><span class="v">${Math.round(i.kaufpreis || 0).toLocaleString('de-DE')}<span class="unit">€</span></span></div>
           ${i.stellplatzKp > 0 ? `<div class="pdf-c-obj-row"><span class="k">Stellplatz</span><span class="v">${Math.round(i.stellplatzKp).toLocaleString('de-DE')}<span class="unit">€</span></span></div>` : ''}
+          ${i.kuecheKp > 0 ? `<div class="pdf-c-obj-row"><span class="k">Einbauküche (separat im KV)</span><span class="v">${Math.round(i.kuecheKp).toLocaleString('de-DE')}<span class="unit">€</span></span></div>` : ''}
           <div class="pdf-c-obj-row"><span class="k">Gesamt</span><span class="v">${Math.round(r.kpGesamt).toLocaleString('de-DE')}<span class="unit">€</span></span></div>
           <div class="pdf-c-obj-row"><span class="k">KP je qm</span><span class="v">${Math.round(kpQm).toLocaleString('de-DE')}<span class="unit">€</span></span></div>
           ${marktQm > 0 ? `<div class="pdf-c-obj-row"><span class="k">Marktwert${_marktSrcLabel ? ' ' + _marktSrcLabel : ''} je qm</span><span class="v">${Math.round(marktQm).toLocaleString('de-DE')}<span class="unit">€</span></span></div>` : ''}

@@ -3518,6 +3518,7 @@ function _resetWeSnapshotFields() {
     'wertsteigerung', 'hgInflation', 'gebaeudeAnteil', 'afaSatz',
     'hausgeld', 'hausverwaltung', 'mietverwaltung', 'grEstPct',
     'kaufpreis', 'qm', 'kaltmiete', 'stellplatzKp', 'stellplatzMiete',
+    'kuecheKp', 'kuecheMiete', '_kuecheEigentum', // 09.10.2026 Einbauküche
     'letzteMietsteigerung',
     // FS-1 (24.05.2026, Tech-Architekt H-6): monateSeitMieterhoehung wurde
     // bisher beim WE-Wechsel nicht zurückgesetzt — Altwert der vorigen WE
@@ -3603,6 +3604,10 @@ async function loadWeIntoKalk(weId) {
       state.kalk._stellplatzMieteQuelle = (resp.stellplaetze && resp.stellplaetze.mieteMoQuelle) || 'keine';
       // Wohnungs-Kaltmiete (ohne Stellplatz) — wird für Mietsteigerungs-Logik gebraucht
       state.kalk._wohnungsKaltmiete = resp.we.kaltmiete || 0;
+      // 09.10.2026 (Henry/Spechtweg): Einbauküche im Verkauf → Engine-Inputs + Anzeige
+      state.kalk.kuecheKp    = (resp.kueche && resp.kueche.kp) || 0;
+      state.kalk.kuecheMiete = (resp.kueche && resp.kueche.mieteMo) || 0;
+      state.kalk._kuecheEigentum = (resp.kueche && resp.kueche.eigentum) || null;
     }
     // 06.07.2026 (Henry) — Externer Vertrieb: kp kommt vom Server bereits als Kundenpreis
     // (inkl. Provision); der extern-Block liefert Provision in € + Mindestpreis fürs UI.
@@ -4355,8 +4360,9 @@ function renderStories(r) {
         <tr><td>+ Kaufnebenkosten (GrESt + Notar + Grundbuch)</td><td class="num">${fmt(r.knk)}</td></tr>
         <tr><td><strong>= Deine Anschaffungskosten</strong></td><td class="num"><strong>${fmt(ankBetrag)}</strong></td></tr>
         <tr><td>× Gebäude-Anteil ${fmtPct(gebAnteilPct, 0)} (Grund &amp; Boden nicht abnutzbar)</td><td class="num">${fmt(afaBemessung)}</td></tr>
-        <tr><td>× AfA-Satz ${fmtPct(i.afaSatz, 2)}</td><td class="num"></td></tr>
-        <tr class="totalrow"><td><strong>= Deine AfA pro Jahr (konstant über die Haltedauer)</strong></td><td class="num"><strong>${fmt(afaJahr)}</strong></td></tr>
+        <tr><td>× AfA-Satz ${fmtPct(i.afaSatz, 2)}</td><td class="num">${r.kuecheKp > 0 ? fmt(r.afaGebJahr || 0) : ''}</td></tr>
+        ${r.kuecheKp > 0 ? `<tr><td>+ AfA Einbauküche (${fmt(r.kuecheKp)} separat im Kaufvertrag, 10 Jahre à 10 %)</td><td class="num">${fmt(r.afaKuecheJahr || 0)}</td></tr>` : ''}
+        <tr class="totalrow"><td><strong>= Deine AfA pro Jahr${r.kuecheKp > 0 ? ' (Küchen-AfA in den ersten 10 Jahren)' : ' (konstant über die Haltedauer)'}</strong></td><td class="num"><strong>${fmt(afaJahr)}</strong></td></tr>
         <tr><td>+ Zinsen Jahr 1</td><td class="num">${fmt(zinsenJ1)}</td></tr>
         <tr><td>+ Mietverwaltung (SEV) Jahr 1</td><td class="num">${fmt(mvJ1)}</td></tr>
         <tr><td>+ Hausverwaltung (WEG) Jahr 1</td><td class="num">${fmt(hvJ1)}</td></tr>
@@ -4649,6 +4655,7 @@ function renderStoryPremium(r) {
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Wohnfläche</span><span class="kalk-c-v">${(i.qm || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">qm</span></span></div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaufpreis Wohnung</span><span class="kalk-c-v">${Math.round(i.kaufpreis || 0).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></span></div>
           ${i.stellplatzKp > 0 ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">Stellplatz</span><span class="kalk-c-v">${Math.round(i.stellplatzKp).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></span></div>` : ''}
+          ${i.kuecheKp > 0 ? `<div class="kalk-c-objekt-row"><span class="kalk-c-k">Einbauküche (separat im KV)</span><span class="kalk-c-v">${Math.round(i.kuecheKp).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></span></div>` : ''}
         </div>
         <div>
           <div class="kalk-c-objekt-row"><span class="kalk-c-k">Kaufpreis je qm</span><span class="kalk-c-v">${Math.round(kpQm).toLocaleString('de-DE')}<span class="kalk-c-unit">€</span></span></div>
@@ -9986,6 +9993,9 @@ function _renderWeListeContent() {
         kaltmiete: effKaltmiete,
         stellplatzKp: (detailStpl.kaufpreisSumme || stpl.kaufpreisSumme || 0),
         stellplatzMiete: (detailStpl.mieteMoSumme || stpl.mieteMoSumme || 0),
+        // 09.10.2026: Einbauküche aus dem Detail (Küchen-KP separat, Küchenmiete als Einnahme)
+        kuecheKp: (detail && detail.kueche && detail.kueche.kp) || 0,
+        kuecheMiete: (detail && detail.kueche && detail.kueche.mieteMo) || 0,
         marktwertProQm,
         marktmieteEurQm,
         hausgeld: detailKalk.hausgeldRuecklage != null ? detailKalk.hausgeldRuecklage : sd.hausgeldRuecklage,
@@ -10136,7 +10146,7 @@ function _renderWeListeContent() {
           <td class="num">${fmtZufr(we.zufriedenheit)}</td>
           <td class="num">${fmtMaengel(we.maengelAnzahl)}</td>
           <td class="num">${fmtStpl(we.stellplatzBedarf)}</td>
-          <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}</div></td>
+          <td class="num">${fmtEur(we.kp)}<div class="text-tertiary text-small">${fmtEurPerQm(we.kp, we.qm)}${(() => { const dk = detailById && detailById[we.id] && detailById[we.id].kueche; return (dk && dk.kp > 0) ? ' · + Küche ' + fmtEur(dk.kp) : ''; })()}</div></td>
           <td class="num">${(() => {
             // FS-3t (Edgar 26.05.2026): von 4 Zeilen auf 2 Zeilen — einfacher
             // aber vollständig. Zeile 1: Käufer-Miete (bold) · €/qm. Zeile 2:
