@@ -9670,15 +9670,10 @@ async function renderWeListe() {
       <div class="we-liste-head" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;margin-bottom:18px;">
         <div>
           <h1 class="page-title" style="margin:0 0 6px;">Wohneinheiten im Verkauf</h1>
-          <div class="text-tertiary text-small">Live-Liste: Vermarktung + reservierte + Notartermin-Einheiten (reservierte/Notartermin sind markiert) — pro Projekt sortiert. Klick auf eine WE öffnet die Musterberechnung (Standard) — Haken „Komplizierter Rechner" für den Kunden-Kalkulator.</div>
+          <div class="text-tertiary text-small">Live-Liste: Vermarktung + reservierte + Notartermin-Einheiten (reservierte/Notartermin sind markiert) — pro Projekt sortiert. Klick auf eine WE öffnet die Musterberechnung (Einfacher Rechner).</div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
-          ${state.user && state.user.rolle !== 'Extern' ? `
-            <label class="text-tertiary text-small" style="display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:8px;" title="Standard ist die einfache Musterberechnung. Haken setzen → Klick auf eine WE öffnet stattdessen den alten Kunden-Kalkulator (Engine mit Profil, Vermögen J10, IRR)">
-              <input type="checkbox" ${_komplexRechnerAktiv() ? 'checked' : ''} onchange="window._komplexRechnerToggle(this.checked)" style="width:14px;height:14px;">
-              🧮 Komplizierter Rechner
-            </label>
-          ` : ''}
+          ${/* 14.10.2026 (Henry): Haken „Komplizierter Rechner" gesperrt — siehe _komplexRechnerAktiv() */ ''}
           ${_weListeSimpleMode() ? '' : `
           <label class="text-tertiary text-small" for="we-liste-profil" style="white-space:nowrap;">Kennzahlen für Profil</label>
           <select id="we-liste-profil" onchange="window._weListeSetProfil(this.value)" style="padding:6px 10px;font-size:13px;min-width:340px;">
@@ -10916,11 +10911,23 @@ window._externPasswortSave = _externPasswortSave;
 function _komplexRechnerKey() {
   return 'bbk_komplex_rechner_' + ((state.user && state.user.email) || 'anon');
 }
+// 14.10.2026 (Henry): GESPERRT. Der komplizierte Rechner (Kunden-Kalkulator als
+// Klick-Ziel der WE-Liste + Engine-Kennzahlen) zeigte bei 219 möbliert eine
+// Mietsubvention, die der Einfache Rechner nicht kennt. Henry: „der einfache ist
+// der einzig korrekte". Ein gespeicherter localStorage-Haken wird ignoriert, der
+// Haken ist aus der WE-Liste entfernt. Der Kunden-Tab „Kalkulator" bleibt
+// unverändert erreichbar (Snapshots, PDFs). Zum Entsperren: Konstante umschalten.
+const KOMPLEX_RECHNER_GESPERRT = true;
 function _komplexRechnerAktiv() {
+  if (KOMPLEX_RECHNER_GESPERRT) return false;
   if (!state.user || state.user.rolle === 'Extern') return false;
   try { return localStorage.getItem(_komplexRechnerKey()) === '1'; } catch (e) { return false; }
 }
 function _komplexRechnerToggle(an) {
+  if (KOMPLEX_RECHNER_GESPERRT) {
+    toast('Komplizierter Rechner ist gesperrt — die WE-Liste nutzt immer die Musterberechnung', 'info');
+    return;
+  }
   try { localStorage.setItem(_komplexRechnerKey(), an ? '1' : '0'); } catch (e) {}
   toast(an ? 'Komplizierter Rechner aktiv — Klick auf eine WE öffnet den Kunden-Kalkulator' : 'Komplizierter Rechner aus — Klick auf eine WE öffnet wieder die Musterberechnung', 'info');
   // Kennzahlen der Liste folgen dem Modus (Musterberechnung vs. Engine) →
