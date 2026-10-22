@@ -78,11 +78,16 @@ function route() {
     // entsteht erst bei der Reservierung. #/dashboard leitet Externe zu den Wohnungen.
     if (state.user.rolle === 'Extern') {
       state.view = (hash === '/dashboard') ? 'we-liste' : 'extern-start';
+    } else if (MEINE_KUNDEN_VERSTECKT) {
+      // 22.10.2026 (Henry): „Meine Kunden" ist aus der Oberfläche raus — auch Interne
+      // starten auf der Wohnungsliste. #/dashboard bleibt als Hintergrund-Route
+      // erreichbar (Komplizierter Rechner, Deep-Links), nur nicht als Landing.
+      state.view = (hash === '/dashboard') ? 'dashboard' : 'we-liste';
     } else {
       state.view = 'dashboard';
     }
   } else if (hash === '/start') {
-    state.view = (state.user.rolle === 'Extern') ? 'extern-start' : 'dashboard';
+    state.view = (state.user.rolle === 'Extern') ? 'extern-start' : (MEINE_KUNDEN_VERSTECKT ? 'we-liste' : 'dashboard');
   } else if (hash.startsWith('/rechner/')) {
     // 19.07.2026 (Henry): kundenloser Extern-Rechner (#/rechner/<weId>) — Externe
     // rechnen direkt aus der WE-Liste, ohne vorher einen Kunden anzulegen.
@@ -211,7 +216,7 @@ function renderHeader() {
   const active = (view) => state.view === view ? ' nav-link-active' : '';
   um.innerHTML = `
     ${state.user.rolle === 'Extern' ? `<a href="#/start" class="nav-link${active('extern-start')}" title="So funktioniert der externe Vertrieb">Start</a>` : ''}
-    ${state.user.rolle === 'Extern' ? '' : `<a href="#/dashboard" class="nav-link${active('dashboard')}" title="Deine Kunden + Pipeline">Meine Kunden</a>`}
+    ${(state.user.rolle === 'Extern' || MEINE_KUNDEN_VERSTECKT) ? '' : `<a href="#/dashboard" class="nav-link${active('dashboard')}" title="Deine Kunden + Pipeline">Meine Kunden</a>`}
     <a href="#/we-liste" class="nav-link${active('we-liste')}" title="Alle Wohnungen in aktiver Vermarktung mit Kennzahlen">Wohnungen</a>
     ${state.user.rolle === 'Extern' ? `<a href="${state.rechnerWeId ? '#/rechner/' + state.rechnerWeId : '#/we-liste'}" class="nav-link${active('extern-rechner')}" title="Cleaner Rendite-Rechner — Wohnung aus der Liste wählen">Rechner</a>` : ''}
     ${isAdmin ? `<a href="#/admin" class="nav-link${active('admin')}">Admin</a>` : ''}
@@ -9670,10 +9675,15 @@ async function renderWeListe() {
       <div class="we-liste-head" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;margin-bottom:18px;">
         <div>
           <h1 class="page-title" style="margin:0 0 6px;">Wohneinheiten im Verkauf</h1>
-          <div class="text-tertiary text-small">Live-Liste: Vermarktung + reservierte + Notartermin-Einheiten (reservierte/Notartermin sind markiert) — pro Projekt sortiert. Klick auf eine WE öffnet die Musterberechnung (Einfacher Rechner).</div>
+          <div class="text-tertiary text-small">Live-Liste: Vermarktung + reservierte + Notartermin-Einheiten (reservierte/Notartermin sind markiert) — pro Projekt sortiert. Klick auf eine WE öffnet die Musterberechnung (Einfacher Rechner)${state.user && state.user.rolle !== 'Extern' ? ' — Haken „Komplizierter Rechner" für den Kunden-Kalkulator' : ''}.</div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
-          ${/* 14.10.2026 (Henry): Haken „Komplizierter Rechner" gesperrt — siehe _komplexRechnerAktiv() */ ''}
+          ${state.user && state.user.rolle !== 'Extern' && !KOMPLEX_RECHNER_GESPERRT ? `
+            <label class="text-tertiary text-small" style="display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:8px;" title="Standard ist die einfache Musterberechnung. Haken setzen → Klick auf eine WE öffnet stattdessen den Kunden-Kalkulator (Engine mit Profil, Vermögen J10, IRR)">
+              <input type="checkbox" ${_komplexRechnerAktiv() ? 'checked' : ''} onchange="window._komplexRechnerToggle(this.checked)" style="width:14px;height:14px;">
+              🧮 Komplizierter Rechner
+            </label>
+          ` : ''}
           ${_weListeSimpleMode() ? '' : `
           <label class="text-tertiary text-small" for="we-liste-profil" style="white-space:nowrap;">Kennzahlen für Profil</label>
           <select id="we-liste-profil" onchange="window._weListeSetProfil(this.value)" style="padding:6px 10px;font-size:13px;min-width:340px;">
@@ -10917,7 +10927,11 @@ function _komplexRechnerKey() {
 // der einzig korrekte". Ein gespeicherter localStorage-Haken wird ignoriert, der
 // Haken ist aus der WE-Liste entfernt. Der Kunden-Tab „Kalkulator" bleibt
 // unverändert erreichbar (Snapshots, PDFs). Zum Entsperren: Konstante umschalten.
-const KOMPLEX_RECHNER_GESPERRT = true;
+// 22.10.2026 (Henry): Sperre wieder gelöst — kleiner Haken „Komplizierter Rechner" in der
+// WE-Liste (nur Intern, Standard aus). „Meine Kunden" ist aus der Navigation raus, die
+// Kunden-/Snapshot-Logik bleibt im Hintergrund erreichbar (#/dashboard, #/kunde/…).
+const KOMPLEX_RECHNER_GESPERRT = false;
+const MEINE_KUNDEN_VERSTECKT = true;
 function _komplexRechnerAktiv() {
   if (KOMPLEX_RECHNER_GESPERRT) return false;
   if (!state.user || state.user.rolle === 'Extern') return false;

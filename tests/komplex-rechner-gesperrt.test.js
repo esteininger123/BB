@@ -1,6 +1,6 @@
-// 14.10.2026 (Henry): Der komplizierte Rechner (Kunden-Kalkulator als Klick-Ziel
-// der WE-Liste) ist gesperrt — die WE-Liste nutzt für alle die Musterberechnung,
-// auch wenn im localStorage noch der alte Haken „1" liegt.
+// 22.10.2026 (Henry): „Meine Kunden" ist aus der Oberfläche raus (Nav-Link weg, Interne
+// landen auf der Wohnungsliste), die Kunden-Logik bleibt im Hintergrund. Der komplizierte
+// Rechner ist wieder per kleinem Haken in der WE-Liste erreichbar (nur Intern, Standard aus).
 // public/app.js ist Browser-Code ohne Exporte → Block wird aus dem Quelltext geschnitten.
 const test = require('node:test');
 const assert = require('node:assert');
@@ -10,38 +10,50 @@ const path = require('path');
 const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
 const a = src.indexOf('const KOMPLEX_RECHNER_GESPERRT');
 const b = src.indexOf('window._komplexRechnerToggle = _komplexRechnerToggle;');
-assert.ok(a > 0 && b > a, 'Sperr-Block in app.js nicht gefunden');
+assert.ok(a > 0 && b > a, 'Rechner-Block in app.js nicht gefunden');
 
 function lade(user, gespeichert) {
-  const toasts = [];
+  const toasts = []; const store = { v: gespeichert };
   const localStorage = {
-    getItem: () => gespeichert,
-    setItem: () => { throw new Error('localStorage darf gesperrt nicht beschrieben werden'); },
+    getItem: () => store.v,
+    setItem: (k, v) => { store.v = v; },
   };
   const ctx = new Function(
     'state', 'localStorage', 'toast', 'renderWeListe',
-    src.slice(a, b) + '\nreturn { aktiv: _komplexRechnerAktiv, toggle: _komplexRechnerToggle, simple: _simpleRechnerAktiv, listeSimple: _weListeSimpleMode, gesperrt: KOMPLEX_RECHNER_GESPERRT };'
-  )({ user, view: 'we-liste' }, localStorage, (m) => toasts.push(m), () => { throw new Error('kein Re-Render'); });
-  return { ...ctx, toasts };
+    'function _komplexRechnerKey() { return "k"; }\n' +
+    src.slice(a, b) + '\nreturn { aktiv: _komplexRechnerAktiv, toggle: _komplexRechnerToggle, simple: _simpleRechnerAktiv, listeSimple: _weListeSimpleMode, gesperrt: KOMPLEX_RECHNER_GESPERRT, versteckt: MEINE_KUNDEN_VERSTECKT };'
+  )({ user, view: 'we-liste' }, localStorage, (m) => toasts.push(m), () => {});
+  return { ...ctx, toasts, store };
 }
 
-test('Sperre ist aktiv und ignoriert einen gespeicherten Haken', () => {
-  const x = lade({ email: 'h.wacker@bub-immo.de', rolle: 'Admin' }, '1');
-  assert.strictEqual(x.gesperrt, true);
-  assert.strictEqual(x.aktiv(), false, 'alter localStorage-Haken darf nicht mehr wirken');
-  assert.strictEqual(x.simple(), true);
-  assert.strictEqual(x.listeSimple(), true, 'WE-Liste rechnet mit der Musterberechnung');
+test('Standard: Haken aus → Musterberechnung, Sperre gelöst', () => {
+  const x = lade({ email: 'h.wacker@bub-immo.de', rolle: 'Admin' }, null);
+  assert.strictEqual(x.gesperrt, false);
+  assert.strictEqual(x.versteckt, true);
+  assert.strictEqual(x.aktiv(), false);
+  assert.strictEqual(x.listeSimple(), true, 'ohne Haken rechnet die WE-Liste mit der Musterberechnung');
 });
 
-test('Toggle schreibt nichts mehr und meldet nur die Sperre', () => {
+test('Haken setzen schaltet Interne auf den komplizierten Rechner', () => {
   const x = lade({ email: 'h.wacker@bub-immo.de', rolle: 'Vertriebler' }, null);
   x.toggle(true);
-  assert.strictEqual(x.toasts.length, 1);
-  assert.match(x.toasts[0], /gesperrt/);
+  assert.strictEqual(x.store.v, '1');
+  assert.strictEqual(x.aktiv(), true);
+  assert.strictEqual(x.listeSimple(), false);
+  assert.match(x.toasts[0], /aktiv/);
+  x.toggle(false);
   assert.strictEqual(x.aktiv(), false);
 });
 
-test('Haken ist aus der WE-Liste entfernt', () => {
-  assert.ok(!src.includes('🧮 Komplizierter Rechner'), 'Checkbox-Label darf nicht mehr gerendert werden');
-  assert.ok(!src.includes('onchange="window._komplexRechnerToggle'), 'kein onchange auf den Toggle');
+test('Externe bleiben immer beim einfachen Rechner', () => {
+  const x = lade({ email: 'extern@partner.de', rolle: 'Extern' }, '1');
+  assert.strictEqual(x.aktiv(), false);
+  assert.strictEqual(x.simple(), true);
+});
+
+test('Haken ist in der WE-Liste gerendert, „Meine Kunden" nicht mehr in der Navigation', () => {
+  assert.ok(src.includes('🧮 Komplizierter Rechner'), 'Checkbox-Label fehlt');
+  assert.ok(src.includes('onchange="window._komplexRechnerToggle(this.checked)"'), 'onchange auf den Toggle fehlt');
+  assert.ok(src.includes("(state.user.rolle === 'Extern' || MEINE_KUNDEN_VERSTECKT) ? ''"), 'Nav-Link „Meine Kunden" muss hinter MEINE_KUNDEN_VERSTECKT hängen');
+  assert.ok(src.includes("state.view = (hash === '/dashboard') ? 'dashboard' : 'we-liste';"), 'Interne müssen auf der Wohnungsliste landen');
 });
