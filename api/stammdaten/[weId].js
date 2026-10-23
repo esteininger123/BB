@@ -435,6 +435,10 @@ function kalkStammRecordToApi(rec) {
     indexPrognosePa:       num(f[KALK_STAMMDATEN_FIELDS.INDEX_PROGNOSE_PCT]),
     // 06.07.2026 (Henry) — WE für externe Vertriebler freigegeben (Opt-in).
     externFreigabe:        !!f[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE],
+    // 23.10.2026 (Henry/Kitzingen) — nur externer Vertrieb / Rechner-Hinweise (read-only Input-Felder).
+    nurExtern:             !!f[KALK_STAMMDATEN_FIELDS.NUR_EXTERN],
+    mietverwaltungHinweis: (f[KALK_STAMMDATEN_FIELDS.MIETVERWALTUNG_HINWEIS] || '').toString().trim() || null,
+    afaWorstCasePct:       num(f[KALK_STAMMDATEN_FIELDS.AFA_WORST_CASE_PCT]),
     // 04.10.2026 (Henry) — Exklusiv-Kontingent: Vertriebler-IDs, die die Einheit als
     // einzige Externe sehen (leer = alle Externen). Für Extern-Sessions wird die Liste in
     // buildWeDetail durch das Flag externExklusivFuerMich ersetzt (keine fremden IDs).

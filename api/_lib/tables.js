@@ -351,6 +351,16 @@ const KALK_STAMMDATEN_FIELDS = {
   // Einheit den Standard-Extern-Rabatt (2 % auf die Wohnung). Leer = Standard.
   // Input-Feld (Pflege in Airtable) — keine Schreib-Richtung im Backend. Siehe externPreis().
   EXTERN_ABSCHLAG:       'fldMAH69tz8IET5Vm',
+  // 23.10.2026 (Henry/Kitzingen) — Checkbox „Nur externer Vertrieb": Einheit wird ausschließlich
+  // über externe Partner verkauft. Interne Vertriebler sehen sie in WE-Liste/Audit nicht mehr,
+  // Admins sehen sie mit Pille. Externe brauchen weiterhin EXTERN_FREIGABE. Input-Feld (Airtable).
+  NUR_EXTERN:            'fldlIjigRyNMuSuWW',
+  // 23.10.2026 (Henry/Kitzingen) — Freitext unter der SE-Verwaltergebühr im einfachen Rechner,
+  // z. B. „Neuvermietungen sind in unbegrenzter Zahl inklusive". Leer = kein Hinweis.
+  MIETVERWALTUNG_HINWEIS:'fld60m6cIQ9Q0d7NK',
+  // 23.10.2026 (Henry/Kitzingen) — Percent. Wenn gesetzt (z. B. 3,5 %), zeigt der einfache Rechner
+  // unter der AfA einen Worst-Case-Vermerk: Cashflow nach Steuer mit diesem Satz statt Gutachten-AfA.
+  AFA_WORST_CASE_PCT:    'fldueDsHmqg6EmmWP',
   // 08.07.2026 (Henry) — Checkbox: WG-/Rendite-Objekt (z.B. Offenburg August-Hund-Str. 4).
   // Wenn gesetzt: Backstube ankert die Vermögensrechnung auf den Kaufpreis statt den
   // ImmoScout/Homeday-Vergleichsmarktpreis (dieser wird für WG-Einheiten aus den Daten

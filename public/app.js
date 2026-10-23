@@ -9851,7 +9851,12 @@ function _renderWeListeContent() {
     : '';
   // 04.10.2026 (Henry): Exklusiv-Kontingent. Extern: „Exklusiv für dich" (fremde Kontingente
   // liefert der Server gar nicht aus). Intern: Hinweis, an wen die Einheit exklusiv vergeben ist.
-  const weExklBadge = (sd) => {
+  // 23.10.2026 (Henry/Kitzingen): „Nur externer Vertrieb" — Interne (Admins) sehen die Pille, Externe nicht.
+  const weNurExternBadge = (sd) => (sd && sd.nurExtern && !(state.user && state.user.rolle === 'Extern'))
+    ? ' <span class="we-status-pill" style="margin-left:6px;font-size:10px;background:#FFF1E0;color:#8A4B00;border:1px solid #F0C080;" title="Diese Einheit wird ausschließlich über externe Vertriebspartner verkauft">NUR EXTERNER VERTRIEB</span>'
+    : '';
+  const weExklBadge = (sd) => weNurExternBadge(sd) + weExklBadgeInner(sd);
+  const weExklBadgeInner = (sd) => {
     if (!sd) return '';
     const stil = 'margin-left:6px;font-size:10px;background:#EFE6F7;color:#5B2A86;border:1px solid #C9A9E3;';
     if (sd.externExklusivFuerMich) return ' <span class="we-status-pill" style="' + stil + '" title="Diese Einheit gehört zu deinem Exklusiv-Kontingent — kein anderer externer Partner sieht oder reserviert sie">★ EXKLUSIV FÜR DICH</span>';
@@ -10814,30 +10819,12 @@ function renderExternStart() {
         <div class="text-tertiary text-small">Gespeichert ist aktuell: <strong>${aktuellPct.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %</strong>. Du kannst den Satz hier jederzeit ändern — alle Preise in der App passen sich sofort an. Für laufende Beratungen gilt: Preis beim Kunden nennen, dann Satz nicht mehr wechseln. Tipp: Die Provisions-Zeile im Kalkulator blendest du mit dem × aus (wenn der Kunde mitschaut) — das ⓘ holt sie zurück.</div>
       </div>
 
-      <!-- 19.07.2026 (Henry): Verbindlichkeits-Zusage — Vertriebler soll wissen:
-           was in der Backstube steht, gilt. Bewusst als eigener Hingucker-Block. -->
-      <div class="card" style="margin-bottom:16px;border-left:3px solid #2e9e5b;background:rgba(46,158,91,.06);">
-        <div style="display:flex;gap:12px;align-items:flex-start;">
-          <div style="font-size:26px;line-height:1;" aria-hidden="true">🛡️</div>
-          <div>
-            <div class="card-title" style="margin-bottom:4px;">Alle Angaben sind verbindlich</div>
-            <p style="margin:0 0 8px;line-height:1.6;">Auf sämtliche Angaben in der Backstube kannst du dich <strong>zu 100&nbsp;% verlassen</strong> — Restnutzungsdauer, Kaltmiete, Kaufpreis, Mietsubvention, Stellplatz-Preise. Die Werte sind von B&amp;B geprüft und <strong>verbindlich</strong>: Was du hier siehst und deinem Kunden verkaufst, ist genau so auch Vertragsgrundlage.</p>
-            <p style="margin:0;line-height:1.6;" class="text-small">Und falls uns doch mal ein Fehler passiert: Im Zweifel gleicht B&amp;B die Differenz aus und <strong>subventioniert sie dem Kunden quer</strong> — dein Verkauf bleibt so, wie du ihn zugesagt hast.</p>
-          </div>
-        </div>
-      </div>
+      <!-- 23.10.2026 (Henry): Der frühere Verbindlichkeits-Block („Alle Angaben sind verbindlich“,
+           „im Zweifel gleicht B&B aus und subventioniert quer“) ist bewusst entfernt. Keine
+           Ausgleichs-Zusage und keine Zugeständnisse mehr auf der Extern-Startseite. -->
 
-      <!-- 19.07.2026 (Henry): Keine Exklusivität — die angezeigten Wohnungen werden
-           parallel vertrieben; Sonderregelungen nur direkt über Henry. -->
-      <div class="card" style="margin-bottom:16px;border-left:3px solid var(--accent);">
-        <div style="display:flex;gap:12px;align-items:flex-start;">
-          <div style="font-size:26px;line-height:1;" aria-hidden="true">ℹ️</div>
-          <div>
-            <div class="card-title" style="margin-bottom:4px;">Keine Exklusivität</div>
-            <p style="margin:0;line-height:1.6;" class="text-small">Die in der Backstube angezeigten Wohnungen sind <strong>nicht exklusiv</strong> für dich reserviert — sie werden parallel auch über andere Vertriebspartner und Kanäle vertrieben. Es gilt: <strong>Wer zuerst reserviert, bekommt die Einheit.</strong> Exklusive Regelungen (z.&nbsp;B. für einzelne Objekte oder Kontingente) sind grundsätzlich möglich — dafür bitte direkt <strong>Henry kontaktieren</strong>. Einheiten mit der Kennzeichnung <strong>„★ Exklusiv für dich"</strong> gehören zu deinem Kontingent: Kein anderer externer Partner sieht oder reserviert sie.</p>
-          </div>
-        </div>
-      </div>
+      <!-- 23.10.2026 (Henry): Block „Keine Exklusivität“ (Parallelvertrieb, wer zuerst reserviert) auf Henrys
+           Ansage entfernt. Exklusiv-Kontingente laufen weiter über die Stammdaten (EXTERN_EXKLUSIV). -->
 
       <!-- 16.07.2026 (Henry): Ablauf & Nachbetreuung für externe Partner — der
            B&B-Standard vom Reservieren bis nach dem Notartermin. Reihenfolge = Deal-Lifecycle. -->
@@ -10905,7 +10892,8 @@ window._externPasswortSave = _externPasswortSave;
 // "Musterberechnung" (Kaufpreis → Kaufnebenkosten → Miete + Subvention → Kosten →
 // Finanzierung → monatliche Betrachtung → Steuer Jahr 1 → Marktvergleich).
 // B&B-Festwerte (Preise, Mieten, Subvention, Sätze, Kosten) sind bewusst NICHT
-// editierbar — verbindliche Angaben (siehe Verbindlichkeits-Block auf Start & Provision).
+// editierbar — Festwerte aus den B&B-Stammdaten (der Verbindlichkeits-Block auf Start & Provision
+// wurde am 23.10.2026 auf Henrys Ansage entfernt: keine Ausgleichs-Zusage mehr).
 // Editierbar nur, was wirklich Kundensache ist: Eigenkapital, Zins, Tilgung,
 // Grenzsteuersatz + die optionale Mietverwaltung (SEV).
 // Der Kunde wird ERST bei einer echten Reservierung angelegt (_rechnerReservieren).
@@ -11034,6 +11022,13 @@ function renderExternRechner() {
 // Festwerte aus der API (der Extern-Kundenpreis inkl. Provision ist serverseitig in we.kp).
 function _rechnerBasis(d) {
   const ks  = d.kalkStammdaten || {};
+  // 23.10.2026 (Henry/Kitzingen): Mietverwaltung (SEV) aus den Kalk-Stammdaten, wenn dort ein Wert
+  // steht (z. B. Kitzingen: David Möller 45 € netto = 53,55 € brutto seit 07.10.2026). Ohne Wert bleibt
+  // der B&B-Standard RECHNER_SEV_MO (30 €). Vorher rechnete der einfache Rechner immer fest mit 30 €.
+  const sevStd = (parseFloat(ks.mietverwaltungDefault) > 0) ? parseFloat(ks.mietverwaltungDefault) : RECHNER_SEV_MO;
+  // 23.10.2026 (Henry/Kitzingen): Freitext unter der SE-Verwaltergebühr + Worst-Case-AfA (beides aus den Stammdaten).
+  const mvHinweis = String(ks.mietverwaltungHinweis || '').trim();
+  const afaWorst  = (parseFloat(ks.afaWorstCasePct) > 0) ? parseFloat(ks.afaWorstCasePct) : 0;
   const der = d.derived || {};
   const stp = d.stellplaetze || {};
   const kpWohnung = (d.we && d.we.kp) || 0;
@@ -11071,7 +11066,7 @@ function _rechnerBasis(d) {
   const flaecheKp = Math.max(0, stpKp - garageKp);
   return { ks, der, stp, details, istGarage, kpWohnung, stpKp, garageKp, flaecheKp,
            gesamtKp, grEstPct, kaltmiete, stpMiete, phasen, subvMo1, subvTotal,
-           hv, ruecklage, sonstige, gebAnteil, afaSatz, knkGrest, knkNotar, knk, anschaffung,
+           hv, ruecklage, sonstige, sevStd, mvHinweis, afaWorst, gebAnteil, afaSatz, knkGrest, knkNotar, knk, anschaffung,
            kuecheKp, kuecheMiete, kuecheEigentum, knkKueche, gesamtInvest };
 }
 
@@ -11083,7 +11078,7 @@ function _rechnerCalc(d, inp) {
   const zins    = (inp.zinsPct || 0) / 100;
   const tilgung = (inp.tilgungPct || 0) / 100;
   const steuer  = (inp.steuerPct || 0) / 100;
-  const sevMo   = inp.sev ? RECHNER_SEV_MO : 0;
+  const sevMo   = inp.sev ? b.sevStd : 0;
   const finBetrag = Math.max(0, b.anschaffung - ek);
   const zinsMoTeil = finBetrag * zins / 12;
   const tilgMoTeil = finBetrag * tilgung / 12;
@@ -11106,7 +11101,12 @@ function _rechnerCalc(d, inp) {
   const ersparnisJahr  = -(ergebnisJahr * steuer);
   const ersparnisMo    = ersparnisJahr / 12;
   const nachSteuerMo   = vorSteuerMo + ersparnisMo;
-  return Object.assign(b, { ek, finBetrag, zinsMoTeil, tilgMoTeil, rateMo, einnahmenMo, kostenMo, nettoMo,
+  // 23.10.2026 (Henry/Kitzingen): Worst Case = gleiche Rechnung mit dem Stammdaten-Satz „AfA Worst-Case %"
+  // statt der Gutachten-AfA (nur wenn der Worst-Case-Satz niedriger ist). Rekursion ohne Worst-Case-Feld.
+  const nachSteuerWorstMo = (b.afaWorst > 0 && b.afaWorst < b.afaSatz)
+    ? _rechnerCalc(Object.assign({}, d, { kalkStammdaten: Object.assign({}, d.kalkStammdaten || {}, { afaGutachten: b.afaWorst, afaWorstCasePct: null }) }), inp).nachSteuerMo
+    : null;
+  return Object.assign(b, { nachSteuerWorstMo, ek, finBetrag, zinsMoTeil, tilgMoTeil, rateMo, einnahmenMo, kostenMo, nettoMo,
     vorSteuerMo, einnahmenJahr, afaGebJahr, afaGarageJahr, afaStpJahr, afaKuecheJahr, afaJahr,
     zinsenJahr, verwaltungJahr, ausgabenJahr, ergebnisJahr,
     ersparnisJahr, ersparnisMo, nachSteuerMo, sevMo });
@@ -11151,6 +11151,7 @@ function _rechnerEnsureStyles() {
     .rc-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;}
     .rc-disclaimer{font-size:11.5px;font-style:italic;color:var(--text-tertiary);background:var(--bg-cream-subtle);border:1px dashed var(--border-strong);border-radius:10px;padding:11px 14px;margin-bottom:12px;line-height:1.55;}
     .rc-sub{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);padding:9px 0 2px;}
+    .rc-hinweis{font-size:11px;line-height:1.45;color:var(--text-secondary);padding:3px 0 8px;}
     @media(max-width:860px){.rc-cols{grid-template-columns:1fr;}}
     @media(max-width:640px){.rc-title{font-size:20px;}.rc-kpi .v{font-size:16px;}}
     .rc-print-foot{display:none;}
@@ -11317,6 +11318,7 @@ function _rechnerRenderContent() {
     sektion('Nichtumlagefähige Nebenkosten', [
       zeile('WEG-Verwaltergebühr', fEM(c.hv) + '/Mo', { fix: true }),
       '<div class="rc-row"><label class="l" style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input id="rc-sev" type="checkbox" ' + (state._rechnerInputs.sev ? 'checked' : '') + ' onchange="window._rechnerRecalc()" style="width:14px;height:14px;">SE-Verwaltergebühr (Mietverwaltung, abwählbar)</label><div class="v"><span id="rcv-sevMo">' + fEM(c.sevMo) + '</span>/Mo</div></div>',
+      (c.mvHinweis ? '<div class="rc-hinweis">' + esc(c.mvHinweis) + '</div>' : ''),
       zeile('Instandhaltungsrücklage', fEM(c.ruecklage) + '/Mo', { fix: true }),
       zeile('Sonstige nichtumlagefähige Nebenkosten', fEM(c.sonstige) + '/Mo', { fix: true }),
       zeile('Gesamte nichtumlagefähige Nebenkosten', '<span id="rcv-kostenMo">' + fEM(c.kostenMo) + '</span>/Mo', { sum: true }),
@@ -11368,6 +11370,7 @@ function _rechnerRenderContent() {
       '<div class="rc-sub" style="font-weight:500;text-transform:none;letter-spacing:0;">Abschreibungsbetrag Gebäudeanteil</div>',
       zeile('Verkürzte Restnutzungsdauer in Jahren laut Gutachten', (rndJahre ? String(rndJahre) : '–'), { fix: true }),
       zeile('Verkürzte Restnutzungsdauer in %', fP(c.afaSatz), { fix: true }),
+      (c.nachSteuerWorstMo != null ? '<div class="rc-hinweis">Grundlage ist das aktuell vorliegende Restnutzungsdauer-Gutachten. Laut Gutachten und nach unserer Erfahrung wird die AfA in dieser Höhe anerkannt. Worst Case: erkennt das Finanzamt nur ' + fP(c.afaWorst) + ' AfA an, liegt der Cashflow nach Steuer bei <strong><span id="rcv-afaWorst">' + fCF(c.nachSteuerWorstMo) + '</span>/Mo</strong> statt <span id="rcv-afaWorstBasis">' + fCF(c.nachSteuerMo) + '</span>/Mo.</div>' : ''),
       zeile('Gebäudeanteil inkl. der Kaufnebenkosten', fE((c.kpWohnung + c.knk - c.knkKueche) * c.gebAnteil), { fix: true }),
       zeile('Abschreibungsbetrag Gebäudeanteil p.a.', fE(c.afaGebJahr), { fix: true, sum: true }),
       (c.garageKp > 0 ? [
@@ -11418,7 +11421,7 @@ function _rechnerRenderContent() {
         <div>
           <div class="rc-kicker">B&amp;B Kapitalanlage · Musterberechnung</div>
           <h1 class="rc-title">${esc(weTitel)}</h1>
-          <div class="rc-meta">Alle Werte mit <span class="rc-lock">🔒</span> sind verbindliche B&amp;B-Angaben.</div>
+          <div class="rc-meta">Alle Werte mit <span class="rc-lock">🔒</span> sind Festwerte aus den B&amp;B-Stammdaten.</div>
         </div>
         ${exposeLink ? `<a class="rc-expose" href="${esc(exposeLink)}" target="_blank" rel="noopener">Exposé ansehen ↗</a>` : ''}
       </div>
@@ -11505,6 +11508,7 @@ function _rechnerRecalc(sourceId) {
   set('rcv-zinsenJahr2', fE(c.zinsenJahr));
   set('rcv-sevMo', fEM(c.sevMo));
   set('rcv-sevJahr', fE(c.sevMo * 12));
+  if (c.nachSteuerWorstMo != null) { set('rcv-afaWorst', fCF(c.nachSteuerWorstMo)); set('rcv-afaWorstBasis', fCF(c.nachSteuerMo)); }
   set('rcv-verwaltungJahr', fE(c.verwaltungJahr));
   set('rcv-ausgabenJahr', fE(c.ausgabenJahr));
   set('rcv-ausgabenJahr2', fE(c.ausgabenJahr));
@@ -12121,7 +12125,7 @@ const EXTERN_TOUR_STEPS = [
   {
     title: 'Schritt 3 — Der Rechner',
     action: 'Klick in der Wohnungsliste auf eine Einheit — du landest direkt im Rechner. Oben die Kernzahlen, darunter die komplette Kalkulation: Kaufpreis, Nebenkosten, Miete + Subvention, Finanzierung, Steuer, Marktvergleich.',
-    tip: 'Alle Werte mit 🔒 sind verbindliche B&B-Angaben — darauf kannst du dich beim Verkauf zu 100 % verlassen. Der Kaufpreis ist dein finaler Kundenpreis.',
+    tip: 'Alle Werte mit 🔒 sind Festwerte aus den B&B-Stammdaten. Der Kaufpreis ist dein finaler Kundenpreis.',
     target: '.we-liste-row',
     needsView: 'extern-rechner',
   },

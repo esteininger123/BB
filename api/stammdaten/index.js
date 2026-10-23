@@ -291,6 +291,10 @@ module.exports = async (req, res) => {
           kuecheMieteBeiVerkauf: num(sf[KALK_STAMMDATEN_FIELDS.KUECHE_MIETE_BEI_VERKAUF]),
           // 06.07.2026 (Henry) — WE für externe Vertriebler freigegeben (Admin-Toggle)
           externFreigabe:        !!sf[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE],
+          // 23.10.2026 (Henry/Kitzingen) — nur externer Vertrieb + Rechner-Hinweise.
+          nurExtern:             !!sf[KALK_STAMMDATEN_FIELDS.NUR_EXTERN],
+          mietverwaltungHinweis: (sf[KALK_STAMMDATEN_FIELDS.MIETVERWALTUNG_HINWEIS] || '').toString().trim() || null,
+          afaWorstCasePct:       num(sf[KALK_STAMMDATEN_FIELDS.AFA_WORST_CASE_PCT]),
           // 04.10.2026 (Henry) — Exklusiv-Kontingent (Vertriebler-IDs; leer = alle Externen).
           // Für Extern-Sessions unten durch externExklusivFuerMich ersetzt.
           externExklusiv:        externExklusivIds(sf),
@@ -349,6 +353,9 @@ module.exports = async (req, res) => {
     } else {
       // 04.10.2026: Interne sehen exklusiv vergebene Einheiten weiter — mit Namen der
       // Kontingent-Inhaber (WE-Liste-Hinweis „Exklusiv: …"). Namen nur laden, wenn nötig.
+      // 23.10.2026 (Henry/Kitzingen): „Nur externer Vertrieb" → interne Vertriebler sehen die
+      // Einheit nicht; Admins sehen sie weiter (WE-Liste zeigt die Pille „Nur externer Vertrieb").
+      if (session.rolle !== 'Admin') audit = audit.filter(row => !(row.stammdaten && row.stammdaten.nurExtern));
       const exklIds = audit.flatMap(row => (row.stammdaten && row.stammdaten.externExklusiv) || []);
       if (exklIds.length > 0) {
         const namen = await ladeVertrieblerNamen(exklIds);

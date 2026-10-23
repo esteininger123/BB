@@ -197,7 +197,7 @@ module.exports = async (req, res) => {
     const showAll = (req.query && (req.query.all === '1' || req.query.all === 'true')) && session.rolle === 'Admin';
     const stammdatenRecords = await listAll(TABLES.KALK_STAMMDATEN, {
       filterByFormula: `{${KALK_STAMMDATEN_FIELDS.STATUS}}='${KALK_STATUS_AKTIV}'`,
-      fields: [KALK_STAMMDATEN_FIELDS.WOHNEINHEIT, KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE, KALK_STAMMDATEN_FIELDS.EXTERN_EXKLUSIV, KALK_STAMMDATEN_FIELDS.EXTERN_ABSCHLAG],
+      fields: [KALK_STAMMDATEN_FIELDS.WOHNEINHEIT, KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE, KALK_STAMMDATEN_FIELDS.EXTERN_EXKLUSIV, KALK_STAMMDATEN_FIELDS.EXTERN_ABSCHLAG, KALK_STAMMDATEN_FIELDS.NUR_EXTERN],
       pageSize: 100
     }, 1000);
 
@@ -210,6 +210,7 @@ module.exports = async (req, res) => {
       KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE,
       KALK_STAMMDATEN_FIELDS.EXTERN_EXKLUSIV,
       KALK_STAMMDATEN_FIELDS.EXTERN_ABSCHLAG,
+      KALK_STAMMDATEN_FIELDS.NUR_EXTERN,
       KALK_STAMMDATEN_FIELDS.VARIANTE_LABEL,
       KALK_STAMMDATEN_FIELDS.VARIANTE_BASIS_KP,
       KALK_STAMMDATEN_FIELDS.VARIANTE_PAKET,
@@ -219,7 +220,11 @@ module.exports = async (req, res) => {
     // wie bei Aktiv-WEs — siehe externDarfSehen in _lib/extern.js)
     const exklusivKarten = new Set(); // Karten-IDs mit Exklusiv-Kontingent
     const abschlagByKarte = {};       // Karten-ID → Einheiten-Abschlag für Externe (leer = Standard 2 %)
+    // 23.10.2026 (Henry/Kitzingen): „Nur externer Vertrieb" → interne Vertriebler (nicht Admin) sehen
+    // die Einheit nicht. Einzige Regel-Quelle für Externe bleibt externDarfSehen().
+    const nurExternVersteckt = (f) => !isExtern(session) && session.rolle !== 'Admin' && !!(f || {})[KALK_STAMMDATEN_FIELDS.NUR_EXTERN];
     const varianten = variantenRecords
+      .filter(r => !nurExternVersteckt(r.fields))
       .filter(r => !isExtern(session) || externDarfSehen(r.fields, session))
       .map(r => {
         const v = varianteInfo(r);
@@ -235,6 +240,7 @@ module.exports = async (req, res) => {
       // (Checkbox „Extern freigegeben" in den Kalk-Stammdaten, Admin-Bereich).
       // 04.10.2026: zusätzlich Exklusiv-Kontingent („Extern exklusiv für").
       if (isExtern(session) && !externDarfSehen(r.fields, session)) return;
+      if (nurExternVersteckt(r.fields)) return; // 23.10.2026: nur externer Vertrieb
       const hatExklusiv = hatExklusivKontingent(r.fields);
       const links = (r.fields || {})[KALK_STAMMDATEN_FIELDS.WOHNEINHEIT] || [];
       if (!Array.isArray(links)) return;
