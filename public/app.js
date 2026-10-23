@@ -218,7 +218,6 @@ function renderHeader() {
     ${state.user.rolle === 'Extern' ? `<a href="#/start" class="nav-link${active('extern-start')}" title="So funktioniert der externe Vertrieb">Start</a>` : ''}
     ${(state.user.rolle === 'Extern' || MEINE_KUNDEN_VERSTECKT) ? '' : `<a href="#/dashboard" class="nav-link${active('dashboard')}" title="Deine Kunden + Pipeline">Meine Kunden</a>`}
     <a href="#/we-liste" class="nav-link${active('we-liste')}" title="Alle Wohnungen in aktiver Vermarktung mit Kennzahlen">Wohnungen</a>
-    ${state.user.rolle === 'Extern' ? `<a href="${state.rechnerWeId ? '#/rechner/' + state.rechnerWeId : '#/we-liste'}" class="nav-link${active('extern-rechner')}" title="Cleaner Rendite-Rechner — Wohnung aus der Liste wählen">Rechner</a>` : ''}
     ${isAdmin ? `<a href="#/admin" class="nav-link${active('admin')}">Admin</a>` : ''}
     <button type="button" class="bbk-help-btn" onclick="startTour()" title="Tour starten — wie funktioniert das Tool?">?</button>
     <div class="user-name">${esc(state.user.name)}</div>
@@ -10995,7 +10994,7 @@ function _rechnerDefaultInputs(d) {
 // Kurzbeschreibung der Standard-Annahmen (für den Hinweis in der WE-Liste).
 function _rechnerDefaultsLabel() {
   return 'EK = Kaufnebenkosten · ' + RECHNER_ZINS_STANDARD_PCT.toLocaleString('de-DE') + ' % Zins · '
-    + RECHNER_TILGUNG_STANDARD_PCT.toLocaleString('de-DE') + ' % Tilgung · 42 % Steuersatz · SEV ' + RECHNER_SEV_MO + ' €/Mo';
+    + RECHNER_TILGUNG_STANDARD_PCT.toLocaleString('de-DE') + ' % Tilgung · 42 % Steuersatz · Mietverwaltung (SEV) laut Stammdaten der Einheit (Standard ' + RECHNER_SEV_MO + ' €/Mo)';
 }
 
 function renderExternRechner() {
