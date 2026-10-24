@@ -361,6 +361,14 @@ const KALK_STAMMDATEN_FIELDS = {
   // 23.10.2026 (Henry/Kitzingen) — Percent. Wenn gesetzt (z. B. 3,5 %), zeigt der einfache Rechner
   // unter der AfA einen Worst-Case-Vermerk: Cashflow nach Steuer mit diesem Satz statt Gutachten-AfA.
   AFA_WORST_CASE_PCT:    'fldueDsHmqg6EmmWP',
+  // 24.10.2026 (Henry/Sparkasse Freiburg) — URL-Felder für den einfachen Rechner: Buttons
+  // „Objektordner" (Datenraum) und „Wohnungsunterlagen" neben dem Exposé-Button, für Externe
+  // UND Interne sichtbar. Leer = kein Button. Input-Felder (Pflege in Airtable).
+  LINK_DATENRAUM_EXTERN:          'fld68EK09v3gnlhLr',
+  LINK_WOHNUNGSUNTERLAGEN_EXTERN: 'fldMaFbHFIHsBnmZt',
+  // 24.10.2026 (Henry/Sparkasse Freiburg) — Freitext-Vermerk unter der AfA-Zeile im einfachen
+  // Rechner (unabhängig vom Worst-Case-Satz). Leer = kein Vermerk.
+  AFA_HINWEIS:                    'fldD3lf7XignFQE8x',
   // 08.07.2026 (Henry) — Checkbox: WG-/Rendite-Objekt (z.B. Offenburg August-Hund-Str. 4).
   // Wenn gesetzt: Backstube ankert die Vermögensrechnung auf den Kaufpreis statt den
   // ImmoScout/Homeday-Vergleichsmarktpreis (dieser wird für WG-Einheiten aus den Daten

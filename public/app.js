@@ -11028,6 +11028,8 @@ function _rechnerBasis(d) {
   // 23.10.2026 (Henry/Kitzingen): Freitext unter der SE-Verwaltergebühr + Worst-Case-AfA (beides aus den Stammdaten).
   const mvHinweis = String(ks.mietverwaltungHinweis || '').trim();
   const afaWorst  = (parseFloat(ks.afaWorstCasePct) > 0) ? parseFloat(ks.afaWorstCasePct) : 0;
+  // 24.10.2026 (Henry/Sparkasse Freiburg): Freitext-Vermerk unter der AfA-Zeile (Stammdaten „AfA Hinweis").
+  const afaHinweis = String(ks.afaHinweis || '').trim();
   const der = d.derived || {};
   const stp = d.stellplaetze || {};
   const kpWohnung = (d.we && d.we.kp) || 0;
@@ -11065,7 +11067,7 @@ function _rechnerBasis(d) {
   const flaecheKp = Math.max(0, stpKp - garageKp);
   return { ks, der, stp, details, istGarage, kpWohnung, stpKp, garageKp, flaecheKp,
            gesamtKp, grEstPct, kaltmiete, stpMiete, phasen, subvMo1, subvTotal,
-           hv, ruecklage, sonstige, sevStd, mvHinweis, afaWorst, gebAnteil, afaSatz, knkGrest, knkNotar, knk, anschaffung,
+           hv, ruecklage, sonstige, sevStd, mvHinweis, afaWorst, afaHinweis, gebAnteil, afaSatz, knkGrest, knkNotar, knk, anschaffung,
            kuecheKp, kuecheMiete, kuecheEigentum, knkKueche, gesamtInvest };
 }
 
@@ -11151,6 +11153,12 @@ function _rechnerEnsureStyles() {
     .rc-disclaimer{font-size:11.5px;font-style:italic;color:var(--text-tertiary);background:var(--bg-cream-subtle);border:1px dashed var(--border-strong);border-radius:10px;padding:11px 14px;margin-bottom:12px;line-height:1.55;}
     .rc-sub{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);padding:9px 0 2px;}
     .rc-hinweis{font-size:11px;line-height:1.45;color:var(--text-secondary);padding:3px 0 8px;}
+    /* 24.10.2026 (Henry/Sparkasse Freiburg): Aufschlüsselung Mietzuschuss je Phase */
+    .rc-subv-tab{width:100%;border-collapse:collapse;font-size:12px;margin:2px 0 6px;font-variant-numeric:tabular-nums;}
+    .rc-subv-tab th{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-tertiary);text-align:right;padding:4px 6px;border-bottom:1px solid var(--border-strong);}
+    .rc-subv-tab td{padding:4px 6px;text-align:right;color:var(--text-primary);border-bottom:1px dashed var(--border);white-space:nowrap;}
+    .rc-subv-tab th:first-child,.rc-subv-tab td:first-child{text-align:left;}
+    .rc-subv-tab tfoot td{font-weight:600;border-top:1.5px solid var(--border-strong);border-bottom:none;}
     @media(max-width:860px){.rc-cols{grid-template-columns:1fr;}}
     @media(max-width:640px){.rc-title{font-size:20px;}.rc-kpi .v{font-size:16px;}}
     .rc-print-foot{display:none;}
@@ -11161,7 +11169,8 @@ function _rechnerEnsureStyles() {
       .main.rc-wrap { padding:0 !important; }
       .rc-cols { display:block !important; }
       .rc-cols > div { width:100% !important; }
-      .rc-sec, .rc-kpi, .rc-disclaimer { break-inside:avoid; border-color:#ddd !important; }
+      .rc-sec, .rc-kpi, .rc-disclaimer, .rc-subv-tab { break-inside:avoid; border-color:#ddd !important; }
+      .rc-subv-tab th, .rc-subv-tab td { border-color:#ddd !important; }
       .rc-kpis { grid-template-columns:repeat(4,1fr) !important; }
       .rc-input { border:none !important; background:transparent !important; padding:0 !important; font-weight:600; width:auto; }
       .rc-print-foot { display:block; margin-top:14px; font-size:10.5px; color:#888; text-align:right; }
@@ -11185,6 +11194,12 @@ function _rechnerRenderContent() {
   const wg = !!(d.kalkStammdaten && d.kalkStammdaten.wgKonzept);
   const marktQm = (d.derived && d.derived.marktpreisGemittelt) || 0;
   const exposeLink = (d.we && d.we.objektvorstellungLink) || '';
+  // 24.10.2026 (Henry/Sparkasse Freiburg): Buttons „Objektordner" (Link Datenraum) und „Wohnungsunterlagen"
+  // aus den Kalk-Stammdaten, gleiche Optik wie der Exposé-Button, für Externe und Interne; im Druck ausgeblendet.
+  const linkDatenraum   = (d.kalkStammdaten && d.kalkStammdaten.linkDatenraumExtern) || '';
+  const linkUnterlagen  = (d.kalkStammdaten && d.kalkStammdaten.linkWohnungsunterlagenExtern) || '';
+  const linkButton = (href, label) => href ? '<a class="rc-expose" href="' + esc(href) + '" target="_blank" rel="noopener">' + label + ' ↗</a>' : '';
+  const linkButtons = linkButton(exposeLink, 'Exposé ansehen') + linkButton(linkDatenraum, 'Objektordner') + linkButton(linkUnterlagen, 'Wohnungsunterlagen');
 
   // Zeilen-Helfer: fix = 🔒-Festwert (reine Anzeige), sum = Summenzeile, big = Kernzahl (hervorgehoben)
   const zeile = (label, val, opt) => {
@@ -11230,12 +11245,33 @@ function _rechnerRenderContent() {
   const garantieAktiv = istSpechtweg && c.phasen.length > 0;
   const garantieMo = c.kaltmiete + (c.phasen.length ? (c.phasen[0].mo || 0) : 0);
   const garantieLabel = subvGesamtMonate % 12 === 0 ? (subvGesamtMonate / 12) + ' Jahre' : subvGesamtMonate + ' Monate';
+  // 24.10.2026 (Henry/Sparkasse Freiburg): Die Phasen exakt sichtbar machen — Tabelle „Aufschlüsselung
+  // Mietzuschuss" (Zeitraum, Zuschuss/Monat, Monate, Summe; Summenzeile = Garantie-Volumen) + Hinweis zur
+  // Auszahlungswahl. Reine Darstellung: Kappungs-Phasen (2 bis 3 Zeilen) wie Index-Phasen (jährlich, bis 10 Zeilen).
+  // Bei Nicht-Spechtweg-Objekten stehen die Phasen bereits als Zeilen im Blatt, dort kommt nur der Hinweis dazu.
+  const subvHinweis = '<div class="rc-hinweis">Der Mietzuschuss ist eine Garantie von B&amp;B über die gesamte Laufzeit. Auszahlung nach Wahl des Käufers: jährlich im Nachgang, einmalig nach dem Notartermin oder als Kaufpreisreduzierung in Höhe des Garantie-Volumens. Die Käufer-Einnahme bleibt in jedem Fall konstant.</div>';
+  const subvTabelle = (() => {
+    const ph = c.phasen.filter(p => (p.monate || 0) > 0);
+    if (!ph.length) return '';
+    let start = 1;
+    const rows = ph.map(p => {
+      const monate = p.monate || 0, mo = p.mo || 0;
+      const von = start, bis = start + monate - 1;
+      start = bis + 1;
+      return '<tr><td>Monat ' + von + ' bis ' + bis + '</td><td>' + fEM(mo) + '</td><td>' + monate + '</td><td>' + fEM(mo * monate) + '</td></tr>';
+    }).join('');
+    return '<div class="rc-sub">Aufschlüsselung Mietzuschuss</div>' +
+      '<table class="rc-subv-tab"><thead><tr><th>Zeitraum</th><th>Zuschuss/Monat</th><th>Monate</th><th>Summe</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><td>Garantie-Volumen gesamt</td><td></td><td>' + subvGesamtMonate + '</td><td>' + fE(c.subvTotal) + '</td></tr></tfoot></table>';
+  })();
   let _subvStart = 1;
   const subvZeilen = c.phasen.length
     ? (garantieAktiv
       ? zeile('Garantierte Miete durch B&amp;B (' + garantieLabel + ')', fEM(garantieMo) + '/Mo', { fix: true, sum: true }) +
         zeile('Garantie-Volumen gesamt (' + subvGesamtMonate + ' Monate)', fE(c.subvTotal), { fix: true }) +
-        '<div class="rc-disclaimer" style="margin-top:6px;">B&amp;B garantiert Dir diese Mieteinnahme konstant über die gesamte Laufzeit — unabhängig davon, wie sich die Kaltmiete des Mieters in dieser Zeit entwickelt. Nach Ablauf läuft die reguläre Mietentwicklung weiter.</div>'
+        '<div class="rc-disclaimer" style="margin-top:6px;">B&amp;B garantiert Dir diese Mieteinnahme konstant über die gesamte Laufzeit — unabhängig davon, wie sich die Kaltmiete des Mieters in dieser Zeit entwickelt. Nach Ablauf läuft die reguläre Mietentwicklung weiter.</div>' +
+        subvTabelle + subvHinweis
       : c.phasen.filter(p => (p.monate || 0) > 0).map((p, i) => {
         const von = _subvStart, bis = _subvStart + (p.monate || 0) - 1;
         _subvStart = bis + 1;
@@ -11243,7 +11279,8 @@ function _rechnerRenderContent() {
         return zeile('Mntl. Mietsubvention ' + (istIndexSubv ? 'Jahr ' : 'Phase ') + (i + 1) + ' (Monat ' + von + '–' + bis + zusatz + ')', fEM(p.mo || 0) + '/Mo', { fix: true });
       }).join('') +
       (istIndexSubv ? zeile('Annahme Indexentwicklung (Prognose)', '+' + ((d.derived && d.derived.subventionIndexPrognosePct) || 2).toLocaleString('de-DE', { minimumFractionDigits: 1 }) + ' % p.a.', { fix: true }) : '') +
-      zeile('Einmalbetrag der Mietsubvention (' + subvGesamtMonate + ' Monate)', fE(c.subvTotal), { fix: true, sum: true }))
+      zeile('Einmalbetrag der Mietsubvention (' + subvGesamtMonate + ' Monate)', fE(c.subvTotal), { fix: true, sum: true }) +
+      subvHinweis)
     : zeile('Mietsubvention', 'keine — Miete liegt auf dem Zielniveau', { fix: true });
 
   // ============ LINKE SPALTE — 1:1 die Blöcke der Spalten B/C der Musterberechnung ============
@@ -11369,6 +11406,8 @@ function _rechnerRenderContent() {
       '<div class="rc-sub" style="font-weight:500;text-transform:none;letter-spacing:0;">Abschreibungsbetrag Gebäudeanteil</div>',
       zeile('Verkürzte Restnutzungsdauer in Jahren laut Gutachten', (rndJahre ? String(rndJahre) : '–'), { fix: true }),
       zeile('Verkürzte Restnutzungsdauer in %', fP(c.afaSatz), { fix: true }),
+      // 24.10.2026 (Henry/Sparkasse Freiburg): Freitext „AfA Hinweis" aus den Stammdaten, unabhängig vom Worst Case.
+      (c.afaHinweis ? '<div class="rc-hinweis">' + esc(c.afaHinweis).replace(/\r?\n/g, '<br>') + '</div>' : ''),
       (c.nachSteuerWorstMo != null ? '<div class="rc-hinweis">Grundlage ist das aktuell vorliegende Restnutzungsdauer-Gutachten. Laut Gutachten und nach unserer Erfahrung wird die AfA in dieser Höhe anerkannt. Worst Case: erkennt das Finanzamt nur ' + fP(c.afaWorst) + ' AfA an, liegt der Cashflow nach Steuer bei <strong><span id="rcv-afaWorst">' + fCF(c.nachSteuerWorstMo) + '</span>/Mo</strong> statt <span id="rcv-afaWorstBasis">' + fCF(c.nachSteuerMo) + '</span>/Mo.</div>' : ''),
       zeile('Gebäudeanteil inkl. der Kaufnebenkosten', fE((c.kpWohnung + c.knk - c.knkKueche) * c.gebAnteil), { fix: true }),
       zeile('Abschreibungsbetrag Gebäudeanteil p.a.', fE(c.afaGebJahr), { fix: true, sum: true }),
@@ -11422,7 +11461,7 @@ function _rechnerRenderContent() {
           <h1 class="rc-title">${esc(weTitel)}</h1>
           <div class="rc-meta">Alle Werte mit <span class="rc-lock">🔒</span> sind Festwerte aus den B&amp;B-Stammdaten.</div>
         </div>
-        ${exposeLink ? `<a class="rc-expose" href="${esc(exposeLink)}" target="_blank" rel="noopener">Exposé ansehen ↗</a>` : ''}
+        ${linkButtons}
       </div>
 
       <div class="rc-kpis">
@@ -11442,7 +11481,7 @@ function _rechnerRenderContent() {
           ? `<button class="rc-go" onclick="window._rechnerReservieren()">Reservierung digital senden</button>`
           : `<button class="rc-go" onclick="window._rechnerInternWeiter()">Reservierung starten (PandaDoc über Kunden)</button>`}
         <button class="secondary" onclick="window.print()">Als PDF speichern</button>
-        ${exposeLink ? `<a class="rc-expose" href="${esc(exposeLink)}" target="_blank" rel="noopener">Exposé ansehen ↗</a>` : ''}
+        ${linkButtons}
         <button class="secondary" onclick="go('/we-liste')">Andere Wohnung wählen</button>
       </div>
       <div class="rc-print-foot">Erstellt am ${new Date().toLocaleDateString('de-DE')} · B&amp;B Immo GmbH · backstube.bub-immo.de</div>

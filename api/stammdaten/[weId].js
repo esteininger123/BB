@@ -439,6 +439,10 @@ function kalkStammRecordToApi(rec) {
     nurExtern:             !!f[KALK_STAMMDATEN_FIELDS.NUR_EXTERN],
     mietverwaltungHinweis: (f[KALK_STAMMDATEN_FIELDS.MIETVERWALTUNG_HINWEIS] || '').toString().trim() || null,
     afaWorstCasePct:       num(f[KALK_STAMMDATEN_FIELDS.AFA_WORST_CASE_PCT]),
+    // 24.10.2026 (Henry/Sparkasse Freiburg) — Links für den Rechner + AfA-Freitext (read-only Input-Felder).
+    linkDatenraumExtern:          (f[KALK_STAMMDATEN_FIELDS.LINK_DATENRAUM_EXTERN] || '').toString().trim() || null,
+    linkWohnungsunterlagenExtern: (f[KALK_STAMMDATEN_FIELDS.LINK_WOHNUNGSUNTERLAGEN_EXTERN] || '').toString().trim() || null,
+    afaHinweis:                   (f[KALK_STAMMDATEN_FIELDS.AFA_HINWEIS] || '').toString().trim() || null,
     // 04.10.2026 (Henry) — Exklusiv-Kontingent: Vertriebler-IDs, die die Einheit als
     // einzige Externe sehen (leer = alle Externen). Für Extern-Sessions wird die Liste in
     // buildWeDetail durch das Flag externExklusivFuerMich ersetzt (keine fremden IDs).

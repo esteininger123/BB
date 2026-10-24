@@ -295,6 +295,10 @@ module.exports = async (req, res) => {
           nurExtern:             !!sf[KALK_STAMMDATEN_FIELDS.NUR_EXTERN],
           mietverwaltungHinweis: (sf[KALK_STAMMDATEN_FIELDS.MIETVERWALTUNG_HINWEIS] || '').toString().trim() || null,
           afaWorstCasePct:       num(sf[KALK_STAMMDATEN_FIELDS.AFA_WORST_CASE_PCT]),
+          // 24.10.2026 (Henry/Sparkasse Freiburg) — Links für den Rechner + AfA-Freitext.
+          linkDatenraumExtern:          (sf[KALK_STAMMDATEN_FIELDS.LINK_DATENRAUM_EXTERN] || '').toString().trim() || null,
+          linkWohnungsunterlagenExtern: (sf[KALK_STAMMDATEN_FIELDS.LINK_WOHNUNGSUNTERLAGEN_EXTERN] || '').toString().trim() || null,
+          afaHinweis:                   (sf[KALK_STAMMDATEN_FIELDS.AFA_HINWEIS] || '').toString().trim() || null,
           // 04.10.2026 (Henry) — Exklusiv-Kontingent (Vertriebler-IDs; leer = alle Externen).
           // Für Extern-Sessions unten durch externExklusivFuerMich ersetzt.
           externExklusiv:        externExklusivIds(sf),
