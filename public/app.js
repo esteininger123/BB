@@ -2507,7 +2507,7 @@ function renderTabKalkulator() {
              : w.status === 'Notartermin' ? '  ·  ⚠ NOTARTERMIN' : '';
     // 04.10.2026: Exklusiv-Kontingent (Extern sieht nur das eigene, intern = Hinweis).
     const ex = !w.externExklusiv ? ''
-             : (state.user && state.user.rolle === 'Extern') ? '  ·  ★ EXKLUSIV FÜR DICH' : '  ·  🔒 EXKLUSIV (EXTERN)';
+             : (state.user && state.user.rolle === 'Extern') ? '' : '  ·  🔒 EXKLUSIV (EXTERN)'; // 24.10.2026 (Henry): Externe sehen kein Exklusiv-Tag mehr
     return titel + kp + st + ex;
   };
   // WEs nach Projekt gruppieren + innerhalb des Projekts nach WE-Nummer sortieren.
@@ -4060,7 +4060,7 @@ function recalcAndRender() {
     //   Formel: Käufer-Brutto-Mieteinnahme Jahr 1 (Kaltmiete + Stellplatzmiete + Subv-Aufschlag)
     //   × 12 / Gesamtkaufpreis. Das ist die anfängliche Brutto-Rendite, die der Käufer in Jahr 1
     //   sieht — inkl. der von B&B geleisteten Subventions-Aufstockung.
-    kpiCard('Deine Bruttorendite (Jahr 1)', fmtPct(r.bruttorendite || 0),
+    kpiCard('Deine Bruttorendite (Jahr 1, inkl. Mietzuschuss)', fmtPct(r.bruttorendite || 0),
       'Brutto-Mietrendite im ersten Jahr: (Deine Kaltmiete + Stellplatzmiete + B&B-Subvention) × 12 ÷ Gesamtkaufpreis. Bezieht die Mietsubvention voll ein — so wie Du sie wirklich kassierst.'),
     kpiCard('Dein Vermögenszuwachs 10 J.', fmt(r.vermoegenNetto10),
       'Deine ehrliche Vermögensbilanz: Gesamtvermögen 10 J. minus Dein eingesetztes Eigenkapital. Das ist Dein echter Zuwachs gegenüber Deinem Start.', 'positive'),
@@ -9858,7 +9858,7 @@ function _renderWeListeContent() {
   const weExklBadgeInner = (sd) => {
     if (!sd) return '';
     const stil = 'margin-left:6px;font-size:10px;background:#EFE6F7;color:#5B2A86;border:1px solid #C9A9E3;';
-    if (sd.externExklusivFuerMich) return ' <span class="we-status-pill" style="' + stil + '" title="Diese Einheit gehört zu deinem Exklusiv-Kontingent — kein anderer externer Partner sieht oder reserviert sie">★ EXKLUSIV FÜR DICH</span>';
+    if (sd.externExklusivFuerMich) return ''; // 24.10.2026 (Henry): kein „Exklusiv für dich“-Tag für Externe
     if (sd.externFreigabe && Array.isArray(sd.externExklusiv) && sd.externExklusiv.length > 0) {
       const namen = (sd.externExklusivNamen || []).join(', ');
       return ' <span class="we-status-pill" style="' + stil + '" title="Exklusiv-Kontingent eines externen Vertriebspartners — vor einem Verkauf mit Henry abstimmen">🔒 EXKLUSIV' + (namen ? ': ' + esc(namen) : '') + '</span>';
@@ -10254,7 +10254,7 @@ function _renderWeListeContent() {
                 <th class="num">Garage KP</th>
                 <th class="num">Garage Miete</th>
                 <th class="num">Mietsubvention</th>
-                <th class="num">Brutto-Rendite</th>
+                <th class="num" title="(Kaltmiete + Stellplatzmiete + Mietzuschuss) × 12 ÷ Gesamtkaufpreis, Jahr 1">Brutto-Rendite inkl. Mietzuschuss</th>
                 ${simpleMode ? `
                 <th class="num" title="Einnahme/Monat der Musterberechnung: Kaltmiete + Stellplatz + Mietsubvention">Einnahme/Mo</th>
                 <th class="num" title="Cashflow vor Steuer (Musterberechnung, Jahr 1)">CF vor St.</th>
