@@ -34,7 +34,10 @@ const EXTERN_ABSCHLAG_MAX = 0.15;
 // Gültiger Einheiten-Abschlag als Dezimalwert oder null (= Standard-Rabatt greift).
 function clampAbschlag(v) {
   const n = typeof v === 'number' ? v : parseFloat(v);
-  if (!isFinite(n) || n <= 0 || n > EXTERN_ABSCHLAG_MAX) return null;
+  // 24.10.2026 (Henry/Kitzingen): explizit 0 % in Airtable = KEIN Extern-Rabatt (Abgabepreis = interner
+  // Kaufpreis, z. B. Kitzingen: Vertriebsliste 3.000/3.300 €/m² soll nicht um 2 % unterschritten werden).
+  // Leeres Feld (undefined/NaN) bleibt null = Standard-Rabatt EXTERN_RABATT.
+  if (!isFinite(n) || n < 0 || n > EXTERN_ABSCHLAG_MAX) return null;
   return n;
 }
 

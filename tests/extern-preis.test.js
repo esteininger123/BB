@@ -88,4 +88,9 @@ test('Einheiten-Abschlag leer/ungültig → Standard 2 % auf die Wohnung', () =>
   }
   assert.strictEqual(clampAbschlag(0.357), null, 'Tippfehler-Schutz: > 15 % wird ignoriert');
   assert.strictEqual(clampAbschlag(0.0357), 0.0357);
+  // 24.10.2026 (Henry/Kitzingen): 0 % = bewusst kein Rabatt, leer = Standard
+  assert.strictEqual(clampAbschlag(0), 0, 'explizit 0 % heißt: kein Extern-Rabatt');
+  assert.strictEqual(clampAbschlag(undefined), null, 'leeres Feld = Standard-Rabatt');
+  assert.strictEqual(externPreis(190900, 0, 0.07, 0).kp, 190900 + Math.round(0.07 * 190900), 'Abgabepreis bleibt der interne KP');
+  assert.strictEqual(externPreis(190900, 0, 0.07, undefined).kp, Math.round(190900 * 0.98) + Math.round(0.07 * Math.round(190900 * 0.98)), 'ohne Feld weiter 2 % Rabatt');
 });
