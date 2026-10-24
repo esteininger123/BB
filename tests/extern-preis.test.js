@@ -83,7 +83,8 @@ test('Einheiten-Abschlag: Provision des Externen rechnet auf den Abgabepreis ink
 
 test('Einheiten-Abschlag leer/ungültig → Standard 2 % auf die Wohnung', () => {
   const standard = externPreis(100000, 10000, 0.07).kp;
-  for (const v of [undefined, null, '', 0, -0.03, 'abc', NaN, 0.357]) {
+  // 24.10.2026: 0 ist seit heute ein bewusster Wert (kein Rabatt) und gehört nicht mehr in die Standard-Liste
+  for (const v of [undefined, null, '', -0.03, 'abc', NaN, 0.357]) {
     assert.strictEqual(externPreis(100000, 10000, 0.07, v).kp, standard, 'Wert: ' + String(v));
   }
   assert.strictEqual(clampAbschlag(0.357), null, 'Tippfehler-Schutz: > 15 % wird ignoriert');
