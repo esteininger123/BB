@@ -241,6 +241,12 @@ Detail, Extern-Reservierung). Anwendungsfall: Sparkasse Immobilien Freiburg (3 Z
 5 Spechtweg-Einheiten, alle anderen Externen sehen die allgemein freigegebenen Einheiten.
 Tests: `tests/extern-exklusiv.test.js` (Session C).
 
+**Extern-Kontrollzugang (28.10.2026):** Checkbox `fldRD5KZr6VAFLwKl` (`VERTRIEBLER_FIELDS.EXTERN_KONTROLLE`),
+gesetzt beim Test-Vertrieb. Rolle bleibt Extern (Extern-Preise), aber `externDarfSehen()` gibt für alle
+freigegebenen Einheiten true (auch fremde Exklusiv-Kontingente), `/api/stammdaten` liefert
+`externExklusiv` + `externExklusivNamen` + `externKontrolle: true`, die WE-Liste zeigt „🔒 EXKLUSIV: Name"
+bzw. „ALLGEMEIN EXTERN". `/api/me` und die Login-Antworten tragen `externKontrolle`. Test: Session K.
+
 ## Extern-Reservierung ohne PandaDoc (06.07.2026)
 
 Externe Vertriebler reservieren über einen eigenen Muster-Flow:

@@ -149,6 +149,7 @@ function externExklusivIds(stammFields) {
 function externDarfSehen(stammFields, session) {
   const f = stammFields || {};
   if (!f[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE]) return false;
+  if (session && session.externKontrolle) return true; // 28.10.2026: Kontroll-Account sieht alles Freigegebene
   const exklusiv = externExklusivIds(f);
   if (exklusiv.length === 0) return !(session && session.nurExklusiv);
   return !!(session && session.vertrieblerId && exklusiv.includes(session.vertrieblerId));
@@ -160,7 +161,10 @@ async function ladeExternProfil(session) {
   if (!isExtern(session) || !session.vertrieblerId) return session;
   try {
     const rec = await airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId });
-    if (rec && rec.fields) session.nurExklusiv = !!rec.fields[VERTRIEBLER_FIELDS.NUR_EXKLUSIV];
+    if (rec && rec.fields) {
+      session.nurExklusiv = !!rec.fields[VERTRIEBLER_FIELDS.NUR_EXKLUSIV];
+      session.externKontrolle = !!rec.fields[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE];
+    }
   } catch (e) { /* JWT-Wert bleibt */ }
   return session;
 }

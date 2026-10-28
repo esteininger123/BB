@@ -61,12 +61,14 @@ module.exports = async (req, res) => {
       rolle:   f[VERTRIEBLER_FIELDS.ROLLE]   || 'Vertriebler',
       fotoUrl: f[VERTRIEBLER_FIELDS.FOTO]    || '',
       provisionPct: clampProvision(f[VERTRIEBLER_FIELDS.PROVISION_EXTERN]),
+      externKontrolle: !!f[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE], // 28.10.2026
     };
     const sessionToken = signSession({
       vertrieblerId: vertriebler.id,
       email: vertriebler.email,
       rolle: vertriebler.rolle,
       nurExklusiv: !!f[VERTRIEBLER_FIELDS.NUR_EXKLUSIV], // 28.10.2026
+      externKontrolle: !!f[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE],
     });
     setSessionCookie(res, sessionToken);
     return res.status(200).json({ ok: true, vertriebler });

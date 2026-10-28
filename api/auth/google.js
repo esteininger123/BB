@@ -54,7 +54,8 @@ module.exports = async (req, res) => {
       rolle:   f[VERTRIEBLER_FIELDS.ROLLE]   || 'Vertriebler',
       fotoUrl: f[VERTRIEBLER_FIELDS.FOTO]    || googleUser.picture || '',
       // 06.07.2026 — Provisionssatz externer Vertriebler (Dezimal, nur für Rolle 'Extern').
-      provisionPct: clampProvision(f[VERTRIEBLER_FIELDS.PROVISION_EXTERN])
+      provisionPct: clampProvision(f[VERTRIEBLER_FIELDS.PROVISION_EXTERN]),
+      externKontrolle: !!f[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE], // 28.10.2026
     };
 
     const sessionToken = signSession({
@@ -62,7 +63,8 @@ module.exports = async (req, res) => {
       email: vertriebler.email,
       rolle: vertriebler.rolle,
       // 28.10.2026: „Nur Exklusiv-Einheiten" (wird pro Request aus Airtable aufgefrischt)
-      nurExklusiv: !!f[VERTRIEBLER_FIELDS.NUR_EXKLUSIV]
+      nurExklusiv: !!f[VERTRIEBLER_FIELDS.NUR_EXKLUSIV],
+      externKontrolle: !!f[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE]
     });
 
     setSessionCookie(res, sessionToken);

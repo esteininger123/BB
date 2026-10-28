@@ -76,6 +76,8 @@ module.exports = async (req, res) => {
       status:  f[VERTRIEBLER_FIELDS.STATUS]  || '',
       // 06.07.2026 — Provisionssatz (nur für Extern relevant, sonst 0).
       provisionPct: clampProvision(f[VERTRIEBLER_FIELDS.PROVISION_EXTERN]),
+      // 28.10.2026 — Kontroll-Account (Test-Vertrieb): WE-Liste zeigt Kontingent-Inhaber / „Allgemein extern".
+      externKontrolle: !!f[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE],
     });
   } catch (e) {
     if (e.status === 404) return res.status(404).json({ error: 'Vertriebler nicht gefunden' });

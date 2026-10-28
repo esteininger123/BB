@@ -339,13 +339,27 @@ module.exports = async (req, res) => {
       audit = audit.filter(row => {
         const sd = row.stammdaten;
         if (!sd || !sd.externFreigabe) return false;
+        if (session.externKontrolle) return true; // 28.10.2026: Kontroll-Account (Test-Vertrieb) sieht alles Freigegebene
         if (sd.externExklusiv.length === 0) return !session.nurExklusiv;
         return sd.externExklusiv.includes(session.vertrieblerId);
       });
-      audit.forEach(row => {
-        row.stammdaten.externExklusivFuerMich = row.stammdaten.externExklusiv.length > 0;
-        delete row.stammdaten.externExklusiv;
-      });
+      if (session.externKontrolle) {
+        // 28.10.2026 (Henry): Kontroll-Account bekommt die Kontingent-Inhaber mit Namen (wie intern) und
+        // das Flag externKontrolle; die WE-Liste zeigt „Exklusiv: …" bzw. „Allgemein extern".
+        const exklIds = audit.flatMap(row => row.stammdaten.externExklusiv || []);
+        const namen = exklIds.length > 0 ? await ladeVertrieblerNamen(exklIds) : {};
+        audit.forEach(row => {
+          const ids = row.stammdaten.externExklusiv || [];
+          row.stammdaten.externExklusivFuerMich = false;
+          row.stammdaten.externKontrolle = true;
+          if (ids.length > 0) row.stammdaten.externExklusivNamen = ids.map(id => namen[id] || '').filter(Boolean);
+        });
+      } else {
+        audit.forEach(row => {
+          row.stammdaten.externExklusivFuerMich = row.stammdaten.externExklusiv.length > 0;
+          delete row.stammdaten.externExklusiv;
+        });
+      }
       const prov = await loadProvisionPct(session);
       audit.forEach(row => {
         const e = externPreis(row.we.kp, row.stellplaetze.kaufpreisSumme, prov, row.stammdaten && row.stammdaten.externAbschlag);

@@ -62,6 +62,10 @@ const VERTRIEBLER_FIELDS = {
   // „Extern exklusiv für" steht; allgemein freigegebene Einheiten (Exklusiv leer) bleiben für ihn
   // unsichtbar. Input-Feld (Airtable), keine Schreib-Richtung im Backend.
   NUR_EXKLUSIV:     'fldSaxVAhFzdkjgwp',
+  // 28.10.2026 (Henry): Checkbox. Kontroll-Account mit Rolle Extern (Test-Vertrieb): sieht ALLE extern
+  // freigegebenen Einheiten (auch fremde Exklusiv-Kontingente) und bekommt in der Wohnungsübersicht die
+  // Kontingent-Inhaber mit Namen bzw. „allgemein extern". Preise wie ein normaler Externer.
+  EXTERN_KONTROLLE: 'fldRD5KZr6VAFLwKl',
   // 06.07.2026 (Henry) — scrypt-Hash für E-Mail+Passwort-Login (s2$salt$hash, NIE Klartext,
   // NIE in API-Responses). Leer = nur Google-Login. Siehe api/_lib/passwort.js.
   PASSWORT_HASH: 'fld3uZFjzlQs5unhc'

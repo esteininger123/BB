@@ -2507,7 +2507,7 @@ function renderTabKalkulator() {
              : w.status === 'Notartermin' ? '  ·  ⚠ NOTARTERMIN' : '';
     // 04.10.2026: Exklusiv-Kontingent (Extern sieht nur das eigene, intern = Hinweis).
     const ex = !w.externExklusiv ? ''
-             : (state.user && state.user.rolle === 'Extern') ? '' : '  ·  🔒 EXKLUSIV (EXTERN)'; // 24.10.2026 (Henry): Externe sehen kein Exklusiv-Tag mehr
+             : (state.user && state.user.rolle === 'Extern' && !state.user.externKontrolle) ? '' : '  ·  🔒 EXKLUSIV (EXTERN)'; // 24.10.2026 (Henry): Externe sehen kein Exklusiv-Tag mehr; 28.10.: Kontroll-Account schon
     return titel + kp + st + ex;
   };
   // WEs nach Projekt gruppieren + innerhalb des Projekts nach WE-Nummer sortieren.
@@ -9858,10 +9858,16 @@ function _renderWeListeContent() {
   const weExklBadgeInner = (sd) => {
     if (!sd) return '';
     const stil = 'margin-left:6px;font-size:10px;background:#EFE6F7;color:#5B2A86;border:1px solid #C9A9E3;';
-    if (sd.externExklusivFuerMich) return ''; // 24.10.2026 (Henry): kein „Exklusiv für dich“-Tag für Externe
+    // 28.10.2026 (Henry): Kontroll-Account (Test-Vertrieb, Rolle Extern mit „Extern-Kontrollzugang") sieht wie
+    // intern die Kontingent-Inhaber und zusätzlich „Allgemein extern" für offen freigegebene Einheiten.
+    const kontrolle = !!(sd.externKontrolle || (state.user && state.user.externKontrolle));
+    if (sd.externExklusivFuerMich && !kontrolle) return ''; // 24.10.2026 (Henry): kein „Exklusiv für dich“-Tag für Externe
     if (sd.externFreigabe && Array.isArray(sd.externExklusiv) && sd.externExklusiv.length > 0) {
       const namen = (sd.externExklusivNamen || []).join(', ');
       return ' <span class="we-status-pill" style="' + stil + '" title="Exklusiv-Kontingent eines externen Vertriebspartners — vor einem Verkauf mit Henry abstimmen">🔒 EXKLUSIV' + (namen ? ': ' + esc(namen) : '') + '</span>';
+    }
+    if (kontrolle && sd.externFreigabe) {
+      return ' <span class="we-status-pill" style="margin-left:6px;font-size:10px;background:#E6F4EA;color:#1E6B3A;border:1px solid #9FD3B0;" title="Extern freigegeben ohne Exklusiv-Kontingent: alle externen Vertriebspartner sehen diese Einheit (außer Accounts mit „Nur Exklusiv-Einheiten“)">ALLGEMEIN EXTERN</span>';
     }
     return '';
   };
