@@ -70,6 +70,7 @@ function installStubs() {
     requireSafeOrigin: () => true,
   });
   stub('api/_lib/extern.js', {
+    ladeExternProfil: async (s) => s, // 28.10.2026: „Nur Exklusiv-Einheiten" hier irrelevant
     externDarfSehen: () => true,
     hatExklusivKontingent: () => false,
     externPreis: (kp) => ({ kp, provisionPct: 0, aufschlag: 0 }),

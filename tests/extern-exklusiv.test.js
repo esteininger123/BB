@@ -17,6 +17,7 @@ const {
 
 const EXT_A = 'recExternA00000001';
 const EXT_B = 'recExternB00000001';
+const EXT_C = 'recExternC00000001'; // „Nur Exklusiv-Einheiten" (28.10.2026, Sparkasse-Fall)
 const INTERN = 'recIntern000000001';
 
 const WE_OFFEN   = 'recWEoffen00000001'; // freigegeben, kein Kontingent
@@ -24,6 +25,7 @@ const WE_NUR_A   = 'recWEnurA000000001'; // freigegeben, exklusiv A
 const WE_GESPERRT = 'recWEgesperrt00001'; // exklusiv A, aber NICHT freigegeben
 const WE_A_UND_B = 'recWEaundB00000001'; // freigegeben, exklusiv A + B
 const WE_INTERN  = 'recWEintern0000001'; // gar nicht extern freigegeben
+const WE_NUR_C   = 'recWEnurC000000001'; // freigegeben, exklusiv C
 const STAMM_VAR_B = 'recStammVarB000001'; // möblierte Variante von WE_OFFEN, exklusiv B
 
 let SESSION = null;
@@ -65,11 +67,12 @@ const STAMM = [
   stammRec('recStammGesperrt01', WE_GESPERRT, { frei: false, exklusiv: [EXT_A] }),
   stammRec('recStammAundB00001', WE_A_UND_B, { frei: true,  exklusiv: [{ id: EXT_A, name: 'A' }, { id: EXT_B, name: 'B' }] }),
   stammRec('recStammIntern0001', WE_INTERN,  { frei: false }),
+  stammRec('recStammNurC000001', WE_NUR_C,   { frei: true,  exklusiv: [EXT_C] }),
   stammRec(STAMM_VAR_B, WE_OFFEN, { frei: true, exklusiv: [EXT_B], status: KALK_STATUS_VARIANTE,
     extra: { [KALK_STAMMDATEN_FIELDS.VARIANTE_LABEL]: 'möbliert', [KALK_STAMMDATEN_FIELDS.VARIANTE_PAKET]: 10000 } }),
 ];
 const WES = [
-  weRec(WE_OFFEN, '1'), weRec(WE_NUR_A, '2'), weRec(WE_GESPERRT, '3'), weRec(WE_A_UND_B, '4'), weRec(WE_INTERN, '5'),
+  weRec(WE_OFFEN, '1'), weRec(WE_NUR_A, '2'), weRec(WE_GESPERRT, '3'), weRec(WE_A_UND_B, '4'), weRec(WE_INTERN, '5'), weRec(WE_NUR_C, '6'),
 ];
 const statusName = (r) => r.fields[KALK_STAMMDATEN_FIELDS.STATUS].name;
 
@@ -79,7 +82,8 @@ stub('api/_lib/auth.js', {
   requireSafeOrigin: () => true,
 });
 stub('api/_lib/airtable.js', {
-  airtable: async () => ({ fields: {} }), // Provisionssatz → 0
+  // Provisionssatz → 0; Vertriebler C hat „Nur Exklusiv-Einheiten" gesetzt
+  airtable: async (op, table, opts) => ({ fields: (opts && opts.recordId === EXT_C) ? { [VERTRIEBLER_FIELDS.NUR_EXKLUSIV]: true } : {} }),
   listAll: async (table, opts) => {
     if (table === TABLES.KALK_STAMMDATEN) {
       const f = (opts && opts.filterByFormula) || '';
@@ -112,6 +116,7 @@ const detail = require(path.join('..', 'api', 'stammdaten', '[weId].js'));
 const SESS_A = { email: 'a@extern.de', rolle: 'Extern', vertrieblerId: EXT_A };
 const SESS_B = { email: 'b@extern.de', rolle: 'Extern', vertrieblerId: EXT_B };
 const SESS_INTERN = { email: 'intern@bub-immo.de', rolle: 'Vertriebler', vertrieblerId: INTERN };
+const SESS_C = { email: 'c@sparkasse.de', rolle: 'Extern', vertrieblerId: EXT_C }; // Flag kommt pro Request aus Airtable
 
 async function call(handler, session) {
   SESSION = session;
@@ -138,6 +143,12 @@ test('Regel: Freigabe ist Voraussetzung, Exklusiv schränkt auf die verknüpften
   assert.strictEqual(externDarfSehen(f(false, undefined), SESS_A), false);
   assert.strictEqual(externDarfSehen(f(true, [EXT_A]), { rolle: 'Extern' }), false, 'Session ohne vertrieblerId');
   assert.strictEqual(externDarfSehen(null, SESS_A), false);
+  // 28.10.2026: „Nur Exklusiv-Einheiten" → offene Einheiten unsichtbar, eigenes Kontingent bleibt
+  const nurEx = { rolle: 'Extern', vertrieblerId: EXT_A, nurExklusiv: true };
+  assert.strictEqual(externDarfSehen(f(true, undefined), nurEx), false, 'offen, aber nur Exklusiv');
+  assert.strictEqual(externDarfSehen(f(true, []), nurEx), false);
+  assert.strictEqual(externDarfSehen(f(true, [EXT_A]), nurEx), true, 'eigenes Kontingent');
+  assert.strictEqual(externDarfSehen(f(true, [EXT_B]), nurEx), false);
   assert.deepStrictEqual(externExklusivIds(f(true, [EXT_A, EXT_A, { id: EXT_B }])), [EXT_A, EXT_B]);
   assert.strictEqual(hatExklusivKontingent(f(true, [EXT_A])), true);
   assert.strictEqual(hatExklusivKontingent(f(false, [EXT_A])), false);
@@ -161,9 +172,20 @@ test('/api/wohneinheiten: Extern B sieht A-Kontingent nicht, dafür seine exklus
   assert.strictEqual(liste.find(w => w.id === `${WE_OFFEN}~${STAMM_VAR_B}`).externExklusiv, true);
 });
 
+test('/api/wohneinheiten + /api/stammdaten: „Nur Exklusiv-Einheiten" (C) sieht ausschließlich sein Kontingent', async () => {
+  const liste = await call(wohneinheiten, SESS_C);
+  assert.deepStrictEqual(liste.map(w => w.id), [WE_NUR_C], 'weder offene Einheiten noch fremde Kontingente');
+  const sd = await call(stammListe, SESS_C);
+  assert.deepStrictEqual(sd.map(r => r.we.id), [WE_NUR_C]);
+  assert.strictEqual(sd[0].stammdaten.externExklusivFuerMich, true);
+  // Umgekehrt: A sieht das C-Kontingent nicht (bestehende Regel)
+  const a = await call(wohneinheiten, SESS_A);
+  assert.strictEqual(a.map(w => w.id).includes(WE_NUR_C), false);
+});
+
 test('/api/wohneinheiten: Interne sehen weiterhin alles, Kontingente nur als Kennzeichen', async () => {
   const liste = await call(wohneinheiten, SESS_INTERN);
-  assert.strictEqual(liste.length, 6); // 5 Wohnungen + 1 Variante
+  assert.strictEqual(liste.length, 7); // 6 Wohnungen + 1 Variante
   const byId = Object.fromEntries(liste.map(w => [w.id, w]));
   assert.strictEqual(byId[WE_NUR_A].externExklusiv, true);
   assert.strictEqual(byId[WE_GESPERRT].externExklusiv, undefined, 'ohne Freigabe kein Exklusiv-Kennzeichen');
@@ -188,7 +210,7 @@ test('/api/stammdaten (Liste): Extern bekommt nur ein Flag, nie fremde Vertriebl
 
 test('/api/stammdaten (Liste): Interne bekommen IDs + Namen der Kontingent-Inhaber', async () => {
   const liste = await call(stammListe, SESS_INTERN);
-  assert.strictEqual(liste.length, 5);
+  assert.strictEqual(liste.length, 6);
   const byId = Object.fromEntries(liste.map(r => [r.we.id, r]));
   assert.deepStrictEqual(byId[WE_NUR_A].stammdaten.externExklusiv, [EXT_A]);
   assert.deepStrictEqual(byId[WE_NUR_A].stammdaten.externExklusivNamen, ['Anna Extern']);

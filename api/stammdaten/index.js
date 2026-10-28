@@ -3,7 +3,7 @@
 //   Vermietungs-Info in einem Response. Nur Admin.
 
 const { verifySession, isExtern } = require('../_lib/auth');
-const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds, ladeVertrieblerNamen } = require('../_lib/extern');
+const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds, ladeVertrieblerNamen, ladeExternProfil } = require('../_lib/extern');
 const { airtable, listAll } = require('../_lib/airtable');
 const { methodNotAllowed, sendError } = require('../_lib/http');
 const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
@@ -334,10 +334,13 @@ module.exports = async (req, res) => {
       // 06.07.2026 (Henry): Externe sehen nur explizit freigegebene Einheiten.
       // 04.10.2026: plus Exklusiv-Kontingent — fremde Kontingente fallen raus, die eigene
       // exklusive Einheit bekommt ein Flag; fremde Vertriebler-IDs verlassen den Server nie.
+      // 28.10.2026: „Nur Exklusiv-Einheiten" (z. B. Sparkasse Freiburg) → ohne Exklusiv-Link unsichtbar.
+      await ladeExternProfil(session);
       audit = audit.filter(row => {
         const sd = row.stammdaten;
         if (!sd || !sd.externFreigabe) return false;
-        return sd.externExklusiv.length === 0 || sd.externExklusiv.includes(session.vertrieblerId);
+        if (sd.externExklusiv.length === 0) return !session.nurExklusiv;
+        return sd.externExklusiv.includes(session.vertrieblerId);
       });
       audit.forEach(row => {
         row.stammdaten.externExklusivFuerMich = row.stammdaten.externExklusiv.length > 0;

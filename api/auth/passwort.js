@@ -66,6 +66,7 @@ module.exports = async (req, res) => {
       vertrieblerId: vertriebler.id,
       email: vertriebler.email,
       rolle: vertriebler.rolle,
+      nurExklusiv: !!f[VERTRIEBLER_FIELDS.NUR_EXKLUSIV], // 28.10.2026
     });
     setSessionCookie(res, sessionToken);
     return res.status(200).json({ ok: true, vertriebler });

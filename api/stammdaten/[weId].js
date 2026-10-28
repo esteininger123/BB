@@ -15,7 +15,7 @@
 //   - Nur Admins dürfen schreiben.
 
 const { verifySession, requireSafeOrigin, isExtern } = require('../_lib/auth');
-const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds } = require('../_lib/extern');
+const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds, ladeExternProfil } = require('../_lib/extern');
 const { airtable, listAll } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
@@ -1224,6 +1224,7 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
   // auch per Deep-Link/Direktaufruf nicht mehr.
   // 04.10.2026: inkl. Exklusiv-Kontingent — fremdes Kontingent verhält sich wie „nicht freigegeben".
   if (isExtern(session)) {
+    await ladeExternProfil(session); // 28.10.2026: „Nur Exklusiv-Einheiten"
     if (!kalkApi || !externDarfSehen(kalkRec && kalkRec.fields, session)) {
       return { status: 404, body: { error: 'Diese Einheit ist für den externen Vertrieb nicht freigegeben.' } };
     }

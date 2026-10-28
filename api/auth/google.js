@@ -60,7 +60,9 @@ module.exports = async (req, res) => {
     const sessionToken = signSession({
       vertrieblerId: vertriebler.id,
       email: vertriebler.email,
-      rolle: vertriebler.rolle
+      rolle: vertriebler.rolle,
+      // 28.10.2026: „Nur Exklusiv-Einheiten" (wird pro Request aus Airtable aufgefrischt)
+      nurExklusiv: !!f[VERTRIEBLER_FIELDS.NUR_EXKLUSIV]
     });
 
     setSessionCookie(res, sessionToken);

@@ -230,6 +230,17 @@ Die UI (Kalkulator, Annahmen-Tooltip, Markteinkauf-Story, PDFs) zeigt hinter dem
 Wert „(laut ImmoScout)" bzw. „(laut Homeday)" — Label-Helfer `marktQuelleLabel()`
 in `public/app.js`.
 
+## „Nur Exklusiv-Einheiten" (28.10.2026, Henry / Sparkasse Freiburg)
+
+Checkbox `Nur Exklusiv-Einheiten` (`fldSaxVAhFzdkjgwp`) auf Kalk-Vertriebler (`VERTRIEBLER_FIELDS.NUR_EXKLUSIV`).
+Gesetzt → der Externe sieht ausschließlich Einheiten, bei denen er in „Extern exklusiv für" steht;
+allgemein freigegebene Einheiten (Exklusiv leer) bleiben für ihn unsichtbar. Umsetzung in
+`externDarfSehen()` (`api/_lib/extern.js`) über `session.nurExklusiv`; das Flag steht im Login-JWT
+und wird pro Request mit `ladeExternProfil(session)` aus Airtable aufgefrischt (Liste, Stammdaten-Liste,
+Detail, Extern-Reservierung). Anwendungsfall: Sparkasse Immobilien Freiburg (3 Zugänge) sieht nur ihre
+5 Spechtweg-Einheiten, alle anderen Externen sehen die allgemein freigegebenen Einheiten.
+Tests: `tests/extern-exklusiv.test.js` (Session C).
+
 ## Extern-Reservierung ohne PandaDoc (06.07.2026)
 
 Externe Vertriebler reservieren über einen eigenen Muster-Flow:

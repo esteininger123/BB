@@ -16,7 +16,7 @@
 
 const jwt = require('jsonwebtoken');
 const { verifySession, requireSafeOrigin, isExtern } = require('../_lib/auth');
-const { externPreis, loadProvisionPct, ladeStellplatzKpSummen, externDarfSehen } = require('../_lib/extern');
+const { externPreis, loadProvisionPct, ladeStellplatzKpSummen, externDarfSehen, ladeExternProfil } = require('../_lib/extern');
 // 07.09.2026 — möblierte Varianten: eigene Karte, aber dieselbe Wohneinheit.
 const { parseWeId, loadVariante, applyVariante } = require('../_lib/we-variante');
 const { kpWohnungFuerReservierung } = require('../_lib/reserv-preis');
@@ -107,6 +107,7 @@ module.exports = async (req, res) => {
     // 04.10.2026: inkl. Exklusiv-Kontingent (fremdes Kontingent = nicht reservierbar). ---
     let externAbschlag = null; // Einheiten-Abschlag (Kalk-Stammdaten „Extern-Abschlag %"), leer = Standard 2 %
     if (extern) {
+      await ladeExternProfil(session); // 28.10.2026: „Nur Exklusiv-Einheiten"
       const stammRecs = await listAll(TABLES.KALK_STAMMDATEN, {
         filterByFormula: `{${KALK_STAMMDATEN_FIELDS.STATUS}}='${KALK_STATUS_AKTIV}'`,
         fields: [KALK_STAMMDATEN_FIELDS.WOHNEINHEIT, KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE, KALK_STAMMDATEN_FIELDS.EXTERN_EXKLUSIV, KALK_STAMMDATEN_FIELDS.EXTERN_ABSCHLAG],

@@ -3,7 +3,7 @@
 // Filter: {Status} = 'Vermarktung / Im Verkauf' UND {Maklerfirma} = 'B&B Immo GmbH'
 
 const { verifySession, isExtern } = require('./_lib/auth');
-const { externPreis, loadProvisionPct, ladeStellplatzKpSummen, externDarfSehen, hatExklusivKontingent } = require('./_lib/extern');
+const { externPreis, loadProvisionPct, ladeStellplatzKpSummen, externDarfSehen, hatExklusivKontingent, ladeExternProfil } = require('./_lib/extern');
 const { airtable, listAll } = require('./_lib/airtable');
 const { methodNotAllowed, sendError } = require('./_lib/http');
 const {
@@ -223,6 +223,8 @@ module.exports = async (req, res) => {
     // 23.10.2026 (Henry/Kitzingen): „Nur externer Vertrieb" → interne Vertriebler (nicht Admin) sehen
     // die Einheit nicht. Einzige Regel-Quelle für Externe bleibt externDarfSehen().
     const nurExternVersteckt = (f) => !isExtern(session) && session.rolle !== 'Admin' && !!(f || {})[KALK_STAMMDATEN_FIELDS.NUR_EXTERN];
+    // 28.10.2026: „Nur Exklusiv-Einheiten"-Flag des Externen frisch aus Airtable (siehe _lib/extern.js).
+    await ladeExternProfil(session);
     const varianten = variantenRecords
       .filter(r => !nurExternVersteckt(r.fields))
       .filter(r => !isExtern(session) || externDarfSehen(r.fields, session))

@@ -141,12 +141,28 @@ function externExklusivIds(stammFields) {
   return dedupe(linkIds((stammFields || {})[KALK_STAMMDATEN_FIELDS.EXTERN_EXKLUSIV]));
 }
 
+// 28.10.2026 (Henry/Sparkasse Freiburg): Kalk-Vertriebler „Nur Exklusiv-Einheiten" (session.nurExklusiv)
+//   → dieser Externe sieht ausschließlich Einheiten, bei denen er in „Extern exklusiv für" steht;
+//     allgemein freigegebene Einheiten (Exklusiv leer) bleiben für ihn unsichtbar.
+//   Das Flag kommt aus dem Login-JWT und wird pro Request über ladeExternProfil() aus Airtable
+//   aufgefrischt (DB = Wahrheit, nicht das 7-Tage-Cookie).
 function externDarfSehen(stammFields, session) {
   const f = stammFields || {};
   if (!f[KALK_STAMMDATEN_FIELDS.EXTERN_FREIGABE]) return false;
   const exklusiv = externExklusivIds(f);
-  if (exklusiv.length === 0) return true;
+  if (exklusiv.length === 0) return !(session && session.nurExklusiv);
   return !!(session && session.vertrieblerId && exklusiv.includes(session.vertrieblerId));
+}
+
+// Frischt session.nurExklusiv aus dem Kalk-Vertriebler-Record auf (nur Rolle Extern). Bei Airtable-
+// Fehler bleibt der Wert aus dem JWT stehen. Gibt die Session zurück (mutiert in place).
+async function ladeExternProfil(session) {
+  if (!isExtern(session) || !session.vertrieblerId) return session;
+  try {
+    const rec = await airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId });
+    if (rec && rec.fields) session.nurExklusiv = !!rec.fields[VERTRIEBLER_FIELDS.NUR_EXKLUSIV];
+  } catch (e) { /* JWT-Wert bleibt */ }
+  return session;
 }
 
 // true, wenn die Einheit extern freigegeben UND einem Exklusiv-Kontingent zugeordnet ist
@@ -173,5 +189,5 @@ async function ladeVertrieblerNamen(ids) {
 
 module.exports = {
   PROVISION_MAX, EXTERN_RABATT, EXTERN_ABSCHLAG_MAX, clampProvision, clampAbschlag, externPreis, loadProvisionPct, ladeStellplatzKpSummen,
-  externExklusivIds, externDarfSehen, hatExklusivKontingent, ladeVertrieblerNamen,
+  externExklusivIds, externDarfSehen, hatExklusivKontingent, ladeVertrieblerNamen, ladeExternProfil,
 };
