@@ -2513,7 +2513,8 @@ function renderTabKalkulator() {
   // WEs nach Projekt gruppieren + innerhalb des Projekts nach WE-Nummer sortieren.
   const wesByProjekt = {};
   wes.forEach(w => {
-    const key = w.projektName || 'Sonstige';
+    // 29.10.2026 (Henry/Felix Sziedat): eigene Exklusiv-Einheiten mit Sonderkonditionen als eigene Gruppe
+    const key = (w.externSonder && _externSonderAktiv()) ? _externSonderGruppe() : (w.projektName || 'Sonstige');
     if (!wesByProjekt[key]) wesByProjekt[key] = [];
     wesByProjekt[key].push(w);
   });
@@ -2525,7 +2526,8 @@ function renderTabKalkulator() {
       return (a.lage || '').localeCompare(b.lage || '');
     });
   });
-  const projektNames = Object.keys(wesByProjekt).sort();
+  const projektNames = Object.keys(wesByProjekt).sort((a, b) =>
+    a === _externSonderGruppe() ? -1 : b === _externSonderGruppe() ? 1 : a.localeCompare(b)); // ⭐-Gruppe zuerst
   // Zweistufige Auswahl: erst Projekt, dann Wohneinheit.
   // Aktives Projekt: aus state.kalk._projektFilter ODER aus dem aktuell gewählten WE ableiten.
   let aktivesProjekt = state.kalk._projektFilter || '';
@@ -2626,10 +2628,12 @@ function renderTabKalkulator() {
                 ` : `
                   <div class="we-extern-info text-small" style="margin-top:6px;padding:6px 10px;border-left:3px solid var(--accent);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
                     <span>
-                      ${i._externInfo.provisionPct > 0
+                      ${i._externInfo.sonder
+                        ? `⭐ Exklusiv-Einheit — feste Provision: <strong>${(i._externInfo.provisionPct * 100).toLocaleString('de-DE')} % = ${Math.round(i._externInfo.aufschlag).toLocaleString('de-DE')} €</strong> (dein Provisions-Regler gilt hier nicht)`
+                        : i._externInfo.provisionPct > 0
                         ? `Kundenpreis enthält deine Provision: <strong>${(i._externInfo.provisionPct * 100).toLocaleString('de-DE')} % = ${Math.round(i._externInfo.aufschlag).toLocaleString('de-DE')} €</strong>`
                         : `Provisionssatz 0 % — du verkaufst zum Abgabepreis (keine Provision).`}
-                      · Satz ändern: <a href="#/start">Start</a>
+                      ${i._externInfo.sonder ? '' : '· Satz ändern: <a href="#/start">Start</a>'}
                     </span>
                     <button type="button" onclick="window._externInfoToggle(false)" title="Ausblenden — z.B. wenn der Kunde mitschaut (ⓘ holt die Info zurück)" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:15px;line-height:1;padding:0;flex-shrink:0;">×</button>
                   </div>
@@ -9788,13 +9792,50 @@ function _weListeSetProfil(p) {
 }
 window._weListeSetProfil = _weListeSetProfil;
 
+// 29.10.2026 (Henry/Felix Sziedat): Sonderkonditionen für eigene Exklusiv-Einheiten. Der Server liefert
+// dem Externen nur den ANGEZEIGTEN Satz (state.user.exklusivProvisionPct); gibt es ihn, bekommt die
+// WE-Liste zwei Tabs (Allgemein / Meine Exklusiv-Einheiten). Für alle anderen Nutzer ist nichts davon sichtbar.
+const _WE_LISTE_EXTERN_TAB_KEY = 'bb_we_liste_extern_tab';
+function _externSonderAktiv() {
+  return !!(state.user && state.user.rolle === 'Extern' && state.user.exklusivProvisionPct > 0);
+}
+function _externSonderPctLabel() {
+  const p = (state.user && state.user.exklusivProvisionPct) || 0;
+  return (p * 100).toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' %';
+}
+function _externSonderGruppe() { return '⭐ Exklusiv für dich · Provision ' + _externSonderPctLabel(); }
+function _weListeExternTab() {
+  try { return localStorage.getItem(_WE_LISTE_EXTERN_TAB_KEY) === 'exklusiv' ? 'exklusiv' : 'allgemein'; } catch (e) { return 'allgemein'; }
+}
+function _weListeSetExternTab(t) {
+  try { localStorage.setItem(_WE_LISTE_EXTERN_TAB_KEY, t === 'exklusiv' ? 'exklusiv' : 'allgemein'); } catch (e) {}
+  _renderWeListeContent();
+}
+window._weListeSetExternTab = _weListeSetExternTab;
+
 function _renderWeListeContent() {
   const el = document.getElementById('we-liste-content');
   if (!el || !_weListeCache) return;
 
   // Nur aktive Stammdaten zeigen — der Vertrieb braucht keine Entwurf-/Fehlt-WEs
-  const audit = (_weListeCache.auditList || []).filter(row => row.stammdaten && row.stammdaten.status === 'Aktiv');
+  let audit = (_weListeCache.auditList || []).filter(row => row.stammdaten && row.stammdaten.status === 'Aktiv');
   const detailById = _weListeCache.detailById || {};
+
+  // 29.10.2026: Tabs Allgemein / Meine Exklusiv-Einheiten (nur Externe mit Sonderkonditionen)
+  let externTabsHtml = '';
+  if (_externSonderAktiv()) {
+    const tab = _weListeExternTab();
+    const nEx = audit.filter(r => r.stammdaten && r.stammdaten.externSonder).length;
+    const nAll = audit.length - nEx;
+    const btn = (key, label) => `<button type="button" class="${tab === key ? '' : 'secondary'}" onclick="window._weListeSetExternTab('${key}')" style="font-size:13px;">${label}</button>`;
+    externTabsHtml = `
+      <div class="we-liste-extern-tabs" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px;">
+        ${btn('allgemein', 'Allgemeine Einheiten (' + nAll + ')')}
+        ${btn('exklusiv', '⭐ Meine Exklusiv-Einheiten · ' + _externSonderPctLabel() + ' Provision (' + nEx + ')')}
+      </div>
+      ${tab === 'exklusiv' ? `<div class="text-small" style="margin:0 0 12px;padding:8px 12px;border-left:3px solid #E2C46A;background:#FBF3E0;color:#5A4300;">Diese Einheiten sind <strong>exklusiv für dich</strong> freigeschaltet. Es gilt eine <strong>feste Provision von ${_externSonderPctLabel()}</strong> — unabhängig von deinem Regler. Die Kundenpreise sind bereits inklusive.</div>` : ''}`;
+    audit = audit.filter(r => !!(r.stammdaten && r.stammdaten.externSonder) === (tab === 'exklusiv'));
+  }
 
   // Nach Projekt gruppieren (aus WE-Titel ableiten)
   const projektAus = (titel) => {
@@ -9811,6 +9852,13 @@ function _renderWeListeContent() {
   });
   const projekte = Object.keys(byProjekt).sort();
 
+  if (audit.length === 0 && externTabsHtml) {
+    el.innerHTML = externTabsHtml + `
+      <div class="empty-state" style="padding:36px;text-align:center;color:var(--text-tertiary);">
+        <div style="font-size:14px;">In diesem Bereich sind aktuell keine Einheiten freigeschaltet.</div>
+      </div>`;
+    return;
+  }
   if (audit.length === 0) {
     // QA-Fix 2026-05-23 (Audit-EE-2): nicht nur Text, sondern Reload-Action +
     // Hinweis an wen sich der Vertriebler wenden soll.
@@ -9861,6 +9909,8 @@ function _renderWeListeContent() {
     // 28.10.2026 (Henry): Kontroll-Account (Test-Vertrieb, Rolle Extern mit „Extern-Kontrollzugang") sieht wie
     // intern die Kontingent-Inhaber und zusätzlich „Allgemein extern" für offen freigegebene Einheiten.
     const kontrolle = !!(sd.externKontrolle || (state.user && state.user.externKontrolle));
+    // 29.10.2026 (Henry/Felix Sziedat): eigene Exklusiv-Einheit mit Sonderkonditionen → ⭐ (nur dieser Externe sieht das)
+    if (sd.externSonder && !kontrolle && _externSonderAktiv()) return ' <span class="we-status-pill" style="margin-left:6px;font-size:10px;background:#FBF3E0;color:#7A5A00;border:1px solid #E2C46A;" title="Exklusiv für dich — feste Provision ' + _externSonderPctLabel() + '">⭐ EXKLUSIV</span>';
     if (sd.externExklusivFuerMich && !kontrolle) return ''; // 24.10.2026 (Henry): kein „Exklusiv für dich“-Tag für Externe
     if (sd.externFreigabe && Array.isArray(sd.externExklusiv) && sd.externExklusiv.length > 0) {
       const namen = (sd.externExklusivNamen || []).join(', ');
@@ -10315,7 +10365,7 @@ function _renderWeListeContent() {
     </div>
   ` : '';
 
-  el.innerHTML = `
+  el.innerHTML = externTabsHtml + `
     <div class="text-tertiary text-small" style="margin:0 0 8px;">
       <strong>${audit.length} aktive WEs</strong> über ${projekte.length} ${projekte.length === 1 ? 'Projekt' : 'Projekte'} ·
       ${simpleMode
@@ -10813,6 +10863,11 @@ function renderExternStart() {
         </table>
       </div>
 
+      ${_externSonderAktiv() ? `
+      <div class="card" style="margin-bottom:16px;border-left:3px solid #E2C46A;">
+        <div class="card-title">⭐ Deine Exklusiv-Einheiten</div>
+        <p style="margin:0;line-height:1.55;">Für Einheiten, die <strong>exklusiv für dich</strong> freigeschaltet sind, gilt eine <strong>feste Provision von ${_externSonderPctLabel()}</strong> — unabhängig vom Regler unten. Die Kundenpreise dieser Einheiten sind bereits inklusive. Du findest sie in der <a href="#/we-liste">Wohnungsliste</a> im Tab „Meine Exklusiv-Einheiten"; im Kalkulator stehen sie in der Gruppe „⭐ Exklusiv für dich".</p>
+      </div>` : ''}
       <div class="card" id="extern-prov-card" style="margin-bottom:16px;border-left:3px solid var(--accent);">
         <div class="card-title">Deine Provision einstellen</div>
         <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:8px 0 4px;">

@@ -15,7 +15,7 @@
 //   - Nur Admins dürfen schreiben.
 
 const { verifySession, requireSafeOrigin, isExtern } = require('../_lib/auth');
-const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds, ladeExternProfil } = require('../_lib/extern');
+const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds, ladeExternProfil, loadExternKonditionen } = require('../_lib/extern');
 const { airtable, listAll } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
@@ -1229,6 +1229,9 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
       return { status: 404, body: { error: 'Diese Einheit ist für den externen Vertrieb nicht freigegeben.' } };
     }
     kalkApi.externExklusivFuerMich = kalkApi.externExklusiv.length > 0;
+    // 29.10.2026 (Henry/Felix Sziedat): eigene Exklusiv-Einheit + Sonderkonditionen → eigener Preisweg
+    // (siehe unten externPreis(..., sonder)); das Flag geht als externSonder an die UI.
+    kalkApi._sonderKandidat = kalkApi.externExklusiv.includes(session.vertrieblerId);
     delete kalkApi.externExklusiv;
   }
 
@@ -1332,12 +1335,14 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
   // extern-Block versorgt die UI (Provisionssatz + Provision in €).
   let externInfo = null;
   if (isExtern(session)) {
-    const prov = (P.provisionPct != null) ? P.provisionPct : await loadProvisionPct(session);
-    const e = externPreis(we.kp, stpKaufpreisSumme, prov, kalkApi && kalkApi.externAbschlag);
-    if (kalkApi) delete kalkApi.externAbschlag;
+    const konditionen = P.konditionen || await loadExternKonditionen(session);
+    const prov = (P.provisionPct != null) ? P.provisionPct : konditionen.provisionPct;
+    const sonder = (kalkApi && kalkApi._sonderKandidat) ? konditionen.sonder : null;
+    const e = externPreis(we.kp, stpKaufpreisSumme, prov, kalkApi && kalkApi.externAbschlag, sonder);
+    if (kalkApi) { delete kalkApi.externAbschlag; delete kalkApi._sonderKandidat; kalkApi.externSonder = !!e.sonder; }
     we.kp = e.kp;
     if (we.qm > 0) we.qmPreis = Math.round((e.kp / we.qm) * 100) / 100;
-    externInfo = { provisionPct: e.provisionPct, aufschlag: e.aufschlag };
+    externInfo = { provisionPct: e.provisionPct, aufschlag: e.aufschlag, sonder: !!e.sonder };
   }
 
   return { status: 200, body: {

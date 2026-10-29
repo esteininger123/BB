@@ -66,6 +66,13 @@ const VERTRIEBLER_FIELDS = {
   // freigegebenen Einheiten (auch fremde Exklusiv-Kontingente) und bekommt in der Wohnungsübersicht die
   // Kontingent-Inhaber mit Namen bzw. „allgemein extern". Preise wie ein normaler Externer.
   EXTERN_KONTROLLE: 'fldRD5KZr6VAFLwKl',
+  // 29.10.2026 (Henry/Felix Sziedat): Sonderkonditionen für die EIGENEN Exklusiv-Einheiten eines Externen.
+  // EXKLUSIV_AUFSCHLAG (percent, 0.10 = 10 %) ersetzt bei diesen Einheiten den Provisions-Regler als
+  // Preisaufschlag auf den Abgabepreis; EXKLUSIV_PROVISION (0.083 = 8,3 %) ist der Satz, den der
+  // Vertriebler angezeigt bekommt. Die Differenz (Rest geht an Dritte, z. B. Mike) verlässt den Server NIE.
+  // Beide leer = normale 0–7-%-Regel. Siehe sonderKonditionen() in _lib/extern.js.
+  EXKLUSIV_AUFSCHLAG: 'fldhJjrum3YNwYtCe',
+  EXKLUSIV_PROVISION: 'fld9EdXNwVqxbGfN9',
   // 06.07.2026 (Henry) — scrypt-Hash für E-Mail+Passwort-Login (s2$salt$hash, NIE Klartext,
   // NIE in API-Responses). Leer = nur Google-Login. Siehe api/_lib/passwort.js.
   PASSWORT_HASH: 'fld3uZFjzlQs5unhc'

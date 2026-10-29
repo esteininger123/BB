@@ -3,7 +3,7 @@
 // Filter: {Status} = 'Vermarktung / Im Verkauf' UND {Maklerfirma} = 'B&B Immo GmbH'
 
 const { verifySession, isExtern } = require('./_lib/auth');
-const { externPreis, loadProvisionPct, ladeStellplatzKpSummen, externDarfSehen, hatExklusivKontingent, ladeExternProfil } = require('./_lib/extern');
+const { externPreis, loadProvisionPct, ladeStellplatzKpSummen, externDarfSehen, hatExklusivKontingent, ladeExternProfil, loadExternKonditionen, istSonderEinheit } = require('./_lib/extern');
 const { airtable, listAll } = require('./_lib/airtable');
 const { methodNotAllowed, sendError } = require('./_lib/http');
 const {
@@ -225,12 +225,17 @@ module.exports = async (req, res) => {
     const nurExternVersteckt = (f) => !isExtern(session) && session.rolle !== 'Admin' && !!(f || {})[KALK_STAMMDATEN_FIELDS.NUR_EXTERN];
     // 28.10.2026: „Nur Exklusiv-Einheiten"-Flag des Externen frisch aus Airtable (siehe _lib/extern.js).
     await ladeExternProfil(session);
+    // 29.10.2026 (Henry/Felix Sziedat): Sonderkonditionen → Karten des EIGENEN Exklusiv-Kontingents
+    // bekommen Aufschlag + Provision aus dem Vertriebler-Record statt des Reglers (siehe _lib/extern.js).
+    const konditionen = isExtern(session) ? await loadExternKonditionen(session) : { provisionPct: 0, sonder: null };
+    const sonderKarten = new Set();
     const varianten = variantenRecords
       .filter(r => !nurExternVersteckt(r.fields))
       .filter(r => !isExtern(session) || externDarfSehen(r.fields, session))
       .map(r => {
         const v = varianteInfo(r);
         if (v && v.weId && hatExklusivKontingent(r.fields)) exklusivKarten.add(composeWeId(v.weId, v.stammId));
+        if (v && v.weId && istSonderEinheit(r.fields, session, konditionen.sonder)) sonderKarten.add(composeWeId(v.weId, v.stammId));
         if (v && v.weId) abschlagByKarte[composeWeId(v.weId, v.stammId)] = (r.fields || {})[KALK_STAMMDATEN_FIELDS.EXTERN_ABSCHLAG];
         return v;
       })
@@ -244,12 +249,14 @@ module.exports = async (req, res) => {
       if (isExtern(session) && !externDarfSehen(r.fields, session)) return;
       if (nurExternVersteckt(r.fields)) return; // 23.10.2026: nur externer Vertrieb
       const hatExklusiv = hatExklusivKontingent(r.fields);
+      const istSonder = istSonderEinheit(r.fields, session, konditionen.sonder);
       const links = (r.fields || {})[KALK_STAMMDATEN_FIELDS.WOHNEINHEIT] || [];
       if (!Array.isArray(links)) return;
       links.forEach(link => {
         const id = (link && typeof link === 'object' && link.id) ? link.id : (typeof link === 'string' ? link : null);
         if (id) aktiveWeIds.add(id);
         if (id && hatExklusiv) exklusivKarten.add(id);
+        if (id && istSonder) sonderKarten.add(id);
         if (id) abschlagByKarte[id] = (r.fields || {})[KALK_STAMMDATEN_FIELDS.EXTERN_ABSCHLAG];
       });
     });
@@ -367,10 +374,11 @@ module.exports = async (req, res) => {
       ]);
       out.forEach(w => {
         const basisId = w.variante ? w.variante.basisWeId : w.id;
-        const e = externPreis(w.kp, stplKpByWe[basisId] || 0, prov, abschlagByKarte[w.id]);
+        const e = externPreis(w.kp, stplKpByWe[basisId] || 0, prov, abschlagByKarte[w.id], sonderKarten.has(w.id) ? konditionen.sonder : null);
         w.kp = e.kp;
         if (w.qm > 0) w.qmPreis = Math.round((e.kp / w.qm) * 100) / 100;
-        w.extern = { provisionPct: e.provisionPct, aufschlag: e.aufschlag };
+        w.extern = { provisionPct: e.provisionPct, aufschlag: e.aufschlag, sonder: !!e.sonder };
+        if (e.sonder) w.externSonder = true; // 29.10.2026: Karte im Picker unter „Exklusiv für dich" gruppieren
       });
       // Preis hängt am jederzeit änderbaren Provisionssatz → nicht cachen.
       res.setHeader('Cache-Control', 'no-store');

@@ -16,7 +16,7 @@
 
 const jwt = require('jsonwebtoken');
 const { verifySession, requireSafeOrigin, isExtern } = require('../_lib/auth');
-const { externPreis, loadProvisionPct, ladeStellplatzKpSummen, externDarfSehen, ladeExternProfil } = require('../_lib/extern');
+const { externPreis, loadProvisionPct, ladeStellplatzKpSummen, externDarfSehen, ladeExternProfil, loadExternKonditionen, istSonderEinheit } = require('../_lib/extern');
 // 07.09.2026 — möblierte Varianten: eigene Karte, aber dieselbe Wohneinheit.
 const { parseWeId, loadVariante, applyVariante } = require('../_lib/we-variante');
 const { kpWohnungFuerReservierung } = require('../_lib/reserv-preis');
@@ -106,6 +106,7 @@ module.exports = async (req, res) => {
     // Einheiten sind reservierbar — auch gegen manipulierte Requests.
     // 04.10.2026: inkl. Exklusiv-Kontingent (fremdes Kontingent = nicht reservierbar). ---
     let externAbschlag = null; // Einheiten-Abschlag (Kalk-Stammdaten „Extern-Abschlag %"), leer = Standard 2 %
+    let externSonder = null;   // 29.10.2026: Sonderkonditionen für die eigene Exklusiv-Einheit (sonst null)
     if (extern) {
       await ladeExternProfil(session); // 28.10.2026: „Nur Exklusiv-Einheiten"
       const stammRecs = await listAll(TABLES.KALK_STAMMDATEN, {
@@ -125,6 +126,10 @@ module.exports = async (req, res) => {
       }
       // Derselbe Stammsatz wie in Liste/Rechner bestimmt den Abschlag (Variante: ihr eigener).
       externAbschlag = ((variante ? variante.rec : stammTreffer).fields || {})[KALK_STAMMDATEN_FIELDS.EXTERN_ABSCHLAG];
+      // 29.10.2026 (Henry/Felix Sziedat): eigene Exklusiv-Einheit mit Sonderkonditionen → derselbe
+      // Preisweg wie in Liste/Rechner (Aufschlag statt Regler), sonst stünde im Dokument ein anderer Preis.
+      const konditionen = await loadExternKonditionen(session);
+      externSonder = istSonderEinheit((variante ? variante.rec : stammTreffer).fields, session, konditionen.sonder) ? konditionen.sonder : null;
     }
 
     // --- Preise SERVERSEITIG (Abgabepreis + Provision des Externen) ---
@@ -154,7 +159,7 @@ module.exports = async (req, res) => {
       } catch (err) { /* Snapshot-Fehler ist nicht toedlich -> WE-Live-Preis */ }
     }
     const kpWohnung = kpWohnungFuerReservierung({
-      extern, kpBasis, stellplatzKp, provisionPct: prov, snapKaufpreis, abschlagPct: externAbschlag,
+      extern, kpBasis, stellplatzKp, provisionPct: prov, snapKaufpreis, abschlagPct: externAbschlag, sonder: externSonder,
     });
     const vertrieblerName = (vertrieblerRec && vertrieblerRec.fields && vertrieblerRec.fields[VERTRIEBLER_FIELDS.NAME]) || session.email;
 

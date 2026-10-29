@@ -5,7 +5,7 @@
 //                                   passwortAlt Pflicht, sobald schon eins existiert)
 
 const { verifySession, requireSafeOrigin, isExtern } = require('./_lib/auth');
-const { clampProvision, PROVISION_MAX } = require('./_lib/extern');
+const { clampProvision, PROVISION_MAX, sonderKonditionen } = require('./_lib/extern');
 const { hashPasswort, verifyPasswort, passwortRegelFehler } = require('./_lib/passwort');
 const { airtable } = require('./_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('./_lib/http');
@@ -78,6 +78,8 @@ module.exports = async (req, res) => {
       provisionPct: clampProvision(f[VERTRIEBLER_FIELDS.PROVISION_EXTERN]),
       // 28.10.2026 — Kontroll-Account (Test-Vertrieb): WE-Liste zeigt Kontingent-Inhaber / „Allgemein extern".
       externKontrolle: !!f[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE],
+      // 29.10.2026 — Sonderkonditionen für eigene Exklusiv-Einheiten: nur der angezeigte Satz, nie der Aufschlag.
+      exklusivProvisionPct: (sonderKonditionen(f) || {}).provisionPct || 0,
     });
   } catch (e) {
     if (e.status === 404) return res.status(404).json({ error: 'Vertriebler nicht gefunden' });

@@ -17,7 +17,7 @@
 
 const { verifySession, isExtern } = require('../_lib/auth');
 const { listAll } = require('../_lib/airtable');
-const { loadProvisionPct } = require('../_lib/extern');
+const { loadExternKonditionen } = require('../_lib/extern');
 const { methodNotAllowed, sendError } = require('../_lib/http');
 const { TABLES } = require('../_lib/tables');
 const { parseWeId, loadVariante } = require('../_lib/we-variante');
@@ -62,11 +62,13 @@ module.exports = async (req, res) => {
 
   try {
     const baseIds = Array.from(new Set(ids.map(x => parseWeId(x).weId).filter(Boolean)));
-    const [pre, weById, provisionPct] = await Promise.all([
+    // 29.10.2026: Provision + Sonderkonditionen einmal laden und an alle Detail-Builds durchreichen.
+    const [pre, weById, konditionen] = await Promise.all([
       detail.loadPreloadedTables(),
       loadWeRecords(baseIds),
-      isExtern(session) ? loadProvisionPct(session) : Promise.resolve(0),
+      isExtern(session) ? loadExternKonditionen(session) : Promise.resolve({ provisionPct: 0, sonder: null }),
     ]);
+    const provisionPct = konditionen.provisionPct;
 
     const byId = {};
     for (const weIdRaw of ids) {
@@ -77,7 +79,7 @@ module.exports = async (req, res) => {
         if (variantId && !variante) { byId[weIdRaw] = { error: 'Variante nicht gefunden', status: 404 }; continue; }
         const r = await detail.buildWeDetail({
           weId, weIdRaw, variante, session,
-          pre: Object.assign({ weRec: weById[weId] || null, provisionPct, skipWriteBack: true }, pre),
+          pre: Object.assign({ weRec: weById[weId] || null, provisionPct, konditionen, skipWriteBack: true }, pre),
         });
         byId[weIdRaw] = (r.status === 200) ? r.body : { error: (r.body && r.body.error) || 'Fehler', status: r.status };
       } catch (e) {

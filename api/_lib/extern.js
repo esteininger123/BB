@@ -30,6 +30,9 @@ const EXTERN_RABATT = 0.02;   // 06.07.2026 (Henry): Abgabepreis Wohnung für Ex
 // Basis ist dann der GESAMT-Kaufpreis (Wohnung + Stellflächen) — wie bei der 3,57-%-Regel —,
 // abgezogen wird er vom Wohnungspreis. Obergrenze als Tippfehler-Schutz (0,357 statt 0,0357).
 const EXTERN_ABSCHLAG_MAX = 0.15;
+// 29.10.2026 (Henry/Felix Sziedat): Sonderkonditionen für Exklusiv-Einheiten (Kalk-Vertriebler
+// „Exklusiv-Aufschlag" / „Exklusiv-Provision"). Obergrenze als Tippfehler-Schutz (1.0 statt 0.10).
+const SONDER_AUFSCHLAG_MAX = 0.25;
 
 // Gültiger Einheiten-Abschlag als Dezimalwert oder null (= Standard-Rabatt greift).
 function clampAbschlag(v) {
@@ -49,20 +52,51 @@ function clampProvision(v) {
   return Math.min(Math.round(n * 10000) / 10000, PROVISION_MAX);
 }
 
+// 29.10.2026 (Henry/Felix Sziedat): Sonderkonditionen eines Externen aus seinem Kalk-Vertriebler-Record.
+// Gültig nur mit Aufschlag > 0. Die angezeigte Provision ist nie höher als der Aufschlag; fehlt sie,
+// wird der Aufschlag als Provision angezeigt. Rückgabe { aufschlag, provisionPct } oder null.
+function sonderKonditionen(vertrieblerFields) {
+  const f = vertrieblerFields || {};
+  const a = parseFloat(f[VERTRIEBLER_FIELDS.EXKLUSIV_AUFSCHLAG]);
+  if (!isFinite(a) || a <= 0 || a > SONDER_AUFSCHLAG_MAX) return null;
+  const aufschlag = Math.round(a * 10000) / 10000;
+  const p = parseFloat(f[VERTRIEBLER_FIELDS.EXKLUSIV_PROVISION]);
+  const provisionPct = (isFinite(p) && p >= 0) ? Math.min(Math.round(p * 10000) / 10000, aufschlag) : aufschlag;
+  return { aufschlag, provisionPct };
+}
+
+// true, wenn die Einheit zum EIGENEN Exklusiv-Kontingent des Externen gehört und er Sonderkonditionen hat.
+function istSonderEinheit(stammFields, session, sonder) {
+  if (!sonder || !session || !session.vertrieblerId) return false;
+  return externExklusivIds(stammFields).includes(session.vertrieblerId);
+}
+
 // Rechnet den Extern-Kundenpreis für eine WE. Reine Funktion, keine IO.
 // kpWohnung = INTERNER Abgabepreis der Wohnung — der 2-%-Extern-Rabatt wird hier abgezogen.
 // abschlagPct (optional) = Einheiten-Abschlag aus den Kalk-Stammdaten: ersetzt die 2 % durch
 // abschlag × (Wohnung + Stellplatz), abgezogen vom Wohnungspreis.
-function externPreis(kpWohnung, stellplatzKp, provisionPct, abschlagPct) {
+// sonder (optional, 29.10.2026) = Sonderkonditionen für die eigene Exklusiv-Einheit: der Kundenpreis
+// steigt um sonder.aufschlag × Basis (statt um den Regler-Satz), `aufschlag` in der Rückgabe ist dann
+// die ANGEZEIGTE Provision in € (sonder.provisionPct × Basis) — der volle Aufschlag wird nicht ausgegeben.
+function externPreis(kpWohnung, stellplatzKp, provisionPct, abschlagPct, sonder) {
   const kpIntern = (typeof kpWohnung === 'number' && isFinite(kpWohnung)) ? kpWohnung : 0;
   const stpl = (typeof stellplatzKp === 'number' && isFinite(stellplatzKp)) ? stellplatzKp : 0;
-  const prov = clampProvision(provisionPct);
   const abschlag = clampAbschlag(abschlagPct);
   // Abgabepreis für Externe (der Stellplatzpreis selbst bleibt immer unverändert)
   const kpExtern = abschlag != null
     ? Math.max(0, Math.round(kpIntern - abschlag * (kpIntern + stpl)))
     : Math.round(kpIntern * (1 - EXTERN_RABATT));
   const basis = kpExtern + stpl;
+  if (sonder && isFinite(sonder.aufschlag) && sonder.aufschlag > 0) {
+    const preisAufschlag = Math.round(sonder.aufschlag * basis);
+    return {
+      provisionPct: sonder.provisionPct,
+      aufschlag: Math.round(sonder.provisionPct * basis), // angezeigte Provision in €
+      kp: kpExtern + preisAufschlag,                      // Kundenpreis NUR Wohnung
+      sonder: true,
+    };
+  }
+  const prov = clampProvision(provisionPct);
   const aufschlag = Math.round(prov * basis);      // = Brutto-Provision des Externen in €
   return {
     provisionPct: prov,
@@ -71,16 +105,27 @@ function externPreis(kpWohnung, stellplatzKp, provisionPct, abschlagPct) {
   };
 }
 
+// 29.10.2026: Provisionssatz + Sonderkonditionen des eingeloggten Externen in EINEM Airtable-Zugriff.
+// Wird pro Request in der Session gecacht (ladeExternProfil füllt denselben Cache) — nicht über
+// Requests hinweg, die DB bleibt die Wahrheit. Nicht-Externe / Fehler → { 0, null }.
+async function loadExternKonditionen(session) {
+  const leer = { provisionPct: 0, sonder: null };
+  if (!isExtern(session) || !session.vertrieblerId) return leer;
+  if (session._konditionen) return session._konditionen;
+  try {
+    const rec = await airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId });
+    const f = (rec && rec.fields) || {};
+    session._konditionen = { provisionPct: clampProvision(f[VERTRIEBLER_FIELDS.PROVISION_EXTERN]), sonder: sonderKonditionen(f) };
+    return session._konditionen;
+  } catch (e) {
+    return leer;
+  }
+}
+
 // Lädt den gespeicherten Provisionssatz des eingeloggten Externen aus Airtable.
 // Nicht-Externe / Fehler → 0 (= Abgabepreis; den kennt der Externe ohnehin als 0-%-Preis).
 async function loadProvisionPct(session) {
-  if (!isExtern(session)) return 0;
-  try {
-    const rec = await airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId });
-    return clampProvision(rec && rec.fields && rec.fields[VERTRIEBLER_FIELDS.PROVISION_EXTERN]);
-  } catch (e) {
-    return 0;
-  }
+  return (await loadExternKonditionen(session)).provisionPct;
 }
 
 // Stellplatz/Garagen-KP-Summe pro WE für die LISTE (/api/wohneinheiten), die selbst
@@ -164,6 +209,8 @@ async function ladeExternProfil(session) {
     if (rec && rec.fields) {
       session.nurExklusiv = !!rec.fields[VERTRIEBLER_FIELDS.NUR_EXKLUSIV];
       session.externKontrolle = !!rec.fields[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE];
+      // 29.10.2026: Provision + Sonderkonditionen gleich mitnehmen (spart den zweiten Airtable-Get)
+      session._konditionen = { provisionPct: clampProvision(rec.fields[VERTRIEBLER_FIELDS.PROVISION_EXTERN]), sonder: sonderKonditionen(rec.fields) };
     }
   } catch (e) { /* JWT-Wert bleibt */ }
   return session;
@@ -194,4 +241,5 @@ async function ladeVertrieblerNamen(ids) {
 module.exports = {
   PROVISION_MAX, EXTERN_RABATT, EXTERN_ABSCHLAG_MAX, clampProvision, clampAbschlag, externPreis, loadProvisionPct, ladeStellplatzKpSummen,
   externExklusivIds, externDarfSehen, hatExklusivKontingent, ladeVertrieblerNamen, ladeExternProfil,
+  SONDER_AUFSCHLAG_MAX, sonderKonditionen, istSonderEinheit, loadExternKonditionen,
 };

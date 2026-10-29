@@ -18,10 +18,11 @@ function toNum(v) {
   return isFinite(n) ? n : 0;
 }
 
-function kpWohnungFuerReservierung({ extern, kpBasis, stellplatzKp, provisionPct, snapKaufpreis, abschlagPct }) {
+// sonder (optional, 29.10.2026): Sonderkonditionen für die eigene Exklusiv-Einheit, siehe externPreis().
+function kpWohnungFuerReservierung({ extern, kpBasis, stellplatzKp, provisionPct, snapKaufpreis, abschlagPct, sonder }) {
   const basis = toNum(kpBasis);
   const stpl = toNum(stellplatzKp);
-  if (extern) return externPreis(basis, stpl, provisionPct, abschlagPct).kp;
+  if (extern) return externPreis(basis, stpl, provisionPct, abschlagPct, sonder || null).kp;
   const gesamt = toNum(snapKaufpreis);
   if (gesamt > 0) return Math.max(0, gesamt - stpl);
   return basis;

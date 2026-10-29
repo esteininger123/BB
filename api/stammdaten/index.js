@@ -3,7 +3,7 @@
 //   Vermietungs-Info in einem Response. Nur Admin.
 
 const { verifySession, isExtern } = require('../_lib/auth');
-const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds, ladeVertrieblerNamen, ladeExternProfil } = require('../_lib/extern');
+const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds, ladeVertrieblerNamen, ladeExternProfil, loadExternKonditionen } = require('../_lib/extern');
 const { airtable, listAll } = require('../_lib/airtable');
 const { methodNotAllowed, sendError } = require('../_lib/http');
 const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
@@ -354,19 +354,25 @@ module.exports = async (req, res) => {
           row.stammdaten.externKontrolle = true;
           if (ids.length > 0) row.stammdaten.externExklusivNamen = ids.map(id => namen[id] || '').filter(Boolean);
         });
-      } else {
+      }
+      // 29.10.2026 (Henry/Felix Sziedat): Sonderkonditionen für das EIGENE Exklusiv-Kontingent — Flag
+      // externSonder (für Tab „Meine Exklusiv-Einheiten" in der WE-Liste) + eigener Preisweg.
+      const konditionen = await loadExternKonditionen(session);
+      if (!session.externKontrolle) {
         audit.forEach(row => {
           row.stammdaten.externExklusivFuerMich = row.stammdaten.externExklusiv.length > 0;
+          row.stammdaten.externSonder = !!(konditionen.sonder && row.stammdaten.externExklusiv.includes(session.vertrieblerId));
           delete row.stammdaten.externExklusiv;
         });
       }
-      const prov = await loadProvisionPct(session);
+      const prov = konditionen.provisionPct;
       audit.forEach(row => {
-        const e = externPreis(row.we.kp, row.stellplaetze.kaufpreisSumme, prov, row.stammdaten && row.stammdaten.externAbschlag);
+        const e = externPreis(row.we.kp, row.stellplaetze.kaufpreisSumme, prov, row.stammdaten && row.stammdaten.externAbschlag,
+          (row.stammdaten && row.stammdaten.externSonder) ? konditionen.sonder : null);
         if (row.stammdaten) delete row.stammdaten.externAbschlag; // interner Preis darf nicht rückrechenbar sein
         row.we.kp = e.kp;
         if (row.we.qm > 0) row.we.qmPreis = Math.round((e.kp / row.we.qm) * 100) / 100;
-        row.extern = { provisionPct: e.provisionPct, aufschlag: e.aufschlag };
+        row.extern = { provisionPct: e.provisionPct, aufschlag: e.aufschlag, sonder: !!e.sonder };
       });
       // Preis hängt am jederzeit änderbaren Provisionssatz → 60s-Browser-Cache wäre
       // nach einer Satz-Änderung falsch.
