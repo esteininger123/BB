@@ -71,6 +71,8 @@ function installStubs() {
   });
   stub('api/_lib/extern.js', {
     ladeExternProfil: async (s) => s, // 28.10.2026: „Nur Exklusiv-Einheiten" hier irrelevant
+    loadExternKonditionen: async () => ({ provisionPct: 0, sonder: null }), // 29.10.2026: Sonderkonditionen hier irrelevant
+    istSonderEinheit: () => false,
     externDarfSehen: () => true,
     hatExklusivKontingent: () => false,
     externPreis: (kp) => ({ kp, provisionPct: 0, aufschlag: 0 }),
