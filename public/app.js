@@ -2504,7 +2504,8 @@ function renderTabKalkulator() {
     const kp = (w.kp || 0) > 0 ? ' — ' + Math.round(w.kp).toLocaleString('de-DE') + ' €' : '';
     // 05.06.2026: reservierte / im Notartermin befindliche WEs klar im Label markieren.
     const st = w.status === 'Reserviert' ? '  ·  ⚠ RESERVIERT'
-             : w.status === 'Notartermin' ? '  ·  ⚠ NOTARTERMIN' : '';
+             : w.status === 'Notartermin' ? '  ·  ⚠ NOTARTERMIN'
+             : w.status === 'Beurkundet' ? '  ·  ✔ VERKAUFT (beurkundet)' : ''; // 30.10.2026: nur mit Aktiv-Stammdaten sichtbar
     // 04.10.2026: Exklusiv-Kontingent (Extern sieht nur das eigene, intern = Hinweis).
     const ex = !w.externExklusiv ? ''
              : (state.user && state.user.rolle === 'Extern' && !state.user.externKontrolle) ? '' : '  ·  🔒 EXKLUSIV (EXTERN)'; // 24.10.2026 (Henry): Externe sehen kein Exklusiv-Tag mehr; 28.10.: Kontroll-Account schon
@@ -2560,7 +2561,7 @@ function renderTabKalkulator() {
               const _total = wesByProjekt[p].length;
               // 28.06.2026 (Henry): freie WEs = sichtbare minus Reserviert/Notartermin,
               // damit man pro Objekt direkt die Restverfügbarkeit sieht (z.B. "6 WE / 1 frei").
-              const _frei = wesByProjekt[p].filter(w => w.status !== 'Reserviert' && w.status !== 'Notartermin').length;
+              const _frei = wesByProjekt[p].filter(w => w.status !== 'Reserviert' && w.status !== 'Notartermin' && w.status !== 'Beurkundet').length;
               return `<option value="${esc(p)}" ${aktivesProjekt === p ? 'selected' : ''}>${esc(p)} · ${_total} WE / ${_frei} frei</option>`;
             }).join('')}
           </select>
@@ -2590,6 +2591,8 @@ function renderTabKalkulator() {
                   <span class="we-status-pill reserviert">⚠ RESERVIERT — Verkauf in Reservierung</span>
                 ` : _selWe && _selWe.status === 'Notartermin' ? `
                   <span class="we-status-pill notartermin">⚠ NOTARTERMIN — Verkauf läuft</span>
+                ` : _selWe && _selWe.status === 'Beurkundet' ? `
+                  <span class="we-status-pill beurkundet">✔ VERKAUFT — beurkundet, nur noch zur Kalkulation</span>
                 ` : ''}
                 ${i._vermietungsStatus === 'vermietet' ? `
                   <span class="we-status-pill vermietet">● vermietet</span>
@@ -9895,6 +9898,8 @@ function _renderWeListeContent() {
     ? ' <span class="we-status-pill reserviert" style="margin-left:6px;font-size:10px;">⚠ RESERVIERT</span>'
     : s === 'Notartermin'
     ? ' <span class="we-status-pill notartermin" style="margin-left:6px;font-size:10px;">⚠ NOTARTERMIN</span>'
+    : s === 'Beurkundet'
+    ? ' <span class="we-status-pill beurkundet" style="margin-left:6px;font-size:10px;">✔ VERKAUFT</span>'
     : '';
   // 04.10.2026 (Henry): Exklusiv-Kontingent. Extern: „Exklusiv für dich" (fremde Kontingente
   // liefert der Server gar nicht aus). Intern: Hinweis, an wen die Einheit exklusiv vergeben ist.

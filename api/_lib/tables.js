@@ -225,9 +225,17 @@ const WE_STATUS_VERMARKTUNG = 'Vermarktung / Im Verkauf';
 // Status, bei denen eine WE in der Verkaufs-/Rechen-Liste SICHTBAR ist (Edgar 05.06.2026):
 // aktiv vermarktet + reserviert + Notartermin läuft. Ab 'Beurkundet' (und danach) raus = faktisch verkauft.
 const WE_STATUS_SICHTBAR = ['Vermarktung / Im Verkauf', 'Reserviert', 'Notartermin'];
+// 30.10.2026 (Henry/Peterhof WE 6 Hornbach): Beurkundete Einheiten bleiben in der Backstube
+// abrufbar, SOLANGE ein Kalk-Stammdatensatz mit Status 'Aktiv' auf ihnen liegt (Kunden-Kalk
+// nach dem Notartermin weiter exportierbar). Ohne Aktiv-Stammdaten verschwinden sie wie bisher.
+// Die Aufrufer dürfen 'Beurkundet' deshalb NUR in Kombination mit dem Aktiv-Stammdaten-Filter
+// zulassen — nie im Admin-showAll-Modus und nie für Reservierungen.
+const WE_STATUS_BEURKUNDET = 'Beurkundet';
 // Baut die filterByFormula-OR-Klausel über das Status-Feld (Feld-NAME 'Status').
-function weStatusSichtbarFormula() {
-  return 'OR(' + WE_STATUS_SICHTBAR.map((s) => `{Status}='${s}'`).join(', ') + ')';
+// opts.mitBeurkundet = true → zusätzlich 'Beurkundet' (siehe oben).
+function weStatusSichtbarFormula(opts) {
+  const liste = (opts && opts.mitBeurkundet) ? WE_STATUS_SICHTBAR.concat([WE_STATUS_BEURKUNDET]) : WE_STATUS_SICHTBAR;
+  return 'OR(' + liste.map((s) => `{Status}='${s}'`).join(', ') + ')';
 }
 const MAKLER_BUB = 'B&B Immo GmbH';
 // 2026-06-25 (Edgar): Backstube/Kalkulator zeigte nur 'B&B Immo GmbH', weil der Firma-
@@ -452,6 +460,7 @@ module.exports = {
   KALK_STAMMDATEN_FIELDS,
   WE_STATUS_VERMARKTUNG,
   WE_STATUS_SICHTBAR,
+  WE_STATUS_BEURKUNDET,
   weStatusSichtbarFormula,
   MAKLER_BUB,
   MAKLER_FIRMEN,

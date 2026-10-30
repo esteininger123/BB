@@ -15,6 +15,7 @@ const {
   MIETVERTRAG_FIELDS,
   KALK_STAMMDATEN_FIELDS,
   weStatusSichtbarFormula,
+  WE_STATUS_BEURKUNDET, KALK_STATUS_AKTIV, // 30.10.2026: Beurkundet nur mit Aktiv-Stammdaten
   maklerFirmaFormula,
 } = require('../_lib/tables');
 
@@ -63,7 +64,9 @@ module.exports = async (req, res) => {
 
   try {
     // 1) Alle WEs in Vermarktung (B&B Immo) parallel laden
-    const formula = `AND(${weStatusSichtbarFormula()}, ${maklerFirmaFormula()})`;
+    // 30.10.2026 (Henry/Peterhof WE 6): beurkundete WEs mitladen, unten aber nur behalten,
+    // wenn ein Aktiv-Stammdatensatz existiert (siehe Filter nach dem Aggregat).
+    const formula = `AND(${weStatusSichtbarFormula({ mitBeurkundet: true })}, ${maklerFirmaFormula()})`;
     const [weRecs, stammRecs, stplRecs, vertraegeRecs] = await Promise.all([
       listAll(TABLES.WOHNEINHEIT, {
         filterByFormula: formula,
@@ -315,6 +318,9 @@ module.exports = async (req, res) => {
         } : null,
       };
     });
+    // 30.10.2026 (Henry/Peterhof WE 6): Beurkundete Einheiten nur mit Aktiv-Stammdaten in der Liste.
+    audit = audit.filter(row => row.status !== WE_STATUS_BEURKUNDET
+      || (row.stammdaten && row.stammdaten.status === KALK_STATUS_AKTIV));
 
     // Iter-3 H6 (21.05.2026): Browser-Cache 60s. Der Endpoint lädt ~14k Records
     // pro Aufruf (WEs + Stammdaten + Stellplätze + Mietverträge). Henry wechselt im

@@ -293,7 +293,9 @@ module.exports = async (req, res) => {
       formula = `AND(${weStatusSichtbarFormula()}, ${maklerFirmaFormula()}, ${objektFormula})`;
     } else {
       const weIdFormula = 'OR(' + weIdArr.map(id => `RECORD_ID()='${id}'`).join(', ') + ')';
-      formula = `AND(${weStatusSichtbarFormula()}, ${maklerFirmaFormula()}, ${objektFormula}, ${weIdFormula})`;
+      // 30.10.2026 (Henry/Peterhof WE 6): 'Beurkundet' hier erlaubt — die WE-ID-Liste stammt
+      // ausschließlich aus Aktiv-Stammdaten, d.h. nur bewusst aktiv gehaltene verkaufte Einheiten.
+      formula = `AND(${weStatusSichtbarFormula({ mitBeurkundet: true })}, ${maklerFirmaFormula()}, ${objektFormula}, ${weIdFormula})`;
     }
 
     const fields = [
