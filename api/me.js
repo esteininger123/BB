@@ -31,7 +31,7 @@ module.exports = async (req, res) => {
           return res.status(403).json({ error: 'Provisionssatz gibt es nur für externe Vertriebler.' });
         }
         // 02.11.2026 (Henry): Provision ist fest 7 % — keine Änderung mehr möglich (auch nicht per API).
-        return res.status(400).json({ error: `Der Provisionssatz ist fest ${Math.round(PROVISION_FIX * 100)} % und kann nicht geändert werden.` });
+        return res.status(400).json({ error: `Der Provisionssatz ist fest ${PROVISION_FIX * 100} % und kann nicht geändert werden.` });
         const n = typeof body.provisionPct === 'number' ? body.provisionPct : parseFloat(body.provisionPct);
         if (!isFinite(n) || n < 0 || n > PROVISION_MAX + 1e-9) {
           return res.status(400).json({ error: `provisionPct muss zwischen 0 und ${PROVISION_MAX} (= ${PROVISION_MAX * 100} %) liegen.` });
