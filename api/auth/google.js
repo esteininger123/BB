@@ -3,7 +3,7 @@
 // Validiert Google-Token, prüft Whitelist in Kalk-Vertriebler, setzt Session-Cookie.
 
 const { verifyGoogleToken, signSession, setSessionCookie } = require('../_lib/auth');
-const { clampProvision, sonderKonditionen } = require('../_lib/extern');
+const { clampProvision, PROVISION_FIX, sonderKonditionen } = require('../_lib/extern');
 const { airtable, escapeFormulaString } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { TABLES, VERTRIEBLER_FIELDS } = require('../_lib/tables');
@@ -54,7 +54,7 @@ module.exports = async (req, res) => {
       rolle:   f[VERTRIEBLER_FIELDS.ROLLE]   || 'Vertriebler',
       fotoUrl: f[VERTRIEBLER_FIELDS.FOTO]    || googleUser.picture || '',
       // 06.07.2026 — Provisionssatz externer Vertriebler (Dezimal, nur für Rolle 'Extern').
-      provisionPct: clampProvision(f[VERTRIEBLER_FIELDS.PROVISION_EXTERN]),
+      provisionPct: (f[VERTRIEBLER_FIELDS.ROLLE] === 'Extern') ? PROVISION_FIX : clampProvision(f[VERTRIEBLER_FIELDS.PROVISION_EXTERN]), // 02.11.2026: fest 7 %
       externKontrolle: !!f[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE], // 28.10.2026
       // 29.10.2026: Sonderkonditionen → nur der angezeigte Satz (z. B. 0.083), nie der Aufschlag.
       exklusivProvisionPct: (sonderKonditionen(f) || {}).provisionPct || 0,

@@ -2632,11 +2632,11 @@ function renderTabKalkulator() {
                   <div class="we-extern-info text-small" style="margin-top:6px;padding:6px 10px;border-left:3px solid var(--accent);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
                     <span>
                       ${i._externInfo.sonder
-                        ? `⭐ Exklusiv-Einheit — feste Provision: <strong>${(i._externInfo.provisionPct * 100).toLocaleString('de-DE')} % = ${Math.round(i._externInfo.aufschlag).toLocaleString('de-DE')} €</strong> (dein Provisions-Regler gilt hier nicht)`
+                        ? `⭐ Exklusiv-Einheit — feste Provision: <strong>${(i._externInfo.provisionPct * 100).toLocaleString('de-DE')} % = ${Math.round(i._externInfo.aufschlag).toLocaleString('de-DE')} €</strong> (statt der normalen 7 %)`
                         : i._externInfo.provisionPct > 0
                         ? `Kundenpreis enthält deine Provision: <strong>${(i._externInfo.provisionPct * 100).toLocaleString('de-DE')} % = ${Math.round(i._externInfo.aufschlag).toLocaleString('de-DE')} €</strong>`
                         : `Provisionssatz 0 % — du verkaufst zum Abgabepreis (keine Provision).`}
-                      ${i._externInfo.sonder ? '' : '· Satz ändern: <a href="#/start">Start</a>'}
+                      ${''/* 02.11.2026 (Henry): Provision fest 7 %, kein „Satz ändern" mehr */}
                     </span>
                     <button type="button" onclick="window._externInfoToggle(false)" title="Ausblenden — z.B. wenn der Kunde mitschaut (ⓘ holt die Info zurück)" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:15px;line-height:1;padding:0;flex-shrink:0;">×</button>
                   </div>
@@ -9836,7 +9836,7 @@ function _renderWeListeContent() {
         ${btn('allgemein', 'Allgemeine Einheiten (' + nAll + ')')}
         ${btn('exklusiv', '⭐ Meine Exklusiv-Einheiten · ' + _externSonderPctLabel() + ' Provision (' + nEx + ')')}
       </div>
-      ${tab === 'exklusiv' ? `<div class="text-small" style="margin:0 0 12px;padding:8px 12px;border-left:3px solid #E2C46A;background:#FBF3E0;color:#5A4300;">Diese Einheiten sind <strong>exklusiv für dich</strong> freigeschaltet. Es gilt eine <strong>feste Provision von ${_externSonderPctLabel()}</strong> — unabhängig von deinem Regler. Die Kundenpreise sind bereits inklusive.</div>` : ''}`;
+      ${tab === 'exklusiv' ? `<div class="text-small" style="margin:0 0 12px;padding:8px 12px;border-left:3px solid #E2C46A;background:#FBF3E0;color:#5A4300;">Diese Einheiten sind <strong>exklusiv für dich</strong> freigeschaltet. Es gilt eine <strong>feste Provision von ${_externSonderPctLabel()}</strong> statt der normalen 7 %. Die Kundenpreise sind bereits inklusive.</div>` : ''}`;
     audit = audit.filter(r => !!(r.stammdaten && r.stammdaten.externSonder) === (tab === 'exklusiv'));
   }
 
@@ -10741,6 +10741,7 @@ window._weListeOpenWe = _weListeOpenWe;
 // Speichern werden alle Daten neu geladen, damit überall der neue Kundenpreis steht.
 
 const EXTERN_PROVISION_MAX_PCT = 7;   // muss zu PROVISION_MAX (0.07) im Backend passen
+const EXTERN_PROVISION_FIX_PCT = 7;   // 02.11.2026 (Henry): Provision Externer fest 7 %, Regler abgeschafft (PROVISION_FIX im Backend)
 
 // 06.07.2026 (Henry): Die Provisions-Zeile im Kalkulator muss der Vertriebler
 // ausblenden können (Kunde schaut mit). Persistent pro User via localStorage —
@@ -10806,9 +10807,9 @@ function _externUpdatePreview() {
   const slider = document.getElementById('extern-prov-slider');
   const out = document.getElementById('extern-prov-wert');
   const bsp = document.getElementById('extern-beispiel');
-  if (!slider || !out) return;
-  const p = parseFloat(slider.value) || 0;
-  out.textContent = p.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %';
+  // 02.11.2026: ohne Regler (fest 7 %) wird das Beispiel mit dem festen Satz gerechnet.
+  const p = slider ? (parseFloat(slider.value) || 0) : EXTERN_PROVISION_FIX_PCT;
+  if (out) out.textContent = p.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %';
   if (bsp) {
     const b = _externBeispiel(p);
     bsp.innerHTML = `
@@ -10852,17 +10853,17 @@ function renderExternStart() {
   app.innerHTML = `
     <div class="main" style="max-width:860px;margin:0 auto;">
       <h1 class="page-title" style="margin:18px 0 6px;">Willkommen bei der B&amp;B Backstube</h1>
-      <div class="text-tertiary" style="margin-bottom:22px;">So funktioniert der Verkauf als externer Vertriebspartner — einmal lesen, Provision einstellen, loslegen.</div>
+      <div class="text-tertiary" style="margin-bottom:22px;">So funktioniert der Verkauf als externer Vertriebspartner — einmal lesen, loslegen.</div>
 
       <div class="card" style="margin-bottom:16px;">
         <div class="card-title">1 · Der Abgabepreis</div>
-        <p style="margin:0;line-height:1.55;">Jede Wohneinheit hat einen von B&amp;B fest kalkulierten <strong>Abgabepreis</strong>. Das ist der Preis, zu dem du verkaufst, wenn du <strong>0&nbsp;% Provision</strong> einstellst — dann verdienst du allerdings auch nichts.</p>
+        <p style="margin:0;line-height:1.55;">Jede Wohneinheit hat einen von B&amp;B fest kalkulierten <strong>Abgabepreis</strong>. Das ist der Betrag, den B&amp;B erhält. Darauf kommt deine Provision — so entsteht der Kundenpreis, den du in der App siehst.</p>
       </div>
 
       <div class="card" style="margin-bottom:16px;">
-        <div class="card-title">2 · Deine Provision (0–7 %)</div>
-        <p style="margin:0 0 10px;line-height:1.55;">Du bestimmst deinen Provisionssatz selbst — bis maximal <strong>7&nbsp;%</strong>. Berechnet wird die Provision vom <strong>Gesamt-Abgabepreis</strong> (Wohnung <em>plus</em> Stellplätze/Garagen). Aufgeschlagen wird sie aber <strong>nur auf den Wohnungspreis</strong> — Stellplätze und Garagen sind bereits marktüblich eingepreist und bleiben unverändert.</p>
-        <p style="margin:0 0 10px;line-height:1.55;">Im Rechner und in der Wohnungsliste siehst du immer schon <strong>deine Kundenpreise</strong> — deine Provision wird <strong>automatisch in alle Preise eingerechnet</strong>. Auf der Rechnerseite selbst taucht das Wort Provision bewusst nirgends auf: Du kannst den Rechner also bedenkenlos gemeinsam mit deinem Kunden anschauen. Wichtig zu verstehen: <strong>je niedriger dein Satz, desto besser der Preis für deinen Kunden</strong> — und desto weniger verdienst du. Diesen Hebel hast du selbst in der Hand.</p>
+        <div class="card-title">2 · Deine Provision: fest 7 %</div>
+        <p style="margin:0 0 10px;line-height:1.55;">Deine Provision beträgt <strong>7&nbsp;%</strong> und ist für alle Einheiten gleich. Berechnet wird sie vom <strong>Gesamt-Abgabepreis</strong> (Wohnung <em>plus</em> Stellplätze/Garagen). Aufgeschlagen wird sie aber <strong>nur auf den Wohnungspreis</strong> — Stellplätze und Garagen sind bereits marktüblich eingepreist und bleiben unverändert.</p>
+        <p style="margin:0 0 10px;line-height:1.55;">Im Rechner und in der Wohnungsliste siehst du immer schon <strong>deine Kundenpreise</strong> — deine Provision ist <strong>automatisch in alle Preise eingerechnet</strong>. Auf der Rechnerseite selbst taucht das Wort Provision bewusst nirgends auf: Du kannst den Rechner also bedenkenlos gemeinsam mit deinem Kunden anschauen.</p>
         <table class="table" style="width:100%;max-width:460px;font-size:13px;" aria-label="Rechenbeispiel">
           <tbody id="extern-beispiel"></tbody>
         </table>
@@ -10871,17 +10872,16 @@ function renderExternStart() {
       ${_externSonderAktiv() ? `
       <div class="card" style="margin-bottom:16px;border-left:3px solid #E2C46A;">
         <div class="card-title">⭐ Deine Exklusiv-Einheiten</div>
-        <p style="margin:0;line-height:1.55;">Für Einheiten, die <strong>exklusiv für dich</strong> freigeschaltet sind, gilt eine <strong>feste Provision von ${_externSonderPctLabel()}</strong> — unabhängig vom Regler unten. Die Kundenpreise dieser Einheiten sind bereits inklusive. Du findest sie in der <a href="#/we-liste">Wohnungsliste</a> im Tab „Meine Exklusiv-Einheiten"; im Kalkulator stehen sie in der Gruppe „⭐ Exklusiv für dich".</p>
+        <p style="margin:0;line-height:1.55;">Für Einheiten, die <strong>exklusiv für dich</strong> freigeschaltet sind, gilt eine <strong>feste Provision von ${_externSonderPctLabel()}</strong> statt der normalen 7 %. Die Kundenpreise dieser Einheiten sind bereits inklusive. Du findest sie in der <a href="#/we-liste">Wohnungsliste</a> im Tab „Meine Exklusiv-Einheiten"; im Kalkulator stehen sie in der Gruppe „⭐ Exklusiv für dich".</p>
       </div>` : ''}
+      <!-- 02.11.2026 (Henry): Provisions-Regler (0–7 %) abgeschafft — Provision ist fest 7 %. -->
       <div class="card" id="extern-prov-card" style="margin-bottom:16px;border-left:3px solid var(--accent);">
-        <div class="card-title">Deine Provision einstellen</div>
+        <div class="card-title">Deine Provision</div>
         <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:8px 0 4px;">
-          <input type="range" id="extern-prov-slider" min="0" max="${EXTERN_PROVISION_MAX_PCT}" step="0.25" value="${aktuellPct}"
-                 oninput="window._externUpdatePreview()" style="flex:1;min-width:220px;">
-          <div id="extern-prov-wert" style="font-size:22px;font-weight:600;min-width:90px;text-align:right;">0,00 %</div>
-          <button id="extern-prov-save" onclick="window._externProvSave()">Provisionssatz speichern</button>
+          <div id="extern-prov-wert" style="font-size:22px;font-weight:600;">7,00 %</div>
+          <div class="text-small">fest für alle Einheiten — bereits in allen Kundenpreisen enthalten</div>
         </div>
-        <div class="text-tertiary text-small">Gespeichert ist aktuell: <strong>${aktuellPct.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %</strong>. Du kannst den Satz hier jederzeit ändern — alle Preise in der App passen sich sofort an. Für laufende Beratungen gilt: Preis beim Kunden nennen, dann Satz nicht mehr wechseln. Tipp: Die Provisions-Zeile im Kalkulator blendest du mit dem × aus (wenn der Kunde mitschaut) — das ⓘ holt sie zurück.</div>
+        <div class="text-tertiary text-small">Tipp: Die Provisions-Zeile im Kalkulator blendest du mit dem × aus (wenn der Kunde mitschaut) — das ⓘ holt sie zurück.</div>
       </div>
 
       <!-- 23.10.2026 (Henry): Der frühere Verbindlichkeits-Block („Alle Angaben sind verbindlich“,
@@ -12213,9 +12213,9 @@ const EXTERN_TOUR_STEPS = [
     needsView: 'extern-start',
   },
   {
-    title: 'Schritt 1 — Deine Provision einstellen',
-    action: 'Stell mit dem Regler deinen Provisionssatz ein (0 bis 7 %) und klick „Provisionssatz speichern". Die Provision wird vom Gesamt-Abgabepreis (Wohnung + Stellplatz/Garage) berechnet und nur auf den Wohnungspreis aufgeschlagen.',
-    tip: 'Je niedriger dein Satz, desto besser der Preis für deinen Kunden — und desto weniger verdienst du. Diesen Hebel hast du selbst in der Hand; ändern geht jederzeit hier.',
+    title: 'Schritt 1 — Deine Provision: fest 7 %',
+    action: 'Hier siehst du dein Provisionsmodell: 7 % fest für alle Einheiten. Die Provision wird vom Gesamt-Abgabepreis (Wohnung + Stellplatz/Garage) berechnet und nur auf den Wohnungspreis aufgeschlagen — sie ist in allen Kundenpreisen der App bereits enthalten.',
+    tip: 'Auf der Rechnerseite taucht das Wort Provision nicht auf — die kannst du mit dem Kunden gemeinsam anschauen.',
     target: '#extern-prov-card',
     needsView: 'extern-start',
   },
