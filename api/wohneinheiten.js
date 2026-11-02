@@ -11,6 +11,7 @@ const {
   KALK_STAMMDATEN_FIELDS, KALK_STATUS_AKTIV,
   weStatusSichtbarFormula, maklerFirmaFormula
 } = require('./_lib/tables');
+const { istPartnerEinheit } = require('./_lib/tables'); // 02.11.2026: Mike/Immoheld-Einheiten nirgends zeigen
 const { weRecordToApi } = require('./_lib/mappers');
 // 07.09.2026 — Varianten (möbliert): zweite Angebots-Karte für dieselbe WE,
 // ohne zweiten Wohneinheit-Record in Airtable. Siehe _lib/we-variante.js.
@@ -311,6 +312,7 @@ module.exports = async (req, res) => {
       WE_FIELDS.STELLPLATZ_BEDARF, // 09.09.2026 — „Mieter wünscht Stellplatz"-Pill im Kalkulator-Kopf
       WE_FIELDS.STATUS,            // 05.06.2026 — für Reserviert/Notartermin-Markierung im Frontend
       WE_FIELDS.KUECHE,            // 09.10.2026 — Einbauküche (Vermietereigentum) → Batch-Detail/Rechner
+      WE_FIELDS.ZUSTAENDIGER_MAKLER, // 02.11.2026 — Partner-Einheiten (Mike/Immoheld) ausfiltern
     ];
 
     const records = await listAll(TABLES.WOHNEINHEIT, {
@@ -343,6 +345,9 @@ module.exports = async (req, res) => {
 
     const out = [];
     records.forEach(r => {
+      // 02.11.2026 (Henry): Einheiten der Partner Mike/Immoheld tauchen NIRGENDS auf (auch nicht für Admins,
+      // auch nicht als Variante) — sie werden ausschließlich über die Partner vertrieben.
+      if (istPartnerEinheit(r.fields)) return;
       // Eine WE, die NUR wegen einer Variante geladen wurde (kein Aktiv-Stammsatz),
       // erscheint selbst nicht als Karte — sonst tauchte sie unmöbliert im Vertrieb auf.
       if (aktiveWeIds.has(r.id) || showAll) {

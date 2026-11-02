@@ -237,6 +237,24 @@ function weStatusSichtbarFormula(opts) {
   const liste = (opts && opts.mitBeurkundet) ? WE_STATUS_SICHTBAR.concat([WE_STATUS_BEURKUNDET]) : WE_STATUS_SICHTBAR;
   return 'OR(' + liste.map((s) => `{Status}='${s}'`).join(', ') + ')';
 }
+// 02.11.2026 (Henry): WEs, die über diese Partner vertrieben werden, dürfen NIRGENDS in der Backstube
+// auftauchen — keine Liste, kein Picker, kein Rechner, keine Reservierung, auch nicht für Admins. Kennzeichen
+// ist das WE-Feld „Zuständiger Makler" (WE_FIELDS.ZUSTAENDIGER_MAKLER, Makler-Tabelle tblMN0808AYyCOzV5).
+// Sparkasse Freiburg (rec1pVAtVAX2x5CtF) steht bewusst NICHT hier: sie hat eigene Backstube-Accounts.
+const PARTNER_MAKLER_VERSTECKT = {
+  recPUqy1OHWLK40tS: 'Mike Baudendistel / Betongold',
+  recWdrEyAQSejMlIk: 'Immoheld / Dominik Konrad',
+};
+// true, wenn die WE einem versteckten Partner zugeordnet ist (Link-Feld: IDs oder {id,name}-Objekte).
+function istPartnerEinheit(weFields) {
+  const raw = (weFields || {})[WE_FIELDS.ZUSTAENDIGER_MAKLER];
+  if (!Array.isArray(raw)) return false;
+  return raw.some(x => {
+    const id = (x && typeof x === 'object' && x.id) ? x.id : x;
+    return !!(id && PARTNER_MAKLER_VERSTECKT[id]);
+  });
+}
+
 const MAKLER_BUB = 'B&B Immo GmbH';
 // 2026-06-25 (Edgar): Backstube/Kalkulator zeigte nur 'B&B Immo GmbH', weil der Firma-
 // Lookup hart auf diesen einen Namen geprüft wurde. Objekte der Schwester-Gesellschaften
@@ -464,6 +482,8 @@ module.exports = {
   weStatusSichtbarFormula,
   MAKLER_BUB,
   MAKLER_FIRMEN,
+  PARTNER_MAKLER_VERSTECKT,
+  istPartnerEinheit,
   maklerFirmaFormula,
   TEAM_BB_LABEL,
   KALK_STATUS_AKTIV,

@@ -19,6 +19,7 @@ const {
   maklerFirmaFormula,
 } = require('../_lib/tables');
 
+const { istPartnerEinheit } = require('../_lib/tables'); // 02.11.2026: Mike/Immoheld-Einheiten nirgends zeigen
 function num(v) {
   if (v === null || v === undefined || v === '') return null;
   const n = parseFloat(v);
@@ -76,6 +77,7 @@ module.exports = async (req, res) => {
           WE_FIELDS.STATUS,
           WE_FIELDS.ZUFRIEDENHEIT, WE_FIELDS.MAENGEL_TEXT, // 2026-08-21 (Henry) — Spalten Zufr./Mängel in WE-Liste
           WE_FIELDS.STELLPLATZ_BEDARF, // 2026-09-09 (Henry) — Spalte StPl-Wunsch in WE-Liste
+          WE_FIELDS.ZUSTAENDIGER_MAKLER, // 02.11.2026 — Partner-Einheiten (Mike/Immoheld) ausfiltern
         ],
         pageSize: 100,
       }, 2000),
@@ -143,7 +145,8 @@ module.exports = async (req, res) => {
     });
 
     // 3) Aggregat pro WE
-    let audit = weRecs.map(weRec => {
+    // 02.11.2026 (Henry): Partner-Einheiten (Mike/Immoheld) tauchen nirgends auf — auch nicht im Admin-Audit.
+    let audit = weRecs.filter(r => !istPartnerEinheit(r.fields)).map(weRec => {
       const wf = weRec.fields || {};
       const titel = (Array.isArray(wf[WE_FIELDS.LAGE_BEZ]) ? wf[WE_FIELDS.LAGE_BEZ][0] : wf[WE_FIELDS.LAGE_BEZ]) || '';
       const we = {

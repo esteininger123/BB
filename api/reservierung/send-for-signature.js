@@ -42,6 +42,7 @@ const {
   PROJEKT_FIELDS, VERTRIEBLER_FIELDS, STELLPLATZ_FIELDS
 } = require('../_lib/tables');
 
+const { istPartnerEinheit } = require('../_lib/tables'); // 02.11.2026: Partner-Einheiten nicht reservierbar
 const PANDADOC_API = 'https://api.pandadoc.com/public/v1';
 
 module.exports = async (req, res) => {
@@ -78,6 +79,8 @@ module.exports = async (req, res) => {
       airtable('get', TABLES.WOHNEINHEIT, { recordId: weId }),
       airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId }),
     ]);
+    // 02.11.2026 (Henry): Partner-Einheiten (Mike/Immoheld) sind nicht reservierbar.
+    if (istPartnerEinheit(weRec && weRec.fields)) return res.status(403).json({ error: 'Diese Einheit wird über einen Vertriebspartner verkauft und kann hier nicht reserviert werden.' });
 
     // QA-Fix 2026-05-23 (Audit B-1 BLOCKER): Robuste Owner-Normalisierung wie in
     // canAccess (kunden/[id].js) und canAccessKunde (snapshots.js). Vorher

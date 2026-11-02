@@ -27,6 +27,7 @@ const { airtable, listAll } = require('../_lib/airtable');
 const { appendActivityZeile } = require('../_lib/notizen');
 const { TABLES, KUNDEN_FIELDS, VERTRIEBLER_FIELDS, WE_FIELDS, SNAPSHOT_FIELDS, KALK_STAMMDATEN_FIELDS, KALK_STATUS_AKTIV } = require('../_lib/tables');
 
+const { istPartnerEinheit } = require('../_lib/tables'); // 02.11.2026: Partner-Einheiten nicht reservierbar
 const TOKEN_KIND = 'reserv-sign';
 const TOKEN_TAGE = 14;
 
@@ -141,6 +142,8 @@ module.exports = async (req, res) => {
     ]);
     // Variante: Kaufpreis (Basis + Ausstattungspaket) und WE-Nr. überlagern die WE-Werte,
     // damit Reservierung und Aktivitätslog den möblierten Preis führen.
+    // 02.11.2026 (Henry): Partner-Einheiten (Mike/Immoheld) sind nicht reservierbar.
+    if (istPartnerEinheit(weRec && weRec.fields)) return res.status(403).json({ error: 'Diese Einheit wird über einen Vertriebspartner verkauft und kann hier nicht reserviert werden.' });
     const wf = variante ? applyVariante((weRec && weRec.fields) || {}, variante.info) : ((weRec && weRec.fields) || {});
     const kpBasis = num(wf[WE_FIELDS.KAUFPREIS]);
     if (kpBasis <= 0) return res.status(400).json({ error: 'Für diese Wohneinheit ist kein Kaufpreis gepflegt' });

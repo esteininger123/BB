@@ -35,6 +35,7 @@ const {
   KALK_STATUS_ARCHIV,
 } = require('../_lib/tables');
 
+const { istPartnerEinheit } = require('../_lib/tables'); // 02.11.2026: Mike/Immoheld-Einheiten nirgends zeigen
 function num(v) {
   if (v === null || v === undefined || v === '') return null;
   const n = parseFloat(v);
@@ -1172,6 +1173,8 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
   // --- 1) Wohneinheit-Datensatz lesen ---
   const weResp = (P.weRec && P.weRec.fields) ? P.weRec : await airtable('get', TABLES.WOHNEINHEIT, { recordId: weId });
   if (!weResp || !weResp.fields) return { status: 404, body: { error: 'WE nicht gefunden' } };
+  // 02.11.2026 (Henry): Partner-Einheiten (Mike/Immoheld) sind in der Backstube nicht verfügbar — für niemanden.
+  if (istPartnerEinheit(weResp.fields)) return { status: 404, body: { error: 'Diese Einheit wird über einen Vertriebspartner verkauft und ist in der Backstube nicht verfügbar.' } };
   // Variante: Preis (Basis-KP + Ausstattungspaket), Name und Exposé überlagern die WE-Werte.
   const wf = variante ? applyVariante(weResp.fields, variante.info) : (weResp.fields || {});
   const we = {
