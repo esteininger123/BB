@@ -73,6 +73,7 @@ function installStubs() {
     ladeExternProfil: async (s) => s, // 28.10.2026: „Nur Exklusiv-Einheiten" hier irrelevant
     loadExternKonditionen: async () => ({ provisionPct: 0, sonder: null }), // 29.10.2026: Sonderkonditionen hier irrelevant
     istSonderEinheit: () => false,
+    externDarfObjekt: () => true, // 02.11.2026: „Nur Objekte“ hier irrelevant
     externDarfSehen: () => true,
     hatExklusivKontingent: () => false,
     externPreis: (kp) => ({ kp, provisionPct: 0, aufschlag: 0 }),
