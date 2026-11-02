@@ -19,7 +19,7 @@
 // Henrys Wunsch komplett entfernt — „verwirrt nur".)
 
 const { airtable, listAll } = require('./airtable');
-const { TABLES, VERTRIEBLER_FIELDS, STELLPLATZ_FIELDS, MIETVERTRAG_FIELDS, KALK_STAMMDATEN_FIELDS } = require('./tables');
+const { TABLES, VERTRIEBLER_FIELDS, STELLPLATZ_FIELDS, MIETVERTRAG_FIELDS, KALK_STAMMDATEN_FIELDS, WE_FIELDS } = require('./tables');
 const { isExtern } = require('./auth');
 const { linkIds, dedupe } = require('./stellplatz');
 
@@ -218,11 +218,20 @@ async function ladeExternProfil(session) {
     if (rec && rec.fields) {
       session.nurExklusiv = !!rec.fields[VERTRIEBLER_FIELDS.NUR_EXKLUSIV];
       session.externKontrolle = !!rec.fields[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE];
+      session.nurObjekte = dedupe(linkIds(rec.fields[VERTRIEBLER_FIELDS.NUR_OBJEKTE])); // 02.11.2026: Objekt-Filter
       // 29.10.2026: Provision + Sonderkonditionen gleich mitnehmen (spart den zweiten Airtable-Get)
       session._konditionen = Object.assign(provisionAusRecord(rec.fields), { sonder: sonderKonditionen(rec.fields) }); // 02.11.2026
     }
   } catch (e) { /* JWT-Wert bleibt */ }
   return session;
+}
+
+// 02.11.2026 (Henry): Objekt-Filter des Externen („Nur Objekte" im Kalk-Vertriebler, über ladeExternProfil in
+// session.nurObjekte). Leer = alles erlaubt; sonst muss das Objekt der WE (WE_FIELDS.PROJEKT) in der Liste stehen.
+function externDarfObjekt(weFields, session) {
+  const nur = (session && session.nurObjekte) || [];
+  if (!isExtern(session) || nur.length === 0) return true;
+  return linkIds((weFields || {})[WE_FIELDS.PROJEKT]).some(id => nur.includes(id));
 }
 
 // true, wenn die Einheit extern freigegeben UND einem Exklusiv-Kontingent zugeordnet ist
@@ -250,5 +259,5 @@ async function ladeVertrieblerNamen(ids) {
 module.exports = {
   PROVISION_MAX, PROVISION_FIX, provisionAusRecord, EXTERN_RABATT, EXTERN_ABSCHLAG_MAX, clampProvision, clampAbschlag, externPreis, loadProvisionPct, ladeStellplatzKpSummen,
   externExklusivIds, externDarfSehen, hatExklusivKontingent, ladeVertrieblerNamen, ladeExternProfil,
-  SONDER_AUFSCHLAG_MAX, sonderKonditionen, istSonderEinheit, loadExternKonditionen,
+  SONDER_AUFSCHLAG_MAX, sonderKonditionen, istSonderEinheit, loadExternKonditionen, externDarfObjekt,
 };

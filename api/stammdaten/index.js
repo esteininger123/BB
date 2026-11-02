@@ -3,7 +3,7 @@
 //   Vermietungs-Info in einem Response. Nur Admin.
 
 const { verifySession, isExtern } = require('../_lib/auth');
-const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds, ladeVertrieblerNamen, ladeExternProfil, loadExternKonditionen } = require('../_lib/extern');
+const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds, ladeVertrieblerNamen, ladeExternProfil, loadExternKonditionen, externDarfObjekt } = require('../_lib/extern');
 const { airtable, listAll } = require('../_lib/airtable');
 const { methodNotAllowed, sendError } = require('../_lib/http');
 const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
@@ -78,6 +78,7 @@ module.exports = async (req, res) => {
           WE_FIELDS.ZUFRIEDENHEIT, WE_FIELDS.MAENGEL_TEXT, // 2026-08-21 (Henry) — Spalten Zufr./Mängel in WE-Liste
           WE_FIELDS.STELLPLATZ_BEDARF, // 2026-09-09 (Henry) — Spalte StPl-Wunsch in WE-Liste
           WE_FIELDS.ZUSTAENDIGER_MAKLER, // 02.11.2026 — Partner-Einheiten (Mike/Immoheld) ausfiltern
+          WE_FIELDS.PROJEKT,             // 02.11.2026 — Objekt-Filter „Nur Objekte" für Externe
         ],
         pageSize: 100,
       }, 2000),
@@ -148,6 +149,7 @@ module.exports = async (req, res) => {
     // 02.11.2026 (Henry): Partner-Einheiten (Mike/Immoheld) tauchen nirgends auf — auch nicht im Admin-Audit.
     let audit = weRecs.filter(r => !istPartnerEinheit(r.fields)).map(weRec => {
       const wf = weRec.fields || {};
+      const _weFelder = wf; // 02.11.2026: Rohfelder für den Objekt-Filter unten (verlassen den Server nicht)
       const titel = (Array.isArray(wf[WE_FIELDS.LAGE_BEZ]) ? wf[WE_FIELDS.LAGE_BEZ][0] : wf[WE_FIELDS.LAGE_BEZ]) || '';
       const we = {
         id: weRec.id,
@@ -254,6 +256,7 @@ module.exports = async (req, res) => {
 
       return {
         we,
+        _weFelder,
         stellplaetze: {
           anzahl: stpAgg.anzahl,
           garageCount: stpAgg.garageCount,
@@ -346,6 +349,7 @@ module.exports = async (req, res) => {
       // 28.10.2026: „Nur Exklusiv-Einheiten" (z. B. Sparkasse Freiburg) → ohne Exklusiv-Link unsichtbar.
       await ladeExternProfil(session);
       audit = audit.filter(row => {
+        if (!externDarfObjekt(row._weFelder, session)) return false; // 02.11.2026: „Nur Objekte"
         const sd = row.stammdaten;
         if (!sd || !sd.externFreigabe) return false;
         if (session.externKontrolle) return true; // 28.10.2026: Kontroll-Account (Test-Vertrieb) sieht alles Freigegebene
@@ -402,6 +406,7 @@ module.exports = async (req, res) => {
       }
       res.setHeader('Cache-Control', 'private, max-age=60, must-revalidate');
     }
+    audit.forEach(row => { delete row._weFelder; }); // 02.11.2026: Rohfelder nie ausgeben
     return res.status(200).json(audit);
   } catch (e) {
     return sendError(res, e);

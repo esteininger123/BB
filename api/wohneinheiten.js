@@ -3,7 +3,7 @@
 // Filter: {Status} = 'Vermarktung / Im Verkauf' UND {Maklerfirma} = 'B&B Immo GmbH'
 
 const { verifySession, isExtern } = require('./_lib/auth');
-const { externPreis, loadProvisionPct, ladeStellplatzKpSummen, externDarfSehen, hatExklusivKontingent, ladeExternProfil, loadExternKonditionen, istSonderEinheit } = require('./_lib/extern');
+const { externPreis, loadProvisionPct, ladeStellplatzKpSummen, externDarfSehen, hatExklusivKontingent, ladeExternProfil, loadExternKonditionen, istSonderEinheit, externDarfObjekt } = require('./_lib/extern');
 const { airtable, listAll } = require('./_lib/airtable');
 const { methodNotAllowed, sendError } = require('./_lib/http');
 const {
@@ -348,6 +348,8 @@ module.exports = async (req, res) => {
       // 02.11.2026 (Henry): Einheiten der Partner Mike/Immoheld tauchen NIRGENDS auf (auch nicht für Admins,
       // auch nicht als Variante) — sie werden ausschließlich über die Partner vertrieben.
       if (istPartnerEinheit(r.fields)) return;
+      // 02.11.2026 (Henry): „Nur Objekte" des Externen (z. B. Armbruster nur Kitzingen).
+      if (!externDarfObjekt(r.fields, session)) return;
       // Eine WE, die NUR wegen einer Variante geladen wurde (kein Aktiv-Stammsatz),
       // erscheint selbst nicht als Karte — sonst tauchte sie unmöbliert im Vertrieb auf.
       if (aktiveWeIds.has(r.id) || showAll) {

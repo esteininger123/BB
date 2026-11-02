@@ -16,7 +16,7 @@
 
 const jwt = require('jsonwebtoken');
 const { verifySession, requireSafeOrigin, isExtern } = require('../_lib/auth');
-const { externPreis, loadProvisionPct, ladeStellplatzKpSummen, externDarfSehen, ladeExternProfil, loadExternKonditionen, istSonderEinheit } = require('../_lib/extern');
+const { externPreis, loadProvisionPct, ladeStellplatzKpSummen, externDarfSehen, ladeExternProfil, loadExternKonditionen, istSonderEinheit, externDarfObjekt } = require('../_lib/extern');
 // 07.09.2026 — möblierte Varianten: eigene Karte, aber dieselbe Wohneinheit.
 const { parseWeId, loadVariante, applyVariante } = require('../_lib/we-variante');
 const { kpWohnungFuerReservierung } = require('../_lib/reserv-preis');
@@ -144,6 +144,7 @@ module.exports = async (req, res) => {
     // damit Reservierung und Aktivitätslog den möblierten Preis führen.
     // 02.11.2026 (Henry): Partner-Einheiten (Mike/Immoheld) sind nicht reservierbar.
     if (istPartnerEinheit(weRec && weRec.fields)) return res.status(403).json({ error: 'Diese Einheit wird über einen Vertriebspartner verkauft und kann hier nicht reserviert werden.' });
+    if (extern && !externDarfObjekt(weRec && weRec.fields, session)) return res.status(403).json({ error: 'Diese Einheit ist für Dich nicht freigegeben.' }); // 02.11.2026: „Nur Objekte"
     const wf = variante ? applyVariante((weRec && weRec.fields) || {}, variante.info) : ((weRec && weRec.fields) || {});
     const kpBasis = num(wf[WE_FIELDS.KAUFPREIS]);
     if (kpBasis <= 0) return res.status(400).json({ error: 'Für diese Wohneinheit ist kein Kaufpreis gepflegt' });

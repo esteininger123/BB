@@ -76,6 +76,9 @@ const VERTRIEBLER_FIELDS = {
   // 02.11.2026 (Henry): Checkbox. Nur mit Haken darf der Externe seinen Satz (0–7 %) selbst einstellen
   // (Sparkasse Freiburg). Ohne Haken ist die Provision fest PROVISION_FIX (7 %), siehe _lib/extern.js.
   PROVISION_FREI: 'fldwmgWW1Apxbr3OI',
+  // 02.11.2026 (Henry): Link auf Objekt-Tabelle (TABLES.PROJEKT). Gesetzt → dieser Externe sieht in der Backstube
+  // NUR WEs dieser Objekte (Tobias Armbruster: nur Kitzingen). Leer = alle für ihn freigegebenen Einheiten.
+  NUR_OBJEKTE: 'fldOzVFkm20xpWhiy',
   // 06.07.2026 (Henry) — scrypt-Hash für E-Mail+Passwort-Login (s2$salt$hash, NIE Klartext,
   // NIE in API-Responses). Leer = nur Google-Login. Siehe api/_lib/passwort.js.
   PASSWORT_HASH: 'fld3uZFjzlQs5unhc'
