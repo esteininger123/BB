@@ -85,7 +85,9 @@ stub('api/_lib/auth.js', {
 stub('api/_lib/airtable.js', {
   // Provisionssatz → 0; Vertriebler C hat „Nur Exklusiv-Einheiten" gesetzt
   airtable: async (op, table, opts) => ({ fields: (opts && opts.recordId === EXT_C) ? { [VERTRIEBLER_FIELDS.NUR_EXKLUSIV]: true }
-    : (opts && opts.recordId === EXT_K) ? { [VERTRIEBLER_FIELDS.EXTERN_KONTROLLE]: true } : {} }),
+    : (opts && opts.recordId === EXT_K) ? { [VERTRIEBLER_FIELDS.EXTERN_KONTROLLE]: true }
+    : (opts && opts.recordId === EXT_A) ? { [VERTRIEBLER_FIELDS.PROVISION_FREI]: true } // 02.11.2026: Test rechnet mit Provision 0 → „frei wählbar“, sonst fest 7 %
+    : {} }),
   listAll: async (table, opts) => {
     if (table === TABLES.KALK_STAMMDATEN) {
       const f = (opts && opts.filterByFormula) || '';

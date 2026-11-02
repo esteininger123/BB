@@ -73,6 +73,9 @@ const VERTRIEBLER_FIELDS = {
   // Beide leer = normale 0–7-%-Regel. Siehe sonderKonditionen() in _lib/extern.js.
   EXKLUSIV_AUFSCHLAG: 'fldhJjrum3YNwYtCe',
   EXKLUSIV_PROVISION: 'fld9EdXNwVqxbGfN9',
+  // 02.11.2026 (Henry): Checkbox. Nur mit Haken darf der Externe seinen Satz (0–7 %) selbst einstellen
+  // (Sparkasse Freiburg). Ohne Haken ist die Provision fest PROVISION_FIX (7 %), siehe _lib/extern.js.
+  PROVISION_FREI: 'fldwmgWW1Apxbr3OI',
   // 06.07.2026 (Henry) — scrypt-Hash für E-Mail+Passwort-Login (s2$salt$hash, NIE Klartext,
   // NIE in API-Responses). Leer = nur Google-Login. Siehe api/_lib/passwort.js.
   PASSWORT_HASH: 'fld3uZFjzlQs5unhc'

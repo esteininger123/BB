@@ -5,7 +5,7 @@
 //                                   passwortAlt Pflicht, sobald schon eins existiert)
 
 const { verifySession, requireSafeOrigin, isExtern } = require('./_lib/auth');
-const { clampProvision, PROVISION_MAX, sonderKonditionen } = require('./_lib/extern');
+const { clampProvision, PROVISION_MAX, PROVISION_FIX, provisionAusRecord, sonderKonditionen } = require('./_lib/extern');
 const { hashPasswort, verifyPasswort, passwortRegelFehler } = require('./_lib/passwort');
 const { airtable } = require('./_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('./_lib/http');
@@ -29,6 +29,11 @@ module.exports = async (req, res) => {
       if (body && body.provisionPct !== undefined) {
         if (!isExtern(session)) {
           return res.status(403).json({ error: 'Provisionssatz gibt es nur für externe Vertriebler.' });
+        }
+        // 02.11.2026 (Henry): Provision ist fest 7 % — ändern darf nur, wer den Haken „Provision frei wählbar" hat.
+        const eigenerRec = await airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId }).catch(() => null);
+        if (!provisionAusRecord(eigenerRec && eigenerRec.fields).provisionFrei) {
+          return res.status(400).json({ error: `Der Provisionssatz ist fest ${Math.round(PROVISION_FIX * 100)} % und kann nicht geändert werden.` });
         }
         const n = typeof body.provisionPct === 'number' ? body.provisionPct : parseFloat(body.provisionPct);
         if (!isFinite(n) || n < 0 || n > PROVISION_MAX + 1e-9) {
@@ -75,7 +80,8 @@ module.exports = async (req, res) => {
       fotoUrl: f[VERTRIEBLER_FIELDS.FOTO]    || '',
       status:  f[VERTRIEBLER_FIELDS.STATUS]  || '',
       // 06.07.2026 — Provisionssatz (nur für Extern relevant, sonst 0).
-      provisionPct: clampProvision(f[VERTRIEBLER_FIELDS.PROVISION_EXTERN]),
+      provisionPct: provisionAusRecord(f).provisionPct, // 02.11.2026: fest 7 % außer „frei wählbar"
+      provisionFrei: provisionAusRecord(f).provisionFrei,
       // 28.10.2026 — Kontroll-Account (Test-Vertrieb): WE-Liste zeigt Kontingent-Inhaber / „Allgemein extern".
       externKontrolle: !!f[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE],
       // 29.10.2026 — Sonderkonditionen für eigene Exklusiv-Einheiten: nur der angezeigte Satz, nie der Aufschlag.

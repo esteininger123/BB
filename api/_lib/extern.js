@@ -24,6 +24,15 @@ const { isExtern } = require('./auth');
 const { linkIds, dedupe } = require('./stellplatz');
 
 const PROVISION_MAX = 0.07;   // 7 % — Obergrenze, hart serverseitig
+// 02.11.2026 (Henry): Provision Externer ist FEST 7 %. Nur Zugänge mit Kalk-Vertriebler-Haken „Provision frei
+// wählbar" (Sparkasse Freiburg) dürfen den Satz 0–7 % selbst einstellen. Grund: Extern-Kundenpreise sollen
+// nicht unter das Niveau der Partnerkanäle (Betongold/Immoheld) rutschen. Sonderkonditionen bleiben unberührt.
+const PROVISION_FIX = 0.07;
+// Provisionssatz aus dem Vertriebler-Record: fest 7 %, außer der Haken „Provision frei wählbar" ist gesetzt.
+function provisionAusRecord(f) {
+  const frei = !!(f || {})[VERTRIEBLER_FIELDS.PROVISION_FREI];
+  return { provisionFrei: frei, provisionPct: frei ? clampProvision((f || {})[VERTRIEBLER_FIELDS.PROVISION_EXTERN]) : PROVISION_FIX };
+}
 const EXTERN_RABATT = 0.02;   // 06.07.2026 (Henry): Abgabepreis Wohnung für Externe 2 % unter intern
 // 04.10.2026 (Henry): Pro Einheit kann stattdessen ein eigener Abschlag gelten (Kalk-Stammdaten
 // „Extern-Abschlag %"), z.B. 3,57 % = die Vertriebsleistung, die B&B beim Eigenverkauf ansetzt.
@@ -109,13 +118,13 @@ function externPreis(kpWohnung, stellplatzKp, provisionPct, abschlagPct, sonder)
 // Wird pro Request in der Session gecacht (ladeExternProfil füllt denselben Cache) — nicht über
 // Requests hinweg, die DB bleibt die Wahrheit. Nicht-Externe / Fehler → { 0, null }.
 async function loadExternKonditionen(session) {
-  const leer = { provisionPct: 0, sonder: null };
+  const leer = { provisionPct: PROVISION_FIX, provisionFrei: false, sonder: null }; // 02.11.2026: Fehlerfall = 7 %, nie Abgabepreis
   if (!isExtern(session) || !session.vertrieblerId) return leer;
   if (session._konditionen) return session._konditionen;
   try {
     const rec = await airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId });
     const f = (rec && rec.fields) || {};
-    session._konditionen = { provisionPct: clampProvision(f[VERTRIEBLER_FIELDS.PROVISION_EXTERN]), sonder: sonderKonditionen(f) };
+    session._konditionen = Object.assign(provisionAusRecord(f), { sonder: sonderKonditionen(f) }); // 02.11.2026: fest 7 % außer „frei wählbar"
     return session._konditionen;
   } catch (e) {
     return leer;
@@ -210,7 +219,7 @@ async function ladeExternProfil(session) {
       session.nurExklusiv = !!rec.fields[VERTRIEBLER_FIELDS.NUR_EXKLUSIV];
       session.externKontrolle = !!rec.fields[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE];
       // 29.10.2026: Provision + Sonderkonditionen gleich mitnehmen (spart den zweiten Airtable-Get)
-      session._konditionen = { provisionPct: clampProvision(rec.fields[VERTRIEBLER_FIELDS.PROVISION_EXTERN]), sonder: sonderKonditionen(rec.fields) };
+      session._konditionen = Object.assign(provisionAusRecord(rec.fields), { sonder: sonderKonditionen(rec.fields) }); // 02.11.2026
     }
   } catch (e) { /* JWT-Wert bleibt */ }
   return session;
@@ -239,7 +248,7 @@ async function ladeVertrieblerNamen(ids) {
 }
 
 module.exports = {
-  PROVISION_MAX, EXTERN_RABATT, EXTERN_ABSCHLAG_MAX, clampProvision, clampAbschlag, externPreis, loadProvisionPct, ladeStellplatzKpSummen,
+  PROVISION_MAX, PROVISION_FIX, provisionAusRecord, EXTERN_RABATT, EXTERN_ABSCHLAG_MAX, clampProvision, clampAbschlag, externPreis, loadProvisionPct, ladeStellplatzKpSummen,
   externExklusivIds, externDarfSehen, hatExklusivKontingent, ladeVertrieblerNamen, ladeExternProfil,
   SONDER_AUFSCHLAG_MAX, sonderKonditionen, istSonderEinheit, loadExternKonditionen,
 };

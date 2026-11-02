@@ -9,7 +9,7 @@
 
 const { signSession, setSessionCookie, requireSafeOrigin } = require('../_lib/auth');
 const { verifyPasswort } = require('../_lib/passwort');
-const { clampProvision, sonderKonditionen } = require('../_lib/extern');
+const { clampProvision, provisionAusRecord, sonderKonditionen } = require('../_lib/extern');
 const { airtable, escapeFormulaString } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { TABLES, VERTRIEBLER_FIELDS } = require('../_lib/tables');
@@ -60,7 +60,8 @@ module.exports = async (req, res) => {
       telefon: f[VERTRIEBLER_FIELDS.TELEFON] || '',
       rolle:   f[VERTRIEBLER_FIELDS.ROLLE]   || 'Vertriebler',
       fotoUrl: f[VERTRIEBLER_FIELDS.FOTO]    || '',
-      provisionPct: clampProvision(f[VERTRIEBLER_FIELDS.PROVISION_EXTERN]),
+      provisionPct: provisionAusRecord(f).provisionPct, // 02.11.2026: fest 7 % außer „frei wählbar"
+      provisionFrei: provisionAusRecord(f).provisionFrei,
       externKontrolle: !!f[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE], // 28.10.2026
       // 29.10.2026: Sonderkonditionen → nur der angezeigte Satz (z. B. 0.083), nie der Aufschlag.
       exklusivProvisionPct: (sonderKonditionen(f) || {}).provisionPct || 0,
