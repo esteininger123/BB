@@ -160,6 +160,56 @@ async function requireAdminVerified(req, res) {
   }
 }
 
+// 04.11.2026 (Henry): Login-Verwaltung („Passwort setzen") auch für Extern-KONTROLLZUGÄNGE
+// (Kalk-Vertriebler „Extern-Kontrollzugang", z. B. Dominik Seitz), damit sie selbst angelegte
+// Vertriebler mit einem Passwort versorgen können, ohne Admin zu sein. Regeln:
+//   Admin                → darf jedem ein Passwort setzen
+//   Extern + Kontrolle   → nur Vertriebler/Extern, NIE Admin-Zugänge
+//   alle anderen         → nichts
+function istLoginVerwalter(session) {
+  if (!session) return false;
+  if (session.rolle === 'Admin') return true;
+  return isExtern(session) && !!session.externKontrolle;
+}
+function darfPasswortSetzen(session, zielRolle) {
+  if (!istLoginVerwalter(session)) return false;
+  if (session.rolle === 'Admin') return true;
+  return (zielRolle || '') !== 'Admin';
+}
+
+// Wie requireAdminVerified, aber für Admin ODER Extern-Kontrollzugang — mit DB-Recheck gegen Airtable
+// (Rolle/Status/Kontroll-Haken), damit ein gefälschtes oder veraltetes JWT nichts freischaltet.
+async function requireLoginVerwaltungVerified(req, res) {
+  const session = requireAuth(req, res);
+  if (!session) return null;
+  if (!istLoginVerwalter(session)) {
+    res.status(403).json({ error: 'Nur Admins oder Kontroll-Zugänge' });
+    return null;
+  }
+  try {
+    const rec = await airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId });
+    if (!rec || !rec.fields) {
+      res.status(403).json({ error: 'Vertriebler nicht gefunden' });
+      return null;
+    }
+    const sel = (v) => (v && typeof v === 'object') ? (v.name || '') : (v || '');
+    const rolle = sel(rec.fields[VERTRIEBLER_FIELDS.ROLLE]);
+    const status = sel(rec.fields[VERTRIEBLER_FIELDS.STATUS]);
+    const kontrolle = !!rec.fields[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE];
+    if (status !== 'Aktiv' || !(rolle === 'Admin' || (rolle === ROLLE_EXTERN && kontrolle))) {
+      res.status(403).json({ error: 'Rechte revoked oder Status inaktiv' });
+      return null;
+    }
+    // DB ist die Wahrheit — Session-Werte für die weitere Rechteprüfung angleichen.
+    session.rolle = rolle;
+    session.externKontrolle = kontrolle;
+    return session;
+  } catch (e) {
+    res.status(503).json({ error: 'Rechte-Verify failed', detail: String(e.message || e) });
+    return null;
+  }
+}
+
 // Hilfsmittel für Routes: prüft, ob die env-Whitelist (ADMIN_EMAILS) eine Email enthält.
 function isAdminByEmailWhitelist(email) {
   const list = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -249,6 +299,9 @@ module.exports = {
   requireAuth,
   requireAdmin,
   requireAdminVerified,
+  requireLoginVerwaltungVerified,
+  istLoginVerwalter,
+  darfPasswortSetzen,
   isAdminByEmailWhitelist,
   isSafeOrigin,
   requireSafeOrigin,

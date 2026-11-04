@@ -6908,6 +6908,27 @@ function _adminExternKontingent(vertrieblerId) {
 }
 window._adminExternKontingent = _adminExternKontingent;
 
+// 04.11.2026 (Henry): Liste der Login-Zugänge für Kontroll-Accounts auf der Extern-Startseite.
+async function _externLoginZugaengeLaden() {
+  const box = document.getElementById('extern-login-liste');
+  if (!box) return;
+  try {
+    const liste = await api.get('/api/admin/vertriebler');
+    if (!liste.length) { box.textContent = 'Keine Zugänge gefunden.'; return; }
+    box.className = '';
+    box.innerHTML = liste.map(v => `
+      <div style="display:flex;align-items:center;gap:10px;padding:5px 0;font-size:13px;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+        <span style="min-width:160px;"><strong>${esc(v.name)}</strong></span>
+        <span class="text-tertiary text-small" style="min-width:120px;">${esc(v.rolle)}${v.status && v.status !== 'Aktiv' ? ' · ' + esc(v.status) : ''}</span>
+        <span class="text-tertiary text-small" style="flex:1;min-width:160px;">${esc(v.email)}${v.hatPasswort ? ' · Passwort gesetzt' : ' · nur Google-Login'}</span>
+        <button class="secondary" style="font-size:11px;padding:3px 10px;" onclick="window._adminPasswortSetzen('${esc(v.id)}', '${esc(v.name)}').then(() => window._externLoginZugaengeLaden())">${v.hatPasswort ? 'Passwort ändern' : 'Passwort setzen'}</button>
+      </div>`).join('');
+  } catch (e) {
+    box.textContent = 'Zugänge konnten nicht geladen werden: ' + (e.message || 'unbekannt');
+  }
+}
+window._externLoginZugaengeLaden = _externLoginZugaengeLaden;
+
 async function _adminPasswortSetzen(vertrieblerId, name) {
   const pw = window.prompt('Neues Login-Passwort für ' + name + ' (mindestens 8 Zeichen):');
   if (pw === null) return;
@@ -10901,6 +10922,15 @@ function renderExternStart() {
         <div class="text-tertiary text-small">Tipp: Die Provisions-Zeile im Kalkulator blendest du mit dem × aus (wenn der Kunde mitschaut) — das ⓘ holt sie zurück.</div>
       </div>`}
 
+      ${(state.user && state.user.externKontrolle) ? `
+      <!-- 04.11.2026 (Henry): Kontroll-Zugänge (z. B. Dominik Seitz) verwalten Login-Passwörter selbst.
+           Neue Vertriebler werden in Airtable (Kalk-Vertriebler) angelegt; hier bekommen sie ihr Passwort. -->
+      <div class="card" id="extern-login-card" style="margin-bottom:16px;border-left:3px solid var(--accent);">
+        <div class="card-title">Login-Zugänge verwalten</div>
+        <p class="text-small" style="margin:0 0 10px;line-height:1.55;">Neue Vertriebler legst du in Airtable in der Tabelle <strong>Kalk-Vertriebler</strong> an (Name, E-Mail klein geschrieben, Rolle, Status „Aktiv", bei Externen Provision 0,07). Hier gibst du ihnen danach ein Passwort. Wer sich mit Google anmeldet, braucht keins. Admin-Zugänge kannst du nicht ändern.</p>
+        <div id="extern-login-liste" class="text-tertiary text-small">Lade Zugänge …</div>
+      </div>` : ''}
+
       <!-- 23.10.2026 (Henry): Der frühere Verbindlichkeits-Block („Alle Angaben sind verbindlich“,
            „im Zweifel gleicht B&B aus und subventioniert quer“) ist bewusst entfernt. Keine
            Ausgleichs-Zusage und keine Zugeständnisse mehr auf der Extern-Startseite. -->
@@ -10951,6 +10981,7 @@ function renderExternStart() {
     </div>
   `;
   _externUpdatePreview();
+  if (state.user && state.user.externKontrolle) _externLoginZugaengeLaden(); // 04.11.2026: Login-Zugänge für Kontroll-Accounts
 }
 
 // 06.07.2026 (Henry): eigenes Login-Passwort setzen/ändern (PATCH /api/me).
