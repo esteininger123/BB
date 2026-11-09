@@ -107,7 +107,7 @@ test('Render: Buttons Exposé / Objektordner / Wohnungsunterlagen (gleiche Klass
 test('Render: AfA-Hinweis als eigener rc-hinweis-Absatz (escaped, Zeilenumbruch = <br>), Worst-Case-Satz folgt darunter', () => {
   const ohne = renderRechner(basisDaten(), 'Extern');
   assert.ok(!ohne.includes('Gutachten liegt vor'));
-  const mit = renderRechner(basisDaten({ afaHinweis: 'Gutachten liegt <vor>.\nAnerkennung erwartet.', afaWorstCasePct: 0.02 }), 'Extern');
+  const mit = renderRechner(basisDaten({ afaHinweis: 'Gutachten liegt <vor>.\nAnerkennung erwartet.', afaWorstCasePct: 0.02, afaGutachten: 0.0833 }), 'Extern');
   const i1 = mit.indexOf('<div class="rc-hinweis">Gutachten liegt &lt;vor&gt;.<br>Anerkennung erwartet.</div>');
   const i2 = mit.indexOf('Grundlage ist das aktuell vorliegende Restnutzungsdauer-Gutachten');
   const iAfa = mit.indexOf('Verkürzte Restnutzungsdauer in %');
@@ -118,6 +118,18 @@ test('Render: AfA-Hinweis als eigener rc-hinweis-Absatz (escaped, Zeilenumbruch 
   const nurText = renderRechner(basisDaten({ afaHinweis: 'Nur Text' }), 'Extern');
   assert.ok(nurText.includes('<div class="rc-hinweis">Nur Text</div>'));
   assert.ok(!nurText.includes('rcv-afaWorst'));
+});
+
+// 09.11.2026 (Henry): Worst-Case-Satz nur bei AfA über 6 %. Freiburg (3,85 %) hat das Feld gesetzt, zeigt aber nichts.
+test('Render: Worst-Case-Satz erscheint nicht bei AfA unter 6 %, auch wenn das Stammdaten-Feld gesetzt ist', () => {
+  const fr = renderRechner(basisDaten({ afaHinweis: 'Gutachten Sprengnetter', afaWorstCasePct: 0.0357 }), 'Extern');
+  assert.ok(fr.includes('<div class="rc-hinweis">Gutachten Sprengnetter</div>'), 'Freitext bleibt');
+  assert.ok(!fr.includes('Grundlage ist das aktuell vorliegende Restnutzungsdauer-Gutachten'), 'kein Worst-Case-Satz bei 3,85 %');
+  assert.ok(!fr.includes('rcv-afaWorst'));
+  const kitz = renderRechner(basisDaten({ afaGutachten: 0.0667, afaWorstCasePct: 0.033 }), 'Extern');
+  assert.ok(kitz.includes('rcv-afaWorst'), 'Kitzingen 6,67 % zeigt den Satz');
+  const grenze = renderRechner(basisDaten({ afaGutachten: 0.06, afaWorstCasePct: 0.033 }), 'Extern');
+  assert.ok(!grenze.includes('rcv-afaWorst'), 'genau 6 % zählt nicht als über 6 %');
 });
 
 test('Render Spechtweg: Aufschlüsselung Mietzuschuss mit 3 Kappungs-Phasen, Summenzeile = Garantie-Volumen, Hinweis darunter', () => {

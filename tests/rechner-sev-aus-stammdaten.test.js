@@ -44,6 +44,12 @@ test('Worst-Case-AfA: Cashflow nach Steuer mit 3,5 % statt 8,33 %, nur wenn Feld
   // Worst-Case-Satz über der Gutachten-AfA → kein Vermerk
   const hoeher = Object.assign({}, basis, { kalkStammdaten: Object.assign({}, basis.kalkStammdaten, { afaGutachten: 0.03, afaWorstCasePct: 0.035 }) });
   assert.strictEqual(fn.calc(hoeher, inp).nachSteuerWorstMo, null);
+  // 09.11.2026 (Henry): unter 6 % Gutachten-AfA kein Worst Case, auch wenn das Feld gesetzt und niedriger ist (Freiburg 4,35 % / 4,0 %)
+  const freiburg = Object.assign({}, basis, { kalkStammdaten: Object.assign({}, basis.kalkStammdaten, { afaGutachten: 0.0435, afaWorstCasePct: 0.04 }) });
+  assert.strictEqual(fn.calc(freiburg, inp).nachSteuerWorstMo, null, 'Freiburg 4,35 %: kein Worst Case');
+  assert.strictEqual(fn.calc(freiburg, inp).afaWorst, 0.04, 'Feldwert bleibt gelesen');
+  const kitz667 = Object.assign({}, basis, { kalkStammdaten: Object.assign({}, basis.kalkStammdaten, { afaGutachten: 0.0667, afaWorstCasePct: 0.033 }) });
+  assert.ok(fn.calc(kitz667, inp).nachSteuerWorstMo != null, 'Kitzingen 6,67 %: Worst Case bleibt');
 });
 
 test('Backend: „Nur externer Vertrieb" versteckt die Einheit vor internen Nicht-Admins', () => {

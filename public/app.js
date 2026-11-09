@@ -11078,6 +11078,8 @@ function _rechnerTilgungAuto() {
   return RECHNER_TILGUNG_STANDARD_PCT;
 }
 const RECHNER_SEV_MO    = 30;     // Mietverwaltung (SEV) €/Mo — B&B-Angebots-Standard
+// 09.11.2026 (Henry): Worst-Case-AfA-Vermerk im einfachen Rechner nur, wenn die Gutachten-AfA über diesem Satz liegt.
+const RECHNER_AFA_WORST_AB = 0.06;
 // B&B-Standard (Henry 19.07.2026): Garagen-AfA nach amtlicher AfA-Tabelle = 20 Jahre / 5 % p.a.
 // (eigenständige Garage als selbständiges Wirtschaftsgut; die alten 19 J./5,26 % aus der
 // Ur-Excel waren unbelegt). Tiefgaragen/Gebäudeteil-Garagen laufen über die Gebäude-AfA.
@@ -11218,7 +11220,9 @@ function _rechnerCalc(d, inp) {
   const nachSteuerMo   = vorSteuerMo + ersparnisMo;
   // 23.10.2026 (Henry/Kitzingen): Worst Case = gleiche Rechnung mit dem Stammdaten-Satz „AfA Worst-Case %"
   // statt der Gutachten-AfA (nur wenn der Worst-Case-Satz niedriger ist). Rekursion ohne Worst-Case-Feld.
-  const nachSteuerWorstMo = (b.afaWorst > 0 && b.afaWorst < b.afaSatz)
+  // 09.11.2026 (Henry): Vermerk nur bei AfA über 6 % (Kitzingen 6,67 / 8,33 %). Darunter geht die AfA
+  // erfahrungsgemäß durch, der Satz verunsichert nur. Das Stammdaten-Feld bleibt gesetzt, greift aber nicht.
+  const nachSteuerWorstMo = (b.afaWorst > 0 && b.afaWorst < b.afaSatz && b.afaSatz > RECHNER_AFA_WORST_AB)
     ? _rechnerCalc(Object.assign({}, d, { kalkStammdaten: Object.assign({}, d.kalkStammdaten || {}, { afaGutachten: b.afaWorst, afaWorstCasePct: null }) }), inp).nachSteuerMo
     : null;
   return Object.assign(b, { nachSteuerWorstMo, ek, finBetrag, zinsMoTeil, tilgMoTeil, rateMo, einnahmenMo, kostenMo, nettoMo,
