@@ -64,7 +64,9 @@ const VERTRIEBLER_FIELDS = {
   NUR_EXKLUSIV:     'fldSaxVAhFzdkjgwp',
   // 28.10.2026 (Henry): Checkbox. Kontroll-Account mit Rolle Extern (Test-Vertrieb): sieht ALLE extern
   // freigegebenen Einheiten (auch fremde Exklusiv-Kontingente) und bekommt in der Wohnungsübersicht die
-  // Kontingent-Inhaber mit Namen bzw. „allgemein extern". Preise wie ein normaler Externer.
+  // Kontingent-Inhaber mit Namen bzw. „allgemein extern". Preise wie ein normaler Externer —
+  // 09.11.2026 (Henry): AUSSER bei Exklusiv-Einheiten eines Inhabers mit Sonderkonditionen: dann dessen
+  // Aufschlag/Provision (z. B. Felix Sziedat 10 %/8,3 %), siehe sonderFuerKontrolle() in _lib/extern.js.
   EXTERN_KONTROLLE: 'fldRD5KZr6VAFLwKl',
   // 29.10.2026 (Henry/Felix Sziedat): Sonderkonditionen für die EIGENEN Exklusiv-Einheiten eines Externen.
   // EXKLUSIV_AUFSCHLAG (percent, 0.10 = 10 %) ersetzt bei diesen Einheiten den Provisions-Regler als

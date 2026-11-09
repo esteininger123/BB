@@ -15,7 +15,7 @@
 //   - Nur Admins dürfen schreiben.
 
 const { verifySession, requireSafeOrigin, isExtern } = require('../_lib/auth');
-const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds, ladeExternProfil, loadExternKonditionen, externDarfObjekt } = require('../_lib/extern');
+const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds, ladeExternProfil, loadExternKonditionen, externDarfObjekt, ladeSonderJeVertriebler, sonderFuerKontrolle } = require('../_lib/extern');
 const { airtable, listAll } = require('../_lib/airtable');
 const { readBody, methodNotAllowed, sendError } = require('../_lib/http');
 const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
@@ -1235,6 +1235,8 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
     // 29.10.2026 (Henry/Felix Sziedat): eigene Exklusiv-Einheit + Sonderkonditionen → eigener Preisweg
     // (siehe unten externPreis(..., sonder)); das Flag geht als externSonder an die UI.
     kalkApi._sonderKandidat = kalkApi.externExklusiv.includes(session.vertrieblerId);
+    // 09.11.2026 (Henry): Kontroll-Account sieht fremde Exklusiv-Einheiten mit den Konditionen des Inhabers.
+    kalkApi._kontrolleExklusiv = session.externKontrolle ? kalkApi.externExklusiv.slice() : [];
     delete kalkApi.externExklusiv;
   }
 
@@ -1340,9 +1342,14 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
   if (isExtern(session)) {
     const konditionen = P.konditionen || await loadExternKonditionen(session);
     const prov = (P.provisionPct != null) ? P.provisionPct : konditionen.provisionPct;
-    const sonder = (kalkApi && kalkApi._sonderKandidat) ? konditionen.sonder : null;
+    let sonder = (kalkApi && kalkApi._sonderKandidat) ? konditionen.sonder : null;
+    if (!sonder && kalkApi && kalkApi._kontrolleExklusiv && kalkApi._kontrolleExklusiv.length > 0) {
+      // 09.11.2026 (Henry): Kontroll-Account → Sonderkonditionen des Kontingent-Inhabers (z. B. Felix 10 %/8,3 %).
+      const sonderMap = P.sonderMap || await ladeSonderJeVertriebler(kalkApi._kontrolleExklusiv);
+      sonder = sonderFuerKontrolle(session, kalkApi._kontrolleExklusiv, sonderMap);
+    }
     const e = externPreis(we.kp, stpKaufpreisSumme, prov, kalkApi && kalkApi.externAbschlag, sonder);
-    if (kalkApi) { delete kalkApi.externAbschlag; delete kalkApi._sonderKandidat; kalkApi.externSonder = !!e.sonder; }
+    if (kalkApi) { delete kalkApi.externAbschlag; delete kalkApi._sonderKandidat; delete kalkApi._kontrolleExklusiv; kalkApi.externSonder = !!e.sonder; }
     we.kp = e.kp;
     if (we.qm > 0) we.qmPreis = Math.round((e.kp / we.qm) * 100) / 100;
     externInfo = { provisionPct: e.provisionPct, aufschlag: e.aufschlag, sonder: !!e.sonder };

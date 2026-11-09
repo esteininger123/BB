@@ -3,7 +3,7 @@
 //   Vermietungs-Info in einem Response. Nur Admin.
 
 const { verifySession, isExtern } = require('../_lib/auth');
-const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds, ladeVertrieblerNamen, ladeExternProfil, loadExternKonditionen, externDarfObjekt } = require('../_lib/extern');
+const { externPreis, loadProvisionPct, externDarfSehen, externExklusivIds, ladeVertrieblerNamen, ladeExternProfil, loadExternKonditionen, externDarfObjekt, ladeSonderJeVertriebler, sonderFuerKontrolle } = require('../_lib/extern');
 const { airtable, listAll } = require('../_lib/airtable');
 const { methodNotAllowed, sendError } = require('../_lib/http');
 const { aggregateStellplaetze, linkIds } = require('../_lib/stellplatz');
@@ -378,10 +378,18 @@ module.exports = async (req, res) => {
           delete row.stammdaten.externExklusiv;
         });
       }
+      // 09.11.2026 (Henry): Kontroll-Account sieht fremde Exklusiv-Einheiten mit den Konditionen des Inhabers.
+      const kontrolleSonder = session.externKontrolle
+        ? await ladeSonderJeVertriebler(audit.flatMap(row => (row.stammdaten && row.stammdaten.externExklusiv) || []))
+        : {};
       const prov = konditionen.provisionPct;
       audit.forEach(row => {
-        const e = externPreis(row.we.kp, row.stellplaetze.kaufpreisSumme, prov, row.stammdaten && row.stammdaten.externAbschlag,
-          (row.stammdaten && row.stammdaten.externSonder) ? konditionen.sonder : null);
+        let sonder = (row.stammdaten && row.stammdaten.externSonder) ? konditionen.sonder : null;
+        if (!sonder && session.externKontrolle && row.stammdaten) {
+          sonder = sonderFuerKontrolle(session, row.stammdaten.externExklusiv, kontrolleSonder);
+          row.stammdaten.externSonder = !!sonder;
+        }
+        const e = externPreis(row.we.kp, row.stellplaetze.kaufpreisSumme, prov, row.stammdaten && row.stammdaten.externAbschlag, sonder);
         if (row.stammdaten) delete row.stammdaten.externAbschlag; // interner Preis darf nicht rückrechenbar sein
         row.we.kp = e.kp;
         if (row.we.qm > 0) row.we.qmPreis = Math.round((e.kp / row.we.qm) * 100) / 100;

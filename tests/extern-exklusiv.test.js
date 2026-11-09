@@ -104,7 +104,9 @@ stub('api/_lib/airtable.js', {
     if (table === TABLES.VERTRIEBLER) {
       return [
         { id: EXT_A, fields: { [VERTRIEBLER_FIELDS.NAME]: 'Anna Extern' } },
-        { id: EXT_B, fields: { [VERTRIEBLER_FIELDS.NAME]: 'Bernd Extern' } },
+        // 09.11.2026: B hat Sonderkonditionen (10 % Aufschlag / 8,3 % Provision, Felix-Fall) — nur für den Kontroll-Account relevant,
+        // B selbst holt seine Konditionen über airtable('get') (dort ohne Sonder, damit die älteren B-Tests unverändert bleiben).
+        { id: EXT_B, fields: { [VERTRIEBLER_FIELDS.NAME]: 'Bernd Extern', [VERTRIEBLER_FIELDS.EXKLUSIV_AUFSCHLAG]: 0.10, [VERTRIEBLER_FIELDS.EXKLUSIV_PROVISION]: 0.083 } },
       ];
     }
     return []; // Stellplätze, Mietverträge, Projekte — für die Sichtbarkeit irrelevant
@@ -201,6 +203,37 @@ test('Kontroll-Account (K): sieht alle freigegebenen Einheiten inkl. fremder Kon
   assert.strictEqual(byId[WE_GESPERRT], undefined, 'ohne Freigabe-Haken auch für den Kontroll-Account nicht');
   // Preise bleiben Extern-Preise (Abschlag/Provision), Session K ist kein Interner
   assert.ok(sd.every(r => r.extern && typeof r.extern.provisionPct === 'number'));
+});
+
+test('Kontroll-Account (K): Exklusiv-Einheit eines Inhabers MIT Sonderkonditionen → Preis wie der Inhaber (09.11.2026)', async () => {
+  // WE_A_UND_B: A ohne Sonder, B mit 10 %/8,3 % → der erste Inhaber mit Sonderkonditionen (B) gilt.
+  // Basis 150.000 × 0,98 = 147.000 → +10 % = 161.700, angezeigte Provision 8,3 % = 12.201 €.
+  // WE_NUR_A: Inhaber A ohne Sonder → allgemeiner Weg (7 %, Abschlag 3,57 %) wie bisher.
+  const liste = await call(wohneinheiten, SESS_K);
+  const byIdL = Object.fromEntries(liste.map(w => [w.id, w]));
+  assert.strictEqual(byIdL[WE_A_UND_B].kp, 161700);
+  assert.deepStrictEqual(byIdL[WE_A_UND_B].extern, { provisionPct: 0.083, aufschlag: 12201, sonder: true });
+  assert.strictEqual(byIdL[WE_NUR_A].extern.sonder, false);
+  assert.strictEqual(byIdL[WE_NUR_A].extern.provisionPct, 0.07);
+
+  const sd = await call(stammListe, SESS_K);
+  const byId = Object.fromEntries(sd.map(r => [r.we.id, r]));
+  assert.strictEqual(byId[WE_A_UND_B].we.kp, 161700);
+  assert.strictEqual(byId[WE_A_UND_B].stammdaten.externSonder, true);
+  assert.deepStrictEqual(byId[WE_A_UND_B].extern, { provisionPct: 0.083, aufschlag: 12201, sonder: true });
+  assert.strictEqual(byId[WE_NUR_A].extern.sonder, false);
+  assert.strictEqual(byId[WE_OFFEN].extern.sonder, false);
+
+  const d = await detailFuer(WE_A_UND_B, Object.assign({}, SESS_K));
+  assert.strictEqual(d.status, 200);
+  assert.strictEqual(d.body.we.kp, 161700);
+  assert.deepStrictEqual(d.body.extern, { provisionPct: 0.083, aufschlag: 12201, sonder: true });
+  assert.strictEqual(d.body.kalkStammdaten.externSonder, true);
+  // Interne und normale Externe bleiben unberührt
+  const dIntern = await detailFuer(WE_A_UND_B, Object.assign({}, SESS_INTERN));
+  assert.strictEqual(dIntern.body.we.kp, 150000);
+  const dA = await detailFuer(WE_A_UND_B, Object.assign({}, SESS_A));
+  assert.strictEqual(dA.body.extern.sonder, false);
 });
 
 test('/api/wohneinheiten: Interne sehen weiterhin alles, Kontingente nur als Kennzeichen', async () => {

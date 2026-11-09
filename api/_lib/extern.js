@@ -226,6 +226,35 @@ async function ladeExternProfil(session) {
   return session;
 }
 
+// 09.11.2026 (Henry): Der Kontroll-Account (Test-Vertrieb) soll fremde Exklusiv-Einheiten GENAU so sehen wie
+// der Kontingent-Inhaber — bei Felix Sziedat also 10 % Aufschlag / 8,3 % angezeigte Provision statt der
+// allgemeinen 7 %. Lädt die Sonderkonditionen der Inhaber in EINEM Airtable-Zugriff: Map id → { aufschlag,
+// provisionPct } | null. Fehler → leere Map (dann greifen wie bisher die 7 %).
+async function ladeSonderJeVertriebler(ids) {
+  const liste = dedupe(ids || []);
+  if (liste.length === 0) return {};
+  try {
+    const recs = await listAll(TABLES.VERTRIEBLER, { fields: [VERTRIEBLER_FIELDS.EXKLUSIV_AUFSCHLAG, VERTRIEBLER_FIELDS.EXKLUSIV_PROVISION] }, 500);
+    const map = {};
+    recs.forEach(r => { if (liste.includes(r.id)) map[r.id] = sonderKonditionen(r.fields); });
+    return map;
+  } catch (e) {
+    return {};
+  }
+}
+
+// Sonderkonditionen, mit denen der Kontroll-Account eine Exklusiv-Einheit sieht: die des ersten Inhabers mit
+// Sonderkonditionen. null = kein Kontroll-Account, kein Kontingent oder Inhaber ohne Sonderkonditionen
+// (dann sieht er die Einheit wie dieser Inhaber: allgemeine 7 %).
+function sonderFuerKontrolle(session, exklusivIds, sonderMap) {
+  if (!session || !session.externKontrolle) return null;
+  for (const id of (exklusivIds || [])) {
+    const s = sonderMap && sonderMap[id];
+    if (s) return s;
+  }
+  return null;
+}
+
 // 02.11.2026 (Henry): Objekt-Filter des Externen („Nur Objekte" im Kalk-Vertriebler, über ladeExternProfil in
 // session.nurObjekte). Leer = alles erlaubt; sonst muss das Objekt der WE (WE_FIELDS.PROJEKT) in der Liste stehen.
 function externDarfObjekt(weFields, session) {
@@ -260,4 +289,5 @@ module.exports = {
   PROVISION_MAX, PROVISION_FIX, provisionAusRecord, EXTERN_RABATT, EXTERN_ABSCHLAG_MAX, clampProvision, clampAbschlag, externPreis, loadProvisionPct, ladeStellplatzKpSummen,
   externExklusivIds, externDarfSehen, hatExklusivKontingent, ladeVertrieblerNamen, ladeExternProfil,
   SONDER_AUFSCHLAG_MAX, sonderKonditionen, istSonderEinheit, loadExternKonditionen, externDarfObjekt,
+  ladeSonderJeVertriebler, sonderFuerKontrolle,
 };
