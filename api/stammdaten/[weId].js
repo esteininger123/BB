@@ -1315,10 +1315,8 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
     kuendigungZum:          vertragInfo.kuendigungZum || null,
   };
 
-  // Subvention auto + Markt-Schnitt direkt vom Backend liefern
+  // Subvention auto direkt vom Backend liefern (Markt-Schnitt weiter unten, NACH dem Extern-Preis)
   const subv = computeAutoSubvention(kalkApi, vermietungObj, we.qm);
-  // 17.08.2026: KP/m² mitgeben — über Markt verkaufte WEs bekommen keinen Vergleichsmarktpreis.
-  const marktSchnitt = computeMarktpreisGemittelt(kalkApi, we.qm > 0 ? we.kp / we.qm : 0);
 
   // Iter-4 (21.05.2026): Auto-Subv zurück nach Airtable, damit die
   // KP-Vorschlag-Formel sie einbeziehen kann. Fire-and-forget — die Response
@@ -1347,6 +1345,13 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
     if (we.qm > 0) we.qmPreis = Math.round((e.kp / we.qm) * 100) / 100;
     externInfo = { provisionPct: e.provisionPct, aufschlag: e.aufschlag, sonder: !!e.sonder };
   }
+
+  // 17.08.2026: KP/m² mitgeben — über Markt verkaufte WEs bekommen keinen Vergleichsmarktpreis.
+  // 10.11.2026 (Henry/Domi Seitz, Kitzingen A6): Die Prüfung muss mit dem Preis laufen, den der
+  // Nutzer tatsächlich sieht. Für Externe ist das der Kundenpreis inkl. Provisionsaufschlag —
+  // vorher lief sie mit dem internen Abgabepreis (3.000 €/m² < Homeday 3.100), der Rechner zeigte
+  // dem Externen dann „Einkaufspreis 3.210 €/m², Differenz 0 €" statt den Block auszublenden.
+  const marktSchnitt = computeMarktpreisGemittelt(kalkApi, we.qm > 0 ? we.kp / we.qm : 0);
 
   return { status: 200, body: {
     extern: externInfo,
