@@ -349,7 +349,7 @@ module.exports = async (req, res) => {
       // auch nicht als Variante) — sie werden ausschließlich über die Partner vertrieben.
       if (istPartnerEinheit(r.fields)) return;
       // 02.11.2026 (Henry): „Nur Objekte" des Externen (z. B. Armbruster nur Kitzingen).
-      if (!externDarfObjekt(r.fields, session)) return;
+      if (!externDarfObjekt(r.fields, session, r.id)) return; // 11.11.2026: + „Nur Einheiten"
       // Eine WE, die NUR wegen einer Variante geladen wurde (kein Aktiv-Stammsatz),
       // erscheint selbst nicht als Karte — sonst tauchte sie unmöbliert im Vertrieb auf.
       if (aktiveWeIds.has(r.id) || showAll) {

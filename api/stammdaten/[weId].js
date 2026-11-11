@@ -1228,7 +1228,7 @@ async function buildWeDetail({ weId, weIdRaw, variante, session, pre }) {
   // 04.10.2026: inkl. Exklusiv-Kontingent — fremdes Kontingent verhält sich wie „nicht freigegeben".
   if (isExtern(session)) {
     await ladeExternProfil(session); // 28.10.2026: „Nur Exklusiv-Einheiten"
-    if (!kalkApi || !externDarfSehen(kalkRec && kalkRec.fields, session) || !externDarfObjekt(weResp.fields, session)) { // 02.11.2026: + „Nur Objekte"
+    if (!kalkApi || !externDarfSehen(kalkRec && kalkRec.fields, session) || !externDarfObjekt(weResp.fields, session, weResp.id)) { // 02.11.2026: + „Nur Objekte"; 11.11.2026: + „Nur Einheiten"
       return { status: 404, body: { error: 'Diese Einheit ist für den externen Vertrieb nicht freigegeben.' } };
     }
     kalkApi.externExklusivFuerMich = kalkApi.externExklusiv.length > 0;

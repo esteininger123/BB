@@ -349,7 +349,7 @@ module.exports = async (req, res) => {
       // 28.10.2026: „Nur Exklusiv-Einheiten" (z. B. Sparkasse Freiburg) → ohne Exklusiv-Link unsichtbar.
       await ladeExternProfil(session);
       audit = audit.filter(row => {
-        if (!externDarfObjekt(row._weFelder, session)) return false; // 02.11.2026: „Nur Objekte"
+        if (!externDarfObjekt(row._weFelder, session, row.we && row.we.id)) return false; // 02.11.2026: „Nur Objekte"; 11.11.2026: „Nur Einheiten"
         const sd = row.stammdaten;
         if (!sd || !sd.externFreigabe) return false;
         if (session.externKontrolle) return true; // 28.10.2026: Kontroll-Account (Test-Vertrieb) sieht alles Freigegebene

@@ -83,6 +83,10 @@ const VERTRIEBLER_FIELDS = {
   // 02.11.2026 (Henry): Link auf Objekt-Tabelle (TABLES.PROJEKT). Gesetzt → dieser Externe sieht in der Backstube
   // NUR WEs dieser Objekte (Tobias Armbruster: nur Kitzingen). Leer = alle für ihn freigegebenen Einheiten.
   NUR_OBJEKTE: 'fldOzVFkm20xpWhiy',
+  // 11.11.2026 (Henry/Christoph Zinnbauer): Link auf Wohneinheit-Tabelle. Gesetzt → dieser Externe sieht NUR diese
+  // WEs (sofern extern freigegeben). Anders als „Extern exklusiv für“ nimmt das den anderen Externen nichts weg.
+  // Leer = kein Filter. Wird in externDarfObjekt() zusammen mit NUR_OBJEKTE geprüft.
+  NUR_EINHEITEN: 'fldg0Zh9rkqXGCqhP',
   // 06.07.2026 (Henry) — scrypt-Hash für E-Mail+Passwort-Login (s2$salt$hash, NIE Klartext,
   // NIE in API-Responses). Leer = nur Google-Login. Siehe api/_lib/passwort.js.
   PASSWORT_HASH: 'fld3uZFjzlQs5unhc'

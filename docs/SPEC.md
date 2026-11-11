@@ -209,6 +209,10 @@ statt der internen Abgabepreise.
   (nur eigenes Record, nur Rolle Extern, Server kappt auf 7 %). Seit 11.11.2026 kann die Obergrenze pro
   Vertriebler über `Provision max extern` (`fldyRWFyTZoqqi82z`, percent) angehoben werden (Christoph Zinnbauer 10 %);
   harte Decke 15 %. Wirkt nur zusammen mit „Provision frei wählbar“.
+- **Sichtbarkeit pro Externem** (Kalk-Vertriebler): `Nur Objekte` (`fldOzVFkm20xpWhiy`, Link Objekt) und seit
+  11.11.2026 `Nur Einheiten` (`fldg0Zh9rkqXGCqhP`, Link Wohneinheit) schränken nur den eigenen Blick ein;
+  `Extern exklusiv für` (Stammdaten) nimmt die Einheit zusätzlich allen anderen Externen weg; `Nur Exklusiv-Einheiten`
+  blendet die allgemein freigegebenen aus. Christoph Zinnbauer: Nur Objekte Kitzingen + Nur Einheiten WE 3/6/A3.
 - **Preisformel** (`api/_lib/extern.js`, Tests in `tests/extern-preis.test.js`):
   `Extern-Abgabepreis = Wohnungs-KP × 0.98` (2 % unter intern, Stellplatz unrabattiert);
   `Aufschlag = Satz × (Extern-Abgabepreis + Stellplatz/Garagen-KP)`; der Aufschlag landet

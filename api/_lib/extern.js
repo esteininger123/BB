@@ -235,6 +235,7 @@ async function ladeExternProfil(session) {
       session.nurExklusiv = !!rec.fields[VERTRIEBLER_FIELDS.NUR_EXKLUSIV];
       session.externKontrolle = !!rec.fields[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE];
       session.nurObjekte = dedupe(linkIds(rec.fields[VERTRIEBLER_FIELDS.NUR_OBJEKTE])); // 02.11.2026: Objekt-Filter
+      session.nurEinheiten = dedupe(linkIds(rec.fields[VERTRIEBLER_FIELDS.NUR_EINHEITEN])); // 11.11.2026: Einheiten-Filter
       // 29.10.2026: Provision + Sonderkonditionen gleich mitnehmen (spart den zweiten Airtable-Get)
       session._konditionen = Object.assign(provisionAusRecord(rec.fields), { sonder: sonderKonditionen(rec.fields) }); // 02.11.2026
     }
@@ -244,10 +245,16 @@ async function ladeExternProfil(session) {
 
 // 02.11.2026 (Henry): Objekt-Filter des Externen („Nur Objekte" im Kalk-Vertriebler, über ladeExternProfil in
 // session.nurObjekte). Leer = alles erlaubt; sonst muss das Objekt der WE (WE_FIELDS.PROJEKT) in der Liste stehen.
-function externDarfObjekt(weFields, session) {
+// 11.11.2026 (Henry/Christoph Zinnbauer): plus Einheiten-Filter („Nur Einheiten", session.nurEinheiten, WE-Record-IDs).
+// Gesetzt → nur diese WEs; ohne übergebene weId kann nicht geprüft werden → gesperrt (sicherer Fall). Beide Filter
+// schränken nur den EIGENEN Blick ein — andere Externe sehen die Einheiten weiterhin (anders als „Extern exklusiv für").
+function externDarfObjekt(weFields, session, weId) {
+  if (!isExtern(session)) return true;
   const nur = (session && session.nurObjekte) || [];
-  if (!isExtern(session) || nur.length === 0) return true;
-  return linkIds((weFields || {})[WE_FIELDS.PROJEKT]).some(id => nur.includes(id));
+  if (nur.length > 0 && !linkIds((weFields || {})[WE_FIELDS.PROJEKT]).some(id => nur.includes(id))) return false;
+  const nurWe = (session && session.nurEinheiten) || [];
+  if (nurWe.length > 0 && !(weId && nurWe.includes(weId))) return false;
+  return true;
 }
 
 // true, wenn die Einheit extern freigegeben UND einem Exklusiv-Kontingent zugeordnet ist
