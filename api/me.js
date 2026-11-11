@@ -32,16 +32,20 @@ module.exports = async (req, res) => {
         }
         // 02.11.2026 (Henry): Provision ist fest 7 % — ändern darf nur, wer den Haken „Provision frei wählbar" hat.
         const eigenerRec = await airtable('get', TABLES.VERTRIEBLER, { recordId: session.vertrieblerId }).catch(() => null);
-        if (!provisionAusRecord(eigenerRec && eigenerRec.fields).provisionFrei) {
+        const eigeneKond = provisionAusRecord(eigenerRec && eigenerRec.fields);
+        if (!eigeneKond.provisionFrei) {
           return res.status(400).json({ error: `Der Provisionssatz ist fest ${Math.round(PROVISION_FIX * 100)} % und kann nicht geändert werden.` });
         }
+        // 11.11.2026: Obergrenze ist die persönliche „Provision max extern“ (Standard 7 %, Christoph Zinnbauer 10 %).
+        const maxPct = eigeneKond.provisionMax;
         const n = typeof body.provisionPct === 'number' ? body.provisionPct : parseFloat(body.provisionPct);
-        if (!isFinite(n) || n < 0 || n > PROVISION_MAX + 1e-9) {
-          return res.status(400).json({ error: `provisionPct muss zwischen 0 und ${PROVISION_MAX} (= ${PROVISION_MAX * 100} %) liegen.` });
+        if (!isFinite(n) || n < 0 || n > maxPct + 1e-9) {
+          return res.status(400).json({ error: `provisionPct muss zwischen 0 und ${maxPct} (= ${Math.round(maxPct * 10000) / 100} %) liegen.` });
         }
-        const pct = clampProvision(n);
+        const pct = clampProvision(n, maxPct);
         fields[VERTRIEBLER_FIELDS.PROVISION_EXTERN] = pct;
         out.provisionPct = pct;
+        out.provisionMax = maxPct;
       }
 
       // --- Eigenes Passwort setzen/ändern (alle Rollen) — 06.07.2026 ---
@@ -82,6 +86,7 @@ module.exports = async (req, res) => {
       // 06.07.2026 — Provisionssatz (nur für Extern relevant, sonst 0).
       provisionPct: provisionAusRecord(f).provisionPct, // 02.11.2026: fest 7 % außer „frei wählbar"
       provisionFrei: provisionAusRecord(f).provisionFrei,
+      provisionMax: provisionAusRecord(f).provisionMax, // 11.11.2026: persönliche Regler-Obergrenze (Standard 0.07)
       // 28.10.2026 — Kontroll-Account (Test-Vertrieb): WE-Liste zeigt Kontingent-Inhaber / „Allgemein extern".
       externKontrolle: !!f[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE],
       // 29.10.2026 — Sonderkonditionen für eigene Exklusiv-Einheiten: nur der angezeigte Satz, nie der Aufschlag.

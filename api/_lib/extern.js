@@ -23,15 +23,27 @@ const { TABLES, VERTRIEBLER_FIELDS, STELLPLATZ_FIELDS, MIETVERTRAG_FIELDS, KALK_
 const { isExtern } = require('./auth');
 const { linkIds, dedupe } = require('./stellplatz');
 
-const PROVISION_MAX = 0.07;   // 7 % — Obergrenze, hart serverseitig
+const PROVISION_MAX = 0.07;   // 7 % — Standard-Obergrenze des Reglers
+// 11.11.2026 (Henry/Christoph Zinnbauer): Pro Vertriebler kann die Obergrenze angehoben werden (Kalk-Vertriebler
+// „Provision max extern“, z. B. 0.10 = 10 %). Gilt NUR für diesen Zugang, alle anderen bleiben bei 7 %.
+// PROVISION_MAX_ABSOLUT ist die harte Decke für dieses Feld (Tippfehler-Schutz, 1.0 statt 0.10).
+const PROVISION_MAX_ABSOLUT = 0.15;
 // 02.11.2026 (Henry): Provision Externer ist FEST 7 %. Nur Zugänge mit Kalk-Vertriebler-Haken „Provision frei
 // wählbar" (Sparkasse Freiburg) dürfen den Satz 0–7 % selbst einstellen. Grund: Extern-Kundenpreise sollen
 // nicht unter das Niveau der Partnerkanäle (Betongold/Immoheld) rutschen. Sonderkonditionen bleiben unberührt.
 const PROVISION_FIX = 0.07;
 // Provisionssatz aus dem Vertriebler-Record: fest 7 %, außer der Haken „Provision frei wählbar" ist gesetzt.
+// Rückgabe { provisionFrei, provisionMax, provisionPct } — provisionMax ist die persönliche Regler-Obergrenze.
 function provisionAusRecord(f) {
   const frei = !!(f || {})[VERTRIEBLER_FIELDS.PROVISION_FREI];
-  return { provisionFrei: frei, provisionPct: frei ? clampProvision((f || {})[VERTRIEBLER_FIELDS.PROVISION_EXTERN]) : PROVISION_FIX };
+  const max = provisionMaxAusRecord(f);
+  return { provisionFrei: frei, provisionMax: max, provisionPct: frei ? clampProvision((f || {})[VERTRIEBLER_FIELDS.PROVISION_EXTERN], max) : PROVISION_FIX };
+}
+// 11.11.2026: persönliche Obergrenze aus „Provision max extern“; leer/ungültig/über der harten Decke → Standard 7 %.
+function provisionMaxAusRecord(f) {
+  const n = parseFloat((f || {})[VERTRIEBLER_FIELDS.PROVISION_MAX]);
+  if (!isFinite(n) || n <= 0 || n > PROVISION_MAX_ABSOLUT + 1e-9) return PROVISION_MAX;
+  return Math.round(n * 10000) / 10000;
 }
 const EXTERN_RABATT = 0.02;   // 06.07.2026 (Henry): Abgabepreis Wohnung für Externe 2 % unter intern
 // 04.10.2026 (Henry): Pro Einheit kann stattdessen ein eigener Abschlag gelten (Kalk-Stammdaten
@@ -53,12 +65,14 @@ function clampAbschlag(v) {
   return n;
 }
 
-// Normalisiert einen Provisionssatz: Dezimalwert 0…0.07, auf 4 Nachkommastellen
+// Normalisiert einen Provisionssatz: Dezimalwert 0…max (Standard 0.07), auf 4 Nachkommastellen
 // (= 0,01-%-Punkte) gerundet. Ungültiges → 0 (= Abgabepreis, sicherster Fall).
-function clampProvision(v) {
+// 11.11.2026: max = persönliche Obergrenze des Vertrieblers (provisionMaxAusRecord), nie über PROVISION_MAX_ABSOLUT.
+function clampProvision(v, max) {
   const n = typeof v === 'number' ? v : parseFloat(v);
   if (!isFinite(n) || n <= 0) return 0;
-  return Math.min(Math.round(n * 10000) / 10000, PROVISION_MAX);
+  const m = (typeof max === 'number' && isFinite(max) && max > 0) ? Math.min(max, PROVISION_MAX_ABSOLUT) : PROVISION_MAX;
+  return Math.min(Math.round(n * 10000) / 10000, m);
 }
 
 // 29.10.2026 (Henry/Felix Sziedat): Sonderkonditionen eines Externen aus seinem Kalk-Vertriebler-Record.
@@ -105,7 +119,9 @@ function externPreis(kpWohnung, stellplatzKp, provisionPct, abschlagPct, sonder)
       sonder: true,
     };
   }
-  const prov = clampProvision(provisionPct);
+  // 11.11.2026: Der Satz kommt immer schon pro Vertriebler gekappt an (provisionAusRecord / PATCH /api/me);
+  // hier gilt nur noch die harte Decke, damit ein 10-%-Zugang nicht wieder auf 7 % zurückfällt.
+  const prov = clampProvision(provisionPct, PROVISION_MAX_ABSOLUT);
   const aufschlag = Math.round(prov * basis);      // = Brutto-Provision des Externen in €
   return {
     provisionPct: prov,
@@ -118,7 +134,7 @@ function externPreis(kpWohnung, stellplatzKp, provisionPct, abschlagPct, sonder)
 // Wird pro Request in der Session gecacht (ladeExternProfil füllt denselben Cache) — nicht über
 // Requests hinweg, die DB bleibt die Wahrheit. Nicht-Externe / Fehler → { 0, null }.
 async function loadExternKonditionen(session) {
-  const leer = { provisionPct: PROVISION_FIX, provisionFrei: false, sonder: null }; // 02.11.2026: Fehlerfall = 7 %, nie Abgabepreis
+  const leer = { provisionPct: PROVISION_FIX, provisionFrei: false, provisionMax: PROVISION_MAX, sonder: null }; // 02.11.2026: Fehlerfall = 7 %, nie Abgabepreis
   if (!isExtern(session) || !session.vertrieblerId) return leer;
   if (session._konditionen) return session._konditionen;
   try {
@@ -257,7 +273,7 @@ async function ladeVertrieblerNamen(ids) {
 }
 
 module.exports = {
-  PROVISION_MAX, PROVISION_FIX, provisionAusRecord, EXTERN_RABATT, EXTERN_ABSCHLAG_MAX, clampProvision, clampAbschlag, externPreis, loadProvisionPct, ladeStellplatzKpSummen,
+  PROVISION_MAX, PROVISION_MAX_ABSOLUT, PROVISION_FIX, provisionAusRecord, provisionMaxAusRecord, EXTERN_RABATT, EXTERN_ABSCHLAG_MAX, clampProvision, clampAbschlag, externPreis, loadProvisionPct, ladeStellplatzKpSummen,
   externExklusivIds, externDarfSehen, hatExklusivKontingent, ladeVertrieblerNamen, ladeExternProfil,
   SONDER_AUFSCHLAG_MAX, sonderKonditionen, istSonderEinheit, loadExternKonditionen, externDarfObjekt,
 };

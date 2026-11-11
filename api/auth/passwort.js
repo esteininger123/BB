@@ -62,6 +62,7 @@ module.exports = async (req, res) => {
       fotoUrl: f[VERTRIEBLER_FIELDS.FOTO]    || '',
       provisionPct: provisionAusRecord(f).provisionPct, // 02.11.2026: fest 7 % außer „frei wählbar"
       provisionFrei: provisionAusRecord(f).provisionFrei,
+      provisionMax: provisionAusRecord(f).provisionMax, // 11.11.2026: persönliche Regler-Obergrenze (Standard 0.07)
       externKontrolle: !!f[VERTRIEBLER_FIELDS.EXTERN_KONTROLLE], // 28.10.2026
       // 29.10.2026: Sonderkonditionen → nur der angezeigte Satz (z. B. 0.083), nie der Aufschlag.
       exklusivProvisionPct: (sonderKonditionen(f) || {}).provisionPct || 0,

@@ -60,10 +60,12 @@ test('externPreis: defensiv bei kaputten Inputs', () => {
   assert.strictEqual(e.aufschlag, 0);
 });
 
-test('externPreis: Satz über Max wird serverseitig gekappt', () => {
+test('externPreis: Satz über der harten Decke (15 %) wird serverseitig gekappt', () => {
+  // 11.11.2026: die persönliche Grenze (7 % bzw. z. B. 10 %) greift schon beim Lesen des Vertriebler-Records
+  // (provisionAusRecord) und in PATCH /api/me; externPreis selbst kappt nur noch bei PROVISION_MAX_ABSOLUT.
   const e = externPreis(100000, 0, 0.5);
-  assert.strictEqual(e.provisionPct, 0.07);
-  assert.strictEqual(e.kp, 98000 + Math.round(0.07 * 98000)); // 98.000 + 6.860 = 104.860
+  assert.strictEqual(e.provisionPct, 0.15);
+  assert.strictEqual(e.kp, 98000 + Math.round(0.15 * 98000)); // 98.000 + 14.700 = 112.700
 });
 
 // 04.10.2026 (Henry): Einheiten-Abschlag (Kalk-Stammdaten „Extern-Abschlag %") ersetzt die 2 %.

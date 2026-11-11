@@ -206,7 +206,9 @@ statt der internen Abgabepreise.
 - **Provisionssatz:** Feld `Provision Extern` (`fldSlpQyhjrxfPbm8`, percent) auf
   Kalk-Vertriebler (`tblXG135L28XocpeY`). Dezimalwert 0–0.07. Gepflegt vom Externen
   selbst über die Startseite (`#/start`) → `PATCH /api/me { provisionPct }`
-  (nur eigenes Record, nur Rolle Extern, Server kappt hart auf 7 %).
+  (nur eigenes Record, nur Rolle Extern, Server kappt auf 7 %). Seit 11.11.2026 kann die Obergrenze pro
+  Vertriebler über `Provision max extern` (`fldyRWFyTZoqqi82z`, percent) angehoben werden (Christoph Zinnbauer 10 %);
+  harte Decke 15 %. Wirkt nur zusammen mit „Provision frei wählbar“.
 - **Preisformel** (`api/_lib/extern.js`, Tests in `tests/extern-preis.test.js`):
   `Extern-Abgabepreis = Wohnungs-KP × 0.98` (2 % unter intern, Stellplatz unrabattiert);
   `Aufschlag = Satz × (Extern-Abgabepreis + Stellplatz/Garagen-KP)`; der Aufschlag landet

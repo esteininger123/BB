@@ -10761,7 +10761,14 @@ window._weListeOpenWe = _weListeOpenWe;
 // Die Preistransformation selbst passiert serverseitig (api/_lib/extern.js) — nach dem
 // Speichern werden alle Daten neu geladen, damit überall der neue Kundenpreis steht.
 
-const EXTERN_PROVISION_MAX_PCT = 7;   // muss zu PROVISION_MAX (0.07) im Backend passen
+const EXTERN_PROVISION_MAX_PCT = 7;   // Standard, muss zu PROVISION_MAX (0.07) im Backend passen
+// 11.11.2026 (Henry/Christoph Zinnbauer): persönliche Regler-Obergrenze aus dem Login (state.user.provisionMax,
+// Kalk-Vertriebler „Provision max extern“). Nur dieser Zugang bekommt z. B. 10 %, alle anderen bleiben bei 7 %.
+function _externProvMaxPct() {
+  const m = state.user && state.user.provisionMax;
+  return (typeof m === 'number' && isFinite(m) && m > 0) ? Math.round(m * 10000) / 100 : EXTERN_PROVISION_MAX_PCT;
+}
+function _externProvMaxLabel() { return _externProvMaxPct().toLocaleString('de-DE', { maximumFractionDigits: 2 }); }
 const EXTERN_PROVISION_FIX_PCT = 7;   // 02.11.2026 (Henry): Provision Externer fest 7 % (PROVISION_FIX im Backend)
 // 02.11.2026 (Henry): Nur Zugänge mit Kalk-Vertriebler-Haken „Provision frei wählbar" (Sparkasse Freiburg) sehen den Regler.
 function _externProvisionFrei() { return !!(state.user && state.user.rolle === 'Extern' && state.user.provisionFrei); }
@@ -10850,8 +10857,8 @@ async function _externProvSave() {
   const btn = document.getElementById('extern-prov-save');
   if (!slider) return;
   const p = parseFloat(slider.value);
-  if (!isFinite(p) || p < 0 || p > EXTERN_PROVISION_MAX_PCT) {
-    toast('Provisionssatz muss zwischen 0 und ' + EXTERN_PROVISION_MAX_PCT + ' % liegen', 'error');
+  if (!isFinite(p) || p < 0 || p > _externProvMaxPct()) {
+    toast('Provisionssatz muss zwischen 0 und ' + _externProvMaxLabel() + ' % liegen', 'error');
     return;
   }
   if (btn) { btn.disabled = true; btn.textContent = 'Speichere …'; }
@@ -10886,9 +10893,9 @@ function renderExternStart() {
       </div>
 
       <div class="card" style="margin-bottom:16px;">
-        <div class="card-title">2 · Deine Provision${_externProvisionFrei() ? ' (0–7 %)' : ': fest 7 %'}</div>
+        <div class="card-title">2 · Deine Provision${_externProvisionFrei() ? ' (0–' + _externProvMaxLabel() + ' %)' : ': fest 7 %'}</div>
         <p style="margin:0 0 10px;line-height:1.55;">${_externProvisionFrei()
-          ? 'Du bestimmst deinen Provisionssatz selbst — bis maximal <strong>7&nbsp;%</strong>.'
+          ? 'Du bestimmst deinen Provisionssatz selbst — bis maximal <strong>' + _externProvMaxLabel() + '&nbsp;%</strong>.'
           : 'Deine Provision beträgt <strong>7&nbsp;%</strong> und ist für alle Einheiten gleich.'} Berechnet wird die Provision vom <strong>Gesamt-Abgabepreis</strong> (Wohnung <em>plus</em> Stellplätze/Garagen). Aufgeschlagen wird sie aber <strong>nur auf den Wohnungspreis</strong> — Stellplätze und Garagen sind bereits marktüblich eingepreist und bleiben unverändert.</p>
         <p style="margin:0 0 10px;line-height:1.55;">Im Rechner und in der Wohnungsliste siehst du immer schon <strong>deine Kundenpreise</strong> — deine Provision ist <strong>automatisch in alle Preise eingerechnet</strong>. Auf der Rechnerseite selbst taucht das Wort Provision bewusst nirgends auf: Du kannst den Rechner also bedenkenlos gemeinsam mit deinem Kunden anschauen.${_externProvisionFrei() ? ' Wichtig zu verstehen: <strong>je niedriger dein Satz, desto besser der Preis für deinen Kunden</strong> — und desto weniger verdienst du. Diesen Hebel hast du selbst in der Hand.' : ''}</p>
         <table class="table" style="width:100%;max-width:460px;font-size:13px;" aria-label="Rechenbeispiel">
@@ -10905,7 +10912,7 @@ function renderExternStart() {
       <div class="card" id="extern-prov-card" style="margin-bottom:16px;border-left:3px solid var(--accent);">
         <div class="card-title">Deine Provision einstellen</div>
         <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:8px 0 4px;">
-          <input type="range" id="extern-prov-slider" min="0" max="${EXTERN_PROVISION_MAX_PCT}" step="0.25" value="${aktuellPct}"
+          <input type="range" id="extern-prov-slider" min="0" max="${_externProvMaxPct()}" step="0.25" value="${aktuellPct}"
                  oninput="window._externUpdatePreview()" style="flex:1;min-width:220px;">
           <div id="extern-prov-wert" style="font-size:22px;font-weight:600;min-width:90px;text-align:right;">0,00 %</div>
           <button id="extern-prov-save" onclick="window._externProvSave()">Provisionssatz speichern</button>

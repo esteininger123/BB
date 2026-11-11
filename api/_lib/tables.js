@@ -76,6 +76,10 @@ const VERTRIEBLER_FIELDS = {
   // 02.11.2026 (Henry): Checkbox. Nur mit Haken darf der Externe seinen Satz (0–7 %) selbst einstellen
   // (Sparkasse Freiburg). Ohne Haken ist die Provision fest PROVISION_FIX (7 %), siehe _lib/extern.js.
   PROVISION_FREI: 'fldwmgWW1Apxbr3OI',
+  // 11.11.2026 (Henry/Christoph Zinnbauer): percent (0.10 = 10 %). Persönliche Obergrenze für den Provisions-
+  // Regler dieses Externen. Leer = Standard PROVISION_MAX (7 %). Wirkt nur zusammen mit PROVISION_FREI; der
+  // Server kappt zusätzlich hart bei PROVISION_MAX_ABSOLUT (15 %, Tippfehler-Schutz). Siehe provisionAusRecord().
+  PROVISION_MAX: 'fldyRWFyTZoqqi82z',
   // 02.11.2026 (Henry): Link auf Objekt-Tabelle (TABLES.PROJEKT). Gesetzt → dieser Externe sieht in der Backstube
   // NUR WEs dieser Objekte (Tobias Armbruster: nur Kitzingen). Leer = alle für ihn freigegebenen Einheiten.
   NUR_OBJEKTE: 'fldOzVFkm20xpWhiy',
