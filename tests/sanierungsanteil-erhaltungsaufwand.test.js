@@ -50,8 +50,11 @@ test('Rechner: Erhaltungsaufwand auf 5 Jahre → +280 €/Mo Steuerersparnis, la
   assert.strictEqual(c1.nachSteuerLaufendMo, c5.nachSteuerLaufendMo);
   // Verteilung wird auf 1–5 geklemmt, Unsinn → 5
   assert.strictEqual(fn.calc(d9(40000), inp(9)).erhJahre, 5);
-  assert.strictEqual(fn.calc(d9(40000), inp(0)).erhJahre, 5);
-  assert.strictEqual(fn.calc(d9(40000), inp('abc')).erhJahre, 5);
+  assert.strictEqual(fn.calc(d9(40000), inp(0)).erhJahre, 1);     // Standard = sofort (Henry 12.11.)
+  assert.strictEqual(fn.calc(d9(40000), inp('abc')).erhJahre, 1);
+  assert.strictEqual(fn.calc(d9(40000), inp(1)).erhLabel, 'Jahr 1');
+  assert.strictEqual(fn.calc(d9(40000), inp(5)).erhLabel, 'Jahre 1 bis 5');
+  assert.ok(Math.abs(c1.nachSteuerMo - (c1.nachSteuerLaufendMo + 1400)) < 0.01, 'Jahr 1 = laufend + 1.400 €/Mo');
 });
 
 test('Rechner: ohne Sanierungsanteil alles wie bisher (Spechtweg/Kitzingen unverändert)', () => {
@@ -108,6 +111,8 @@ test('Engine: Sanierungsanteil senkt KNK und AfA-Basis, Darlehen bleibt voll, WK
 test('Engine: ohne Sanierungsanteil identisch zu vorher (Bestand unverändert)', () => {
   const r0 = Kalk.recalc(eng({}));
   const r1 = Kalk.recalc(eng({ sanierungsanteil: 0, erhaltungsaufwandJahre: 3 }));
+  assert.strictEqual(Kalk.recalc(eng({ sanierungsanteil: 40000 })).erhaltungsaufwandJahre, 1, 'Engine-Standard = sofort');
+  assert.strictEqual(Kalk.recalc(eng({ sanierungsanteil: 40000 })).cf[0].erhaltungsaufwandJahr, 40000);
   assert.strictEqual(r0.sanierungsanteil, 0);
   assert.strictEqual(r0.kaufpreisOhneSanierung, 237810);
   assert.strictEqual(r0.erhaltungsaufwandErstattung, 0);

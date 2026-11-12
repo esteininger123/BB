@@ -706,7 +706,7 @@ function investitionsrechnung(kunde, kalkInputs, kalkResult, user) {
           })()}</span></div>
           <div class="pdf-c-ass-row"><span class="k">Mietsubvention</span><span class="v">${subvText}</span></div>
           <div class="pdf-c-ass-row"><span class="k">Renovierungsbudget</span><span class="v">${r.renovierungsbonus > 0 ? fmt(r.renovierungsbonus) + ' · nach Notar ausgezahlt' : '—'}</span></div>
-          ${r.sanierungsanteil > 0 ? `<div class="pdf-c-ass-row"><span class="k">Sanierungsanteil (Erhaltungsaufwand)</span><span class="v">${fmt(r.sanierungsanteil)} · auf ${r.erhaltungsaufwandJahre} Jahre verteilt · Kaufpreis Wohnung ${fmt(r.kaufpreisOhneSanierung)}</span></div>` : ''}
+          ${r.sanierungsanteil > 0 ? `<div class="pdf-c-ass-row"><span class="k">Sanierungsanteil (Erhaltungsaufwand)</span><span class="v">${fmt(r.sanierungsanteil)} · ${r.erhaltungsaufwandJahre > 1 ? 'auf ' + r.erhaltungsaufwandJahre + ' Jahre verteilt' : 'Sofortabzug im Jahr 1'} · Kaufpreis Wohnung ${fmt(r.kaufpreisOhneSanierung)}</span></div>` : ''}
           <div class="pdf-c-ass-row"><span class="k">Sparbuch-Vergleich</span><span class="v">${((i.sparZins || 0.025) * 100).toFixed(2).replace('.',',')} % p.a.</span></div>
         </div>
       </div>

@@ -60,9 +60,35 @@ async function fetchWithRetry(url, options, attempt = 0) {
   return res;
 }
 
+// 12.11.2026 (Henry): Preview-Schutz. BB_READONLY=1 (Vercel-Env nur für Preview-Deployments) blockt jeden
+// Schreibzugriff auf Airtable — create/update/delete liefern eine Attrappe zurück, nichts geht in die Base.
+// BB_DEMO_OVERRIDES (JSON {recordId: {fieldId: value}}) überlagert Feldwerte beim Lesen, damit eine Preview
+// Zielwerte zeigen kann (z. B. Südring 3 WE 9/12 mit 3.000 €/m², 800 € Miete, 40.000 € Sanierungsanteil),
+// ohne die Live-Daten anzufassen. Beides ist in Production nicht gesetzt → kein Effekt.
+const BB_READONLY = process.env.BB_READONLY === '1';
+let _demoOverrides = null;
+function demoOverrides() {
+  if (_demoOverrides !== null) return _demoOverrides;
+  try { _demoOverrides = process.env.BB_DEMO_OVERRIDES ? (JSON.parse(process.env.BB_DEMO_OVERRIDES) || {}) : {}; }
+  catch (e) { console.warn('[airtable] BB_DEMO_OVERRIDES unlesbar:', e.message); _demoOverrides = {}; }
+  return _demoOverrides;
+}
+function applyDemoOverrides(data) {
+  const ov = demoOverrides();
+  if (!ov || !Object.keys(ov).length || !data) return data;
+  const patch = (rec) => { if (rec && rec.id && ov[rec.id]) rec.fields = Object.assign({}, rec.fields || {}, ov[rec.id]); return rec; };
+  if (Array.isArray(data.records)) data.records.forEach(patch); else patch(data);
+  return data;
+}
+
 async function airtable(method, tableId, params = {}) {
   const { token, baseId } = getCfg();
   if (!tableId) throw new Error('tableId fehlt');
+  if (BB_READONLY && (method === 'create' || method === 'update' || method === 'delete')) {
+    console.warn(`[airtable] BB_READONLY: ${method} ${tableId} ${params.recordId || ''} verworfen`);
+    if (method === 'delete') return { ok: true, readonly: true };
+    return { id: params.recordId || 'rec_readonly_preview', fields: params.fields || {}, readonly: true };
+  }
 
   const baseUrl = `${AIRTABLE_API}/${baseId}/${encodeURIComponent(tableId)}`;
   const headers = {
@@ -137,7 +163,7 @@ async function airtable(method, tableId, params = {}) {
 
   if (res.status === 204) return { ok: true };
   const data = await res.json();
-  return normalizeAirtableResponse(data);
+  return applyDemoOverrides(normalizeAirtableResponse(data));
 }
 
 // Single-Select-Felder kommen aus Airtable als {id, name, color}-Objekt
@@ -209,4 +235,4 @@ function escapeFormulaString(s) {
   return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
-module.exports = { airtable, listAll, escapeFormulaString };
+module.exports = { airtable, listAll, escapeFormulaString, applyDemoOverrides, BB_READONLY };

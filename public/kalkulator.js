@@ -673,11 +673,11 @@ function recalc(i) {
   // 12.11.2026 (Henry/Südring 3): Sanierungsanteil im Kaufpreis = Erhaltungsaufwand. Der Käufer beauftragt die
   // Sanierung zwischen Notartermin und Übergang selbst (Werkvertrag) → kein Teil der Anschaffungskosten:
   // GrESt/Notar und AfA nur auf den Rest, der Sanierungsanteil wird als Werbungskosten abgesetzt — sofort
-  // oder gleichmäßig auf 2–5 Jahre (§ 82b EStDV, Input erhaltungsaufwandJahre, Standard 5). Finanziert wird
+  // oder gleichmäßig auf 2–5 Jahre (§ 82b EStDV, Input erhaltungsaufwandJahre, Standard 1 = sofort). Finanziert wird
   // der volle Preis. Leer/0 = unverändertes Verhalten.
   const sanierungsanteil = Math.max(0, Math.min(parseFloat(i.sanierungsanteil) || 0, kpGesamt));
   const _ejRaw = parseInt(i.erhaltungsaufwandJahre, 10);
-  const erhaltungsaufwandJahre = (isFinite(_ejRaw) && _ejRaw >= 1) ? Math.min(5, _ejRaw) : 5;
+  const erhaltungsaufwandJahre = (isFinite(_ejRaw) && _ejRaw >= 1) ? Math.min(5, _ejRaw) : 1; // Standard: sofort im Jahr 1 (Henry 12.11.)
   const erhaltungsaufwandJahrY = (y) => (sanierungsanteil > 0 && y <= erhaltungsaufwandJahre) ? sanierungsanteil / erhaltungsaufwandJahre : 0;
   // QA-Fix 2026-05-23 (Audit E-3 HIGH): zins=0 (Volltilgung / Promo-Darlehen)
   // hat im cumipmtExcel-Pfad eine NaN-Kaskade ausgelöst (rate=0 → division

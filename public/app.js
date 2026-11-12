@@ -11118,7 +11118,7 @@ function _rechnerDefaultInputs(d) {
     zinsPct: _rechnerZinsAuto(ek0, b0.knk, d.we && d.we.zimmer),
     tilgungPct: _rechnerTilgungAuto(b0.gesamtKp, d.we && d.we.zimmer),
     steuerPct: 42, sev: true,
-    erhJahre: 5, // 12.11.2026: Erhaltungsaufwand (Sanierungsanteil) steuerlich verteilt auf 1–5 Jahre
+    erhJahre: 1, // 12.11.2026: Erhaltungsaufwand (Sanierungsanteil) steuerlich sofort im Jahr 1 (Henry), wahlweise 2–5 Jahre
     _zinsManuell: false,
   };
 }
@@ -11237,7 +11237,8 @@ function _rechnerCalc(d, inp) {
   const verwaltungJahr = (b.hv + sevMo) * 12;
   // 12.11.2026 (Henry/Südring 3): Erhaltungsaufwand (Sanierungsanteil) als Werbungskosten, gleichmäßig auf
   // 1–5 Jahre verteilt (Input rc-erhJahre, Standard 5). „laufend" = ohne diesen Effekt (ab Jahr N+1).
-  const erhJahre       = Math.min(5, Math.max(1, parseInt(inp.erhJahre, 10) || 5));
+  const erhJahre       = Math.min(5, Math.max(1, parseInt(inp.erhJahre, 10) || 1));
+  const erhLabel       = erhJahre === 1 ? 'Jahr 1' : ('Jahre 1 bis ' + erhJahre); // Anzeige-Label
   const erhJahr        = b.sanierung > 0 ? b.sanierung / erhJahre : 0;
   const ausgabenLaufendJahr = afaJahr + zinsenJahr + verwaltungJahr;
   const ausgabenJahr   = ausgabenLaufendJahr + erhJahr;
@@ -11262,7 +11263,7 @@ function _rechnerCalc(d, inp) {
     vorSteuerMo, einnahmenJahr, afaGebJahr, afaGarageJahr, afaStpJahr, afaKuecheJahr, afaJahr,
     zinsenJahr, verwaltungJahr, ausgabenJahr, ergebnisJahr,
     ersparnisJahr, ersparnisMo, nachSteuerMo, sevMo,
-    erhJahre, erhJahr, ausgabenLaufendJahr, ersparnisLaufendJahr, ersparnisLaufendMo, nachSteuerLaufendMo,
+    erhJahre, erhLabel, erhJahr, ausgabenLaufendJahr, ersparnisLaufendJahr, ersparnisLaufendMo, nachSteuerLaufendMo,
     erhErsparnisJahr, erhErsparnisMo, erhErsparnisGesamt });
 }
 
@@ -11533,8 +11534,8 @@ function _rechnerRenderContent() {
       // 12.11.2026 (Henry/Südring 3): mit Sanierungsanteil zwei Stufen — Jahre 1–N inkl. Erhaltungsaufwand, danach laufend.
       (c.sanierung > 0 ? [
         zeile('Einnahmen aus Steuerersparnis monatlich (laufend)', '<span id="rcv-ersparnisLaufendMo">' + fEM(c.ersparnisLaufendMo) + '</span>/Mo'),
-        zeile('Zusätzliche Steuerersparnis aus dem Erhaltungsaufwand (Jahre 1 bis <span class="rcv-erhN">' + c.erhJahre + '</span>)', '<span id="rcv-erhErsparnisMo">' + fEM(c.erhErsparnisMo) + '</span>/Mo'),
-        zeile('Cashflow nach Steuer (Jahre 1 bis <span class="rcv-erhN">' + c.erhJahre + '</span>)', '<span id="rcv-nachSteuerMo">' + fCF(c.nachSteuerMo) + '</span>/Mo', { sum: true, big: true }),
+        zeile('Zusätzliche Steuerersparnis aus dem Erhaltungsaufwand (<span class="rcv-erhLabel">' + c.erhLabel + '</span>)', '<span id="rcv-erhErsparnisMo">' + fEM(c.erhErsparnisMo) + '</span>/Mo'),
+        zeile('Cashflow nach Steuer (<span class="rcv-erhLabel">' + c.erhLabel + '</span>)', '<span id="rcv-nachSteuerMo">' + fCF(c.nachSteuerMo) + '</span>/Mo', { sum: true, big: true }),
         zeile('Cashflow nach Steuer ab Jahr <span class="rcv-erhN1">' + (c.erhJahre + 1) + '</span> (laufend)', '<span id="rcv-nachSteuerLaufendMo">' + fCF(c.nachSteuerLaufendMo) + '</span>/Mo', { sum: true }),
       ].join('') : [
         zeile('Einnahmen aus Steuerersparnis monatlich', '<span id="rcv-ersparnisMo">' + fEM(c.ersparnisMo) + '</span>/Mo'),
@@ -11611,7 +11612,7 @@ function _rechnerRenderContent() {
         '<div class="rc-sub" style="font-weight:500;text-transform:none;letter-spacing:0;">Erhaltungsaufwand (Sanierung)</div>',
         zeile('Sanierungskosten gesamt (Erhaltungsaufwand)', fE(c.sanierung), { fix: true }),
         inputFeld('rc-erhJahre', 'Steuerlich verteilt auf (1 = sofort, bis 5 Jahre)', state._rechnerInputs.erhJahre, 'Jahre', '1'),
-        zeile('Erhaltungsaufwand pro Jahr (Jahre 1 bis <span class="rcv-erhN">' + c.erhJahre + '</span>)', '<span id="rcv-erhJahr">' + fE(c.erhJahr) + '</span>/Jahr', { sum: true }),
+        zeile('Erhaltungsaufwand pro Jahr (<span class="rcv-erhLabel">' + c.erhLabel + '</span>)', '<span id="rcv-erhJahr">' + fE(c.erhJahr) + '</span>/Jahr', { sum: true }),
         zeile('Steuerersparnis aus dem Erhaltungsaufwand gesamt', '<span id="rcv-erhErsparnisGesamt">' + fE(c.erhErsparnisGesamt) + '</span>', { sum: true }),
         '<div class="rc-hinweis">Die Sanierung beauftragst Du nach dem Notartermin und vor dem Übergang von Besitz, Nutzen und Lasten selbst (separater Werkvertrag). Sie zählt steuerlich als Erhaltungsaufwand und damit als vorweggenommene Werbungskosten, nicht als anschaffungsnahe Herstellungskosten (BFH, Beschluss vom 28.04.2020, IX B 121/19). Absetzbar sofort oder gleichmäßig verteilt auf 2 bis 5 Jahre (§ 82b EStDV). Bitte mit Deinem Steuerberater abstimmen.</div>',
       ].join('') : ''),
@@ -11647,7 +11648,7 @@ function _rechnerRenderContent() {
         <div class="rc-kpi"><div class="l">${c.sanierung > 0 ? 'Gesamtpreis inkl. Sanierung' : (c.kuecheKp > 0 ? 'Gesamtinvestition inkl. Küche' : 'Gesamtkaufpreis')}</div><div class="v">${fE(c.gesamtInvest)}</div>${c.sanierung > 0 ? '<div class="l" style="margin-top:2px;">davon Erhaltungsaufwand ' + fE(c.sanierung) + '</div>' : ''}</div>
         <div class="rc-kpi"><div class="l">${garantieAktiv ? 'Garantierte Miete/Monat (' + garantieLabel + ')' : 'Einnahme/Monat'}</div><div class="v">${fEM(c.einnahmenMo)}</div></div>
         <div class="rc-kpi"><div class="l">Cashflow vor Steuer</div><div class="v" id="rcv-topVorSteuer">${fCF(c.vorSteuerMo)}/Mo</div></div>
-        <div class="rc-kpi rc-kpi-hl"><div class="l">Cashflow nach Steuer${c.sanierung > 0 ? ' (Jahre 1 bis <span class="rcv-erhN">' + c.erhJahre + '</span>)' : ''}</div><div class="v" id="rcv-topNachSteuer">${fCF(c.nachSteuerMo)}/Mo</div>${c.sanierung > 0 ? '<div class="l" style="margin-top:2px;">danach <span id="rcv-topNachSteuerLaufend">' + fCF(c.nachSteuerLaufendMo) + '</span>/Mo</div>' : ''}</div>
+        <div class="rc-kpi rc-kpi-hl"><div class="l">Cashflow nach Steuer${c.sanierung > 0 ? ' (<span class="rcv-erhLabel">' + c.erhLabel + '</span>)' : ''}</div><div class="v" id="rcv-topNachSteuer">${fCF(c.nachSteuerMo)}/Mo</div>${c.sanierung > 0 ? '<div class="l" style="margin-top:2px;">danach <span id="rcv-topNachSteuerLaufend">' + fCF(c.nachSteuerLaufendMo) + '</span>/Mo</div>' : ''}</div>
       </div>
 
       <div class="rc-cols">
@@ -11701,7 +11702,7 @@ function _rechnerRecalc(sourceId) {
   inp.steuerPct = num('rc-steuer', 42);
   inp.sev = !!(g('rc-sev') && g('rc-sev').checked);
   if (g('rc-erhJahre')) { // 12.11.2026: Verteilung des Erhaltungsaufwands 1–5 Jahre
-    inp.erhJahre = Math.min(5, Math.max(1, Math.round(num('rc-erhJahre', 5))));
+    inp.erhJahre = Math.min(5, Math.max(1, Math.round(num('rc-erhJahre', 1))));
     if (String(g('rc-erhJahre').value) !== String(inp.erhJahre) && sourceId !== 'rc-erhJahre') g('rc-erhJahre').value = inp.erhJahre;
   }
   const c = _rechnerCalc(d, inp);
@@ -11742,7 +11743,7 @@ function _rechnerRecalc(sourceId) {
   set('rcv-ersparnisLaufendMo', fEM(c.ersparnisLaufendMo));
   set('rcv-nachSteuerLaufendMo', fCF(c.nachSteuerLaufendMo));
   set('rcv-topNachSteuerLaufend', fCF(c.nachSteuerLaufendMo));
-  document.querySelectorAll('.rcv-erhN').forEach(el => { el.textContent = String(c.erhJahre); });
+  document.querySelectorAll('.rcv-erhLabel').forEach(el => { el.textContent = c.erhLabel; });
   document.querySelectorAll('.rcv-erhN1').forEach(el => { el.textContent = String(c.erhJahre + 1); });
 }
 window._rechnerRecalc = _rechnerRecalc;
