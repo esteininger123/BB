@@ -67,22 +67,34 @@ function signSession(payload) {
   return jwt.sign(payload, getJwtSecret(), { expiresIn: COOKIE_MAX_AGE });
 }
 
+// 12.11.2026 (Henry): Preview ohne Login. Nur wenn BB_READONLY=1 (Schreibschutz, siehe airtable.js) UND
+// BB_PREVIEW_SESSION (JSON mit vertrieblerId/email/rolle/name) gesetzt sind, gilt ohne Cookie diese feste
+// Session. Beide Variablen existieren nur als Vercel-Env für Preview-Deployments eines Branches, nie in
+// Production. Wer die Preview-URL kennt, sieht damit die Backstube — aber nur lesend.
+function previewSession() {
+  if (process.env.BB_READONLY !== '1' || !process.env.BB_PREVIEW_SESSION) return null;
+  try {
+    const s = JSON.parse(process.env.BB_PREVIEW_SESSION);
+    return (s && s.vertrieblerId) ? Object.assign({ rolle: 'Admin', name: 'Preview' }, s, { preview: true }) : null;
+  } catch (e) { return null; }
+}
+
 // Liest + validiert das Session-Cookie. Returns Payload oder null.
 function verifySession(req) {
   try {
     const raw = req.headers && req.headers.cookie;
-    if (!raw) return null;
+    if (!raw) return previewSession();
     const cookies = cookie.parse(raw);
     const token = cookies[COOKIE_NAME];
-    if (!token) return null;
+    if (!token) return previewSession();
     // QA-Fix 2026-05-22 (Audit-D E5): Algorithmen explizit hardcoden — schützt
     // gegen künftige Lib-Updates die andere Algos zulassen würden. jsonwebtoken
     // v9 ist zwar schon strikt, aber explicit > implicit.
     const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
-    if (!decoded || !decoded.vertrieblerId) return null;
+    if (!decoded || !decoded.vertrieblerId) return previewSession();
     return decoded;
   } catch (e) {
-    return null;
+    return previewSession();
   }
 }
 
