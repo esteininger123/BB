@@ -3584,6 +3584,7 @@ async function loadWeIntoKalk(weId) {
   state.kalk.kaufpreis = w.kp || w.kaufpreis || 0;
   state.kalk.qm = w.qm || 0;
   state.kalk.renovierungsbonusOverride = ''; // Reset; aus Kalk-Stammdaten (Aktiv) befüllt
+  state.kalk.sanierungsanteil = 0;            // 12.11.2026: Reset; aus Kalk-Stammdaten (Aktiv) befüllt
   state.kalk.kaltmiete = w.kaltmiete || 0;
 
   // 3) Live-Airtable-Stammdaten holen — Airtable ist Wahrheit (siehe SOP-E).
@@ -3692,6 +3693,8 @@ async function loadWeIntoKalk(weId) {
       if (sd.gebaeudeAnteil !== null)        state.kalk.gebaeudeAnteil = sd.gebaeudeAnteil;
       // Renovierungsbonus-Override (Carve-out) — nur wenn gepflegt, sonst bleibt 0.
       if (sd.renovierungsbonusOverride !== null) state.kalk.renovierungsbonusOverride = sd.renovierungsbonusOverride;
+      // 12.11.2026 (Henry/Südring 3): Sanierungsanteil = Erhaltungsaufwand im Kaufpreis (siehe kalkulator.js).
+      state.kalk.sanierungsanteil = (sd.sanierungsanteil > 0) ? sd.sanierungsanteil : 0;
       // QA-Fix 2026-05-24 (Edgar): hgInflation komplett ignoriert — immer 0.
       state.kalk.hgInflation = 0;
       // Iter 41.9 / 41.15 — Miete bei Verkauf ersetzt NUR die Wohnungs-Kaltmiete.
@@ -4048,7 +4051,10 @@ function recalcAndRender() {
     kpiCard('Dein EK-Bedarf',
       (r.renovierungsbonus > 0
         ? `${fmt(r.ekBedarfNetto)}${r.ekBedarfNetto < 0 ? ' <span class="text-small">(Tag-1-Überschuss)</span>' : ''}<div class="text-tertiary text-small" style="font-weight:400;margin-top:2px;line-height:1.3;">KNK ${fmt(r.ekBedarf)} − Renovierungsbudget ${fmt(r.renovierungsbonus)} zurück nach Notar</div>`
-        : fmt(r.ekBedarf)),
+        : fmt(r.ekBedarf) + (r.sanierungsanteil > 0
+          // 12.11.2026 (Henry/Südring 3): Sanierungsanteil = Erhaltungsaufwand, KNK nur auf den Kaufvertrags-Preis.
+          ? `<div class="text-tertiary text-small" style="font-weight:400;margin-top:2px;line-height:1.3;">Kaufvertrag ${fmt(r.kaufpreisOhneSanierung)} + Sanierung ${fmt(r.sanierungsanteil)} (Erhaltungsaufwand, ${r.erhaltungsaufwandJahre} J.) · KNK nur auf den Kaufvertrag</div>`
+          : '')),
       (() => {
         const grEstPct = (state.kalk && parseFloat(state.kalk.grEstPct)) || 0.05;
         const totalPct = grEstPct + 0.015 + 0.005;
@@ -4368,7 +4374,8 @@ function renderStories(r) {
     <div class="story-grid">
       <table class="story-table">
         <tr><td>Kaufpreis (inkl. Stellplatz)</td><td class="num">${fmt(r.kpGesamt)}</td></tr>
-        <tr><td>+ Kaufnebenkosten (GrESt + Notar + Grundbuch)</td><td class="num">${fmt(r.knk)}</td></tr>
+        ${r.sanierungsanteil > 0 ? `<tr><td>− Sanierungsanteil (Erhaltungsaufwand, separater Werkvertrag vor Übergang — kein Teil der Anschaffungskosten, als Werbungskosten auf ${r.erhaltungsaufwandJahre} Jahre verteilt)</td><td class="num">− ${fmt(r.sanierungsanteil)}</td></tr>` : ''}
+        <tr><td>+ Kaufnebenkosten (GrESt + Notar + Grundbuch${r.sanierungsanteil > 0 ? ', nur auf den Kaufvertrag' : ''})</td><td class="num">${fmt(r.knk)}</td></tr>
         <tr><td><strong>= Deine Anschaffungskosten</strong></td><td class="num"><strong>${fmt(ankBetrag)}</strong></td></tr>
         <tr><td>× Gebäude-Anteil ${fmtPct(gebAnteilPct, 0)} (Grund &amp; Boden nicht abnutzbar)</td><td class="num">${fmt(afaBemessung)}</td></tr>
         <tr><td>× AfA-Satz ${fmtPct(i.afaSatz, 2)}</td><td class="num">${r.kuecheKp > 0 ? fmt(r.afaGebJahr || 0) : ''}</td></tr>
@@ -11111,6 +11118,7 @@ function _rechnerDefaultInputs(d) {
     zinsPct: _rechnerZinsAuto(ek0, b0.knk, d.we && d.we.zimmer),
     tilgungPct: _rechnerTilgungAuto(b0.gesamtKp, d.we && d.we.zimmer),
     steuerPct: 42, sev: true,
+    erhJahre: 5, // 12.11.2026: Erhaltungsaufwand (Sanierungsanteil) steuerlich verteilt auf 1–5 Jahre
     _zinsManuell: false,
   };
 }
@@ -11155,7 +11163,13 @@ function _rechnerBasis(d) {
   const afaHinweis = String(ks.afaHinweis || '').trim();
   const der = d.derived || {};
   const stp = d.stellplaetze || {};
-  const kpWohnung = (d.we && d.we.kp) || 0;
+  // 12.11.2026 (Henry/Südring 3): Sanierungsanteil (Erhaltungsaufwand) steckt im Angebotspreis der WE. Der Käufer
+  // beauftragt die Sanierung zwischen Notartermin und Übergang selbst (separater Werkvertrag) → im Kaufvertrag steht
+  // nur der Rest, nur darauf GrESt/Notar/AfA; die Sanierung ist Erhaltungsaufwand (vorweggenommene Werbungskosten,
+  // FG RLP 2 K 2304/17, BFH IX B 121/19), wahlweise sofort oder auf 2–5 Jahre verteilt. Finanziert wird alles.
+  const kpAngebot = (d.we && d.we.kp) || 0;                                   // Angebotspreis inkl. Sanierungsanteil
+  const sanierung = Math.max(0, Math.min(parseFloat(ks.sanierungsanteil) || 0, kpAngebot));
+  const kpWohnung = kpAngebot - sanierung;                                     // Kaufvertrag Wohnung (ohne Sanierung)
   const stpKp     = stp.kaufpreisSumme || 0;
   const gesamtKp  = kpWohnung + stpKp;
   const grEstPct  = ks.grEst || 0;
@@ -11180,15 +11194,16 @@ function _rechnerBasis(d) {
   const knkNotar  = (gesamtKp + kuecheKp) * RECHNER_NOTAR_PCT;  // Notar/Grundbuch inkl. Küche (konservativ)
   const knkKueche = kuecheKp * RECHNER_NOTAR_PCT;               // KNK-Anteil der Küche (AfA-Basis Küche)
   const knk       = knkGrest + knkNotar;
-  const gesamtInvest = gesamtKp + kuecheKp;                     // Immobilie + Einbauküche
-  const anschaffung = gesamtInvest + knk;
+  const gesamtInvest = gesamtKp + kuecheKp + sanierung;         // Immobilie + Einbauküche + Sanierung (12.11.2026)
+  const anschaffung = gesamtKp + kuecheKp + knk;                 // Anschaffungskosten Immobilie (ohne Sanierung)
+  const investGesamtMitKnk = anschaffung + sanierung;            // was finanziert wird
   // Garage-/Stellplatz-Split wie in der Musterberechnung: Garagen (auch TG/Carport)
   // schreiben mit 1/19 = 5,26 % ab, offene Stellplätze mit dem Gebäude-AfA-Satz.
   const details = Array.isArray(stp.details) ? stp.details : [];
   const istGarage = (t) => /garage|carport/i.test(String(t || ''));
   const garageKp  = details.reduce((s, x) => s + (istGarage(x.typ) ? (x.kaufpreis || 0) : 0), 0);
   const flaecheKp = Math.max(0, stpKp - garageKp);
-  return { ks, der, stp, details, istGarage, kpWohnung, stpKp, garageKp, flaecheKp,
+  return { ks, der, stp, details, istGarage, kpAngebot, sanierung, investGesamtMitKnk, kpWohnung, stpKp, garageKp, flaecheKp,
            gesamtKp, grEstPct, kaltmiete, stpMiete, phasen, subvMo1, subvTotal,
            hv, ruecklage, sonstige, sevStd, mvHinweis, afaWorst, afaHinweis, gebAnteil, afaSatz, knkGrest, knkNotar, knk, anschaffung,
            kuecheKp, kuecheMiete, kuecheEigentum, knkKueche, gesamtInvest };
@@ -11198,12 +11213,12 @@ function _rechnerBasis(d) {
 // Subvention steuerlich außen vor, KNK komplett in der AfA-Basis des Gebäudeanteils).
 function _rechnerCalc(d, inp) {
   const b = _rechnerBasis(d);
-  const ek      = Math.min(Math.max(inp.ek || 0, 0), b.anschaffung);
+  const ek      = Math.min(Math.max(inp.ek || 0, 0), b.investGesamtMitKnk);
   const zins    = (inp.zinsPct || 0) / 100;
   const tilgung = (inp.tilgungPct || 0) / 100;
   const steuer  = (inp.steuerPct || 0) / 100;
   const sevMo   = inp.sev ? b.sevStd : 0;
-  const finBetrag = Math.max(0, b.anschaffung - ek);
+  const finBetrag = Math.max(0, b.investGesamtMitKnk - ek); // 12.11.2026: inkl. Sanierungsanteil
   const zinsMoTeil = finBetrag * zins / 12;
   const tilgMoTeil = finBetrag * tilgung / 12;
   const rateMo    = zinsMoTeil + tilgMoTeil;
@@ -11220,11 +11235,22 @@ function _rechnerCalc(d, inp) {
   const afaJahr        = afaGebJahr + afaGarageJahr + afaStpJahr + afaKuecheJahr;
   const zinsenJahr     = finBetrag * zins;
   const verwaltungJahr = (b.hv + sevMo) * 12;
-  const ausgabenJahr   = afaJahr + zinsenJahr + verwaltungJahr;
+  // 12.11.2026 (Henry/Südring 3): Erhaltungsaufwand (Sanierungsanteil) als Werbungskosten, gleichmäßig auf
+  // 1–5 Jahre verteilt (Input rc-erhJahre, Standard 5). „laufend" = ohne diesen Effekt (ab Jahr N+1).
+  const erhJahre       = Math.min(5, Math.max(1, parseInt(inp.erhJahre, 10) || 5));
+  const erhJahr        = b.sanierung > 0 ? b.sanierung / erhJahre : 0;
+  const ausgabenLaufendJahr = afaJahr + zinsenJahr + verwaltungJahr;
+  const ausgabenJahr   = ausgabenLaufendJahr + erhJahr;
   const ergebnisJahr   = einnahmenJahr - ausgabenJahr;
   const ersparnisJahr  = -(ergebnisJahr * steuer);
   const ersparnisMo    = ersparnisJahr / 12;
   const nachSteuerMo   = vorSteuerMo + ersparnisMo;
+  const ersparnisLaufendJahr = -((einnahmenJahr - ausgabenLaufendJahr) * steuer);
+  const ersparnisLaufendMo   = ersparnisLaufendJahr / 12;
+  const nachSteuerLaufendMo  = vorSteuerMo + ersparnisLaufendMo;
+  const erhErsparnisJahr   = erhJahr * steuer;
+  const erhErsparnisMo     = erhErsparnisJahr / 12;
+  const erhErsparnisGesamt = b.sanierung * steuer;
   // 23.10.2026 (Henry/Kitzingen): Worst Case = gleiche Rechnung mit dem Stammdaten-Satz „AfA Worst-Case %"
   // statt der Gutachten-AfA (nur wenn der Worst-Case-Satz niedriger ist). Rekursion ohne Worst-Case-Feld.
   // 09.11.2026 (Henry): Vermerk nur bei AfA über 6 % (Kitzingen 6,67 / 8,33 %). Darunter geht die AfA
@@ -11235,7 +11261,9 @@ function _rechnerCalc(d, inp) {
   return Object.assign(b, { nachSteuerWorstMo, ek, finBetrag, zinsMoTeil, tilgMoTeil, rateMo, einnahmenMo, kostenMo, nettoMo,
     vorSteuerMo, einnahmenJahr, afaGebJahr, afaGarageJahr, afaStpJahr, afaKuecheJahr, afaJahr,
     zinsenJahr, verwaltungJahr, ausgabenJahr, ergebnisJahr,
-    ersparnisJahr, ersparnisMo, nachSteuerMo, sevMo });
+    ersparnisJahr, ersparnisMo, nachSteuerMo, sevMo,
+    erhJahre, erhJahr, ausgabenLaufendJahr, ersparnisLaufendJahr, ersparnisLaufendMo, nachSteuerLaufendMo,
+    erhErsparnisJahr, erhErsparnisMo, erhErsparnisGesamt });
 }
 
 // Scoped Styles für den Extern-Rechner — einmalig injiziert (Pattern wie _reservEnsureStyles).
@@ -11434,9 +11462,15 @@ function _rechnerRenderContent() {
     ].join('')),
 
     sektion('Kaufpreis', [
-      zeile('Kaufpreis Wohnung', fE(c.kpWohnung), { fix: true }),
+      // 12.11.2026 (Henry/Südring 3): Sanierungsanteil getrennt ausweisen — der Kunde sieht, was die Wohnung
+      // im Kaufvertrag kostet und was Erhaltungsaufwand (separater Werkvertrag) ist.
+      (c.sanierung > 0 ? [
+        zeile('Gesamtpreis laut Angebot (Wohnung inkl. Sanierung)', fE(c.kpAngebot), { fix: true }),
+        zeile('davon Sanierung = Erhaltungsaufwand (separater Werkvertrag, vor Übergang)', '− ' + fE(c.sanierung), { fix: true }),
+        zeile('Kaufpreis Wohnung laut Kaufvertrag', fE(c.kpWohnung), { fix: true, sum: true }),
+      ].join('') : zeile('Kaufpreis Wohnung', fE(c.kpWohnung), { fix: true })),
       stpZeilen,
-      zeile('Gesamtkaufpreis' + (c.kuecheKp > 0 ? ' Immobilie' : ''), fE(c.gesamtKp), { fix: true, sum: true }),
+      zeile('Gesamtkaufpreis' + (c.kuecheKp > 0 ? ' Immobilie' : '') + (c.sanierung > 0 ? ' (Basis für Grunderwerbsteuer und Abschreibung)' : ''), fE(c.gesamtKp), { fix: true, sum: true }),
       (c.kuecheKp > 0 ? [
         zeile('Einbauküche (separat im Kaufvertrag, ohne Grunderwerbsteuer)', fE(c.kuecheKp), { fix: true }),
         zeile('Gesamtinvestition inkl. Einbauküche', fE(c.gesamtInvest), { fix: true, sum: true }),
@@ -11463,7 +11497,8 @@ function _rechnerRenderContent() {
       zeile('Gesamte Kaufnebenkosten:', fE(c.knk), { fix: true, sum: true }),
     ].join('')),
 
-    sektion('', zeile('Anschaffungskosten der Immobilie', fE(c.anschaffung), { fix: true, sum: true })),
+    sektion('', zeile('Anschaffungskosten der Immobilie', fE(c.anschaffung), { fix: true, sum: true }) +
+      (c.sanierung > 0 ? zeile('Gesamtinvestition inkl. Sanierung (Erhaltungsaufwand)', fE(c.investGesamtMitKnk), { fix: true, sum: true }) : '')),
 
     sektion('Mietsituation der Wohnung', [
       zeile('Kaltmiete der Wohnung' + (c.der.subventionKaltmieteAdjustiert ? ' nach Erhöhung durch den Verkäufer' : ''), fEM(c.kaltmiete) + '/Mo', { fix: true }),
@@ -11495,8 +11530,16 @@ function _rechnerRenderContent() {
       zeile('Nettoeinnahmen monatlich', '<span id="rcv-nettoMo2">' + fEM(c.nettoMo) + '</span>/Mo'),
       zeile('Bankrate Immobilienfinanzierung', '<span id="rcv-rateMo2">' + fEM(c.rateMo) + '</span>/Mo'),
       zeile('Cashflow vor Steuer', '<span id="rcv-vorSteuerMo">' + fCF(c.vorSteuerMo) + '</span>/Mo', { sum: true, big: true }),
-      zeile('Einnahmen aus Steuerersparnis monatlich', '<span id="rcv-ersparnisMo">' + fEM(c.ersparnisMo) + '</span>/Mo'),
-      zeile('Cashflow nach Steuer', '<span id="rcv-nachSteuerMo">' + fCF(c.nachSteuerMo) + '</span>/Mo', { sum: true, big: true }),
+      // 12.11.2026 (Henry/Südring 3): mit Sanierungsanteil zwei Stufen — Jahre 1–N inkl. Erhaltungsaufwand, danach laufend.
+      (c.sanierung > 0 ? [
+        zeile('Einnahmen aus Steuerersparnis monatlich (laufend)', '<span id="rcv-ersparnisLaufendMo">' + fEM(c.ersparnisLaufendMo) + '</span>/Mo'),
+        zeile('Zusätzliche Steuerersparnis aus dem Erhaltungsaufwand (Jahre 1 bis <span class="rcv-erhN">' + c.erhJahre + '</span>)', '<span id="rcv-erhErsparnisMo">' + fEM(c.erhErsparnisMo) + '</span>/Mo'),
+        zeile('Cashflow nach Steuer (Jahre 1 bis <span class="rcv-erhN">' + c.erhJahre + '</span>)', '<span id="rcv-nachSteuerMo">' + fCF(c.nachSteuerMo) + '</span>/Mo', { sum: true, big: true }),
+        zeile('Cashflow nach Steuer ab Jahr <span class="rcv-erhN1">' + (c.erhJahre + 1) + '</span> (laufend)', '<span id="rcv-nachSteuerLaufendMo">' + fCF(c.nachSteuerLaufendMo) + '</span>/Mo', { sum: true }),
+      ].join('') : [
+        zeile('Einnahmen aus Steuerersparnis monatlich', '<span id="rcv-ersparnisMo">' + fEM(c.ersparnisMo) + '</span>/Mo'),
+        zeile('Cashflow nach Steuer', '<span id="rcv-nachSteuerMo">' + fCF(c.nachSteuerMo) + '</span>/Mo', { sum: true, big: true }),
+      ].join('')),
     ].join('')),
 
     // Marktpreisvergleich (B67–B70): im Blatt ohne Überschrift direkt unter dem Cashflow
@@ -11514,8 +11557,10 @@ function _rechnerRenderContent() {
     '<div class="rc-disclaimer">Die hier aufgeführte Berechnung ist unverbindlich, freibleibend und ohne Gewähr. Die getätigten Annahmen / Angaben können lediglich bedingt überprüft werden, so dass hier keine Haftung, insbesondere hinsichtlich Ihrer individuellen Steuer- und Vermögensverhältnisse sowie Änderungen der Finanzierungskonditionen, übernommen wird. Eine konkretere Berechnung sowie Annahme Ihrer persönlichen Einkommensverhältnisse sollte durch Ihren Steuer- oder Rechtsberater durchgeführt werden.</div>',
 
     sektion('Immobilienfinanzierung', [
-      zeile('Kaufpreis der Immobilie' + (c.kuecheKp > 0 ? ' inkl. Einbauküche' : ''), fE(c.anschaffung), { fix: true }),
+      zeile('Kaufpreis der Immobilie' + (c.kuecheKp > 0 ? ' inkl. Einbauküche' : '') + (c.sanierung > 0 ? ' inkl. Kaufnebenkosten' : ''), fE(c.anschaffung), { fix: true }),
       zeile('davon Kaufnebenkosten', fE(c.knk), { fix: true }),
+      (c.sanierung > 0 ? zeile('zzgl. Sanierung (Erhaltungsaufwand, separater Werkvertrag)', fE(c.sanierung), { fix: true }) : ''),
+      (c.sanierung > 0 ? zeile('Gesamtinvestition', fE(c.investGesamtMitKnk), { fix: true, sum: true }) : ''),
       inputFeld('rc-ek', 'Eigenkapitaleinsatz', state._rechnerInputs.ek, '€', '1000'),
       zeile('Finanzierungsbetrag', '<span id="rcv-finBetrag">' + fE(c.finBetrag) + '</span>', { sum: true }),
       inputFeld('rc-zins', 'Zins', state._rechnerInputs.zinsPct, '%', '0.05'),
@@ -11561,6 +11606,15 @@ function _rechnerRenderContent() {
       zeile('WEG-Verwaltergebühr', fE(c.hv * 12) + '/Jahr', { fix: true }),
       zeile('SE-Verwaltergebühr', '<span id="rcv-sevJahr">' + fE(c.sevMo * 12) + '</span>/Jahr'),
       zeile('Summe der Verwaltergebühren p.a.', '<span id="rcv-verwaltungJahr">' + fE(c.verwaltungJahr) + '</span>/Jahr', { sum: true }),
+      // 12.11.2026 (Henry/Südring 3): Erhaltungsaufwand (Sanierungsanteil) — Verteilung wählbar 1–5 Jahre.
+      (c.sanierung > 0 ? [
+        '<div class="rc-sub" style="font-weight:500;text-transform:none;letter-spacing:0;">Erhaltungsaufwand (Sanierung)</div>',
+        zeile('Sanierungskosten gesamt (Erhaltungsaufwand)', fE(c.sanierung), { fix: true }),
+        inputFeld('rc-erhJahre', 'Steuerlich verteilt auf (1 = sofort, bis 5 Jahre)', state._rechnerInputs.erhJahre, 'Jahre', '1'),
+        zeile('Erhaltungsaufwand pro Jahr (Jahre 1 bis <span class="rcv-erhN">' + c.erhJahre + '</span>)', '<span id="rcv-erhJahr">' + fE(c.erhJahr) + '</span>/Jahr', { sum: true }),
+        zeile('Steuerersparnis aus dem Erhaltungsaufwand gesamt', '<span id="rcv-erhErsparnisGesamt">' + fE(c.erhErsparnisGesamt) + '</span>', { sum: true }),
+        '<div class="rc-hinweis">Die Sanierung beauftragst Du nach dem Notartermin und vor dem Übergang von Besitz, Nutzen und Lasten selbst (separater Werkvertrag). Sie zählt steuerlich als Erhaltungsaufwand und damit als vorweggenommene Werbungskosten, nicht als anschaffungsnahe Herstellungskosten (BFH, Beschluss vom 28.04.2020, IX B 121/19). Absetzbar sofort oder gleichmäßig verteilt auf 2 bis 5 Jahre (§ 82b EStDV). Bitte mit Deinem Steuerberater abstimmen.</div>',
+      ].join('') : ''),
       zeile('Summe Ausgaben', '<span id="rcv-ausgabenJahr">' + fE(c.ausgabenJahr) + '</span>/Jahr', { sum: true, big: true }),
       '<div class="rc-sub">Einnahmen — Jährliche Kaltmieteinnahmen</div>',
       zeile('Wohnung', fE(c.kaltmiete * 12) + '/Jahr', { fix: true }),
@@ -11590,10 +11644,10 @@ function _rechnerRenderContent() {
       </div>
 
       <div class="rc-kpis">
-        <div class="rc-kpi"><div class="l">${c.kuecheKp > 0 ? 'Gesamtinvestition inkl. Küche' : 'Gesamtkaufpreis'}</div><div class="v">${fE(c.gesamtInvest)}</div></div>
+        <div class="rc-kpi"><div class="l">${c.sanierung > 0 ? 'Gesamtpreis inkl. Sanierung' : (c.kuecheKp > 0 ? 'Gesamtinvestition inkl. Küche' : 'Gesamtkaufpreis')}</div><div class="v">${fE(c.gesamtInvest)}</div>${c.sanierung > 0 ? '<div class="l" style="margin-top:2px;">davon Erhaltungsaufwand ' + fE(c.sanierung) + '</div>' : ''}</div>
         <div class="rc-kpi"><div class="l">${garantieAktiv ? 'Garantierte Miete/Monat (' + garantieLabel + ')' : 'Einnahme/Monat'}</div><div class="v">${fEM(c.einnahmenMo)}</div></div>
         <div class="rc-kpi"><div class="l">Cashflow vor Steuer</div><div class="v" id="rcv-topVorSteuer">${fCF(c.vorSteuerMo)}/Mo</div></div>
-        <div class="rc-kpi rc-kpi-hl"><div class="l">Cashflow nach Steuer</div><div class="v" id="rcv-topNachSteuer">${fCF(c.nachSteuerMo)}/Mo</div></div>
+        <div class="rc-kpi rc-kpi-hl"><div class="l">Cashflow nach Steuer${c.sanierung > 0 ? ' (Jahre 1 bis <span class="rcv-erhN">' + c.erhJahre + '</span>)' : ''}</div><div class="v" id="rcv-topNachSteuer">${fCF(c.nachSteuerMo)}/Mo</div>${c.sanierung > 0 ? '<div class="l" style="margin-top:2px;">danach <span id="rcv-topNachSteuerLaufend">' + fCF(c.nachSteuerLaufendMo) + '</span>/Mo</div>' : ''}</div>
       </div>
 
       <div class="rc-cols">
@@ -11646,6 +11700,10 @@ function _rechnerRecalc(sourceId) {
   inp.tilgungPct = num('rc-tilgung', _rechnerTilgungAuto(bAuto.gesamtKp, d.we && d.we.zimmer));
   inp.steuerPct = num('rc-steuer', 42);
   inp.sev = !!(g('rc-sev') && g('rc-sev').checked);
+  if (g('rc-erhJahre')) { // 12.11.2026: Verteilung des Erhaltungsaufwands 1–5 Jahre
+    inp.erhJahre = Math.min(5, Math.max(1, Math.round(num('rc-erhJahre', 5))));
+    if (String(g('rc-erhJahre').value) !== String(inp.erhJahre) && sourceId !== 'rc-erhJahre') g('rc-erhJahre').value = inp.erhJahre;
+  }
   const c = _rechnerCalc(d, inp);
   const fE  = (v) => Math.round(v).toLocaleString('de-DE') + ' €';
   const fEM = (v) => (Math.round(v * 100) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
@@ -11677,6 +11735,15 @@ function _rechnerRecalc(sourceId) {
   set('rcv-ausgabenJahr2', fE(c.ausgabenJahr));
   set('rcv-ergebnisJahr', fE(c.ergebnisJahr));
   set('rcv-ersparnisJahr', fE(c.ersparnisJahr));
+  // 12.11.2026: Erhaltungsaufwand (Sanierungsanteil)
+  set('rcv-erhJahr', fE(c.erhJahr));
+  set('rcv-erhErsparnisGesamt', fE(c.erhErsparnisGesamt));
+  set('rcv-erhErsparnisMo', fEM(c.erhErsparnisMo));
+  set('rcv-ersparnisLaufendMo', fEM(c.ersparnisLaufendMo));
+  set('rcv-nachSteuerLaufendMo', fCF(c.nachSteuerLaufendMo));
+  set('rcv-topNachSteuerLaufend', fCF(c.nachSteuerLaufendMo));
+  document.querySelectorAll('.rcv-erhN').forEach(el => { el.textContent = String(c.erhJahre); });
+  document.querySelectorAll('.rcv-erhN1').forEach(el => { el.textContent = String(c.erhJahre + 1); });
 }
 window._rechnerRecalc = _rechnerRecalc;
 

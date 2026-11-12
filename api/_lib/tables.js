@@ -469,6 +469,11 @@ const KALK_STAMMDATEN_FIELDS = {
   // Leer => kein Bonus (Bestand bleibt unverändert). Pflege-Vorschlag: Standard
   // 100 €/qm, renovierungsbedürftig 200 €/qm. Engine deckelt auf 15 % Gebäudewert.
   RENOVIERUNGSBONUS:         'fldWkm04lIAhYsfpN', // Currency €
+  // 12.11.2026 (Henry/Südring 3): Sanierungsanteil im Kaufpreis = Erhaltungsaufwand. Der Käufer beauftragt die
+  // Sanierung zwischen Notartermin und Übergang von Besitz/Nutzen/Lasten selbst (separater Werkvertrag) →
+  // vorweggenommene Werbungskosten, nicht anschaffungsnah (FG RLP 2 K 2304/17, BFH IX B 121/19). Rechner:
+  // Kaufpreis Wohnung = KP − Sanierungsanteil (nur darauf GrESt/Notar/AfA), Sanierung sofort oder 2–5 J absetzbar.
+  SANIERUNGSANTEIL:          'fldWZDXaqh04uc5ex', // Currency €
 };
 
 const KALK_STATUS_AKTIV    = 'Aktiv';

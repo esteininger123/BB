@@ -2849,6 +2849,8 @@ Käufer-Miete konstant 72 Mo: 588 + 254,55 ≈ 842,55 €/Mo
   </ul>
   <p>Begründung: Zins + Leerstand sind die 2 größten Hebel — andere Annahmen sind entweder strukturell (KNK) oder durch gesetzliche Grenzen geschützt (Mietsteigerung).</p>
 
+  <h3>Sanierungsanteil (Erhaltungsaufwand) — 12.11.2026</h3>
+  <p>Input <code>sanierungsanteil</code> (€, aus Kalk-Stammdaten „Sanierungsanteil Erhaltungsaufwand“) und <code>erhaltungsaufwandJahre</code> (1–5, Standard 5). Der Käufer beauftragt die Sanierung zwischen Notartermin und Übergang von Besitz/Nutzen/Lasten selbst (separater Werkvertrag) → keine anschaffungsnahen Herstellungskosten (FG Rheinland-Pfalz 2 K 2304/17, BFH IX B 121/19), sondern vorweggenommene Werbungskosten. Engine: KNK = (KP − Sanierungsanteil) × Satz, AfA-Basis = (KP − Sanierungsanteil + KNK) × Gebäudeanteil, Darlehen weiterhin auf den vollen Preis, Werbungskosten Jahr y += Sanierungsanteil / Jahre für y ≤ Jahre (auch in cfMonate). Einfacher Rechner identisch, zusätzlich Ausweis „laufend“ (ohne Erhaltungsaufwand) für die Jahre danach.</p>
   <h3>Renovierungs-Stress</h3>
   <p>Eigener Block: wenn der Käufer X € Renovierung in die Wohnung steckt — wie verschiebt sich die Belastung? Default 5.000 € (= Erhaltungsaufwand, sofort als WK abzugsfähig). Über 15 % der Gebäude-AK = anschaffungsnah, dann AfA-verteilt (BFH-Schwelle).</p>
 <pre>Renov 5.000 € · Steuersatz 30 %:

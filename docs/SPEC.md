@@ -213,6 +213,14 @@ statt der internen Abgabepreise.
   11.11.2026 `Nur Einheiten` (`fldg0Zh9rkqXGCqhP`, Link Wohneinheit) schränken nur den eigenen Blick ein;
   `Extern exklusiv für` (Stammdaten) nimmt die Einheit zusätzlich allen anderen Externen weg; `Nur Exklusiv-Einheiten`
   blendet die allgemein freigegebenen aus. Christoph Zinnbauer: Nur Objekte Kitzingen + Nur Einheiten WE 3/6/A3.
+- **Sanierungsanteil (Erhaltungsaufwand)** (Kalk-Stammdaten `Sanierungsanteil Erhaltungsaufwand (€)`
+  `fldWZDXaqh04uc5ex`, seit 12.11.2026, Südring 3 WE 9/12): Teil des Angebotspreises, den der Käufer als
+  separaten Werkvertrag zwischen Notartermin und Übergang selbst beauftragt. Rechner + Engine: Kaufpreis Wohnung =
+  KP − Sanierungsanteil (nur darauf GrESt/Notar/AfA), finanziert wird der volle Preis, der Sanierungsanteil wird
+  als Werbungskosten gleichmäßig auf 1–5 Jahre verteilt (Rechner-Input `rc-erhJahre`, Engine-Input
+  `erhaltungsaufwandJahre`, Standard 5). Rechtsgrundlage FG RLP 2 K 2304/17 / BFH IX B 121/19 (vor der
+  Anschaffung = keine anschaffungsnahen HK). Leer = unverändert. Anders als der „Renovierungsbonus" (Rückzahlung
+  nach Notar, 15-%-Deckel) ist das kein Carve-out, sondern ein echter Erhaltungsaufwand ohne Deckel.
 - **Preisformel** (`api/_lib/extern.js`, Tests in `tests/extern-preis.test.js`):
   `Extern-Abgabepreis = Wohnungs-KP × 0.98` (2 % unter intern, Stellplatz unrabattiert);
   `Aufschlag = Satz × (Extern-Abgabepreis + Stellplatz/Garagen-KP)`; der Aufschlag landet

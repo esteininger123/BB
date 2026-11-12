@@ -491,6 +491,8 @@ function kalkStammRecordToApi(rec) {
     autoSubvTotal: num(f[KALK_STAMMDATEN_FIELDS.AUTO_SUBV_TOTAL]),
     // Renovierungsbonus (Carve-out, 2026-06-21): manueller Override € pro WE.
     renovierungsbonusOverride: num(f[KALK_STAMMDATEN_FIELDS.RENOVIERUNGSBONUS]),
+    // 12.11.2026 (Henry/Südring 3): Sanierungsanteil (Erhaltungsaufwand) im Kaufpreis, € absolut.
+    sanierungsanteil:          num(f[KALK_STAMMDATEN_FIELDS.SANIERUNGSANTEIL]),
   };
 }
 
@@ -1516,6 +1518,7 @@ module.exports = async (req, res) => {
       if (body.letzteMietsteigerung !== undefined)  fields[KALK_STAMMDATEN_FIELDS.LETZTE_MIETSTEIGERUNG] = body.letzteMietsteigerung || null;
       if (body.grEst !== undefined)                 fields[KALK_STAMMDATEN_FIELDS.GRESt]                = num(body.grEst);
       if (body.gebaeudeAnteil !== undefined)        fields[KALK_STAMMDATEN_FIELDS.GEBAEUDE_ANTEIL]      = num(body.gebaeudeAnteil);
+      if (body.sanierungsanteil !== undefined)      fields[KALK_STAMMDATEN_FIELDS.SANIERUNGSANTEIL]     = num(body.sanierungsanteil); // 12.11.2026
       // QA-Fix 2026-05-24 (Edgar): hgInflation wird ignoriert — wir schreiben
       // das Airtable-Feld nicht mehr. Wenn das Feld in Airtable noch existiert,
       // bleibt der dort gepflegte Wert unangetastet, hat aber keinen Effekt.

@@ -670,6 +670,15 @@ function recalc(i) {
   // GrESt-/Markt-Basis), Küchenmiete ist eine konstante Zusatz-Einnahme (kein Mietsteigerungs-Pfad).
   const kuecheKp = Math.max(0, parseFloat(i.kuecheKp) || 0);
   const kuecheMieteMo = Math.max(0, parseFloat(i.kuecheMiete) || 0);
+  // 12.11.2026 (Henry/Südring 3): Sanierungsanteil im Kaufpreis = Erhaltungsaufwand. Der Käufer beauftragt die
+  // Sanierung zwischen Notartermin und Übergang selbst (Werkvertrag) → kein Teil der Anschaffungskosten:
+  // GrESt/Notar und AfA nur auf den Rest, der Sanierungsanteil wird als Werbungskosten abgesetzt — sofort
+  // oder gleichmäßig auf 2–5 Jahre (§ 82b EStDV, Input erhaltungsaufwandJahre, Standard 5). Finanziert wird
+  // der volle Preis. Leer/0 = unverändertes Verhalten.
+  const sanierungsanteil = Math.max(0, Math.min(parseFloat(i.sanierungsanteil) || 0, kpGesamt));
+  const _ejRaw = parseInt(i.erhaltungsaufwandJahre, 10);
+  const erhaltungsaufwandJahre = (isFinite(_ejRaw) && _ejRaw >= 1) ? Math.min(5, _ejRaw) : 5;
+  const erhaltungsaufwandJahrY = (y) => (sanierungsanteil > 0 && y <= erhaltungsaufwandJahre) ? sanierungsanteil / erhaltungsaufwandJahre : 0;
   // QA-Fix 2026-05-23 (Audit E-3 HIGH): zins=0 (Volltilgung / Promo-Darlehen)
   // hat im cumipmtExcel-Pfad eine NaN-Kaskade ausgelöst (rate=0 → division
   // durch 0).
@@ -687,7 +696,7 @@ function recalc(i) {
   const knkPct = grEstPct + 0.015 + 0.005;
   // Küche: keine GrESt, aber Notar/Grundbuch (2 %) konservativ auch auf den Küchenpreis.
   const knkKueche = kuecheKp * 0.02;
-  const knk = kpGesamt * knkPct + knkKueche;
+  const knk = (kpGesamt - sanierungsanteil) * knkPct + knkKueche; // 12.11.2026: keine GrESt/Notar auf den Sanierungsanteil
   const investitionGesamt = kpGesamt + kuecheKp + knk;
   // Iter 7: AfA-Gutachten-Kosten komplett raus aus EK-Bedarf (B&B trägt das,
   // typisch <1.000 €, ist KEINE Käufer-Position). EK-Bedarf = nur KNK (wenn
@@ -723,7 +732,7 @@ function recalc(i) {
   //   zur Bemessungsgrundlage). Wirkung bei 7 % KNK + 85 % Geb-Anteil: ~6 % höhere
   //   AfA-Bemessung → spürbarer Steuervorteil-Hebel.
   const gebaeudeAnteilFaktor = (i.gebaeudeAnteil !== undefined && i.gebaeudeAnteil !== null && isFinite(i.gebaeudeAnteil)) ? i.gebaeudeAnteil : BB_DEFAULTS.gebaeudeAnteil;
-  const anschaffungskosten = kpGesamt + knk - knkKueche; // Immobilie inkl. ihrer KNK (ohne Küche)
+  const anschaffungskosten = kpGesamt - sanierungsanteil + knk - knkKueche; // Immobilie inkl. ihrer KNK (ohne Küche, ohne Sanierungsanteil 12.11.2026)
   const afaBemessungBetrag = anschaffungskosten * gebaeudeAnteilFaktor;
   const afaGebJahr = afaBemessungBetrag * i.afaSatz;
   // Küchen-AfA: linear über 10 Jahre auf Küchenpreis + anteilige Nebenkosten, danach 0.
@@ -1031,7 +1040,8 @@ function recalc(i) {
     // Steuervorteil — Werbungskosten = AfA + Zinsen + Mietverwaltung + Hausverwaltung (WEG)
     // Mietverwaltung und Hausverwaltung gelten beide als nicht-umlagefähige Werbungskosten.
     const wkAfa = afaGebJahr + afaKuecheJahrY(y); // Küchen-AfA nur Jahre 1–10
-    const stVerlustJahr = wkAfa + zinsenJahr + mvJahr + hvJahr - mieteJahr;
+    const erhaltungsaufwandJahr = erhaltungsaufwandJahrY(y); // 12.11.2026: Sanierungsanteil als WK (Jahre 1–N)
+    const stVerlustJahr = wkAfa + zinsenJahr + mvJahr + hvJahr + erhaltungsaufwandJahr - mieteJahr;
     const stVorteilJahr = stVerlustJahr * i.steuersatz;
 
     // Cashflow Jahr = mieteJahr - zinsenJahr - tilgungJahr - hgJahr (inkl. MV+HV) + stVorteilJahr
@@ -1047,6 +1057,7 @@ function recalc(i) {
       // Jetzt korrekt nutzbar (Paket-Output war stumm-defekt für diese 2 Felder).
       annuJahr: zinsenJahr + tilgungJahr,
       afaJahr: wkAfa,
+      erhaltungsaufwandJahr,
       kuecheMieteMo,
       hgJahr, mvJahr, hvJahr,
       stVorteilJahr,
@@ -1097,7 +1108,8 @@ function recalc(i) {
     const hgM = (i.hausgeld || 0) * hgFaktorM + mvM + hausverwM;
     // Steuervorteil pro Monat — AfA + Zinsen + MV + HV als Werbungskosten gegen Miete
     const afaM_ = (afaGebJahr + afaKuecheJahrY(y)) / 12;
-    const stVerlustM = afaM_ + zinsM + mvM + hausverwM - mieteM;
+    const erhM_ = erhaltungsaufwandJahrY(y) / 12; // 12.11.2026: Sanierungsanteil monatlich (Jahre 1–N)
+    const stVerlustM = afaM_ + zinsM + mvM + hausverwM + erhM_ - mieteM;
     const stVorteilM = stVerlustM * (i.steuersatz || 0);
     const cfNachStM = mieteM - zinsM - tilgM - hgM + stVorteilM;
     const cfOperativM = cfNachStM - stVorteilM; // = vor Steuer
@@ -1291,6 +1303,9 @@ function recalc(i) {
     kuecheKp, kuecheMieteMo, knkKueche, afaGebJahr, afaKuecheJahr, kpGesamtInklKueche: kpGesamt + kuecheKp,
     renovierungsbonus, renovierungsbonusCap, ekBedarfNetto, renoErstattung,
     annuityMo, nper, afaMo, afaJahr, afaBemessungBetrag, anschaffungskosten, gebaeudeAnteilFaktor,
+    // 12.11.2026: Sanierungsanteil (Erhaltungsaufwand) — Anzeige-Werte
+    sanierungsanteil, erhaltungsaufwandJahre, kaufpreisOhneSanierung: kpGesamt - sanierungsanteil,
+    erhaltungsaufwandErstattung: sanierungsanteil * (parseFloat(i.steuersatz) || 0),
     cf, cfMonate, vermoegen, irr: irrValue,
     vermoegenBrutto10: vermoegen[10].vermoegenBrutto,
     vermoegenNetto10: vermoegen[10].vermoegenNetto,
